@@ -1,0 +1,66 @@
+10-10 15:04:17.163 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=80.78 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:18.027 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13920 layers=5 direct=0 draws=0 acquireWaits=13897 releaseFences=13896 producerRetired=0 releaseErrors=0 imports=3 reuses=13894 uiUploadBytes=30073024 glSources=1 glDraws=13897 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:18.167 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=109.62 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:19.174 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=87.35 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:19.364 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=14040 layers=5 direct=0 draws=0 acquireWaits=14017 releaseFences=14016 producerRetired=0 releaseErrors=0 imports=3 reuses=14014 uiUploadBytes=30073024 glSources=1 glDraws=14017 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:20.178 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=82.66 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:20.772 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=14160 layers=5 direct=0 draws=0 acquireWaits=14137 releaseFences=14136 producerRetired=0 releaseErrors=0 imports=3 reuses=14134 uiUploadBytes=30073024 glSources=1 glDraws=14137 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:21.179 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=98.96 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:21.941 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=14280 layers=5 direct=0 draws=0 acquireWaits=14257 releaseFences=14256 producerRetired=0 releaseErrors=0 imports=3 reuses=14254 uiUploadBytes=30073024 glSources=1 glDraws=14257 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:22.180 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=95.87 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:23.186 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=82.52 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:23.349 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=14400 layers=5 direct=0 draws=0 acquireWaits=14377 releaseFences=14376 producerRetired=0 releaseErrors=0 imports=3 reuses=14374 uiUploadBytes=30073024 glSources=1 glDraws=14377 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:24.193 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=90.33 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:24.687 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=14520 layers=5 direct=0 draws=0 acquireWaits=14497 releaseFences=14496 producerRetired=0 releaseErrors=0 imports=3 reuses=14494 uiUploadBytes=30073024 glSources=1 glDraws=14497 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:25.197 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: [DIRECT-FPS] root=1 fps=86.68 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 15:04:26.054 41674 42558 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=14640 layers=5 direct=0 draws=0 acquireWaits=14617 releaseFences=14616 producerRetired=0 releaseErrors=0 imports=3 reuses=14614 uiUploadBytes=30073024 glSources=1 glDraws=14617 directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+winehua_gl_zero_copy: presents=10560 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=10680 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=10800 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=10920 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11040 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11160 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11280 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11400 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11520 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11640 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=11760 readbacks=2 pid=42626 surface=42 size=1274x768
+[TEB-PROBE] pid=42626 tid=42626 event=add ptr=0x180000 size=0 value=1 current=0x1f0000
+[thread-start] LdrInitializeThunk tid=0320 wow=8192 dispatcher=0000007EE2C2C0E0
+winehua_gl_zero_copy: presents=11880 readbacks=2 pid=42626 surface=42 size=1274x768
+[TEB-PROBE] pid=42626 tid=43740 event=remove ptr=0x120000 size=0 value=0 current=0x180000
+[QUIT-PROBE] pthread-exit-wrapper
+winehua_gl_zero_copy: presents=12000 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12120 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12240 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12360 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12480 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12600 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12720 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12840 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=12960 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=13080 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=13200 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=13320 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=13440 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=13560 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=13680 readbacks=2 pid=42626 surface=42 size=1274x768
+[TEB-PROBE] pid=42626 tid=42626 event=add ptr=0x120000 size=0 value=1 current=0x1f0000
+[thread-start] LdrInitializeThunk tid=0324 wow=8192 dispatcher=0000007EE2C2C0E0
+winehua_gl_zero_copy: presents=13800 readbacks=2 pid=42626 surface=42 size=1274x768
+[SMC-MAP] addr=0xf1af6ae 0efb0000-0f860000 rw-p 00000000 00:00 0                                  
+[SMC-MAP] x27=0xfffffff4 <unmapped>
+[SMC-MAP] pc=0x7ff59350d8 7ff57e0000-7ff67e0000 rwxp 00000000 00:00 0                              [anon:FEXMemJIT]
+[SMC-MAP] lr=0x7ff5b21524 7ff57e0000-7ff67e0000 rwxp 00000000 00:00 0                              [anon:FEXMemJIT]
+[SMC] enter pid=42626 tid=43849 sig=7 code=1 addr=0xf1af6ae pc_in=0x7ff59350d8 x27_in=0xfffffff4 x0_in=0x7ff5934640 lr=0x7ff5b21524 sp=0x34371f2e0 x16=0x6fffea6e64 x17=0x34371f0c0 teb=0x120000 fn=0x0
+[SMC] pid=42626 tid=43849 sig=7 code=1 addr=0xf1af6ae pc_in=0x7ff59350d8 pc_out=0x7ff59350d8 x27_in=0xfffffff4 x27_out=0xfffffff4 prot=--- dynarec=0 kind=0 result=wine_seh wine=1
+[SMC] pid=42626 tid=43849 sig=7 code=1 addr=0xf1af6ae pc_in=0x7ff59350d8 pc_out=0x6fffea8440 x27_in=0xfffffff4 x27_out=0xfffffff4 prot=--- dynarec=0 kind=0 result=not_mine wine=1
+winehua_gl_zero_copy: presents=13920 readbacks=2 pid=42626 surface=42 size=1274x768
+[TEB-PROBE] pid=42626 tid=43849 event=remove ptr=0x180000 size=0 value=0 current=0x120000
+[QUIT-PROBE] pthread-exit-wrapper
+winehua_gl_zero_copy: presents=14040 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=14160 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=14280 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=14400 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=14520 readbacks=2 pid=42626 surface=42 size=1274x768
+winehua_gl_zero_copy: presents=14640 readbacks=2 pid=42626 surface=42 size=1274x768

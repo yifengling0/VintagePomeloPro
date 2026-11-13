@@ -1,0 +1,10 @@
+create_begin	70,70
+create_device	00000000
+create_begin	600,70
+create_device	00000000
+first_present	1
+resize	00000000
+create_begin	600,70
+create_device	00000000
+recreate	1
+summary	errors=0	frames_a=1124	frames_b=1124	resized=1	recreated=1

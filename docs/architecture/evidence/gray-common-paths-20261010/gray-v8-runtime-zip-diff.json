@@ -1,0 +1,16 @@
+{
+  "changed": [
+    "bin/aarch64-windows/libarm64ecfex.dll",
+    "bin/aarch64-windows/libwow64fex.dll",
+    "bin/aarch64-windows/wined3d.dll",
+    "bin/guest_gfx/BUILD_INFO.txt",
+    "bin/guest_gfx/lib/libEGL.so",
+    "bin/guest_gfx/lib/libEGL.so.1",
+    "bin/guest_gfx/lib/libgallium-25.0.1.so",
+    "bin/i386-windows/wined3d.dll"
+  ],
+  "added": [
+    "bin/guest_gfx/share/winehua/guest-gfx-build.json"
+  ],
+  "removed": []
+}

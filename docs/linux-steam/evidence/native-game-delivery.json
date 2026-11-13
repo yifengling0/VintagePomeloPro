@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-31",
+  "status": "automatic-repair-delivery-verified-full-game-not-accepted",
+  "device": "ordinary MatePad MLR-AL10",
+  "branch": "main_proton_steamarm64",
+  "finalPackage": {
+    "name": "VintagePomeloPro-1.5.3-native-delivery-debug-signed.hap",
+    "bytes": 666626639,
+    "sha256": "02be77df2b9c79e93c3556b089682d8ed1545fc6323b3bfa282a4f8584a85f40",
+    "signatureVerified": true,
+    "tabletAuthorized": true,
+    "payloadUnchanged": true,
+    "sourceUnsignedSha256": "1c2e9f0b103caba42859eee29d9735c5f9f360fc9e1b43413de0f4584d984cea"
+  },
+  "automaticInstall": {
+    "ready": true,
+    "automaticInstall": {
+      "FEX": true,
+      "FEXServer": true,
+      "libvulkan_virtio.so": true,
+      "libsteamohos_software_gl.so": true
+    },
+    "gameLauncherUnchanged": true,
+    "officialFexUnchanged": true,
+    "hapSha256": "02be77df2b9c79e93c3556b089682d8ed1545fc6323b3bfa282a4f8584a85f40"
+  },
+  "normalGameTest": {
+    "hapSha256": "7ac1aba4d6d25f8603471f285da887b9a40cb46d07e157c2a36a5bb2ae857484",
+    "schemaVersion": 1,
+    "normalHapInstall": true,
+    "manualElfReplacement": false,
+    "freshGame": true,
+    "gamePid": 37640,
+    "patchedCoreSelected": true,
+    "bcUploads": 768,
+    "frameMarker": 10440,
+    "pixelReadbacks": 0,
+    "allocationPeakBytes": 2403707648,
+    "allocationFailures": 0,
+    "fullUiVisible": false,
+    "inputAccepted": false,
+    "sqliteMissingTable": true,
+    "fatalSignalObserved": false,
+    "gameLifetime": "04:31",
+    "stopReason": "test completed; runner stops host; normal game exit not verified"
+  },
+  "payload": {
+    "FEX": {
+      "bytes": 4353112,
+      "sha256": "66a865b99c5682c5a760d994f2efe938634fffc4a38c67d81f018fb773f317ca"
+    },
+    "FEXServer": {
+      "bytes": 428504,
+      "sha256": "059cf9217bc5221b5865242e53647e7b4bb9fe93bb4a0ed9940fe6e72e2a1683"
+    },
+    "libvulkan_virtio.so": {
+      "bytes": 1649248,
+      "sha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7"
+    },
+    "libsteamohos_software_gl.so": {
+      "bytes": 17137080,
+      "sha256": "a8ebce2b8fc9678a709f741735bb0805da460ee7a55727ebda5d06bc060785df"
+    }
+  },
+  "oldOfflineArchives": [
+    {
+      "path": "linux-steam/hmosdeck-gnu-arm64-v1.zip",
+      "sha256": "8c98e7836a0ee3278095225ac90acb7a05b4204cd6a2cde7be7a0f853cc88523"
+    },
+    {
+      "path": "linux-proton/gnu-proton.zip",
+      "sha256": "97327f3a9e8155a11050dcf4960543d61841db44e22afc9531cd066b224085be"
+    }
+  ],
+  "checks": [
+    "Release assembleHap succeeded",
+    "Final HAP immutable runtime/companion/notice verification passed",
+    "HAP signature verified; final package reinstalled and all four auto-installed hashes passed",
+    "native FEX routing 26 host tests passed",
+    "SHA/libgcrypt/scoped helper 2 host tests passed",
+    "real GNU executable access 1 test passed",
+    "runtime component restore/drift/ZIP/HAP 17 tests passed",
+    "supervisor install/reuse/corruption/symlink tests passed",
+    "Deck dual-library/routing/responsive/session tests passed",
+    "compositor migration ASan/UBSan 64 checks passed",
+    "Venus resource contract requirements/capability/overflow controls passed"
+  ],
+  "boundaries": [
+    "Final HAP differs from game-test HAP in source/notice metadata after verification improvements; full game was not rerun on final metadata package",
+    "Ordinary game test stopped at pre-existing SQLite missing table and background; no click or normal exit acceptance",
+    "Diagnostic combination with private config passed separately; not shipped as a forced user-data reset",
+    "No game launcher/depot FEX/account/saves overwritten by installer",
+    "Unknown official FEX revision falls back to its own pair; future ABI compatibility not promised",
+    "No CPU presentation readback; allocation counters are not total physical memory"
+  ]
+}

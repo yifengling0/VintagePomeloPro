@@ -1,0 +1,538 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-29",
+  "status": "not-resolved",
+  "scope": "Direct signed OHOS GPU and NativeBuffer sharing qualification; negotiated Venus integration in progress",
+  "sourceAnalysis": {
+    "sources": {
+      "/home/liufeng/steamohos-software-gl-20261019-v6/mesa-source/src/virtio/vulkan/vn_device_memory.c": "91d929cdb1343df833b0f82621302143a8996334d785c7eb37b01262e335004e",
+      "/home/liufeng/steamohos-software-gl-20261019-v6/mesa-source/src/virtio/vulkan/vn_physical_device.c": "35992476c2cd11c142370ec36e44ef20e95d19cd8aabc06f21d84d9a1cc22ef5",
+      "/home/liufeng/src/vpp-account-cloud/workspace_temp/stardew-context-fix-20261017/source/src/venus/vkr_device_memory.c": "73f3dcd93d5c5d38724556bfbc22928b10532455ff47be6058382074b8b6d7d7"
+    },
+    "observations": {
+      "guestMemoryFlags": [
+        15,
+        1,
+        7
+      ],
+      "coherentFirstWriteNotPublished": true,
+      "onceFlushedMappingRepublishedWithoutNewWrite": true,
+      "legacyInvalidateStartsWriteInsteadOfReadback": true,
+      "preciseExplicitInvalidateReadsBack": true,
+      "preciseCompletionSkipsAutomaticReadback": true,
+      "gpuExecuted": false
+    },
+    "receiverSource": "Cached OHOS receiver source; current virglrenderer checkout is uninitialized",
+    "sourceMatchedToInstalledReceiver": false,
+    "gpuExecuted": false,
+    "bananaRootCauseEstablished": false
+  },
+  "earlierGpuEvidence": {
+    "renderer": "Virtio-GPU Venus (Maleoon 910)",
+    "memoryType0Tested": true,
+    "fullMode": "Source was overwritten with zero after wait; destination all zero",
+    "preciseMode": "Source survived; destination remained zero after explicit flush/invalidate",
+    "transport": "Guest writes visible in ARM64 Venus mapping; explicit host flush mapping/shadow hashes matched",
+    "commands": "CopyBuffer bindings/offsets and submitted command-buffer identities matched",
+    "completion": "Submit/QueueWaitIdle/fence wait returned success; host destination still zero after invalidate",
+    "timeline": "Vulkan 1.2 + timeline allowed internal upload preparation but did not correct destination",
+    "unresolvedLayer": "GPU command execution, allocation binding or driver mapping/cache visibility not yet separated",
+    "memoryType1": "Not executed; current guest flags are not HOST_VISIBLE, so standard probe must skip it",
+    "memoryType2": "Second instance in same process did not enter GPU test; no type-2 failure conclusion",
+    "evidence": [
+      {
+        "name": "native-vk-coherence-full-host.json",
+        "sha256": "bf5f571e8313c5206aa36b6f2d089da580040b3cbb24f28c9c8577f6cc252fe5"
+      },
+      {
+        "name": "native-vk-coherence-baseline.json",
+        "sha256": "f8d0dcfeb2249c030194e61756725378f1affc3ec0153d3acd3735ab9e2c511c"
+      },
+      {
+        "name": "native-vk-coherence-native-venus-memory-trace.json",
+        "sha256": "fea40c29858643256abc79d78104bd9be8f058abb99ceb1721813c917be8a4d0"
+      },
+      {
+        "name": "native-vk-coherence-native-venus-memory-trace-host-trace.json",
+        "sha256": "fea40c29858643256abc79d78104bd9be8f058abb99ceb1721813c917be8a4d0"
+      },
+      {
+        "name": "native-vk-coherence-native-venus-memory-trace-host-trace-v12-types.json",
+        "sha256": "b583d9c06ee8b3f302bb5a8401c0146ff34ccfeb4d81721b38b988e5707e24ef"
+      }
+    ],
+    "displayReadbacks": 0
+  },
+  "nativeBufferDirection": {
+    "interfaces": [
+      "NATIVEBUFFER_PIXEL_FMT_BLOB",
+      "VK_OHOS_external_memory",
+      "NativeBuffer BufferHandle.fd"
+    ],
+    "officialReferences": [
+      "https://developer.huawei.com/consumer/cn/doc/doccenter-references/api/vulkan-oh-external-memory-guidelines",
+      "https://docs.vulkan.org/refpages/latest/refpages/source/VK_OHOS_external_memory.html"
+    ],
+    "handleBits": [
+      "0x2000 (pre-API23 Huawei)",
+      "0x8000 (registered OHOS)"
+    ],
+    "driverSupportVerified": true,
+    "directHeapSharingImplemented": "Native context direct fd export and cross-process buffer test passed; larger/mixed workloads under qualification",
+    "probe": {
+      "source": "scripts/diagnostics/native_buffer_memory_probe.c",
+      "sourceSha256": "5c1083349ec708aad0e358b77f7ec86d060dfbff43261ef14f9f87cf95eb0e7a",
+      "architecture": "aarch64-linux-ohos",
+      "compilerWarningsAsErrors": true,
+      "deviceExecuted": true,
+      "appPayloadModified": true,
+      "limits": "one ordinary, two export, six import cases; two 64KiB allocations; 5s/fence; 75s process deadline",
+      "build": "embedded libsteamohos_native_memory_probe.so in diagnostic HAP; system Vulkan resolved dynamically"
+    }
+  },
+  "preparedCoherenceProbe": {
+    "sourceSha256": "efc1e35d24336845dff1ddd4587a0fe8a44d9c2fb609886e77e5b06ee1597dd4",
+    "sha256": "a1fc550c74ba9732fb8e86f8e213cfdd789d93e59f576c66f19d38e2c5899771",
+    "bytes": 21912,
+    "compilerSha256": "821af3c74506283c179ca413bb33e6b528805a4dd8a5c09df125e5ad560a9e89",
+    "architecture": "x86_64-linux-gnu",
+    "deviceExecuted": true,
+    "gpuExecuted": true,
+    "invalidArgumentsRejected": 4,
+    "memoryTypesInSeparateProcesses": true,
+    "nonHostVisibleTypeSkipped": true,
+    "noncoherentJudgedAfterInvalidate": true,
+    "coherentJudgedBeforeAndAfterInvalidate": true,
+    "timelineSupportQueried": true,
+    "steamArgumentsIgnored": true
+  },
+  "restoration": {
+    "renderMode": "virgl",
+    "preferenceSha256": "7d737506160ef847b0b2ef25cb70504ffce0135c5192369160c5ab769287cebf",
+    "onlyPreferenceChanged": "winehua_render_mode_v1",
+    "readbackVerified": true,
+    "officialLauncherSha256": "0bfe51325720c950b4ad75ce7c3b65595fd7e939908520ec33600919919327a8",
+    "officialVenusSha256": "31c0ceb85c69d03644cd9c90e3ab698fc779eecd2f457c070f68649ff50c5a23",
+    "installedWsi": {
+      "bytes": 175800,
+      "sha256": "e92f697236f4c43be15c2f572858edef157773419fb69b08c5ea984d9a8ad14a"
+    },
+    "guardRawfile": {
+      "bytes": 175800,
+      "sha256": "e92f697236f4c43be15c2f572858edef157773419fb69b08c5ea984d9a8ad14a",
+      "deviceInstalled": true,
+      "sourceSha256": "58f246b7cd5fc269a1f97f04fc8cda0a2026e7879c47a5257bb49ee170ea61d5"
+    },
+    "restorationVerifiedEarlier": true,
+    "foregroundOperationsThisRound": "tablet diagnostic probes and bounded game launches",
+    "edgeOperated": false,
+    "phoneOperated": false
+  },
+  "productChangesThisAnalysisRound": true,
+  "isolationPlan": "Explicit negotiated per-context memory semantics for native Vulkan; preserve legacy Wine behavior",
+  "nextDeviceChecks": [
+    "Finish Banana pixel/input/stability acceptance",
+    "Exercise noncoherent type and larger/suballocated buffer+image workloads",
+    "Old Wine device regression"
+  ],
+  "limitations": [
+    "Banana full game picture observed with signed native-memory pair; illegal control-flow/memory fault persists; input/stability not accepted",
+    "Old OH_Ability_StartNativeChildProcess diagnostic had no ICD; not GPU failure evidence",
+    "Direct probe covers two 64KiB buffers; negotiated Venus covers type 0 64KiB and type 1 4MiB; images, larger mixed workloads and gameplay remain unaccepted"
+  ],
+  "nativeDriverGpuEvidence": {
+    "renderer": "Maleoon 910",
+    "apiVersion": 4202805,
+    "systemLoader": "/system/lib64/libvulkan.so",
+    "childApi": "OH_Ability_CreateNativeChildProcess",
+    "ordinaryBuffer": {
+      "memoryType": 0,
+      "flags": "0x7",
+      "coherentCopyPassed": true,
+      "explicitCopyPassed": true,
+      "gpuFillPassed": true
+    },
+    "nativeBufferImport": {
+      "casesPassed": 6,
+      "memoryType": 1,
+      "flags": "0xb",
+      "usageValues": [
+        "0xb",
+        "0x30b",
+        "0x8",
+        "0x308"
+      ],
+      "handles": [
+        "0x2000",
+        "0x8000"
+      ],
+      "coherentPhase": "skipped; memory is noncoherent",
+      "explicitCopyPassed": true,
+      "gpuFillPassed": true
+    },
+    "nativeBufferExport": {
+      "casesPassed": 2,
+      "memoryType": 0,
+      "flags": "0x7",
+      "handles": [
+        "0x2000",
+        "0x8000"
+      ],
+      "coherentCopyPassed": true,
+      "explicitCopyPassed": true,
+      "gpuFillPassed": true,
+      "backing": "real NativeBuffer fd mmap alias; no payload memcpy"
+    },
+    "wordsCheckedPerPhase": 16384,
+    "allocationBytes": 65536,
+    "maxSimultaneousAllocations": 2,
+    "exitCode": 0,
+    "logTruncated": false,
+    "resultSha256": "879ab5329ff72e0ab5a38a864cdaee15e74e10d81fffe08b2082eaf44ce7e157",
+    "displayReadbacks": 0,
+    "venus": false,
+    "fex": false
+  },
+  "venusNativeMemoryV1": {
+    "status": "buffer coherence passed; Banana pixel/gameplay acceptance in progress",
+    "defaultEnabledInInstalledComponent": false,
+    "negotiation": "GET_PARAM 0x57480101 => version 1, then Venus context flag 1<<16",
+    "legacyWine": "does not send this query; original context behavior retained",
+    "driverCacheProperties": "retained truthfully after successful negotiation",
+    "firstDeviceCheck": "CreateDevice -8 caused by guest-filtered platform extension list; corrected using raw host extension enumeration",
+    "patches": [
+      "patches/virglrenderer/0007-ohos-native-memory-context.patch",
+      "patches/mesa/0010-venus-ohos-native-memory-context.patch"
+    ],
+    "secondDeviceCheck": "NativeBuffer fd misclassified as sealable SHM and rejected; corrected using private negotiated worker fd class",
+    "gpuBufferCheck": {
+      "probeSha256": "a1fc550c74ba9732fb8e86f8e213cfdd789d93e59f576c66f19d38e2c5899771",
+      "probeBytes": 21912,
+      "venusSha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7",
+      "wsiSha256": "e92f697236f4c43be15c2f572858edef157773419fb69b08c5ea984d9a8ad14a",
+      "complete": true,
+      "passed": true,
+      "transportFailure": null
+    },
+    "gpuBufferEvents": [
+      "VK_COHERENCE begin requested_type=0 bytes=65536 display_readbacks=0",
+      "VK_COHERENCE renderer=Virtio-GPU Venus (Maleoon 910) types=5",
+      "VK_COHERENCE memory_type=0 flags=7",
+      "VK_COHERENCE memory_type=1 flags=b",
+      "VK_COHERENCE memory_type=2 flags=7",
+      "VK_COHERENCE memory_type=3 flags=11",
+      "VK_COHERENCE memory_type=4 flags=21",
+      "VK_COHERENCE timeline_supported=1",
+      "VK_COHERENCE reported_visible=1 req_bits=3 diagnostic_type=0",
+      "VK_COHERENCE buffer=0 type=0 bytes=65536",
+      "VK_COHERENCE reported_visible=1 req_bits=3 diagnostic_type=0",
+      "VK_COHERENCE buffer=1 type=0 bytes=65536",
+      "VK_COHERENCE phase=0 src_before_flush=12345678",
+      "VK_COHERENCE phase=0 src_after_flush=12345678",
+      "VK_COHERENCE phase=0 src_after_wait=12345678",
+      "VK_COHERENCE phase=0 explicit_flush=0 before_invalidate_wrong=0 first=12345678 expected=12345678",
+      "VK_COHERENCE phase=0 after_invalidate_wrong=0 first=12345678 expected=12345678",
+      "VK_COHERENCE phase=1 src_before_flush=12345679",
+      "VK_COHERENCE phase=1 src_after_flush=12345679",
+      "VK_COHERENCE phase=1 src_after_wait=12345679",
+      "VK_COHERENCE phase=1 explicit_flush=1 before_invalidate_wrong=0 first=12345679 expected=12345679",
+      "VK_COHERENCE phase=1 after_invalidate_wrong=0 first=12345679 expected=12345679",
+      "VK_COHERENCE phase=2 src_before_flush=1234567a",
+      "VK_COHERENCE phase=2 src_after_flush=1234567a",
+      "VK_COHERENCE phase=2 src_after_wait=1234567a",
+      "VK_COHERENCE phase=2 explicit_flush=0 before_invalidate_wrong=0 first=1234567a expected=1234567a",
+      "VK_COHERENCE phase=2 after_invalidate_wrong=0 first=1234567a expected=1234567a",
+      "VK_COHERENCE phase=3 src_before_flush=1234567a",
+      "VK_COHERENCE phase=3 src_after_flush=1234567a",
+      "VK_COHERENCE phase=3 src_after_wait=1234567a",
+      "VK_COHERENCE phase=3 explicit_flush=0 before_invalidate_wrong=0 first=abcdef01 expected=abcdef01",
+      "VK_COHERENCE phase=3 after_invalidate_wrong=0 first=abcdef01 expected=abcdef01",
+      "VK_COHERENCE case_done type=0 failed_phases=0",
+      "VK_COHERENCE complete type=0 result=0"
+    ],
+    "receiverSha256": "76a872d6c9a2e3b9d6069cc04a773e6220ee1207b5371675d4851463c40dbbd9",
+    "hostRegressions": [
+      "actual vtest negotiation",
+      "actual proxy admission in three build modes",
+      "ordinary SHM seals/size retained",
+      "26 native FEX tests",
+      "managed renderer lifecycle/input",
+      "asserted actual renderer export accepts negotiated native fd"
+    ],
+    "gpuNoncoherent4MiBCheck": {
+      "probeSha256": "ebd203b68ad43fa4ffa6e370eff4250812c44d61ea8be86efb3c5fb53378d880",
+      "probeBytes": 22072,
+      "venusSha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7",
+      "wsiSha256": "e92f697236f4c43be15c2f572858edef157773419fb69b08c5ea984d9a8ad14a",
+      "complete": true,
+      "passed": true,
+      "transportFailure": null
+    },
+    "gpuNoncoherent4MiBEvents": [
+      "VK_COHERENCE begin requested_type=1 bytes=4194304 display_readbacks=0",
+      "VK_COHERENCE renderer=Virtio-GPU Venus (Maleoon 910) types=5",
+      "VK_COHERENCE memory_type=0 flags=7",
+      "VK_COHERENCE memory_type=1 flags=b",
+      "VK_COHERENCE memory_type=2 flags=7",
+      "VK_COHERENCE memory_type=3 flags=11",
+      "VK_COHERENCE memory_type=4 flags=21",
+      "VK_COHERENCE timeline_supported=1",
+      "VK_COHERENCE reported_visible=1 req_bits=3 diagnostic_type=1",
+      "VK_COHERENCE buffer=0 type=1 bytes=4194304",
+      "VK_COHERENCE reported_visible=1 req_bits=3 diagnostic_type=1",
+      "VK_COHERENCE buffer=1 type=1 bytes=4194304",
+      "VK_COHERENCE phase=0 skipped=noncoherent_requires_explicit_flush",
+      "VK_COHERENCE phase=1 src_before_flush=12345679",
+      "VK_COHERENCE phase=1 src_after_flush=12345679",
+      "VK_COHERENCE phase=1 src_after_wait=12345679",
+      "VK_COHERENCE phase=1 explicit_flush=1 before_invalidate_wrong=0 first=12345679 expected=12345679",
+      "VK_COHERENCE phase=1 after_invalidate_wrong=0 first=12345679 expected=12345679",
+      "VK_COHERENCE phase=2 skipped=noncoherent_requires_explicit_flush",
+      "VK_COHERENCE phase=3 src_before_flush=12345679",
+      "VK_COHERENCE phase=3 src_after_flush=12345679",
+      "VK_COHERENCE phase=3 src_after_wait=12345679",
+      "VK_COHERENCE phase=3 explicit_flush=0 before_invalidate_wrong=0 first=abcdef01 expected=abcdef01",
+      "VK_COHERENCE phase=3 after_invalidate_wrong=0 first=abcdef01 expected=abcdef01",
+      "VK_COHERENCE case_done type=1 failed_phases=0",
+      "VK_COHERENCE complete type=1 result=0"
+    ],
+    "bananaTraceRun": {
+      "date": "2026-10-29",
+      "nativeLinux": true,
+      "fexPid": 43882,
+      "firstPresentTargetAttachedAfterMs": 109,
+      "firstHostSwapchainReadyAfterMs": 156,
+      "lastSuccessfulPresentSerial": 621,
+      "steamApiInitialized": true,
+      "bootstrapCompleted": true,
+      "abnormalExit": {
+        "signal": 11,
+        "exitCode": 139,
+        "guestFaultAddress": "0x615f616061616164"
+      },
+      "gameplayPassed": false,
+      "allocationPeakKnown": false,
+      "note": "first present transient resolves; game later reaches bootstrap and native Steam API, then crashes; no OOM conclusion from incomplete allocation counters"
+    },
+    "bananaAllocationRun": {
+      "fexPid": 53640,
+      "peakBytes": 3931441152,
+      "liveBytesAtSerial1080": 3400417280,
+      "allocationFailures": 0,
+      "liveImages": 1100,
+      "rgba8ImageCount": 1062,
+      "rgba8RequirementBytes": 3153526784,
+      "bcImagesReceived": 0,
+      "over4GiBProven": false,
+      "gameplayPassed": false,
+      "privateLogSha256": "19afeb001b0fa6d1c29689d8b2671725df189b49ec9d88980a8eff1d96f6f6bd"
+    },
+    "systemQuotaEvent": {
+      "reportedResource": 4575420,
+      "unitConfirmed": false,
+      "reason": "ResourceLeak(GpuLeak)",
+      "sameRunAsAllocationCounters": false
+    },
+    "systemGpuSnapshot": {
+      "graphDmaKiB": 3685140,
+      "vulkanExternalBytes": 3432071168,
+      "quantitiesMayOverlap": true,
+      "sameRunAsAllocationCounters": false
+    }
+  },
+  "bcAssetBudget": {
+    "metadataFiles": 2,
+    "dxt1Dxt5Count": 798,
+    "bc7Count": 1,
+    "sourceBytes": 619433416,
+    "estimatedRgba8Bytes": 2897225832,
+    "simultaneousResidencyKnown": false,
+    "bcOriginOfAllRgbaImagesProven": false,
+    "nativeVulkanRecompressionImplemented": false,
+    "budgetEvidenceSha256": "62b9faba3d9457bb88e13f3de9f24f005af64ec03048ae4868302f503f5b841a",
+    "maxTextureDimension": 2048
+  },
+  "cpuVideoInvestigation": {
+    "unityBuildId": "a487fdeadf396828c864ae1f8a7a059560684cd3",
+    "unitySha256": "ea8358ed963046771e3a35775ec899a088ba8521f69db04cd1a834f15d3b52f7",
+    "faultElfVa": "0x18d4302",
+    "candidateFunction": "embedded VP8 decode_split_mv",
+    "subsequentInvalidRip": "0x25e425e425e425e4",
+    "corruptionWriterEstablished": false,
+    "hostProbe": {
+      "threads": [
+        1,
+        4
+      ],
+      "framesEach": 600,
+      "yuvFnv64": "18c145ad999bbd88",
+      "passed": true
+    },
+    "tabletProbe": {
+      "threads": [
+        1,
+        4
+      ],
+      "framesEach": 600,
+      "yuvFnv64": "18c145ad999bbd88",
+      "passed": true,
+      "gpuImagesCreated": 0,
+      "parallelStreams": "four streams validated separately",
+      "probeSha256": "e780e7188b10164dd9f4fd7c1d096773d7ec809d83bb77bcbab9e54b58242f4c"
+    },
+    "tabletParallelProbe": {
+      "streams": 4,
+      "decoderThreadsEach": 4,
+      "framesPerStream": 150,
+      "hashEach": "18c145ad999bbd88",
+      "passed": true,
+      "gpuImagesCreated": 0,
+      "probeSha256": "d23415ec9e3f775a9c1b220024b376e315d93c7d3bdcc911fdd6897ff5f510b8"
+    },
+    "integratedScalarDiagnostic": {
+      "setting": "VPX_SIMD_CAPS_MASK=0; temporary Unity launcher; graphics unchanged",
+      "fexPid": 12162,
+      "peakAllocationBytes": 4518715392,
+      "allocationFailures": 0,
+      "appDiedAt": "2026-10-29 20:06:30 +08:00",
+      "gameplayPassed": false,
+      "sameVp8FaultCaptured": false,
+      "exitCauseEstablished": false,
+      "systemGraphDmaKiB": 4219892,
+      "systemVulkanExternalBytes": 3400704000,
+      "systemQuantitiesMayOverlap": true,
+      "launchersAndGraphicsRestored": true,
+      "note": "did not complete normal rendering; absence of original SIGSEGV is not a successful fix"
+    },
+    "dimensionVariants": {
+      "passed": true,
+      "gpuCalls": 0,
+      "threadsEach": [
+        1,
+        4
+      ],
+      "hostAndTabletYuvHashesMatch": true,
+      "cases": [
+        {
+          "width": 2000,
+          "height": 2250,
+          "frames": 120,
+          "inputSha256": "2ec47348296d9aef8ef4548e3da3f2d79aa6e25fe6a2eda9bb6ca4823a678688"
+        },
+        {
+          "width": 732,
+          "height": 953,
+          "frames": 150,
+          "inputSha256": "d407f5d09a917fa16f97261a99d4a98d4b9ba0d74d3e22809e2deeda9b92a2ee"
+        },
+        {
+          "width": 320,
+          "height": 243,
+          "frames": 40,
+          "inputSha256": "cf56223395f2ec34067e3a7a19523482237219c490a868e08a6c87a67d89c16e"
+        }
+      ],
+      "hashes": [
+        "a4be05545691efb4",
+        "064be0651a466276",
+        "1a8425d1296afe49"
+      ],
+      "probeSha256": "cb74b35a5cfb86e16d91330515ca724d01ffab334c19887c7da01595618fff0d",
+      "inference": "These cases alone do not reproduce the integrated corruption; does not prove all clips/integration are correct"
+    },
+    "headlessIntegratedDiagnostic": {
+      "source": "client stdout; headless Unity did not create a fresh graphical Player.log",
+      "runBudgetSeconds": 180,
+      "engineInitialized": true,
+      "rendererNull": true,
+      "gameBootstrapCompleted": true,
+      "videoShadersUnavailable": true,
+      "fatalSignalObserved": false,
+      "gameplayPassed": false,
+      "sameVideoPathProven": false,
+      "archive": "native-banana-headless.private.log.gz",
+      "archiveBytes": 14652,
+      "archiveSha256": "3b8c85746eb81a2c764317496cf18c0d0a44208bb7ee17b9de5a8a8b04f8fda5",
+      "uncompressedBytes": 231217,
+      "termination": "test runner stopped selected application after sampling budget",
+      "officialLauncherRestored": true
+    }
+  },
+  "diagnosticDeployment": {
+    "hdcOverwriteRetainsInode": true,
+    "hdcInodeEvidence": {
+      "inodes": [
+        "38791",
+        "38791"
+      ],
+      "replacesInPlace": true,
+      "testBytes": 36,
+      "risk": "overwriting a currently mapped ELF file can invalidate its mappings"
+    },
+    "mediaStorageShellRenameDenied": true,
+    "replacementPolicy": "stage only after aa force-stop and zero selected-UID processes; unlink old inode, transfer, verify SHA-256; restore on every exit",
+    "validated": {
+      "passed": true,
+      "allUidProcessesAbsent": true,
+      "identicalPayloadReused": true,
+      "mediaRenamePermitted": false,
+      "rows": [
+        {
+          "source": "native_vp8_probe",
+          "sha256": "d23415ec9e3f775a9c1b220024b376e315d93c7d3bdcc911fdd6897ff5f510b8",
+          "expectedSha256": "d23415ec9e3f775a9c1b220024b376e315d93c7d3bdcc911fdd6897ff5f510b8"
+        },
+        {
+          "source": "native_unity_vp8_launcher",
+          "sha256": "667b8a51723eb9a06e1fe09a19ad6173cf7f28b2a27b5c987632950cb78baa06",
+          "expectedSha256": "667b8a51723eb9a06e1fe09a19ad6173cf7f28b2a27b5c987632950cb78baa06"
+        }
+      ]
+    },
+    "previousHotSwapMayInterfereWithMappedModules": true,
+    "causeOfPreviousCrashesProvenByHotSwap": false,
+    "cleanRestartGameRetest": "completed; guest SIGSEGV remains without hot ELF overwrite",
+    "scalarArchiveSha256": "6723c0e516bec6afe6027f651809967f374782fe7670467bb6c96271222dc5b5",
+    "startupManagedComponentsRestore": true,
+    "startupRestoreSource": "entry/src/main/ets/service/LinuxSteamClientSupervisor.ets:ensureLinuxSteamPosixSupport/installNativeLibraries",
+    "signedDiagnosticStrategy": "reuse same compiled HAP; replace WSI + its manifest only; unique driver filename; verify hashes AFTER Steam startup; stop and reinstall original HAP on every exit",
+    "baselineRetest": {
+      "elapsedSeconds": 132.0,
+      "faultElfVa": "0x18d5276",
+      "archiveSha256": "98015b22f8c0d4588c415578ecea55a9664eb961e105338c710455937b30ac9d"
+    },
+    "signedPairRetest": {
+      "elapsedSeconds": 330.5,
+      "allocationPeakBytes": 3931441152,
+      "allocationFailures": 0,
+      "pixelReadbacks": 0,
+      "fullGamePictureObserved": true,
+      "observedFps": 30,
+      "inputVerified": false,
+      "stopReason": "guest-fatal",
+      "guestSignal": 11,
+      "guestSignalCode": 2,
+      "guestFaultAddress": "0x67b67ff590",
+      "faultAddressNearNativeStack": true,
+      "corruptionWriterEstablished": false,
+      "archiveSha256": "f39f0fd36a970a07be94f211c4c0e419a2d3eaa67ad7bc66a28a5db3de83092e",
+      "candidateInputs": {
+        "baseSha256": "30bf5db6ed6e380b3d3d8645dbc2d9d5ea0d57a3afc54d1864642628a40e3f7d",
+        "wsiSha256": "5c9acad154b747c021fd25b338f7fd3e6117728beb86a1800efffcc41d91a548",
+        "venusSha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7"
+      },
+      "baselineHapRestored": true,
+      "officialGameLauncherRestored": true,
+      "ionPolicyEvent": {
+        "at": "2026-10-29 20:58:18 +08:00",
+        "resourceRaw": 3145728,
+        "unitEstablished": false,
+        "resourceType": "ion",
+        "reportedAction": "kill",
+        "foregroundVerificationObserved": true,
+        "receiverDeathBeforeRunnerForceStopEstablished": false,
+        "notEvidenceOfSingleAllocation4GiBLimit": true
+      }
+    }
+  }
+}

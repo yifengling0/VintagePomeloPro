@@ -1,0 +1,220 @@
+{
+  "compilerVersion": "clang version 23.1.0 (https://github.com/llvm/llvm-project.git ea7d852a70e8bdfaf601d6626a760f9771b2c4b4)\nTarget: aarch64-w64-windows-gnu\nThread model: posix\nInstalledDir: /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin\nConfiguration file: /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-windows-gnu.cfg\n",
+  "mainSHA": "62ca61faa87351307daa18b59c7d6fd26cbc0db6",
+  "trackedDirtyDiffSHA256": "9149a25cb180410254e571c06a5253d2b95c45c678e06306ff4b2da5cd0fb9b2",
+  "patchIdentity": {
+    "mul24": {
+      "changedFiles": [
+        "FEXCore/Source/Common/SoftFloat.h",
+        "FEXCore/Source/Common/StrictMul24.h"
+      ],
+      "patchSHA256": "02489f11b5c49261d49d6225bd4df39879373cd4f25090df54ab9b444647f2b4",
+      "sourceSHA256": {
+        "FEXCore/Source/Common/SoftFloat.h": "6780485a0e83583b4dfc0c8a1ab4432986f35235687c575fbf6e66d3b5a81cd9",
+        "FEXCore/Source/Common/StrictMul24.h": "9d697bc45ba386bb90265b2f08d165fbe5bf1de2fdd94773a111c09e1c51c66e"
+      },
+      "replay": "exact source bytes; reverse dry run succeeds"
+    },
+    "diagnostic": {
+      "changedFiles": [
+        "FEXCore/Source/Interface/Context/Context.h",
+        "FEXCore/Source/Interface/Core/Core.cpp",
+        "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+        "FEXCore/include/FEXCore/Core/CoreState.h",
+        "Source/Windows/WOW64/Module.cpp",
+        "Source/Windows/WOW64/X87Profile.h"
+      ],
+      "patchSHA256": "c95d750af78f86cb41a6a62177a49bc0489a41417d7e973e32638849258e11ea",
+      "sourceSHA256": {
+        "FEXCore/Source/Interface/Context/Context.h": "b55edea9c285ceeb42fcb6ffa8c3232493951b23eadb6043f9f00bc543cf4d5d",
+        "FEXCore/Source/Interface/Core/Core.cpp": "e01ffdfff338385614a2ec91230453788e3d90395e2d52bef52b297e84bc9d76",
+        "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp": "ce729b8a9a48c36253abaccaa7350919ee37306c0c350d5dfd4ef67f7ad139fe",
+        "FEXCore/include/FEXCore/Core/CoreState.h": "a72fa25d9f3427c46b609d76496c6471e2d77cbc72d229181fbf870391d15cc6",
+        "Source/Windows/WOW64/Module.cpp": "f8121a67c87905fad7075ba64bbcb24e1f6d45702f0c42869841fb0ead8050e3",
+        "Source/Windows/WOW64/X87Profile.h": "1a7cb6910fcfc8dbf4141fdafbb04080963d59f2ac2c2929d46160ad65dc5bc9"
+      },
+      "replay": "exact source bytes; reverse dry run succeeds"
+    }
+  },
+  "builds": {
+    "candidate": {
+      "dllSHA256": "768088fac47e02218b4454adefc0068f041de97b640144a42b75fa3c7645fcfb",
+      "compileCommandsSHA256": "953a2707aadf32a395f378061c3555d935e381e95a6990c2f14b0fada7d998fc",
+      "commands": [
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/extF80_mul.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/extF80_mul.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24/FEXCore/Source",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DJIT_ARM64 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/FEXCore_object.dir/includes_CXX.rsp -DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_STRICT_MUL24=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -fno-exceptions -mcpu=cortex-a78 -Werror=cast-qual -Werror=ignored-qualifiers -Werror=implicit-fallthrough -ffunction-sections -fwrapv -o CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "output": "FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24/Source/Windows/WOW64",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DRANGES_DISABLE_DEPRECATED_WARNINGS -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE -Dwow64fex_EXPORTS @CMakeFiles/wow64fex.dir/includes_CXX.rsp -DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_STRICT_MUL24=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -o CMakeFiles/wow64fex.dir/Module.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/WOW64/Module.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/WOW64/Module.cpp",
+          "output": "Source/Windows/WOW64/CMakeFiles/wow64fex.dir/Module.cpp.obj"
+        }
+      ],
+      "links": [
+        {
+          "file": "Source/Windows/WOW64/CMakeFiles/wow64fex.dir/link.txt",
+          "command": "/usr/bin/cmake -E rm -f CMakeFiles/wow64fex.dir/objects.a\naarch64-w64-mingw32-ar qc CMakeFiles/wow64fex.dir/objects.a @CMakeFiles/wow64fex.dir/objects1.rsp\n/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_STRICT_MUL24=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -shared -static -static-libgcc -static-libstdc++ -Wl,--file-alignment=4096,/mllvm:-align-loops=1 /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/WOW64/libwow64fex.def -static -nostdlib -nostartfiles -nodefaultlibs -lc++ -lc++abi -lunwind -o ../../../Bin/libwow64fex.dll -Wl,--out-implib,libwow64fex.dll.a -Wl,--major-image-version,0,--minor-image-version,0 -Wl,--whole-archive CMakeFiles/wow64fex.dir/objects.a -Wl,--no-whole-archive @CMakeFiles/wow64fex.dir/linkLibs.rsp\n"
+        }
+      ],
+      "flags": [
+        "CMAKE_CXX_FLAGS:STRING=-DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_STRICT_MUL24=1",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "CMAKE_C_FLAGS:STRING=",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "ENABLE_LTO:BOOL=False",
+        "MINGW_TRIPLE:STRING=aarch64-w64-mingw32",
+        "OVERRIDE_HASH:STRING=86ff33bbe299cd8959a6610198c169b67ec419db"
+      ],
+      "strictKernelSymbolPresent": false
+    },
+    "off": {
+      "dllSHA256": "ff9fd8c1ff699840c65a70362e7e348f8069b598e9dc973a6fdb5e9155505130",
+      "compileCommandsSHA256": "1e988edc9aeab0be0eed9e077129b07194a414b31210f1d8ebea50cbdaed0a43",
+      "commands": [
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-off/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/extF80_mul.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/extF80_mul.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-off/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-off/FEXCore/Source",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DJIT_ARM64 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/FEXCore_object.dir/includes_CXX.rsp -DFEX_WOW64_EXACT_STORE=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -fno-exceptions -mcpu=cortex-a78 -Werror=cast-qual -Werror=ignored-qualifiers -Werror=implicit-fallthrough -ffunction-sections -fwrapv -o CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "output": "FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-off/Source/Windows/WOW64",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DRANGES_DISABLE_DEPRECATED_WARNINGS -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE -Dwow64fex_EXPORTS @CMakeFiles/wow64fex.dir/includes_CXX.rsp -DFEX_WOW64_EXACT_STORE=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -o CMakeFiles/wow64fex.dir/Module.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/WOW64/Module.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/WOW64/Module.cpp",
+          "output": "Source/Windows/WOW64/CMakeFiles/wow64fex.dir/Module.cpp.obj"
+        }
+      ],
+      "links": [
+        {
+          "file": "Source/Windows/WOW64/CMakeFiles/wow64fex.dir/link.txt",
+          "command": "/usr/bin/cmake -E rm -f CMakeFiles/wow64fex.dir/objects.a\naarch64-w64-mingw32-ar qc CMakeFiles/wow64fex.dir/objects.a @CMakeFiles/wow64fex.dir/objects1.rsp\n/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DFEX_WOW64_EXACT_STORE=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -shared -static -static-libgcc -static-libstdc++ -Wl,--file-alignment=4096,/mllvm:-align-loops=1 /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/WOW64/libwow64fex.def -static -nostdlib -nostartfiles -nodefaultlibs -lc++ -lc++abi -lunwind -o ../../../Bin/libwow64fex.dll -Wl,--out-implib,libwow64fex.dll.a -Wl,--major-image-version,0,--minor-image-version,0 -Wl,--whole-archive CMakeFiles/wow64fex.dir/objects.a -Wl,--no-whole-archive @CMakeFiles/wow64fex.dir/linkLibs.rsp\n"
+        }
+      ],
+      "flags": [
+        "CMAKE_CXX_FLAGS:STRING=-DFEX_WOW64_EXACT_STORE=1",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "CMAKE_C_FLAGS:STRING=",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "ENABLE_LTO:BOOL=False",
+        "MINGW_TRIPLE:STRING=aarch64-w64-mingw32",
+        "OVERRIDE_HASH:STRING=86ff33bbe299cd8959a6610198c169b67ec419db"
+      ],
+      "strictKernelSymbolPresent": false
+    },
+    "arm64ec": {
+      "dllSHA256": "f04c35f07bd3a251c85e6fe79e2e9612984b6e8608699be4104e9b784c6b8bef",
+      "compileCommandsSHA256": "60581aad2609d8472bcfd53f9eddc1d7e31913d66b15fb5428106b90a289a626",
+      "commands": [
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-arm64ec/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/arm64ec-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DARCHITECTURE_arm64ec=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/extF80_mul.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/extF80_mul.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-arm64ec/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/arm64ec-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DARCHITECTURE_arm64ec=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/mul24-arm64ec/FEXCore/Source",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/arm64ec-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DARCHITECTURE_arm64ec=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DJIT_ARM64 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/FEXCore_object.dir/includes_CXX.rsp -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -fno-exceptions -mcpu=cortex-a78 -Werror=cast-qual -Werror=ignored-qualifiers -Werror=implicit-fallthrough -ffunction-sections -fwrapv -o CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "output": "FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj"
+        }
+      ],
+      "links": [
+        {
+          "file": "Source/Windows/ARM64EC/CMakeFiles/arm64ecfex.dir/link.txt",
+          "command": "/usr/bin/cmake -E rm -f CMakeFiles/arm64ecfex.dir/objects.a\narm64ec-w64-mingw32-ar qc CMakeFiles/arm64ecfex.dir/objects.a @CMakeFiles/arm64ecfex.dir/objects1.rsp\n/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/arm64ec-w64-mingw32-clang++ -O2 -g -DNDEBUG -fno-omit-frame-pointer -shared -static -static-libgcc -static-libstdc++ -Wl,--file-alignment=4096,/mllvm:-align-loops=1 /data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24/Source/Windows/ARM64EC/libarm64ecfex.def -static -nostdlib -nostartfiles -nodefaultlibs -lc++ -lc++abi -lunwind -o ../../../Bin/libarm64ecfex.dll -Wl,--out-implib,libarm64ecfex.dll.a -Wl,--major-image-version,0,--minor-image-version,0 -Wl,--whole-archive CMakeFiles/arm64ecfex.dir/objects.a -Wl,--no-whole-archive @CMakeFiles/arm64ecfex.dir/linkLibs.rsp\n"
+        }
+      ],
+      "flags": [
+        "CMAKE_CXX_FLAGS:STRING=",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "CMAKE_C_FLAGS:STRING=",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "ENABLE_LTO:BOOL=False",
+        "MINGW_TRIPLE:STRING=arm64ec-w64-mingw32",
+        "OVERRIDE_HASH:STRING=86ff33bbe299cd8959a6610198c169b67ec419db"
+      ],
+      "strictKernelSymbolPresent": false
+    },
+    "diagnostic": {
+      "dllSHA256": "18e6ad939a708e48897b31fdc95bf40e95f86ec964e04df593075b113feafe2b",
+      "compileCommandsSHA256": "326e00a7a9c2ee85d3a22e14061481ea3c1fae7721419d530fafbdc913d8e329",
+      "commands": [
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/diagnostic-v2/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/External/SoftFloat-3e/src/extF80_mul.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/External/SoftFloat-3e/src/extF80_mul.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/extF80_mul.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/diagnostic-v2/External/SoftFloat-3e",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/softfloat_3e.dir/includes_C.rsp -O2 -g -DNDEBUG -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -o CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/External/SoftFloat-3e/src/s_roundPackToExtF80.c",
+          "output": "External/SoftFloat-3e/CMakeFiles/softfloat_3e.dir/src/s_roundPackToExtF80.c.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/diagnostic-v2/FEXCore/Source",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DJIT_ARM64 -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE @CMakeFiles/FEXCore_object.dir/includes_CXX.rsp -DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_X87_PROFILE=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -fvisibility=hidden -fvisibility-inlines-hidden -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -fno-exceptions -mcpu=cortex-a78 -Werror=cast-qual -Werror=ignored-qualifiers -Werror=implicit-fallthrough -ffunction-sections -fwrapv -o CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "output": "FEXCore/Source/CMakeFiles/FEXCore_object.dir/Interface/Core/Dispatcher/Dispatcher.cpp.obj"
+        },
+        {
+          "directory": "/data/src/winehua/build-pal4-x87-20261007/diagnostic-v2/Source/Windows/WOW64",
+          "command": "/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DARCHITECTURE_arm64=1 -DFEXCORE_HAS_PRESERVE_ALL_ATTR=0 -DFEXCORE_PRESERVE_ALL_ATTR=\"\" -DFEX_HAS_PRESERVE_ALL_ATTR=0 -DFEX_PRESERVE_ALL_ATTR=\"\" -DGLOBAL_DATA_DIRECTORY=\\\"/usr/local/share/fex-emu/\\\" -DHAS_PROGRAM_INVOCATION_NAME=\"\" -DINLINE=\"static inline\" -DINLINE_LEVEL=4 -DRANGES_DISABLE_DEPRECATED_WARNINGS -DSOFTFLOAT_BUILTIN_CLZ=1 -DSOFTFLOAT_FAST_DIV32TO16=1 -DSOFTFLOAT_FAST_DIV64TO32=1 -DSOFTFLOAT_FAST_INT64=1 -D_LARGEFILE64_SOURCE -Dwow64fex_EXPORTS @CMakeFiles/wow64fex.dir/includes_CXX.rsp -DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_X87_PROFILE=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -std=gnu++20 -Wno-trigraphs -fdiagnostics-color=always -fcolor-diagnostics -Wno-deprecated-enum-enum-conversion -Wall -fno-strict-aliasing -o CMakeFiles/wow64fex.dir/Module.cpp.obj -c /data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/Source/Windows/WOW64/Module.cpp",
+          "file": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/Source/Windows/WOW64/Module.cpp",
+          "output": "Source/Windows/WOW64/CMakeFiles/wow64fex.dir/Module.cpp.obj"
+        }
+      ],
+      "links": [
+        {
+          "file": "Source/Windows/WOW64/CMakeFiles/wow64fex.dir/link.txt",
+          "command": "/usr/bin/cmake -E rm -f CMakeFiles/wow64fex.dir/objects.a\naarch64-w64-mingw32-ar qc CMakeFiles/wow64fex.dir/objects.a @CMakeFiles/wow64fex.dir/objects1.rsp\n/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/aarch64-w64-mingw32-clang++ -DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_X87_PROFILE=1 -O2 -g -DNDEBUG -fno-omit-frame-pointer -shared -static -static-libgcc -static-libstdc++ -Wl,--file-alignment=4096,/mllvm:-align-loops=1 /data/src/winehua/workspace_temp/pal4-x87-20261007/source-diagnostic-v2/Source/Windows/WOW64/libwow64fex.def -static -nostdlib -nostartfiles -nodefaultlibs -lc++ -lc++abi -lunwind -o ../../../Bin/libwow64fex.dll -Wl,--out-implib,libwow64fex.dll.a -Wl,--major-image-version,0,--minor-image-version,0 -Wl,--whole-archive CMakeFiles/wow64fex.dir/objects.a -Wl,--no-whole-archive @CMakeFiles/wow64fex.dir/linkLibs.rsp\n"
+        }
+      ],
+      "flags": [
+        "CMAKE_CXX_FLAGS:STRING=-DFEX_WOW64_EXACT_STORE=1 -DFEX_WOW64_X87_PROFILE=1",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "CMAKE_C_FLAGS:STRING=",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG",
+        "ENABLE_LTO:BOOL=False",
+        "MINGW_TRIPLE:STRING=aarch64-w64-mingw32",
+        "OVERRIDE_HASH:STRING=86ff33bbe299cd8959a6610198c169b67ec419db"
+      ],
+      "strictKernelSymbolPresent": false
+    }
+  },
+  "D0CodeAbsentFromCandidate": true
+}

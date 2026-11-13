@@ -1,9 +1,17 @@
 #pragma once
 
+#include "wine_startup_state.h"
 #include <string>
+#include <vector>
 #include <napi/native_api.h>
 
+uint64_t BeginWineLaunch();
+void CancelWineLaunch();
+bool CancelWineLaunch(uint64_t generation);
+winehua::WineStartupSnapshot GetWineStartupSnapshot();
+
 struct LaunchParams {
+    uint64_t generation = 0;
     std::string exePath;
     std::string sockPath;
     std::string libPath;
@@ -11,16 +19,16 @@ struct LaunchParams {
     std::string sockDir;
     std::string sockName;
     std::string winehuaBin;
+    std::string containerId;
     std::string prefixDir;
     std::string d3dBackend = "dxvk_legacy";
-    // Keep the WineHua control-plane contract even though the product
-    // graphics resolver derives its concrete runtime from d3dBackend.
     std::string dxvkBackend = "dxvk_legacy";
+    // Wine locale 语言 ("zh_CN"/"en_US"), 来自设置页, 决定桌面会话的 LANG
     std::string wineLang = "zh_CN";
-    // Box64 dynarec 全局档位 ("K=V;K=V;..."), 来自设置页兼容预设; 空 = 出厂基线。
-    // native 只放行 BOX64_DYNAREC_* 行, 经 wineboot/wineserver __env= 与会话 env 注入。
-    std::string compatEnvStr;
-    bool automationMode = false;
+    bool directNcpSession = false;
+    bool desktopVulkanCompositor = false;
+    int desktopStallSeconds = 0; // opt-in startup diagnostic, never persisted
+    std::vector<std::string> cpuEnvironment; // original Wine WoW64 settings only
 };
 
 void LaunchThreadFunc(LaunchParams* p);

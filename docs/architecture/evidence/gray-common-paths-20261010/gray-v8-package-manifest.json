@@ -1,0 +1,9 @@
+{
+  "base": "unified-present-fault-v7-20261010-unsigned.hap",
+  "result": "unified-present-gray-v8-20261010-unsigned.hap",
+  "changed": [
+    "libs/arm64-v8a/ntdll.so"
+  ],
+  "ntdll_sha256": "f12c3aec35db5d406ebaab2367de163f8baafc3df7844f6f89033fee332d677d",
+  "hap_sha256": "66ed64863540b4a52af28f5c8ebedfdb85e75bc03d94901371ec702c56e7e548"
+}

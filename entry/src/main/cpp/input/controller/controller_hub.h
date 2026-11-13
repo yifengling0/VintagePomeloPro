@@ -20,6 +20,7 @@ public:
     bool IsEnabled() const;
 
     void SetButton(ControllerSourceId source, uint32_t slot, LogicalButton button, bool pressed);
+    void SetAxis(ControllerSourceId source, uint32_t slot, LogicalAxis axis, float value);
     void SetStick(ControllerSourceId source, uint32_t slot, LogicalStick stick, float x, float y);
     void SetTrigger(ControllerSourceId source, uint32_t slot, LogicalTrigger trigger, float value);
     void SetHat(ControllerSourceId source, uint32_t slot, int8_t x, int8_t y);

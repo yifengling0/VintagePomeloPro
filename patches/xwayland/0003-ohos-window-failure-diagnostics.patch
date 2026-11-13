@@ -1,0 +1,40 @@
+--- a/dix/window.c
++++ b/dix/window.c
+@@ -777,11 +777,13 @@
+ 
+     if ((class != InputOnly) && (pParent->drawable.class == InputOnly)) {
+         *error = BadMatch;
++        ErrorF("STEAMOHOS_X11_BADMATCH line=%d depth=%d parentDepth=%d class=%u mask=0x%lx visual=0x%lx border=%u\n", __LINE__, depth, pParent->drawable.depth, class, (unsigned long)vmask, (unsigned long)visual, bw);
+         return NullWindow;
+     }
+ 
+     if ((class == InputOnly) && ((bw != 0) || (depth != 0))) {
+         *error = BadMatch;
++        ErrorF("STEAMOHOS_X11_BADMATCH line=%d depth=%d parentDepth=%d class=%u mask=0x%lx visual=0x%lx border=%u\n", __LINE__, depth, pParent->drawable.depth, class, (unsigned long)vmask, (unsigned long)visual, bw);
+         return NullWindow;
+     }
+ 
+@@ -811,6 +813,7 @@
+         }
+         if (fOK == FALSE) {
+             *error = BadMatch;
++        ErrorF("STEAMOHOS_X11_BADMATCH line=%d depth=%d parentDepth=%d class=%u mask=0x%lx visual=0x%lx border=%u\n", __LINE__, depth, pParent->drawable.depth, class, (unsigned long)vmask, (unsigned long)visual, bw);
+             return NullWindow;
+         }
+     }
+@@ -818,6 +821,7 @@
+     if (((vmask & (CWBorderPixmap | CWBorderPixel)) == 0) &&
+         (class != InputOnly) && (depth != pParent->drawable.depth)) {
+         *error = BadMatch;
++        ErrorF("STEAMOHOS_X11_BADMATCH line=%d depth=%d parentDepth=%d class=%u mask=0x%lx visual=0x%lx border=%u\n", __LINE__, depth, pParent->drawable.depth, class, (unsigned long)vmask, (unsigned long)visual, bw);
+         return NullWindow;
+     }
+ 
+@@ -825,6 +829,7 @@
+         (class != InputOnly) &&
+         ((visual != ancwopt->visual) || (ancwopt->colormap == None))) {
+         *error = BadMatch;
++        ErrorF("STEAMOHOS_X11_BADMATCH line=%d depth=%d parentDepth=%d class=%u mask=0x%lx visual=0x%lx border=%u\n", __LINE__, depth, pParent->drawable.depth, class, (unsigned long)vmask, (unsigned long)visual, bw);
+         return NullWindow;
+     }
+ 

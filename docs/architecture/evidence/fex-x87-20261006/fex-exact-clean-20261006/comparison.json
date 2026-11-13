@@ -1,0 +1,146 @@
+{
+  "captures": {
+    "on-cold": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T18:48:57",
+        "fps": [
+          {
+            "time": "10-06 18:48:57.810",
+            "displayed": 17880,
+            "fps": 59.73
+          },
+          {
+            "time": "10-06 18:49:01.990",
+            "displayed": 18000,
+            "fps": 28.71
+          }
+        ],
+        "minHostWindowFps": 28.71
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T18:49:05",
+        "fps": [
+          {
+            "time": "10-06 18:49:07.319",
+            "displayed": 18240,
+            "fps": 36.72
+          },
+          {
+            "time": "10-06 18:49:09.321",
+            "displayed": 18360,
+            "fps": 59.95
+          },
+          {
+            "time": "10-06 18:49:11.423",
+            "displayed": 18480,
+            "fps": 57.08
+          }
+        ],
+        "minHostWindowFps": 36.72
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T18:49:12",
+        "fps": [
+          {
+            "time": "10-06 18:49:14.599",
+            "displayed": 18600,
+            "fps": 37.79
+          },
+          {
+            "time": "10-06 18:49:16.617",
+            "displayed": 18720,
+            "fps": 59.46
+          },
+          {
+            "time": "10-06 18:49:18.645",
+            "displayed": 18840,
+            "fps": 59.18
+          }
+        ],
+        "minHostWindowFps": 37.79
+      }
+    ],
+    "on-warm": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T18:49:59",
+        "fps": [
+          {
+            "time": "10-06 18:50:00.459",
+            "displayed": 21240,
+            "fps": 56.82
+          },
+          {
+            "time": "10-06 18:50:02.452",
+            "displayed": 21360,
+            "fps": 60.23
+          },
+          {
+            "time": "10-06 18:50:04.486",
+            "displayed": 21480,
+            "fps": 58.97
+          }
+        ],
+        "minHostWindowFps": 56.82
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T18:50:06",
+        "fps": [
+          {
+            "time": "10-06 18:50:06.523",
+            "displayed": 21600,
+            "fps": 58.93
+          },
+          {
+            "time": "10-06 18:50:08.589",
+            "displayed": 21720,
+            "fps": 58.07
+          },
+          {
+            "time": "10-06 18:50:10.641",
+            "displayed": 21840,
+            "fps": 58.48
+          },
+          {
+            "time": "10-06 18:50:12.644",
+            "displayed": 21960,
+            "fps": 59.91
+          }
+        ],
+        "minHostWindowFps": 58.07
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T18:50:14",
+        "fps": [
+          {
+            "time": "10-06 18:50:14.719",
+            "displayed": 22080,
+            "fps": 57.82
+          },
+          {
+            "time": "10-06 18:50:16.722",
+            "displayed": 22200,
+            "fps": 59.95
+          },
+          {
+            "time": "10-06 18:50:18.697",
+            "displayed": 22320,
+            "fps": 60.75
+          },
+          {
+            "time": "10-06 18:50:20.733",
+            "displayed": 22440,
+            "fps": 58.93
+          }
+        ],
+        "minHostWindowFps": 57.82
+      }
+    ]
+  },
+  "limitations": "Clean HAP: on cold/warm collected; off NOT collected because investigation paused; no matched temperatures or repeated pairs. Three characters added to an empty roster then removed; inspect contact sheets. Host 120-frame FPS windows overlap commands and are not input latency, GPU timing, or a main-package A/B. Float diagnostic code is absent; inherited JIT diagnostics are disabled. Wine winehua_perf timing is enabled equally in both states. Do not extrapolate the conversion microbenchmark to game FPS."
+}

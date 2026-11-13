@@ -1,6 +1,8 @@
+import { AxisEventGate } from '../service/InputEventGate';
 import { hilog } from '../service/LogService';
 import testNapi from 'libentry.so';
 import { mapMouseButton } from '../common/MouseMap';
+import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { FpsHud } from '../components/FpsHud';
 
 const DOMAIN = 0x0000;
@@ -13,8 +15,10 @@ const DOMAIN = 0x0000;
 // 无状态机则菜单点击全丢 — 与主窗口不对称的根因)。
 class PopupXComponentController extends XComponentController {
   popupId: number = 0;
+  private surfaceId: string = '';
 
   onSurfaceCreated(surfaceId: string): void {
+    this.surfaceId = surfaceId;
     hilog.info(DOMAIN, 'WinePopup', '[PopupCtrl] onSurfaceCreated popup=%{public}d surfaceId=%{public}s',
       this.popupId, surfaceId);
     try {
@@ -25,10 +29,11 @@ class PopupXComponentController extends XComponentController {
   }
 
   onSurfaceChanged(surfaceId: string, rect: SurfaceRect): void {
+    if (surfaceId !== this.surfaceId || rect.surfaceWidth <= 0 || rect.surfaceHeight <= 0) return;
     hilog.info(DOMAIN, 'WinePopup', '[PopupCtrl] onSurfaceChanged popup=%{public}d rect=%{public}s',
       this.popupId, JSON.stringify(rect));
     try {
-      testNapi.resizeRenderer(this.popupId, rect.surfaceWidth, rect.surfaceHeight);
+      testNapi.resizeRenderer(this.popupId, rect.surfaceWidth, rect.surfaceHeight, BigInt(surfaceId));
     } catch (e) {
       hilog.error(DOMAIN, 'WinePopup', 'ERR onSurfaceChanged resizeRenderer: %{public}s', JSON.stringify(e));
     }
@@ -37,18 +42,21 @@ class PopupXComponentController extends XComponentController {
   onSurfaceDestroyed(surfaceId: string): void {
     hilog.info(DOMAIN, 'WinePopup', '[PopupCtrl] onSurfaceDestroyed popup=%{public}d', this.popupId);
     try {
-      testNapi.destroyRenderer(this.popupId);
+      testNapi.destroyRenderer(this.popupId, BigInt(surfaceId));
+      if (this.surfaceId === surfaceId) this.surfaceId = '';
     } catch (e) {
       hilog.error(DOMAIN, 'WinePopup', 'ERR onSurfaceDestroyed destroyRenderer: %{public}s', JSON.stringify(e));
     }
   }
 }
 
-@Entry
+@Entry({ useSharedStorage: true })
 @Component
 struct WinePopup {
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: PopupXComponentController = new PopupXComponentController();
-  @State popupId: number = 0;
+  @LocalStorageProp('wineToplevelId') popupId: number = 0;
 
   // ── 触控状态机 (移植自 WineWindow.ets, 单窗口简化) ──
   // 单指: 短按→左键点击(含双击序列) / 长按→右键 / 移动超阈值→按住左键拖拽; 双指→滚轮
@@ -80,8 +88,7 @@ struct WinePopup {
   private scrollLogCounter: number = 0;
 
   aboutToAppear(): void {
-    // loadContent 同步调用, 与 setPendingToplevel 配对 (同 WineWindow)
-    this.popupId = testNapi.getCurrentToplevelId() as number;
+    // Identity belongs to this loadContent scene, independent of other windows.
     this.controller.popupId = this.popupId;
     hilog.info(DOMAIN, 'WinePopup', 'aboutToAppear popup=%{public}d', this.popupId);
   }
@@ -266,12 +273,16 @@ struct WinePopup {
         // -- 滚轮事件 (菜单滚动条等) --
         // 轴事件不冒泡, 必须挂在命中链顶端的 XComponent 上 (同 WineWindow)
         .onAxisEvent((event?: AxisEvent) => {
+          if (event && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] WinePopup action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+          if (!event || !this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+            event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
           if (this.popupId <= 0 || !event) return;
           const px = vp2px(event.x);
           const py = vp2px(event.y);
           const vert = event.getVerticalAxisValue();
           const horiz = event.getHorizontalAxisValue();
-          const step = event.scrollStep ?? 0;
+          const step = -1; // Hardware AxisEvent values are continuous vp.
           if (vert !== 0) {
             testNapi.sendScrollEvent(this.popupId, 0, vert, step, px, py);
           }
@@ -321,17 +332,24 @@ struct WinePopup {
         hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] POPUP-MOUSE popup=%{public}d action=%{public}d px=(%{public}d,%{public}d) btn=%{public}d',
           this.popupId, event.action, Math.round(px), Math.round(py), btn);
       }
-      testNapi.sendPointerEvent(this.popupId, event.action, px, py, btn, event.rawDeltaX, event.rawDeltaY, true);
+      const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+        event.deviceId ?? 0, event.rawDeltaX ?? 0, event.rawDeltaY ?? 0);
+      testNapi.sendPointerEvent(this.popupId, event.action, px, py, btn,
+        motion.rawDx, motion.rawDy, true);
     })
 
     // -- 滚轮事件 (菜单滚动条等) --
     .onAxisEvent((event?: AxisEvent) => {
+          if (event && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] WinePopup action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+          if (!event || !this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+            event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
       if (this.popupId <= 0 || !event) return;
       const px = vp2px(event.x);
       const py = vp2px(event.y);
       const vert = event.getVerticalAxisValue();
       const horiz = event.getHorizontalAxisValue();
-      const step = event.scrollStep ?? 0;
+      const step = -1;
       if (vert !== 0) {
         testNapi.sendScrollEvent(this.popupId, 0, vert, step, px, py);
       }

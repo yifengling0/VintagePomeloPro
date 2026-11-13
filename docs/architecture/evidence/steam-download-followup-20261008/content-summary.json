@@ -1,0 +1,31 @@
+{
+  "sourceSHA256": "aaf622f5e04725724b724ede043c42af07ae14603d8d4d56f6cefb1098aa7f0b",
+  "failures": 356,
+  "uniqueChunks": 196,
+  "depots": {
+    "1942281": {
+      "failures": 319,
+      "uniqueChunks": 159,
+      "allOutputZero": true
+    },
+    "2436941": {
+      "failures": 37,
+      "uniqueChunks": 37,
+      "allOutputZero": true
+    }
+  },
+  "target1942281RemainingChunks": [
+    249,
+    159
+  ],
+  "targetDownloadComplete": false,
+  "httpManifestSuccess": [
+    1942281,
+    2436941
+  ],
+  "attachmentDeviceKind": "phone",
+  "attachmentBackend": "forks",
+  "attachmentDirectNcp": false,
+  "failedDeviceSteamDllIdentity": "not provided",
+  "allUrlQueriesRedacted": true
+}

@@ -1,0 +1,47 @@
+--- a/Source/Windows/Common/CallRetStack.h
++++ b/Source/Windows/Common/CallRetStack.h
+@@ -41,6 +41,26 @@
+   ::VirtualFree(reinterpret_cast<void*>(CallRetStackInfo.AllocationBase), 0, MEM_RELEASE);
+ }
+ 
++// The WOW64 bridge returns by setting guest RIP/RSP rather than executing a
++// guest RET. Consume its prediction entry only when it is still the same entry
++// and names the actual guest return address. Context replacement, callbacks
++// that move the prediction stack, and unmatched/tail-call entries retain the
++// normal lookup/guard-page fallback. Never branch to a cached host PC here.
++bool CompleteSyntheticReturn(FEXCore::Core::InternalThreadState* Thread, uint64_t EntrySP, uint64_t ReturnRIP) {
++  auto& SP = Thread->CurrentFrame->State.callret_sp;
++  const auto Base = reinterpret_cast<uint64_t>(Thread->CallRetStackBase);
++  constexpr auto Size = FEXCore::Core::InternalThreadState::CALLRET_STACK_SIZE;
++  if (!ReturnRIP || SP != EntrySP || SP < Base || SP - Base > Size - 2 * sizeof(uint64_t) || ((SP - Base) & 15)) {
++    return false;
++  }
++  const auto* Entry = reinterpret_cast<const uint64_t*>(SP);
++  if (Entry[0] != ReturnRIP) {
++    return false;
++  }
++  SP += 2 * sizeof(uint64_t);
++  return true;
++}
++
+ bool HandleAccessViolation(FEXCore::Core::InternalThreadState* Thread, uint64_t Address, uint64_t& CallRetSPReg) {
+   auto CallRetStackInfo = GetInfoThread(Thread);
+   if (Address >= CallRetStackInfo.AllocationBase && Address < CallRetStackInfo.AllocationEnd) {
+--- a/Source/Windows/WOW64/Module.cpp
++++ b/Source/Windows/WOW64/Module.cpp
+@@ -434,6 +434,7 @@
+     const uint64_t ReturnRIP = *(uint32_t*)(Frame->State.gregs[FEXCore::X86State::REG_RSP]); // Return address from the stack
+     uint64_t ReturnRSP = Frame->State.gregs[FEXCore::X86State::REG_RSP] + 4;                 // Stack pointer after popping return address
+     uint64_t ReturnRAX = 0;
++    const uint64_t EntryCallRetSP = Frame->State.callret_sp;
+ 
+     if (Frame->State.rip == (uint64_t)BridgeInstrs::UnixCall) {
+       struct StackLayout {
+@@ -459,6 +460,7 @@
+     }
+     // If a new context has been set, use it directly and don't return to the syscall caller
+     if (Frame->State.rip == (uint64_t)BridgeInstrs::Syscall || Frame->State.rip == (uint64_t)BridgeInstrs::UnixCall) {
++      FEX::Windows::CallRetStack::CompleteSyntheticReturn(Frame->Thread, EntryCallRetSP, ReturnRIP);
+       Frame->State.gregs[FEXCore::X86State::REG_RAX] = ReturnRAX;
+       Frame->State.gregs[FEXCore::X86State::REG_RSP] = ReturnRSP;
+       Frame->State.rip = ReturnRIP;

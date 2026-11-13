@@ -1,0 +1,2 @@
+# Unified patch context uses significant spaces and tabs; preserve it verbatim.
+*.patch whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

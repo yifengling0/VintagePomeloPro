@@ -1,0 +1,150 @@
+--- a/elf/dl-map-segments.h
++++ b/elf/dl-map-segments.h
+@@ -19,11 +19,74 @@
+ 
+ #include <dl-load.h>
+ 
++#include <not-cancel.h>
++
++/* Explicit opt-in for a caller-verified, versioned external GNU runtime.
++   Never alter the normal signed file mapping path or privileged execution. */
++static __always_inline bool
++_dl_ohos_external_memory (const char *name)
++{
++  extern char **_environ attribute_hidden;
++  const char *root = NULL;
++  bool enabled = false;
++  if (name == NULL) name = "";
++  for (char **entry = _environ; entry != NULL && *entry != NULL; ++entry)
++    {
++      const char flag[] = "STEAMOHOS_NATIVE_MEMORY=1";
++      const char prefix[] = "STEAMOHOS_EXTERNAL_RUNTIME=";
++      if (strcmp (*entry, flag) == 0)
++        enabled = true;
++      if (strncmp (*entry, prefix, sizeof (prefix) - 1) == 0)
++        root = *entry + sizeof (prefix) - 1;
++    }
++  static unsigned diagnostic_messages;
++  if (root != NULL && diagnostic_messages++ < 2)
++    _dl_debug_printf ("STEAMOHOS_NATIVE_MAP enabled=%d secure=%d image=%s\n", enabled, __libc_enable_secure, name);
++  if (__libc_enable_secure || name[0] != '/') return false;
++  if (!enabled || root == NULL || root[0] != '/' || root[1] == '\0'
++      || strstr (root, "/../") != NULL || strstr (name, "/../") != NULL)
++    return false;
++  const size_t length = strlen (root);
++  return strncmp (name, root, length) == 0 && name[length] == '/';
++}
++
++static __always_inline void *
++_dl_ohos_map_file (void *address, size_t length, int protection,
++                   int flags, int fd, off_t offset, bool native_memory)
++{
++  if (!native_memory)
++    return __mmap (address, length, protection, flags, fd, offset);
++  if ((protection & (PROT_WRITE | PROT_EXEC)) == (PROT_WRITE | PROT_EXEC))
++    { __set_errno (EACCES); return MAP_FAILED; }
++  void *memory = __mmap (address, length, PROT_READ | PROT_WRITE,
++                        (flags & ~MAP_FILE) | MAP_ANONYMOUS, -1, 0);
++  if (memory == MAP_FAILED)
++    { _dl_debug_printf ("STEAMOHOS_NATIVE_MAP map_error=%d\n", errno); return memory; }
++  size_t copied = 0;
++  while (copied < length)
++    {
++      ssize_t count = __pread64_nocancel (fd, (char *) memory + copied,
++                                         length - copied, offset + copied);
++      if (count < 0 && errno == EINTR)
++        continue;
++      if (count < 0)
++        { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP copy_or_protect_error=%d\n", error); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
++      if (count == 0)
++        break; /* The tail of the final file page stays zero filled. */
++      copied += count;
++    }
++  if (protection & PROT_EXEC)
++    __builtin___clear_cache ((char *) memory, (char *) memory + length);
++  if (__mprotect (memory, length, protection) < 0)
++    { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP copy_or_protect_error=%d\n", error); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
++  return memory;
++}
++
+ /* Map a segment and align it properly.  */
+ 
+ static __always_inline ElfW(Addr)
+ _dl_map_segment (const struct loadcmd *c, ElfW(Addr) mappref,
+-		 const size_t maplength, int fd)
++		 const size_t maplength, int fd, bool native_memory)
+ {
+   /* Reserve the complete virtual range without asking for executable file
+      pages beyond EOF. OHOS code signing rejects such over-wide RX mappings.
+@@ -39,10 +102,10 @@
+     return map_start;
+ 
+   ElfW(Addr) map_start_aligned = ALIGN_UP (map_start, alignment);
+-  map_start_aligned = (ElfW(Addr)) __mmap ((void *) map_start_aligned,
++  map_start_aligned = (ElfW(Addr)) _dl_ohos_map_file ((void *) map_start_aligned,
+                                          c->mapend - c->mapstart, c->prot,
+                                          MAP_COPY|MAP_FILE|MAP_FIXED,
+-                                         fd, c->mapoff);
++                                         fd, c->mapoff, native_memory);
+   if (__glibc_unlikely ((void *) map_start_aligned == MAP_FAILED))
+     __munmap ((void *) map_start, maplen);
+   else
+@@ -72,9 +135,13 @@
+                   const ElfW(Ehdr) *header, int type,
+                   const struct loadcmd loadcmds[], size_t nloadcmds,
+                   const size_t maplength, bool has_holes,
+-                  struct link_map *loader)
++                  struct link_map *loader, const char *input_name)
+ {
+   const struct loadcmd *c = loadcmds;
++  /* Explicit rtld invocation intentionally leaves the executable's l_name
++     empty. l_libname retains the real input pathname for this main object. */
++  const char *external_name = l->l_name[0] != '\0' ? l->l_name : input_name;
++  const bool native_memory = _dl_ohos_external_memory (external_name);
+ 
+   if (__glibc_likely (type == ET_DYN))
+     {
+@@ -94,7 +161,7 @@
+            - MAP_BASE_ADDR (l));
+ 
+       /* Remember which part of the address space this object uses.  */
+-      l->l_map_start = _dl_map_segment (c, mappref, maplength, fd);
++      l->l_map_start = _dl_map_segment (c, mappref, maplength, fd, native_memory);
+       if (__glibc_unlikely ((void *) l->l_map_start == MAP_FAILED))
+         return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
+ 
+@@ -132,10 +199,10 @@
+     {
+       if (c->mapend > c->mapstart
+           /* Map the segment contents from the file.  */
+-          && (__mmap ((void *) (l->l_addr + c->mapstart),
++          && (_dl_ohos_map_file ((void *) (l->l_addr + c->mapstart),
+                       c->mapend - c->mapstart, c->prot,
+                       MAP_FIXED|MAP_COPY|MAP_FILE,
+-                      fd, c->mapoff)
++                      fd, c->mapoff, native_memory)
+               == MAP_FAILED))
+         return DL_MAP_SEGMENTS_ERROR_MAP_SEGMENT;
+ 
+--- a/elf/dl-load.c
++++ b/elf/dl-load.c
+@@ -1256,7 +1256,7 @@
+        l_map_start, l_map_end, l_addr, l_contiguous, l_text_end, l_phdr
+      */
+     errstring = _dl_map_segments (l, fd, header, type, loadcmds, nloadcmds,
+-				  maplength, has_holes, loader);
++				  maplength, has_holes, loader, realname);
+     if (__glibc_unlikely (errstring != NULL))
+       {
+ 	/* Mappings can be in an inconsistent state: avoid unmap.  */
+--- a/elf/dl-load.h
++++ b/elf/dl-load.h
+@@ -119,7 +119,7 @@
+                                      size_t nloadcmds,
+                                      const size_t maplength,
+                                      bool has_holes,
+-                                     struct link_map *loader);
++                                     struct link_map *loader, const char *input_name);
+ 
+ /* All the error message strings _dl_map_segments might return are
+    listed here so that different implementations in different sysdeps

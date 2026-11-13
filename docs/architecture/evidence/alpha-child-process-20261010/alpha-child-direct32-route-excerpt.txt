@@ -1,0 +1,23 @@
+10-10 14:04:28.263 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=20284 childHostPid=21676 createStatus=0 mode=create-ipc
+10-10 14:04:28.335 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=20284 childHostPid=21684 createStatus=0 mode=create-ipc
+10-10 14:04:28.463 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21684 childHostPid=21691 createStatus=0 mode=create-ipc
+10-10 14:04:28.659 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21691 childHostPid=21698 createStatus=0 mode=create-ipc
+10-10 14:04:28.873 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21698 childHostPid=21706 createStatus=0 mode=create-ipc
+10-10 14:04:29.172 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21698 childHostPid=21723 createStatus=0 mode=create-ipc
+10-10 14:04:29.349 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21698 childHostPid=21732 createStatus=0 mode=create-ipc
+10-10 14:04:29.793 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21698 childHostPid=21743 createStatus=0 mode=create-ipc
+10-10 14:04:30.255 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21698 childHostPid=21759 createStatus=0 mode=create-ipc
+10-10 14:04:31.366 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21684 childHostPid=21791 createStatus=0 mode=create-ipc
+10-10 14:04:31.741 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21791 childHostPid=21798 createStatus=0 mode=create-ipc
+10-10 14:04:32.090 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21798 childHostPid=21811 createStatus=0 mode=create-ipc
+10-10 14:04:32.461 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=20284 childHostPid=21822 createStatus=0 mode=create-ipc
+10-10 14:04:32.845 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21822 childHostPid=21834 createStatus=0 mode=create-ipc
+10-10 14:04:33.241 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21834 childHostPid=21851 createStatus=0 mode=create-ipc
+10-10 14:04:33.579 20284 20284 I A02330/com.vintage.pomelopro/DirectVkDesktop: Vulkan desktop enabled surface=6700148986743 extent=2560x1600 slots=2 preTransform=identity directGameCpuReadBytes=0 directGameCpuUploadBytes=0
+10-10 14:04:33.615 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21834 childHostPid=21877 createStatus=0 mode=create-ipc
+10-10 14:04:33.766 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21851 childHostPid=21893 createStatus=0 mode=create-ipc
+10-10 14:04:33.892 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21698 childHostPid=21907 createStatus=0 mode=create-ipc
+10-10 14:04:34.330 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=20284 childHostPid=21943 createStatus=0 mode=create-ipc
+10-10 14:04:36.955 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21834 childHostPid=21964 createStatus=0 mode=create-ipc
+10-10 14:04:37.582 20284 21671 I A02330/com.vintage.pomelopro/WL_Broker: [PROC-SPAWN] brokerHostPid=20284 creatorHostPid=21943 childHostPid=21997 createStatus=0 mode=create-ipc
+10-10 14:04:41.310 20284 21879 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=120 layers=4 direct=1 draws=111 acquireWaits=111 releaseFences=110 producerRetired=0 releaseErrors=0 imports=4 reuses=107 uiUploadBytes=21424000 glSources=0 glDraws=0 directGameCpuReadBytes=0 directGameCpuUploadBytes=0

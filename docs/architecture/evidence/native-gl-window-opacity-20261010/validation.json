@@ -1,0 +1,28 @@
+{
+  "branch": "feature/main_proton",
+  "baseCommit": "f47090663537b1e70ad1ebe2f76bd2c34cfbb6af",
+  "userConfirmation": "这回对了。",
+  "installedCandidate": "sprite-window-opacity-20261010-signed.hap",
+  "installedCandidateIdentity": {
+    "base": "alpha-child-path-fixed-20261010-unsigned.hap",
+    "unsignedSha256": "6051d4fe6e1bf8ec2f8a577999b68b7d6897076cb7ffba0af5f7a7f3d6260e61",
+    "signedSha256": "843771b887d019ff711e238f5b36a2b5870912a93cbbdf17a3de1c1b3172fbbc",
+    "changedEntries": [
+      "libs/arm64-v8a/libentry.so"
+    ],
+    "libentrySha256": "37238c80875747c5fa33c38999b19ccc7d18ad864bfc8d6eed0b571f3aff1904"
+  },
+  "finalFactoryLibentrySha256": "4d7e3316213885604e29ce4da90d31f906877e7e705f52f9ff05f0cb13c251b6",
+  "finalFactoryNativeBuild": "passed",
+  "finalFactoryRepackagedOrInstalled": false,
+  "spriteProbe32ARGB": {
+    "checks": 2160,
+    "failures": 0
+  },
+  "spriteProbe32XRGB": {
+    "checks": 2160,
+    "failures": 0
+  },
+  "performanceMatchedAB": false,
+  "note": "Package identity is verified locally. Device native ELF is not readable by shell."
+}

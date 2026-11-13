@@ -1,0 +1,280 @@
+{
+  "pid": 28272,
+  "inputSHA256": "d1ee4549aafa033c7891e6889c74da95f6ded98ad82f98dba0e4e98fb1e608cc",
+  "sampleType": "0x800133e7",
+  "samples": 10528,
+  "hiddenLeafSamples": 10524,
+  "limitation": "Caller identities and cycle weights only. Hidden leaf PCs, off-CPU waits, helper costs and guest instructions cannot be resolved from this capture.",
+  "groups": [
+    {
+      "tid": 28272,
+      "thread": "com.vintage.pomelopro:Native_libwine_child19",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 47.54215614059536
+    },
+    {
+      "tid": 28371,
+      "thread": "MSS Timer",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 23.104706484047643
+    },
+    {
+      "tid": 28304,
+      "thread": "wined3d_cs",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 11.065107028874875
+    },
+    {
+      "tid": 28272,
+      "thread": "com.vintage.pomelopro:Native_libwine_child19",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 5.299909152324713
+    },
+    {
+      "tid": 28370,
+      "thread": "wine_dsound_mix",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 4.659917770412743
+    },
+    {
+      "tid": 28304,
+      "thread": "wined3d_cs",
+      "mode": 2,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "percent": 3.330096478430401
+    },
+    {
+      "tid": 28304,
+      "thread": "wined3d_cs",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.8654839892292013
+    },
+    {
+      "tid": 28370,
+      "thread": "wine_dsound_mix",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.8513791313873211
+    },
+    {
+      "tid": 28371,
+      "thread": "MSS Timer",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.615264547528654
+    },
+    {
+      "tid": 28304,
+      "thread": "wined3d_cs",
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.5870066680369433
+    },
+    {
+      "tid": 28272,
+      "thread": "com.vintage.pomelopro:Native_libwine_child19",
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.42591912523095843
+    },
+    {
+      "tid": 28304,
+      "thread": "wined3d_cs",
+      "mode": 2,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/opengl32.so",
+      "percent": 0.3721559334202287
+    },
+    {
+      "tid": 28369,
+      "thread": "audio_client_ti",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.3496476014771139
+    },
+    {
+      "tid": 28375,
+      "thread": "MSS Stream",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.1898935495189786
+    },
+    {
+      "tid": 28371,
+      "thread": "MSS Timer",
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.11865734068961127
+    },
+    {
+      "tid": 28370,
+      "thread": "wine_dsound_mix",
+      "mode": 2,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/wineohos.so",
+      "percent": 0.07073946632835831
+    }
+  ],
+  "visiblePCs": [
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc6bf6c",
+      "percent": 0.27478401848232825
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1c0ef8",
+      "percent": 0.17806986428026236
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/opengl32.so",
+      "fileOffset": "0x151e74",
+      "percent": 0.1371937343460042
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0x613ef8",
+      "percent": 0.13349790390443442
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0x635154",
+      "percent": 0.1311920189055094
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc6bf38",
+      "percent": 0.12548077067052146
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x199d0c",
+      "percent": 0.11939812458381989
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1464ac",
+      "percent": 0.11009093598189405
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc5f8e0",
+      "percent": 0.1083000770252086
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x146490",
+      "percent": 0.10489689853325426
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0x7e8ebc",
+      "percent": 0.07540651928712466
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc6bf74",
+      "percent": 0.059970828030202435
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0x86c830",
+      "percent": 0.05887988701212734
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc5fb24",
+      "percent": 0.057926956682905824
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc5fea8",
+      "percent": 0.05426080042731211
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x199d20",
+      "percent": 0.04586285303693257
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/proc/28272/root/data/storage/el1/bundle/libs/arm64/libgallium-25.0.1.so",
+      "fileOffset": "0xc5f8e8",
+      "percent": 0.041013414296574305
+    },
+    {
+      "tid": 28304,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x146494",
+      "percent": 0.03885630806564488
+    },
+    {
+      "tid": 28272,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1ef530",
+      "percent": 0.03701502705957228
+    },
+    {
+      "tid": 28371,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e5880",
+      "percent": 0.03606412006856214
+    }
+  ]
+}

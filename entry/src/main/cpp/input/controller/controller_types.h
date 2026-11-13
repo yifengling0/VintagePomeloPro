@@ -35,6 +35,8 @@ enum class LogicalButton : uint8_t {
     Count
 };
 
+enum class LogicalAxis : uint8_t { LX = 0, LY, RX, RY, LT, RT, Count };
+
 enum class LogicalStick : uint8_t {
     Left = 0,
     Right,

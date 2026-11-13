@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "scope": "host audit; no device operation or OP game verification",
+  "packages": {
+    "original149": {
+      "bytes": 396955847,
+      "sha256": "93f4975182744f9cb474fc269ee1deeb0c689fb9b510fce01c890cd749b028a4"
+    },
+    "media149": {
+      "bytes": 400379712,
+      "sha256": "dc96011b3cce2a48c10b1c18ea68d1e9bf7b7c20701d58a5a38926fbb2ec6973"
+    },
+    "current152": {
+      "bytes": 597647204,
+      "sha256": "f6e2cef3b9be89158cef9143422e9a079f22f86e1381704ae41e836795057fcb"
+    }
+  },
+  "ohosWine": {
+    "unexpectedMissingComparedWithOriginal149": [],
+    "pluginsRelocatedWithIdenticalBytes": 76,
+    "missingComparedWithMediaFixed149": [],
+    "unchangedFromMediaFixed149": 2401,
+    "changedMembersFromMediaFixed149": [
+      "libs/arm64-v8a/libdirect_gpu_surface_probe.so",
+      "libs/arm64-v8a/libdirect_shared_buffer_probe.so",
+      "libs/arm64-v8a/libdirect_surface_probe.so",
+      "libs/arm64-v8a/libdirect_vulkan_probe.so",
+      "libs/arm64-v8a/libentry.so",
+      "libs/arm64-v8a/libsmoke_napi.so",
+      "libs/arm64-v8a/libsteamdecompress.so",
+      "libs/arm64-v8a/libvirgl_child.so",
+      "libs/arm64-v8a/libwine_child.so",
+      "payload/share/wine/wine.inf",
+      "payload/dxvk/manifest.json",
+      "payload/bin/wineboot.exe",
+      "payload/bin/aarch64-windows/kernelbase.dll",
+      "payload/bin/aarch64-windows/wined3d.dll",
+      "payload/bin/i386-windows/kernelbase.dll",
+      "payload/bin/i386-windows/wined3d.dll"
+    ],
+    "originalOpRegression": "User reports probably White Lover, not locally available; root cause unconfirmed. Do not conflate GNU media omission with OHOS Wine regression."
+  },
+  "gnuProton": {
+    "upstream": "GE-Proton11-11 aarch64",
+    "backend": "WineDMO + FFmpeg; upstream archive does not contain winegstreamer",
+    "restoredManifest": "docs/linux-steam/proton-media.lock.json",
+    "preservesHistoricalComponentZip": true,
+    "preservesUpstreamSelectionAndUserData": true,
+    "deviceValidated": false
+  },
+  "limitations": [
+    "Full runtime-core gate has a pre-existing libvirgl_child.so identity mismatch.",
+    "Graphics overlay inventory gate is stale: seven additional registered patches, no locked patch missing.",
+    "Synthetic media tests do not establish playback compatibility of White Lover."
+  ],
+  "releasePackageValidation": {
+    "status": "PASS",
+    "ohosWine": {
+      "plugins": 76,
+      "loaderFingerprint": true,
+      "dependencyClosure": true
+    },
+    "gnuMedia": {
+      "files": 38,
+      "bytes": 44914527,
+      "versionedSymbolRequirements": 59
+    },
+    "hap": {
+      "bytes": 640057032,
+      "sha256": "cedb01222841b802688b69b541318f9cbeaea383822822f886c5d9fd1dfc7dbe"
+    },
+    "deviceValidated": false
+  }
+}

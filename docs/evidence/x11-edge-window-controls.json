@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "platform": "MatePad Edge / API 23 / Maleoon 916B",
+  "date": "2026-11-03",
+  "candidateSha256": "af50240f30895363623c4d3c8a9d8cbc21f19750e377ce919f24957658a17a4b",
+  "buildBaseline": "5d1a5ea55dc20ca7332b6a0aa1791ec185619948 plus recorded targeted incremental changes",
+  "releaseAccepted": false,
+  "cleanCiVerified": false,
+  "cases": {
+    "x11PcMultiwindow": {
+      "launch": "normal Deck library built-in card",
+      "desktopAbilityCount": 0,
+      "move": {
+        "before": [
+          589,
+          355
+        ],
+        "after": [
+          889,
+          555
+        ]
+      },
+      "resize": {
+        "before": [
+          2090,
+          1394
+        ],
+        "after": [
+          1790,
+          1154
+        ]
+      },
+      "maximizeAndRestore": true,
+      "minimizeRestore": "same system Window/Mission on two toplevel lifetimes",
+      "closeReopen": "two observed real game exit0; app and Xwayland stayed alive",
+      "visualSamples": {
+        "frames": 32,
+        "uniqueFrames": 32,
+        "wholeClientBlackWhite": 0,
+        "shortFlickerExcluded": false
+      },
+      "settledFps": "116-120; interaction/rebuild can temporarily fall to 7-25"
+    },
+    "x11Virtual": {
+      "launch": "normal Deck card",
+      "titleMoveAndMaximize": true,
+      "hostCloseThenCardRestore": "main/Xwayland/game PIDs unchanged; one DesktopAbility restored",
+      "visualSamples": {
+        "frames": 16,
+        "uniqueFrames": 16,
+        "wholeClientBlackWhite": 0,
+        "shortFlickerExcluded": false
+      }
+    },
+    "x11D3D9": {
+      "requestedBackend": "wined3d",
+      "reportedBackend": "unknown",
+      "seconds": 30,
+      "frames": 3451,
+      "renderResult": "PASS",
+      "observedExit": 0
+    },
+    "waylandD3D11": {
+      "requestedBackend": "dxvk_legacy",
+      "seconds": 45,
+      "frames": 5402,
+      "renderResult": "PASS",
+      "observedExit": null,
+      "exitEvidence": "root NCP IPC death, status -1/unknown; not counted as clean exit"
+    },
+    "waylandD3D9": {
+      "requestedBackend": "wined3d",
+      "reportedBackend": "unknown",
+      "seconds": 30,
+      "frames": 3424,
+      "renderResult": "PASS",
+      "observedExit": 0
+    }
+  },
+  "unresolved": [
+    "41210000 on swapchain rebuild/retained consumer retirement",
+    "short flicker needs final acceptance",
+    "helper shutdown exit6 investigation",
+    "Wayland DX11 root NCP exit status unavailable in this run",
+    "GNU/Linux game, physical IME/relative mouse/gamepad/audio and clean CI regressions incomplete"
+  ]
+}

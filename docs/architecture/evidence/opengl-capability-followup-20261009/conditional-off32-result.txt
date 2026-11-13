@@ -1,0 +1,6 @@
+renderer	2.1 Mesa 25.0.1 (git-330124bf18)	virgl (Maleoon 910)
+
+extension	NV_conditional_render=0	framebuffer_sRGB=0
+
+unsupported
+

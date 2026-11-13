@@ -1,0 +1,33 @@
+{
+  "env": [
+    {
+      "key": "LIBGL_ALWAYS_SOFTWARE",
+      "value": "0"
+    },
+    {
+      "key": "GALLIUM_DRIVER",
+      "value": "zink"
+    },
+    {
+      "key": "MESA_LOADER_DRIVER_OVERRIDE",
+      "value": "zink"
+    },
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,err+all,warn+wgl,trace+wgl"
+    },
+    {
+      "key": "WINEHUA_OPENGL_DIAG",
+      "value": "1"
+    },
+    {
+      "key": "LIBGL_DEBUG",
+      "value": "verbose"
+    },
+    {
+      "key": "WINEHUA_ZINK_VULKAN_LIBRARY",
+      "value": "/system/lib64/libvulkan.so"
+    }
+  ],
+  "path": "C:\\vp-wgl-capability-probe64.exe"
+}

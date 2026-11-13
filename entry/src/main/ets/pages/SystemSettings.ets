@@ -1,3 +1,8 @@
+import { InputRouter } from '../service/InputRouter';
+import { SponsorshipSettings } from '../components/SponsorshipSettings';
+import { AccountSyncSettings } from '../components/AccountSyncSettings';
+import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
+import { FontImportFiles, replaceImportedFonts } from '../service/FontImportTransaction';
 import { skinColor } from '../service/SkinColors';
 /// <reference path="../ohos.systemShare.d.ts" />
 import router from '@ohos.router';
@@ -14,6 +19,7 @@ import testNapi from 'libentry.so';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
 import {
   BOX64_PRESET_IDS,
+  WineTranslationEngine,
   ControlBarDirection,
   ConsoleCardLayout,
   ConsolePalette,
@@ -68,9 +74,28 @@ import {
   ScrollEffectType
 } from '@kit.UIDesignKit';
 
+/** ArkTS requires a concrete implementation for the method-based interface. */
+class FontImportFileAdapter implements FontImportFiles {
+  private removeDirectory: (path: string) => Promise<void>;
+
+  constructor(removeDirectory: (path: string) => Promise<void>) {
+    this.removeDirectory = removeDirectory;
+  }
+
+  async exists(path: string): Promise<boolean> { return fs.access(path); }
+  async mkdir(path: string): Promise<void> { await fs.mkdir(path); }
+  async copy(source: string, destination: string): Promise<void> {
+    await fs.copyFile(source, destination);
+  }
+  async rename(source: string, destination: string): Promise<void> {
+    await fs.rename(source, destination);
+  }
+  async remove(path: string): Promise<void> { await this.removeDirectory(path); }
+}
+
 const DOMAIN = 0x0000;
 
-type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'about';
+type SettingsSection = 'display' | 'appearance' | 'input' | 'engine' | 'performance' | 'logs' | 'sync' | 'support' | 'about';
 
 interface SwitchRowOptions {
   title: string;
@@ -87,6 +112,8 @@ interface FontZipExtractResult {
   bad: number;
   firstBadExt: string;
   error: string;
+  errorCode: string;
+  zlibCode: number;
 }
 
 const DEVICE_SDK_API_VERSION: number = (() => {
@@ -247,6 +274,8 @@ struct InputProfilePickerDialog {
 struct SystemSettingsPage {
   @StorageLink('libraryTitleButtonInsetVp') private titleButtonInsetVp: number = 0;
   @State private settings: GlobalSettings = createDefaultGlobalSettings();
+  @StorageLink('hmosdeck.motion') private deckMotion: boolean = true;
+  private openSupportOnEntry: boolean = (router.getParams() as Record<string, string>)?.section === 'support';
   // 浮窗模式独立开关: 关闭时恢复此前的全屏/切边选择
   private nonFloatingDesktopMode: DesktopWindowMode = DesktopWindowMode.FULLSCREEN;
   @State private breakpoint: BreakpointType = 'lg';
@@ -282,12 +311,15 @@ struct SystemSettingsPage {
   private disposeWindowInsetObserver: (() => void) | null = null;
   private inputProfilePickerController: CustomDialogController | null = null;
   private hubPollTimer: number = -1;
+  private routeSectionApplied: boolean = false;
+  private sectionJumpTimer: number = -1;
 
   private isNarrowPhone(): boolean {
     return this.breakpoint === 'xs';
   }
 
   private usesDarkAppearance(): boolean {
+    if (this.settings.uiSkin === UiSkin.DECK) return true;
     if (this.settings.uiSkin === UiSkin.CONSOLE) return this.settings.consolePalette !== ConsolePalette.PEARL;
     if (this.settings.themeMode === ThemeMode.DARK) return true;
     if (this.settings.themeMode === ThemeMode.LIGHT) return false;
@@ -381,9 +413,16 @@ struct SystemSettingsPage {
     this.loadInputProfiles();
     this.loadApplicationVersion();
     this.restoreSettingsWindowChrome();
+    const params = router.getParams() as Record<string, string>;
+    const target = params?.section as SettingsSection;
+    if (!this.routeSectionApplied && this.settingsSections().includes(target)) {
+      this.routeSectionApplied = true;
+      this.sectionJumpTimer = setTimeout((): void => { this.sectionJumpTimer = -1; this.selectSection(target); }, 100);
+    }
   }
 
   onPageHide(): void {
+    if (this.sectionJumpTimer !== -1) { clearTimeout(this.sectionJumpTimer); this.sectionJumpTimer = -1; }
     this.stopWindowInsetObserver();
   }
 
@@ -465,7 +504,7 @@ struct SystemSettingsPage {
       const succeeded = await task();
       promptAction.showToast({ message: succeeded ? successMessage : WineEngineService.getInstance().getMessage() });
     } catch (_) {
-      promptAction.showToast({ message: 'Wine 引擎操作失败，请查看引擎状态' });
+      promptAction.showToast({ message: WineEngineService.getInstance().getMessage() });
     } finally {
       this.engineBusy = false;
       this.engineOperationMessage = '';
@@ -527,7 +566,7 @@ struct SystemSettingsPage {
     if (this.logBusy) return;
     this.logBusy = true;
     try {
-      // 打包整个 logs 目录为 zip，用系统分享面板（ShareKit）分享。
+      // 导出应用、Wine 和两种 Steam 客户端的有界日志快照并分享。
       // utd 用 general.object 而非 general.file：QQ/微信等 IM 的分享扩展
       // 只注册了 general.object/text 等泛类型（bm dump 实测 QQ 无 general.file），
       // 声明泛类型后 QQ 才会出现在面板中。
@@ -600,6 +639,8 @@ struct SystemSettingsPage {
        desktopOrientation: desktopOrientation,
       desktopWindowMode: desktopWindowMode,
       keepScreenOn: keepScreenOn,
+      wineTranslationEngine: this.settings.wineTranslationEngine,
+      wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: desktopInputProfileId || 'default',
       viewMode: view,
@@ -742,7 +783,8 @@ struct SystemSettingsPage {
       options.maxSelectNumber = 1;
       const result = await documentPicker.select(options);
       if (!result || result.length === 0) return;
-      this.updatePageBackground(result[0], true);
+      const imported = await UserConfigurationRepository.getInstance().importWallpaper(result[0]);
+      this.updatePageBackground(imported, true);
       promptAction.showToast({ message: '页面背景已更新' });
     } catch (_) {
       promptAction.showToast({ message: '未选择背景图片' });
@@ -793,8 +835,11 @@ struct SystemSettingsPage {
       await new Promise<void>((resolve: () => void) => setTimeout(resolve, 30));
       // picker 返回 file:// URI, 先经 fs 打开再复制到应用缓存, 解压用真实路径。
       const srcFile = fs.openSync(selected[0], fs.OpenMode.READ_ONLY);
-      await fs.copyFile(srcFile.fd, cacheZip);
-      fs.closeSync(srcFile);
+      try {
+        await fs.copyFile(srcFile.fd, cacheZip);
+      } finally {
+        fs.closeSync(srcFile);
+      }
       await fs.mkdir(tmpDir, true);
       this.fontImportStage = '正在解压字体包…';
       await new Promise<void>((resolve: () => void) => setTimeout(resolve, 30));
@@ -840,7 +885,7 @@ struct SystemSettingsPage {
         this.fontImporting = false;
         return;
       }
-      // native 落盘的 font-NNN.ext 均为合法字体, 直接列目录即可。
+      // Native has validated every staged font before replacement is offered.
       const fonts: string[] = await fs.listFile(tmpDir);
       if (fonts.length === 0) {
         promptAction.showDialog({
@@ -886,22 +931,34 @@ struct SystemSettingsPage {
     }
   }
 
-  /** 把 native 已改名 (font-NNN.ext) 的字体复制到 C:\windows\Fonts。 */
+  /** Only used for transaction-owned staging/backup paths; never follow links. */
+  private async removeFontImportDir(path: string): Promise<void> {
+    const stat = fs.lstatSync(path);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      await fs.unlink(path);
+      return;
+    }
+    for (const name of await fs.listFile(path)) {
+      await this.removeFontImportDir(path + '/' + name);
+    }
+    await fs.rmdir(path);
+  }
+
+  /** Stage all fonts beside the destination before replacing the old directory. */
   private async applyFontImport(tmpDir: string, cacheZip: string, fonts: string[]): Promise<void> {
     try {
       const fontsDir = this.wineFontsDir();
       this.fontImporting = true;
       this.fontImportProgress = 0;
-      this.fontImportStage = '正在清除旧字体…';
-      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 30));
-      await this.removeDirRecursive(fontsDir);
-      await fs.mkdir(fontsDir, true);
-      for (let index = 0; index < fonts.length; index++) {
-        await fs.copyFile(tmpDir + '/' + fonts[index], fontsDir + '/' + fonts[index]);
-        this.fontImportProgress = Math.round((index + 1) / fonts.length * 100);
-        this.fontImportStage = '正在写入字体 ' + (index + 1) + '/' + fonts.length;
-        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 16));
-      }
+      this.fontImportStage = '正在准备字体…';
+      const files: FontImportFiles = new FontImportFileAdapter(
+        async (path: string): Promise<void> => { await this.removeFontImportDir(path); });
+      await replaceImportedFonts(files, tmpDir, fontsDir, fonts, Date.now().toString(),
+        (done: number, total: number): void => {
+          this.fontImportProgress = Math.round(done / total * 100);
+          this.fontImportStage = '正在写入字体 ' + done + '/' + total;
+        });
+      await UserConfigurationRepository.getInstance().recordFonts(fonts, fontsDir);
       await this.removeDirRecursive(tmpDir);
       try { fs.unlinkSync(cacheZip); } catch (_) {}
       this.fontImporting = false;
@@ -920,8 +977,9 @@ struct SystemSettingsPage {
           action: (): void => { this.restartAppAfterImport(); }
         }
       });
-    } catch (_) {
-      promptAction.showToast({ message: '字体写入失败' });
+    } catch (error) {
+      const detail = (error as Error).message;
+      promptAction.showToast({ message: detail || '字体写入失败，原有字体未删除' });
       await this.removeDirRecursive(tmpDir);
       try { fs.unlinkSync(cacheZip); } catch (_) {}
       this.fontImporting = false;
@@ -1041,6 +1099,13 @@ struct SystemSettingsPage {
     promptAction.showToast({ message: '渲染策略已保存；重启 Wine 引擎后生效' });
   }
 
+  private updateTranslationEngine(engine: WineTranslationEngine): void {
+    if (engine === this.settings.wineTranslationEngine) return;
+    this.settings.wineTranslationEngine = engine;
+    void ThemeSettingsService.getInstance().update(this.settings);
+    promptAction.showToast({ message: '转译引擎已保存，新启动的 Windows 程序生效' });
+  }
+
   private updateBox64Preset(preset: string): void {
     if (preset === this.settings.box64Preset) return;
     this.settings = {
@@ -1049,6 +1114,8 @@ struct SystemSettingsPage {
       desktopOrientation: this.settings.desktopOrientation,
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
+      wineTranslationEngine: this.settings.wineTranslationEngine,
+      wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1109,6 +1176,8 @@ struct SystemSettingsPage {
       desktopOrientation: this.settings.desktopOrientation,
       desktopWindowMode: this.settings.desktopWindowMode,
       keepScreenOn: this.settings.keepScreenOn,
+      wineTranslationEngine: this.settings.wineTranslationEngine,
+      wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1378,6 +1447,8 @@ struct SystemSettingsPage {
   }
 
   private selectUiSkin(value: UiSkin): void {
+    InputRouter.getInstance().releaseAllKeys();
+    GamepadManager.getInstance().releaseAll();
     const next = JSON.parse(JSON.stringify(this.settings)) as GlobalSettings;
     next.uiSkin = value;
     this.settings = next;
@@ -1415,7 +1486,9 @@ struct SystemSettingsPage {
   @Builder
   private SectionButton(label: string, section: SettingsSection, icon: Resource) {
     Row({ space: 12 }) {
-      SymbolGlyph(icon).fontSize(18).fontColor([skinColor('text_primary')])
+      Stack({ alignContent: Alignment.Center }) {
+        SymbolGlyph(icon).fontSize(18).fontColor([skinColor('text_primary')])
+      }.width(24).height(24)
       Text(label).fontSize(14).fontColor(skinColor('text_primary'))
         .fontWeight(this.section === section ? FontWeight.Medium : FontWeight.Regular)
     }
@@ -1444,24 +1517,19 @@ struct SystemSettingsPage {
     .onClick((): void => this.selectSection(section))
   }
 
+  private settingsSections(): SettingsSection[] {
+    return DeviceCapabilityPolicy.supportsValueAddedFeatures() ?
+      ['display', 'appearance', 'sync', 'input', 'engine', 'performance', 'logs', 'support', 'about'] :
+      ['display', 'appearance', 'input', 'engine', 'performance', 'logs', 'about'];
+  }
+
   private sectionIndex(section: SettingsSection): number {
-    if (section === 'display') return 0;
-    if (section === 'appearance') return 1;
-    if (section === 'input') return 2;
-    if (section === 'engine') return 3;
-    if (section === 'performance') return 4;
-    if (section === 'logs') return 5;
-    return 6;
+    return Math.max(0, this.settingsSections().indexOf(section));
   }
 
   private sectionAt(index: number): SettingsSection {
-    if (index <= 0) return 'display';
-    if (index === 1) return 'appearance';
-    if (index === 2) return 'input';
-    if (index === 3) return 'engine';
-    if (index === 4) return 'performance';
-    if (index === 5) return 'logs';
-    return 'about';
+    const sections = this.settingsSections();
+    return sections[Math.max(0, Math.min(index, sections.length - 1))];
   }
 
   private selectSection(section: SettingsSection): void {
@@ -1849,7 +1917,15 @@ struct SystemSettingsPage {
   @Builder
   private Content(section: SettingsSection) {
     Column({ space: 14 }) {
-      if (section === 'display') {
+      if (section === 'sync') {
+        AccountSyncSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm',
+          surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
+          glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
+      } else if (section === 'support') {
+        SponsorshipSettings({ compact: this.breakpoint === 'xs' || this.breakpoint === 'sm', initiallyExpanded: this.openSupportOnEntry,
+          surfaceColor: this.groupSurfaceColor(), cardBorderColor: this.groupBorderColor(),
+          glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
+      } else if (section === 'display') {
         Column({ space: 16 }) {
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
@@ -1963,11 +2039,19 @@ struct SystemSettingsPage {
               .backgroundColor(this.settings.uiSkin === UiSkin.CLASSIC ? skinColor('accent') : skinColor('search_background'))
               .fontColor(this.settings.uiSkin === UiSkin.CLASSIC ? '#FFFFFFFF' : skinColor('text_primary'))
               .onClick((): void => this.selectUiSkin(UiSkin.CLASSIC))
-            Button('新皮肤').layoutWeight(1).height(44).borderRadius(14)
-              .backgroundColor(this.settings.uiSkin === UiSkin.CONSOLE ? skinColor('accent') : skinColor('search_background'))
-              .fontColor(this.settings.uiSkin === UiSkin.CONSOLE ? '#FFFFFFFF' : skinColor('text_primary'))
-              .onClick((): void => this.selectUiSkin(UiSkin.CONSOLE))
+            Button('Deck 模式').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.uiSkin === UiSkin.DECK ? skinColor('accent') : skinColor('search_background'))
+              .fontColor(this.settings.uiSkin === UiSkin.DECK ? '#FFFFFFFF' : skinColor('text_primary'))
+              .onClick((): void => this.selectUiSkin(UiSkin.DECK))
           }.width('100%')
+          this.SwitchRow({
+            title: 'Deck 界面动画', description: '封面漂浮、卡片反馈与面板过渡', enabled: this.deckMotion,
+            onChange: (value: boolean): void => {
+              void AppSettingsStore.getInstance().setDeckMotion(value).catch((): void => {
+                promptAction.showToast({ message: '动画设置保存失败，请重试' });
+              });
+            }, id: 'settings-deck-motion'
+          })
           if (this.settings.uiSkin === UiSkin.CONSOLE) {
             Text('游戏背景会在首次展示时自动从 Steam 公开图源精确匹配并下载，无需填写 Key。游戏设置中可重新获取或手动选择。')
               .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
@@ -2272,28 +2356,59 @@ struct SystemSettingsPage {
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
-          Text('Box64 兼容性预设').fontSize(12).fontWeight(FontWeight.Medium)
+          Text('窗口后端').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')
-          Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-            ForEach(BOX64_PRESET_IDS, (preset: string) => {
-              Button(box64PresetLabel(preset))
-                .height(42)
-                .padding({ left: 14, right: 14 })
-                .margin({ right: 8, bottom: 8 })
-                .borderRadius(14)
-                .fontSize(13)
-                .fontColor(this.settings.box64Preset === preset ?
-                  '#FFFFFFFF' : skinColor('text_primary'))
-                .backgroundColor(this.settings.box64Preset === preset ?
-                  skinColor('accent') : skinColor('search_background'))
-                .id('box64-preset-' + preset)
-                .onClick((): void => this.updateBox64Preset(preset))
-            }, (preset: string): string => preset)
+          Row({ space: 8 }) {
+            Button('Wayland').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.wineDisplayRoute !== 'x11' ? skinColor('accent') : skinColor('search_background'))
+              .onClick((): void => { this.settings.wineDisplayRoute = 'wayland'; void ThemeSettingsService.getInstance().update(this.settings); })
+            Button('X11（实验）').layoutWeight(1).height(44).borderRadius(14)
+              .backgroundColor(this.settings.wineDisplayRoute === 'x11' ? skinColor('accent') : skinColor('search_background'))
+              .onClick((): void => { this.settings.wineDisplayRoute = 'x11'; void ThemeSettingsService.getInstance().update(this.settings); })
           }.width('100%')
-          Text(box64PresetDescription(this.settings.box64Preset))
+          Text('完整退出 Wine 后下次启动生效。Windows Steam 和本地 Windows 程序使用此设置。')
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-          Text('预设会应用于之后启动的 Windows 程序；默认档使用系统当前已验证的兼容配置。')
-            .fontSize(11).fontColor('#C47A20').width('100%')
+
+          Text('转译引擎').fontSize(12).fontWeight(FontWeight.Medium)
+            .fontColor(skinColor('text_secondary')).width('100%')
+          Row({ space: 8 }) {
+            Button('FEX').layoutWeight(1).height(44).borderRadius(14)
+              .fontColor(this.settings.wineTranslationEngine === WineTranslationEngine.FEX ? '#FFFFFFFF' : skinColor('text_primary'))
+              .backgroundColor(this.settings.wineTranslationEngine === WineTranslationEngine.FEX ? skinColor('accent') : skinColor('search_background'))
+              .id('wine-translation-fex')
+              .onClick((): void => this.updateTranslationEngine(WineTranslationEngine.FEX))
+            Button('Box64').layoutWeight(1).height(44).borderRadius(14)
+              .fontColor(this.settings.wineTranslationEngine === WineTranslationEngine.BOX64 ? '#FFFFFFFF' : skinColor('text_primary'))
+              .backgroundColor(this.settings.wineTranslationEngine === WineTranslationEngine.BOX64 ? skinColor('accent') : skinColor('search_background'))
+              .id('wine-translation-box64')
+              .onClick((): void => this.updateTranslationEngine(WineTranslationEngine.BOX64))
+          }.width('100%')
+          Text('用于原 Wine 的 32 位 Windows 程序，默认 FEX。已运行的程序需退出重开；从 Wine 桌面启动时请先重启 Wine 引擎。')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+          if (this.settings.wineTranslationEngine === WineTranslationEngine.BOX64) {
+            Text('Box64 兼容性预设').fontSize(12).fontWeight(FontWeight.Medium)
+              .fontColor(skinColor('text_secondary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+              ForEach(BOX64_PRESET_IDS, (preset: string) => {
+                Button(box64PresetLabel(preset))
+                  .height(42)
+                  .padding({ left: 14, right: 14 })
+                  .margin({ right: 8, bottom: 8 })
+                  .borderRadius(14)
+                  .fontSize(13)
+                  .fontColor(this.settings.box64Preset === preset ?
+                    '#FFFFFFFF' : skinColor('text_primary'))
+                  .backgroundColor(this.settings.box64Preset === preset ?
+                    skinColor('accent') : skinColor('search_background'))
+                  .id('box64-preset-' + preset)
+                  .onClick((): void => this.updateBox64Preset(preset))
+              }, (preset: string): string => preset)
+            }.width('100%')
+            Text(box64PresetDescription(this.settings.box64Preset))
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            Text('预设会应用于之后启动的 Windows 程序；默认档使用系统当前已验证的兼容配置。')
+              .fontSize(11).fontColor('#C47A20').width('100%')
+          }
 
           Text('会话维护').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')
@@ -2327,6 +2442,8 @@ struct SystemSettingsPage {
                   .fontColor(skinColor('text_primary')).width('100%')
                 Text('重建 Wine 沙盒并重装运行时。默认保留文档和注册表。')
                   .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+                Text('从 1.4.4 等旧版本升级后无法启动桌面，请先重置。若重置后仍卡住，请备份重要数据后卸载本应用并重新安装。')
+                  .fontSize(11).fontColor('#C47A20').width('100%')
               }.layoutWeight(1).alignItems(HorizontalAlign.Start)
             }.width('100%')
             this.SwitchRow({
@@ -2434,14 +2551,14 @@ struct SystemSettingsPage {
               .fontColor(skinColor('text_secondary')).width('100%')
             Text('Download/com.vintage.pomelopro/logs').fontSize(12)
               .fontColor(skinColor('text_primary')).width('100%')
-            Text('记录应用自身 ArkTS 与 native 日志，按日期分文件（app-日期.log / native-日期.log），同一天超过 20MB 自动滚动，超过 7 天的文件自动清理。')
+            Text('记录应用日志，自动保留 7 天。导出时一并收集 Wine、图形运行库和 Windows Steam 的近期诊断日志；自动过滤登录凭据，超出大小限制时保留末尾并标注。请在问题发生后及时导出。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           }
           .width('100%').padding(14).borderRadius(16)
           .backgroundColor(skinColor('search_background'))
 
           Row({ space: 10 }) {
-            Button('导出日志').layoutWeight(1).height(48).borderRadius(14)
+            Button(this.logBusy ? '正在整理日志…' : '导出日志').layoutWeight(1).height(48).borderRadius(14)
               .backgroundColor(skinColor('accent')).fontColor('#FFFFFFFF')
               .enabled(!this.logBusy)
               .id('log-export')
@@ -2526,10 +2643,16 @@ struct SystemSettingsPage {
       }
       .width('100%').id('settings-section-display')
       ListItem() { this.Content('appearance') }.width('100%').id('settings-section-appearance')
+      if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+        ListItem() { this.Content('sync') }.width('100%').id('settings-section-sync')
+      }
       ListItem() { this.Content('input') }.width('100%').id('settings-section-input')
       ListItem() { this.Content('engine') }.width('100%').id('settings-section-engine')
       ListItem() { this.Content('performance') }.width('100%').id('settings-section-performance')
       ListItem() { this.Content('logs') }.width('100%').id('settings-section-logs')
+      if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+        ListItem() { this.Content('support') }.width('100%').id('settings-section-support')
+      }
       ListItem() { this.Content('about') }.width('100%').id('settings-section-about')
     }
     .layoutWeight(1)
@@ -2560,10 +2683,16 @@ struct SystemSettingsPage {
                 .fontColor(skinColor('text_secondary')).width('100%').margin({ left: 8, bottom: 6 })
               this.SectionButton('显示模式', 'display', $r('sys.symbol.rectangle_grid_1x2'))
               this.SectionButton('外观', 'appearance', $r('sys.symbol.square_grid_2x2'))
+              if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+                this.SectionButton('账号与同步', 'sync', $r('sys.symbol.arrow_counterclockwise'))
+              }
               this.SectionButton('输入与手柄', 'input', $r('sys.symbol.list_bullet'))
               this.SectionButton('Wine 引擎', 'engine', $r('sys.symbol.arrow_clockwise'))
               this.SectionButton('性能监控', 'performance', $r('sys.symbol.list_bullet'))
               this.SectionButton('日志', 'logs', $r('sys.symbol.doc_text'))
+              if (DeviceCapabilityPolicy.supportsValueAddedFeatures()) {
+                this.SectionButton('赞助', 'support', $r('sys.symbol.heart'))
+              }
               this.SectionButton('关于', 'about', $r('sys.symbol.info_circle'))
             }
             .width(this.breakpoint === 'xl' ? 224 : 204)

@@ -1,0 +1,10 @@
+--- a/dialects/linux/dproc.c
++++ b/dialects/linux/dproc.c
+@@ -440,6 +440,7 @@
+ 		}
+ 	    }
+ 	}
++	steamohos_lsof_registry_scan();
+ }
+ 
+ 

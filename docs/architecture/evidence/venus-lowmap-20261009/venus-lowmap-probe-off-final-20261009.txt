@@ -1,0 +1,78 @@
+pointer_bits	32
+
+device	0x00000000	level=0xb000
+
+adapter	Virtio-GPU Venus (Maleoon 910)
+
+render_target	0x00000000
+
+buffers	0x00000000
+
+upload_map	0	0x00000000	02545800
+
+readback_map	0	0x00000000	04600000
+
+upload_readback	0	bad=0
+
+upload_map	1	0x00000000	02505800
+
+readback_map	1	0x00000000	04600000
+
+upload_readback	1	bad=0
+
+upload_map	2	0x00000000	02545800
+
+readback_map	2	0x00000000	04600000
+
+upload_readback	2	bad=0
+
+upload_map	3	0x00000000	02505800
+
+readback_map	3	0x00000000	04600000
+
+upload_readback	3	bad=0
+
+textures	0x00000000
+
+texture_upload_readback	0	bad=0
+
+texture_upload_readback	1	bad=0
+
+texture_upload_readback	2	bad=0
+
+texture_upload_readback	3	bad=0
+
+present	frames=120	hr=0x00000000	ms=2645.055	fps=45.368
+
+RESULT	PASS
+
+hold_ms	30000
+
+0310:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7005d60000 -> 0x9f80000 (CPU fallback)
+0248:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7007614000 vma=1
+0248:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7007614000 -> 0xd450000 (CPU fallback)
+0248:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7008614000 vma=1
+0248:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7008614000 -> 0xe450000 (CPU fallback)
+0248:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7009614000 vma=1
+0248:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7009614000 -> 0x30050000 (CPU fallback)
+0248:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7007614000 vma=1
+0248:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7007614000 -> 0x30050000 (CPU fallback)
+0248:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7009614000 vma=1
+0248:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7009614000 -> 0x31160000 (CPU fallback)
+0248:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x700ab45000 vma=1
+0248:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x700ab45000 -> 0x32160000 (CPU fallback)
+MESA-VIRTIO: debug: winehua venus map: sample=0 fd=45 size=16777216 ptr=0x7001901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+01b8:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7001901000 vma=1
+01b8:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7001901000 -> 0x2500000 (CPU fallback)
+MESA-VIRTIO: debug: winehua venus map: sample=1 fd=51 size=16777216 ptr=0x7002901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+01b8:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7002901000 vma=1
+01b8:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7002901000 -> 0x3600000 (CPU fallback)
+MESA-VIRTIO: debug: winehua venus map: sample=2 fd=54 size=16777216 ptr=0x7003901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+01b8:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7003901000 vma=1
+01b8:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7003901000 -> 0x4600000 (CPU fallback)
+MESA-VIRTIO: debug: winehua venus map: sample=3 fd=55 size=16777216 ptr=0x7004901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+01b8:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7004901000 vma=1
+01b8:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7004901000 -> 0x5600000 (CPU fallback)
+MESA-VIRTIO: debug: winehua venus map: sample=4 fd=56 size=16777216 ptr=0x7005901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+01b8:err:vulkan:winehua_wow64_remap_map WineHua: WOW64 could not open backing fd for map 0x7005901000 vma=1
+01b8:err:vulkan:winehua_wow64_accept_map WineHua: WOW64 copying vkMapMemory 0x7005901000 -> 0x6600000 (CPU fallback)

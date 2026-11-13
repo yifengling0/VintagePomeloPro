@@ -1,0 +1,9 @@
+Tue Oct  6 18:26:09 CST 2026
+Profiling duration is 32.000 seconds.
+Start Profiling...
+Timeout exit (total 32004 ms)
+Process and Saving data...
+[ hiperf record: Captured 2.628 MB perf data. ]
+[ Sample records: 16093, Non sample records: 3792 ]
+[ Sample lost: 0, Non sample lost: 0 ]
+Tue Oct  6 18:26:41 CST 2026

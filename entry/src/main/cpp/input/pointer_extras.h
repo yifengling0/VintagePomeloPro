@@ -2,6 +2,7 @@
 
 #include <wayland-server-core.h>
 #include <functional>
+#include <cstdint>
 #include <mutex>
 #include <vector>
 
@@ -140,6 +141,7 @@ private:
     std::vector<Constraint> constraints_;
     // 同一 client 可短暂存在多个对象；只向当前输入 surface 的 client 广播。
     std::vector<RelativePointer> relativePointers_;
+    wl_client* cursorLockClient_ = nullptr;   // current relative owner, independent of other clients
 
     // 约束资源析构共通处理: 摘掉条目, 如有 hint 则把逻辑指针移到 hint
     static void OnConstraintResourceDestroyed(wl_resource* r);
@@ -153,8 +155,11 @@ private:
     void ApplyHostCursorLock(bool lock, uint32_t toplevelId);
     std::vector<int32_t> hostWindowIds_;       // mutex_ 保护; 各 Ability 主窗口
     int32_t lockedWindowId_ = 0;               // 实际锁定成功的窗口 (0=未锁)
-    bool etsLockNotified_ = false;             // 已向 ets 通知 locked=true; 与 lockedWindowId_ 分离
+    bool etsLockNotified_ = false;             // requested relative state; actual IPC lock tracked separately
     uint32_t lockedToplevelId_ = 0;            // ReleaseLockForToplevel 按它匹配
+    uint64_t cursorLockGeneration_ = 0;       // latest desired state; mutex_ protected
+    bool cursorLockWorkerRunning_ = false;   // exactly one worker owns window-service IPC
+    bool cursorLockIsShell_ = true;          // identity captured on the Wayland thread
     std::function<void(bool, uint32_t)> lockCallback_;   // mutex_ 保护
     // warp 回调装配 (4C1 解环): SetPointerWarpSink 在事件循环启动前一次性注入,
     // 之后只在 Wayland 线程读 → 无锁 (见头文件 Top 注释"warp 回调装配")。

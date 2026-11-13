@@ -1,0 +1,10 @@
+{
+  "base": "alpha-test-fixed-20261010-unsigned.hap",
+  "result": "alpha-child-path-fixed-20261010-unsigned.hap",
+  "changed": [
+    "libs/arm64-v8a/ntdll.so"
+  ],
+  "ntdllSha256": "9c2ef6bce25bdcf702ed60064bc782b41dcb89d3d2e1be4d7a7a4ad6ac1ed4d3",
+  "unsignedSha256": "aa4335a8a081de3826067c5581e3693b344dd1237929d20de8eb48a6c02304d8",
+  "signedSha256": "f019ddb89346e05149d962afd5a021ac377e2aacd79f40dc9e1927a0241308d6"
+}

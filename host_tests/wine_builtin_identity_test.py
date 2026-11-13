@@ -1,0 +1,111 @@
+"""Check the packaged builtin identity used by prefix update reconciliation."""
+import hashlib
+import importlib.util
+import io
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+import zipfile
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / 'scripts/stamp_wine_builtin_identity.py'
+spec = importlib.util.spec_from_file_location('identity', SCRIPT)
+identity = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(identity)
+
+
+class BuiltinIdentity(unittest.TestCase):
+    def test_assembly_stamps_after_final_pe_producer(self):
+        script = (ROOT / 'scripts/assemble.sh').read_text()
+        stamp = 'python3 "$SCRIPT_DIR/stamp_wine_builtin_identity.py" "$wine_data"'
+        self.assertEqual(script.count(stamp), 1)
+        self.assertGreater(script.index(stamp), script.index('python3 "$SCRIPT_DIR/icu_compat_runtime.py" stage'))
+        self.assertNotIn('build_linux_steam_pe_components.py', script)
+        self.assertLess(script.index(stamp), script.index('python3 "$SCRIPT_DIR/source_build_contract.py"'))
+        self.assertIn('$(SCRIPTS)/stamp_wine_builtin_identity.py', (ROOT / 'Makefile').read_text())
+
+    def test_targeted_archive_update_invalidates_existing_prefix_identity(self):
+        members = {'share/wine/wine.inf': b'[Version]\r\n',
+                   'bin/i386-windows/wined3d.dll': b'old',
+                   'bin/aarch64-windows/kernelbase.dll': b'original',
+                   'bin/aarch64-unix/ntdll.so': b'unix'}
+
+        def archive(values):
+            stream = io.BytesIO()
+            with zipfile.ZipFile(stream, 'w') as output:
+                for name, value in values.items():
+                    output.writestr(name, value)
+            return zipfile.ZipFile(stream)
+
+        with archive(members) as original:
+            with self.assertRaisesRegex(ValueError, 'stale'):
+                identity.validate_archive(original)
+            members['share/wine/wine.inf'] = identity.stamp_archive(original)
+        with archive(members) as original:
+            identity.validate_archive(original)
+            replacement = {'bin/i386-windows/wined3d.dll': b'fixed',
+                           'bin/aarch64-windows/lsteamclient.dll': b'new bridge'}
+            updated_inf = identity.stamp_archive(original, replacement)
+            self.assertNotEqual(updated_inf, members['share/wine/wine.inf'])
+        members.update(replacement)
+        with archive(members) as stale:
+            with self.assertRaisesRegex(ValueError, 'stale'):
+                identity.validate_archive(stale)
+        members['share/wine/wine.inf'] = updated_inf
+        with archive(members) as updated:
+            identity.validate_archive(updated)
+            self.assertEqual(updated_inf, identity.stamp_archive(updated))
+            self.assertEqual(updated_inf.count(identity.MARKER), 1)
+
+    def test_refresh_only_for_builtin_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            inf = root / 'share/wine/wine.inf'
+            inf.parent.mkdir(parents=True)
+            original = b'[Version]\r\nSignature="$CHICAGO$"\r\n'
+            inf.write_bytes(original)
+            paths = ['bin/aarch64-windows/libwow64fex.dll',
+                     'bin/aarch64-windows/libarm64ecfex.dll',
+                     'bin/aarch64-windows/ntdll.dll', 'bin/i386-windows/ntdll.dll',
+                     'bin/aarch64-unix/ntdll.so']
+            for name in paths:
+                p = root / name
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_bytes(b'original')
+            def run():
+                subprocess.run(['python3', str(SCRIPT), str(root)], check=True)
+                return inf.read_bytes()
+            baseline = run()
+            self.assertTrue(baseline.startswith(original))
+            before_stat = inf.stat()
+            self.assertEqual(run(), baseline)
+            self.assertEqual(inf.stat().st_mtime_ns, before_stat.st_mtime_ns)
+            (root / paths[-1]).write_bytes(b'graphics/Unix-only update')
+            self.assertEqual(run(), baseline)
+            for name in paths[:-1]:
+                (root / name).write_bytes(b'fixed')
+                updated = run()
+                self.assertNotEqual(updated, baseline, name)
+                self.assertEqual(updated.count(identity.MARKER), 1)
+                baseline = updated
+            late = root / 'bin/i386-windows/icu.dll'
+            late.write_bytes(b'late-stage ICU builtin')
+            updated = run()
+            self.assertNotEqual(updated, baseline)
+            self.assertEqual(run(), updated)
+            baseline = updated
+            (root / paths[0]).unlink()
+            self.assertNotEqual(run(), baseline)
+
+    def test_order_independent_and_empty_rejected(self):
+        entries = [('bin/i386-windows/ntdll.dll', hashlib.sha256(b'a').hexdigest()),
+                   ('bin/aarch64-windows/ntdll.dll', hashlib.sha256(b'b').hexdigest())]
+        self.assertEqual(identity.stamp(b'[Version]\n', entries),
+                         identity.stamp(b'[Version]\n', list(reversed(entries))))
+        with self.assertRaises(ValueError):
+            identity.stamp(b'[Version]\n', [])
+
+
+if __name__ == '__main__':
+    unittest.main()

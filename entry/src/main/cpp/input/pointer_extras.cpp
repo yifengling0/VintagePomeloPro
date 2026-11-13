@@ -1,4 +1,4 @@
-#include "input/pointer_extras.h"
+#include "pointer_extras.h"
 
 #include "protocols/pointer-constraints-unstable-v1-server-protocol.h"
 #include "protocols/pointer-warp-v1-server-protocol.h"
@@ -273,9 +273,13 @@ void PointerExtras::relmgr_get_relative_pointer(wl_client* client, wl_resource*,
     {
         std::lock_guard<std::mutex> lk(self->mutex_);
         self->relativePointers_.push_back({res, pointer, client});
+        self->cursorLockClient_ = client;
         total = self->relativePointers_.size();
         for (const auto& c : self->constraints_)
-            if (c.type == ConstraintType::Lock) { tl = c.toplevelId; break; }
+            if (c.type == ConstraintType::Lock && wl_resource_get_client(c.surface) == client) {
+                tl = c.toplevelId;
+                break;
+            }
     }
     OH_LOG_INFO(LOG_APP, "[PtrExt] relative_pointer created (bind ptr=%{public}p, total=%{public}zu) tl=%{public}u",
                 static_cast<void*>(pointer), total, tl);
@@ -291,6 +295,7 @@ void PointerExtras::relmgr_get_relative_pointer(wl_client* client, wl_resource*,
 void PointerExtras::OnRelativePointerDestroyed(wl_resource* r) {
     auto* self = GetInstance();
     size_t remaining = 0;
+    bool release = false;
     {
         std::lock_guard<std::mutex> lk(self->mutex_);
         auto& v = self->relativePointers_;
@@ -299,12 +304,18 @@ void PointerExtras::OnRelativePointerDestroyed(wl_resource* r) {
                                    return entry.resource == r;
                                }), v.end());
         remaining = v.size();
+        // A desktop/Steam relative object can outlive the active game's
+        // object. Only the active client's remaining objects retain its lock.
+        if (self->cursorLockClient_ && std::none_of(v.begin(), v.end(),
+                [&](const RelativePointer& entry) { return entry.client == self->cursorLockClient_; })) {
+            self->cursorLockClient_ = nullptr;
+            release = true;
+        }
     }
     OH_LOG_INFO(LOG_APP, "[PtrExt] relative_pointer destroyed (remaining=%{public}zu)", remaining);
     if (self->relativeBaselineSink_) self->relativeBaselineSink_("relative-pointer-destroyed");
-    // 锁外调用。仅当全部 relative_pointer 对象都销毁时才解锁
-    // (20260822 review #4: wine 可为多 surface 各建一个对象)。
-    if (remaining == 0) {
+    // 同一 client 的多个对象共享锁；其他客户端不会阻止该游戏恢复光标。
+    if (release) {
         self->ApplyHostCursorLock(false, 0);
     }
 }
@@ -364,38 +375,6 @@ void PointerExtras::SetPointerLockCallback(std::function<void(bool, uint32_t)> c
 }
 
 void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
-    // 锁内只读数据 (拷贝窗口列表/读锁状态), 跨进程 IPC 全部移出 mutex_ —
-    // OH_WindowManager_LockCursor 同步等窗口服务返回, 持 mutex_ 期间若其他
-    // 线程 (wl 事件循环 HasRelativePointer / 主线程 NAPI 通道) 恰在等同一把
-    // 锁, 输入/渲染全部停摆 — 2026-08-22 红警2 全屏启动二次 created
-    // relative_pointer 后实测卡死于此。
-    std::function<void(bool, uint32_t)> cb;
-    std::vector<int32_t> ids;
-    bool doLock = false, doUnlock = false;
-    {
-        std::lock_guard<std::mutex> lk(mutex_);
-        cb = lockCallback_;
-        if (lock) {
-            // 重入守卫: 同 surface 重建约束会再次走 lock 路径, 已锁则跳过
-            if (lockedWindowId_ == 0) {
-                doLock = true;
-                ids = hostWindowIds_;
-            }
-            // "锁定成功"与"已通知 ets"是两件事: 无获焦窗口时 LockCursor 失败
-            // 也必须能再发 false, 否则 pointerLocked 永真。
-            etsLockNotified_ = true;
-            lockedToplevelId_ = toplevelId;
-        } else {
-            if (etsLockNotified_) {
-                doUnlock = true;
-                if (lockedWindowId_) ids.push_back(lockedWindowId_);
-                lockedWindowId_ = 0;
-                etsLockNotified_ = false;
-                lockedToplevelId_ = 0;
-            }
-        }
-    }
-    if (!doLock && !doUnlock) return;
     // isShell 在调用线程 (wl 事件循环) 算好再捕获进工作线程 — 避免工作线程
     // 与 wl 线程并发读这些共享引用 (数据竞争)。
     // 6A: 直读装配注入的 id 共享引用 (与 WaylandServer 的 session 字段同源)。
@@ -409,55 +388,70 @@ void PointerExtras::ApplyHostCursorLock(bool lock, uint32_t toplevelId) {
         *desktopMode_ && *desktopRootToplevelId_ == 0;
     const bool isShell = desktopNotReady || toplevelId == 0 ||
         (desktopRootToplevelId_ && toplevelId == *desktopRootToplevelId_);
-    // IPC 挪入独立线程执行 (20260822 review #3): OH_WindowManager_LockCursor
-    // 是同步 Binder 往返, 在调用点 (wl 事件循环线程) 执行会停摆整个
-    // Wayland 循环 — 进游戏瞬间的相对模式切换恰是最高频时刻。工作线程按
-    // ipcMutex 串行保证窗口服务侧重入序; 状态写入与 lockCallback_ 通知在
-    // IPC 完成后进行。
-    std::thread([this, doLock, doUnlock, ids, toplevelId, isShell, cb = std::move(cb)]() mutable {
-        static std::mutex ipcMutex;
-        if (doUnlock) {
-            if (!ids.empty()) {
-                std::lock_guard<std::mutex> ipc(ipcMutex);
-                const int32_t ret = OH_WindowManager_UnlockCursor(ids[0]);
-                OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor UNLOCKED win=%{public}d ret=%{public}d",
-                            ids[0], ret);
-            } else {
-                OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor never locked, notify ets only");
+    // IPC 挪入独立线程执行。只启动一个 worker，始终收敛到最新请求。
+    // 旧方案为每个请求另开线程并在解锁排队时清 actual window；晚到的
+    // LockCursor 会在解锁后重新冻结光标。actual window 现在只由 worker
+    // 修改，过期的锁定成功会在下一轮立即解除，不回报旧的 locked=true。
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        etsLockNotified_ = lock;
+        lockedToplevelId_ = lock ? toplevelId : 0;
+        cursorLockIsShell_ = isShell;
+        ++cursorLockGeneration_;
+        if (cursorLockWorkerRunning_) return;
+        cursorLockWorkerRunning_ = true;
+    }
+    std::thread([this]() {
+        for (;;) {
+            bool requested, shell;
+            uint32_t tl;
+            uint64_t generation;
+            int32_t actual;
+            std::vector<int32_t> ids;
+            std::function<void(bool, uint32_t)> cb;
+            {
+                std::lock_guard<std::mutex> lk(mutex_);
+                requested = etsLockNotified_;
+                shell = cursorLockIsShell_;
+                tl = lockedToplevelId_;
+                generation = cursorLockGeneration_;
+                actual = lockedWindowId_;
+                ids = hostWindowIds_;
+                cb = lockCallback_;
             }
-            if (cb) cb(false, toplevelId);
-            return;
-        }
-        if (doLock) {
-            // 桌面 shell 自身的 relative_pointer (启动瞬时藏光标, toplevelId==
-            // desktopRoot): 不冻结 — LockCursor 会把系统光标停在桌面 shell,
-            // 表现为"光标可见但动不了"。隐藏已由 ArkTS 门禁抑制 (canHide 对
-            // shell 为 false)。仅真游戏 (非 shell, 子窗口) 才冻结。
-            int32_t locked = 0;
-            if (!isShell) {
-                std::lock_guard<std::mutex> ipc(ipcMutex);
-                // LockCursor 仅对获焦窗口生效 (失焦窗口返回 STATE_ABNORMAL),
-                // 逐个尝试已注册窗口, 成功即停并记下窗口 id 供解锁用
+            // Do not hold mutex_ over window-service IPC or the JS callback.
+            if (actual && (!requested || shell)) {
+                const int32_t ret = OH_WindowManager_UnlockCursor(actual);
+                OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor UNLOCKED win=%{public}d ret=%{public}d", actual, ret);
+                std::lock_guard<std::mutex> lk(mutex_);
+                lockedWindowId_ = 0;
+                actual = 0;
+            }
+            if (requested && !shell && !actual) {
                 for (int32_t id : ids) {
-                    const int32_t ret = OH_WindowManager_LockCursor(id, false);  // false = 光标冻结不跟随
-                    if (ret == 0) {  // WM_ERROR_OK
-                        locked = id;
+                    const int32_t ret = OH_WindowManager_LockCursor(id, false);
+                    if (ret == 0) {
+                        std::lock_guard<std::mutex> lk(mutex_);
+                        lockedWindowId_ = id;
                         OH_LOG_INFO(LOG_APP, "[PtrExt] host cursor LOCKED win=%{public}d", id);
                         break;
                     }
                     OH_LOG_WARN(LOG_APP, "[PtrExt] LockCursor win=%{public}d failed ret=%{public}d", id, ret);
                 }
-            } else {
-                OH_LOG_INFO(LOG_APP, "[PtrExt] skip LockCursor (desktop shell tl=%{public}u)", toplevelId);
             }
             {
                 std::lock_guard<std::mutex> lk(mutex_);
-                if (locked) lockedWindowId_ = locked;
+                if (generation != cursorLockGeneration_) continue;
             }
-            // 全部失败 (无获焦窗口/系统 <API22) 不阻断: rawDelta 相对位移
-            // 通道 (InputManager) 不依赖冻结仍工作; 光标照常隐藏 (相对模式下
-            // 游戏自绘光标, 可见的系统光标只剩干扰)
-            if (cb) cb(true, toplevelId);
+            // Notify on owner changes even when the same host window stays
+            // locked. Lock failure still needs a paired visibility reset.
+            if (cb) cb(requested, tl);
+            {
+                std::lock_guard<std::mutex> lk(mutex_);
+                if (generation != cursorLockGeneration_) continue;
+                cursorLockWorkerRunning_ = false;
+                return;
+            }
         }
     }).detach();
 }
@@ -466,9 +460,12 @@ void PointerExtras::ReleaseLockForToplevel(uint32_t toplevelId) {
     bool release = false;
     {
         std::lock_guard<std::mutex> lk(mutex_);
+        // 未通知过 ets / 锁定来源不是本 toplevel → 不是本次要清的锁定
         release = etsLockNotified_ && lockedToplevelId_ == toplevelId;
     }
     if (!release) return;
     OH_LOG_INFO(LOG_APP, "[PtrExt] release lock for destroyed toplevel %{public}u", toplevelId);
+    // 锁外调用 (ApplyHostCursorLock 自持 mutex_): 走正常解锁路径 —
+    // UnlockCursor(已销毁窗口 id 返回错误无害) + cb(false) 通知 ets 恢复光标
     ApplyHostCursorLock(false, 0);
 }

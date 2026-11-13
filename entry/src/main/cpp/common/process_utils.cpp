@@ -1,6 +1,6 @@
-#include "common/process_utils.h"
+#include "process_utils.h"
 
-#include "common/wait_utils.h"
+#include "wait_utils.h"
 
 #include <sys/wait.h>
 #include <unistd.h>

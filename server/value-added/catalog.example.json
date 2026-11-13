@@ -1,0 +1,15 @@
+[
+  {
+    "id": "REPLACE_WITH_NONRENEWABLE_MONTH_SKU",
+    "type": 3,
+    "kind": "membership",
+    "policyVersion": "calendar-month-v1",
+    "prices": {}
+  },
+  {
+    "id": "REPLACE_WITH_CONSUMABLE_COFFEE_SKU",
+    "type": 0,
+    "kind": "coffee",
+    "prices": {}
+  }
+]

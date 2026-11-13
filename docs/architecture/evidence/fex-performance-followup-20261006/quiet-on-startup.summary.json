@@ -1,0 +1,280 @@
+{
+  "pid": 60906,
+  "inputSHA256": "0f9ae1a3715672a7c2e91377fdab2a4fd3ad56ebefd7237f6b9ecb84e6f86ee6",
+  "sampleType": "0x800133e7",
+  "samples": 12130,
+  "hiddenLeafSamples": 12130,
+  "limitation": "Caller identities and cycle weights only. Hidden leaf PCs, off-CPU waits, helper costs and guest instructions cannot be resolved from this capture.",
+  "groups": [
+    {
+      "tid": 60906,
+      "thread": "com.vintage.pomelopro:Native_libwine_child20",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 75.272188863666
+    },
+    {
+      "tid": 60971,
+      "thread": "wine_dsound_mix",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 6.54243235673534
+    },
+    {
+      "tid": 60981,
+      "thread": "wine_dsound_mix",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 6.499762613272315
+    },
+    {
+      "tid": 61150,
+      "thread": "wine_dsound_mix",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 2.4012392160698077
+    },
+    {
+      "tid": 60972,
+      "thread": "MSS Timer",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 2.381629039178432
+    },
+    {
+      "tid": 60906,
+      "thread": "com.vintage.pomelopro:Native_libwine_child20",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 2.046445358285333
+    },
+    {
+      "tid": 60972,
+      "thread": "MSS Timer",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.9346696047417619
+    },
+    {
+      "tid": 60971,
+      "thread": "wine_dsound_mix",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.6739090235317443
+    },
+    {
+      "tid": 60981,
+      "thread": "wine_dsound_mix",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.6664225738938259
+    },
+    {
+      "tid": 61150,
+      "thread": "wine_dsound_mix",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.39088325061854445
+    },
+    {
+      "tid": 60970,
+      "thread": "audio_client_ti",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.29463790098041365
+    },
+    {
+      "tid": 60980,
+      "thread": "audio_client_ti",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.28874921171899853
+    },
+    {
+      "tid": 60906,
+      "thread": "com.vintage.pomelopro:Native_libwine_child20",
+      "mode": 2,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "percent": 0.22177489356501404
+    },
+    {
+      "tid": 61149,
+      "thread": "audio_client_ti",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.1504421783885612
+    },
+    {
+      "tid": 61151,
+      "thread": "strat game.exe",
+      "mode": 1,
+      "source": "unavailable",
+      "module": "<kernel-hidden>",
+      "percent": 0.1491816522340708
+    },
+    {
+      "tid": 60937,
+      "thread": "wined3d_cs",
+      "mode": 2,
+      "source": "caller",
+      "module": "<user-unassigned>",
+      "percent": 0.129528530686436
+    }
+  ],
+  "visiblePCs": [
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1460a4",
+      "percent": 0.057150023023690204
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1c0ef8",
+      "percent": 0.05271381770033096
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/ntdll.so",
+      "fileOffset": "0x8f9dc",
+      "percent": 0.04682770958466026
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e5880",
+      "percent": 0.03280186747857733
+    },
+    {
+      "tid": 60972,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1ef530",
+      "percent": 0.028381008806475098
+    },
+    {
+      "tid": 60971,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/wineohos.so",
+      "fileOffset": "0xd290",
+      "percent": 0.02555504891871289
+    },
+    {
+      "tid": 60981,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/wineohos.so",
+      "fileOffset": "0xd290",
+      "percent": 0.018543730045675753
+    },
+    {
+      "tid": 60972,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e5880",
+      "percent": 0.01678823154216615
+    },
+    {
+      "tid": 61150,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/wineohos.so",
+      "fileOffset": "0xd290",
+      "percent": 0.01651487937896433
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1ef530",
+      "percent": 0.016070086165121185
+    },
+    {
+      "tid": 60981,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/ntdll.so",
+      "fileOffset": "0x76718",
+      "percent": 0.012606900079073894
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "[shmm]",
+      "fileOffset": "0x16b0",
+      "percent": 0.012558621747403792
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/win32u.so",
+      "fileOffset": "0x9cb00",
+      "percent": 0.012462117018585609
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e3ed4",
+      "percent": 0.012403807533987279
+    },
+    {
+      "tid": 60981,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1ef530",
+      "percent": 0.012255900611999472
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e463c",
+      "percent": 0.012251049927642773
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/win32u.so",
+      "fileOffset": "0x149d08",
+      "percent": 0.011936464350682907
+    },
+    {
+      "tid": 61150,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e5880",
+      "percent": 0.011764877883379928
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/system/lib/ld-musl-aarch64.so.1",
+      "fileOffset": "0x1e3180",
+      "percent": 0.011329269289756081
+    },
+    {
+      "tid": 60906,
+      "source": "caller",
+      "module": "/proc/60906/root/data/storage/el1/bundle/libs/arm64/win32u.so",
+      "fileOffset": "0x94cdc",
+      "percent": 0.011161525977082608
+    }
+  ]
+}

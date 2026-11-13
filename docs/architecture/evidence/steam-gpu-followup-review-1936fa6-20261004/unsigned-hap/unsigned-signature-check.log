@@ -1,0 +1,6 @@
+10-04 16:06:45.444  INFO - Start verify-app
+10-04 16:06:45.490  WARN - Missing parameter: outproof
+10-04 16:06:45.495  ERROR - Verify Hap failed, signature not found.
+10-04 16:06:45.496  ERROR - verify: No Hap Signing Block before ZIP Central Directory
+10-04 16:06:45.496  ERROR - Write certificate chain error
+10-04 16:06:45.496  INFO - verify-app failed

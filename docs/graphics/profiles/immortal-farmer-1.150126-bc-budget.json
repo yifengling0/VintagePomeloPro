@@ -1,0 +1,401 @@
+{
+  "schemaVersion": 1,
+  "id": "immortal-farmer-1.150126-bc-fallback-budget",
+  "status": "experimental-device-validation-required",
+  "catalog": {
+    "name": "catalog.json",
+    "sourceSha256": "ea4cc4415515c08122cf71bedca67e631a6452b64ccace6b93830b748b4bd7e5"
+  },
+  "bundleDirectory": "StandaloneWindows64",
+  "bundles": [
+    {
+      "name": "uicommonpacked_assets_all_ed47d3b223c299225243857d4cd8fd3f.bundle",
+      "sourceSha256": "024de62d3bf1c8688b59daf0d4038b259b1c821903321fe1f79dcdc1f5fa4d30",
+      "assetBundleIndexPathId": 1,
+      "textures": [
+        {
+          "name": "MAP1-2.0",
+          "description": [
+            14360,
+            4724,
+            1,
+            12
+          ],
+          "rawImageReferences": [
+            5694994827920398133
+          ]
+        },
+        {
+          "name": "biany",
+          "description": [
+            14360,
+            4724,
+            1,
+            12
+          ],
+          "rawImageReferences": [
+            3804789869347950176
+          ]
+        }
+      ]
+    },
+    {
+      "name": "animalpacked_assets_all_472a6ca69bc7034d53b1fc1dbe74403a.bundle",
+      "sourceSha256": "d41570cda732ec70afed6bd892ec2924d43ae12923908f39a8fc925ab54744c8",
+      "assetBundleIndexPathId": 1,
+      "textures": [
+        {
+          "name": "leizelong_boss_2",
+          "description": [
+            7860,
+            5904,
+            1,
+            12
+          ],
+          "materialReferences": [
+            2027808624409157515
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_2.png",
+              "logicalSize": [
+                7860,
+                5904
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_3",
+          "description": [
+            7172,
+            5880,
+            1,
+            12
+          ],
+          "materialReferences": [
+            7795976774086014068
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_3.png",
+              "logicalSize": [
+                7172,
+                5880
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss",
+          "description": [
+            8192,
+            8192,
+            1,
+            12
+          ],
+          "materialReferences": [
+            6703801573311959263
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss.png",
+              "logicalSize": [
+                8108,
+                7112
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "fengyaolang",
+          "description": [
+            8192,
+            8192,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -2907010719242900901
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": -3002955399439492400,
+              "page": "fengyaolang.png",
+              "logicalSize": [
+                8192,
+                8020
+              ],
+              "atlasAssetReferences": [
+                -8843125329008245243
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_8",
+          "description": [
+            5792,
+            5568,
+            1,
+            12
+          ],
+          "materialReferences": [
+            7805451347883968618
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_8.png",
+              "logicalSize": [
+                5792,
+                5568
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_6",
+          "description": [
+            6600,
+            5504,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -3788179958227088310
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_6.png",
+              "logicalSize": [
+                6600,
+                5504
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_7",
+          "description": [
+            5656,
+            5548,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -5344273032261408971
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_7.png",
+              "logicalSize": [
+                5656,
+                5548
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "chilingduwu",
+          "description": [
+            8192,
+            2048,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -3123909534721428842
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 2083656835848730604,
+              "page": "chilingduwu.png",
+              "logicalSize": [
+                8148,
+                2420
+              ],
+              "atlasAssetReferences": [
+                591807417769338545
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_10",
+          "description": [
+            5928,
+            6108,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -3241266597558564617
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_10.png",
+              "logicalSize": [
+                5928,
+                6108
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_4",
+          "description": [
+            6956,
+            3764,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -1404614922918643734
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_4.png",
+              "logicalSize": [
+                6956,
+                3764
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_5",
+          "description": [
+            6716,
+            5156,
+            1,
+            12
+          ],
+          "materialReferences": [
+            8249783199235367603
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_5.png",
+              "logicalSize": [
+                6716,
+                5156
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        },
+        {
+          "name": "fengyaolang_2",
+          "description": [
+            5184,
+            3044,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -2889482002308829427
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": -3002955399439492400,
+              "page": "fengyaolang_2.png",
+              "logicalSize": [
+                5184,
+                3044
+              ],
+              "atlasAssetReferences": [
+                -8843125329008245243
+              ]
+            }
+          ]
+        },
+        {
+          "name": "leizelong_boss_9",
+          "description": [
+            6036,
+            5920,
+            1,
+            12
+          ],
+          "materialReferences": [
+            -5798836518711395563
+          ],
+          "referenceKind": "spineMaterial",
+          "rgbaFallbackMaxDimension": 4096,
+          "atlasPages": [
+            {
+              "pathId": 1159628275430431372,
+              "page": "leizelong_boss_9.png",
+              "logicalSize": [
+                6036,
+                5920
+              ],
+              "atlasAssetReferences": [
+                445936453638349677
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

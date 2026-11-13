@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { hilog } from '../service/LogService';
 import { common } from '@kit.AbilityKit';
 import { display, window } from '@kit.ArkUI';
@@ -19,10 +20,11 @@ import { InputRouter } from '../service/InputRouter';
 import { InputDispatcher } from '../service/InputDispatcher';
 import { GamepadActivityListener, GamepadConnectionListener, GamepadManager } from '../service/GamepadManager';
 import { InputProfileService } from '../service/InputProfileService';
-import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
-import { InputEventGate } from '../service/InputEventGate';
+import { InputOverlaySurface, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
+import { AxisEventGate, InputEventGate } from '../service/InputEventGate';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
 import { FpsHud } from '../components/FpsHud';
+import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 
 const DOMAIN = 0x0000;
 
@@ -37,15 +39,17 @@ class DesktopController extends XComponentController {
     this.bindDesktopRoot(rootId, true);
   }
   onSurfaceChanged(surfaceId: string, rect: SurfaceRect): void {
+    if (surfaceId !== this.surfaceId || rect.surfaceWidth <= 0 || rect.surfaceHeight <= 0) return;
     const rootId = this.rendererRootId || WineWindowManager.getInstance().getDesktopRootId();
     hilog.info(DOMAIN, 'LIFE', '[XComp] onSurfaceChanged rootId=%{public}d %{public}dx%{public}d', rootId, rect.surfaceWidth, rect.surfaceHeight);
     if (rootId > 0) {
       try {
-        testNapi.resizeRenderer(rootId, rect.surfaceWidth, rect.surfaceHeight);
+        testNapi.resizeRenderer(rootId, rect.surfaceWidth, rect.surfaceHeight, BigInt(surfaceId));
         // 浮窗模式: 桌面分辨率由 prepareOutputForOrientation 设定, XComponent
         // 只做 letterbox 显示口。动画中/缩略态/全屏态都不要 syncOutputSize,
         // 否则 explorer 会再提交 desktop-shell。
-        if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
+        if (DeviceCapabilityPolicy.usesManagedWineWindows() ||
+          AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
           hilog.info(DOMAIN, 'LIFE', '[XComp] floating: skip root resize, letterbox full desktop');
           return;
         }
@@ -54,17 +58,18 @@ class DesktopController extends XComponentController {
         const outH = Math.round(rect.surfaceHeight / s);
         // surface 是真实可见区: 用它同步 Wayland 输出尺寸, 保证桌面 1:1
         // 铺满且触摸坐标对齐 (窗口 rect 在安全区模式下比 surface 大)。
-        WineWindowManager.getInstance().syncOutputSize(rect.surfaceWidth, rect.surfaceHeight);
+        if (!WineWindowManager.getInstance().syncOutputSize(rect.surfaceWidth, rect.surfaceHeight)) return;
         testNapi.notifyToplevelResize(rootId, outW, outH);
       } catch (_) {}
     }
   }
-  onSurfaceDestroyed(_s: string): void {
+  onSurfaceDestroyed(surfaceId: string): void {
     const rootId = this.rendererRootId;
     hilog.warn(DOMAIN, 'LIFE', '[XComp] onSurfaceDestroyed rootId=%{public}d', rootId);
     if (rootId > 0) {
-      try { testNapi.destroyRenderer(rootId); } catch (_) {}
+      try { testNapi.destroyRenderer(rootId, BigInt(surfaceId)); } catch (_) {}
     }
+    if (this.surfaceId !== surfaceId) return;
     this.rendererRootId = 0;
     this.surfaceId = '';
   }
@@ -90,8 +95,8 @@ class DesktopController extends XComponentController {
   private bindDesktopRoot(rootId: number, force: boolean): boolean {
     if (rootId <= 0 || this.surfaceId.length === 0) return false;
     try {
-      if (this.rendererRootId > 0 && (this.rendererRootId !== rootId || force)) {
-        testNapi.destroyRenderer(this.rendererRootId);
+      if (this.rendererRootId > 0 && this.rendererRootId !== rootId) {
+        testNapi.destroyRenderer(this.rendererRootId, BigInt(this.surfaceId));
       } else if (this.rendererRootId === rootId && !force) {
         // 已绑定同一桌面根：无需重建 renderer，仅同步输入目标。
         InputOverlayWindowCoordinator.getInstance().setActiveToplevel(rootId);
@@ -111,11 +116,15 @@ class DesktopController extends XComponentController {
 
 @Component
 export struct DesktopLayer {
+  private inputSurface: InputOverlaySurface = new InputOverlaySurface();
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   @StorageLink('desktopToplevelId') @Watch('onDesktopToplevelChanged') private desktopToplevelId: number = 0;
   @StorageLink('desktopWindowMode') @Watch('onDesktopWindowModeChanged') private desktopWindowMode: string = '';
   // overlay 关掉宿主 IME 后跨窗口把焦点要回桌面 XComponent, 蓝牙可打印键才继续走 KeyEvent。
   @StorageLink('wineDesktopKeyFocusToken') @Watch('onDesktopKeyFocusToken')
     private wineDesktopKeyFocusToken: number = 0;
+  @StorageLink('hostPcMode') @Watch('onDesktopWindowModeChanged') private hostPcMode: string = 'unknown';
   @State private cornerSafeMargin: number = 0;
   // 悬浮窗态 (Index 桌面层容器处于小窗缩略显示): 桌面 XComponent 所有输入
   // 一律旁路 — 点击放大/拖动由 Index 悬浮交互层统一处理, 本组件不转发
@@ -159,6 +168,8 @@ export struct DesktopLayer {
   private twoFingerLastMidX: number = 0;
   private twoFingerLastMidY: number = 0;
   private twoFingerTl: number = 0;
+  private twoFingerAnchorX: number = 0;
+  private twoFingerAnchorY: number = 0;
   private scrollLogCounter: number = 0;
   private twoFingerAccumY: number = 0;
   private twoFingerAccumX: number = 0;
@@ -210,6 +221,7 @@ export struct DesktopLayer {
   }
 
   aboutToDisappear(): void {
+    InputOverlayWindowCoordinator.getInstance().releaseSurfaceBounds(this.inputSurface);
     if (this.gamepadConnectionCallback) {
       GamepadManager.getInstance().unsubscribeConnection(this.gamepadConnectionCallback);
     }
@@ -309,7 +321,8 @@ export struct DesktopLayer {
     if (code === EVDEV_KEY_ENTER) {
       if (pressed) {
         this.lastEnterDownTs = Date.now();
-      } else if (Date.now() - this.lastEnterDownTs > DesktopLayer.ENTER_SYNTH_WINDOW_MS) {
+      } else if (Date.now() - this.lastEnterDownTs > DesktopLayer.ENTER_SYNTH_WINDOW_MS &&
+          !WineImeCoordinator.getInstance().hasAttachedSession()) {
         hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] ENTER SYNTH down (missing down)');
         InputRouter.getInstance().sendKey(EVDEV_KEY_ENTER, true);
       }
@@ -324,6 +337,12 @@ export struct DesktopLayer {
         type: XComponentType.SURFACE,
         controller: this.controller
       }).width('100%').height('100%').backgroundColor('#000')
+        .onAreaChange((_old: Area, area: Area): void => {
+          if (this.floating) return;
+          InputOverlayWindowCoordinator.getInstance().updateSurfaceBounds(this.inputSurface, 'desktop',
+            vp2px(Number(area.globalPosition.x)), vp2px(Number(area.globalPosition.y)),
+            vp2px(Number(area.width)), vp2px(Number(area.height)));
+        })
         .focusable(true)
         .focusOnTouch(true)
         .defaultFocus(true)
@@ -360,6 +379,8 @@ export struct DesktopLayer {
               this.twoFingerActive = true;
               this.twoFingerLastMidX = midX;
               this.twoFingerLastMidY = midY;
+              this.twoFingerAnchorX = midX;
+              this.twoFingerAnchorY = midY;
               this.twoFingerAccumY = 0;
               this.twoFingerAccumX = 0;
               this.twoFingerTl = testNapi.findToplevelAt(midX, midY) as number ?? 0;
@@ -377,7 +398,8 @@ export struct DesktopLayer {
                 // 垂直滚动
                 while (Math.abs(this.twoFingerAccumY) >= DesktopLayer.SCROLL_STEP_PX) {
                   const sign = this.twoFingerAccumY > 0 ? 1 : -1;
-                  testNapi.sendScrollEvent(this.twoFingerTl, 0, sign, DesktopLayer.SCROLL_STEP_PX, midX, midY);
+                  testNapi.sendScrollEvent(this.twoFingerTl, 0, sign, DesktopLayer.SCROLL_STEP_PX,
+                    this.twoFingerAnchorX, this.twoFingerAnchorY);
                   this.twoFingerAccumY -= sign * DesktopLayer.SCROLL_STEP_PX;
                   if (++this.scrollLogCounter % 5 === 0) {
                     hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] SCROLL-V tl=%{public}d',
@@ -387,7 +409,8 @@ export struct DesktopLayer {
                 // 水平滚动
                 while (Math.abs(this.twoFingerAccumX) >= DesktopLayer.SCROLL_STEP_PX) {
                   const sign = this.twoFingerAccumX > 0 ? 1 : -1;
-                  testNapi.sendScrollEvent(this.twoFingerTl, 1, sign, DesktopLayer.SCROLL_STEP_PX, midX, midY);
+                  testNapi.sendScrollEvent(this.twoFingerTl, 1, sign, DesktopLayer.SCROLL_STEP_PX,
+                    this.twoFingerAnchorX, this.twoFingerAnchorY);
                   this.twoFingerAccumX -= sign * DesktopLayer.SCROLL_STEP_PX;
                 }
               }
@@ -556,18 +579,10 @@ export struct DesktopLayer {
               hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] MOUSE-MOVE tl=%{public}d px=(%{public}d,%{public}d) n=%{public}d',
                 tl, px, py, this.hoverLogCounter);
             }
-            // rawDelta 按设备校准 (与 WineWindow 同规则: 鼠标 2.5 / 触控板 0.625)
-            // — 收口 ArkTS 时此处漏乘, 桌面模式相对模式增量只有融合窗口的
-            // 1/2.5, 同一鼠标两种手感; 绝对模式有差分自标定, 不受影响
-            let rawDx = ev.rawDeltaX ?? 0;
-            let rawDy = ev.rawDeltaY ?? 0;
-            const devId = ev.deviceId ?? 0;
-            if (devId > 0) {
-              const s = InputDeviceMapper.getInstance().getScale(devId);
-              rawDx *= s;
-              rawDy *= s;
-            }
-            testNapi.sendPointerEvent(tl, MouseAction.Move, px, py, 0, rawDx, rawDy);
+            const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+              ev.deviceId ?? 0, ev.rawDeltaX ?? 0, ev.rawDeltaY ?? 0);
+            testNapi.sendPointerEvent(tl, MouseAction.Move, px, py, 0,
+              motion.rawDx, motion.rawDy, true);
             return;
           }
           if (ev.action !== MouseAction.Press && ev.action !== MouseAction.Release) return;
@@ -642,6 +657,10 @@ export struct DesktopLayer {
 
       // ── 滚轮事件 ──
       .onAxisEvent((ev?: AxisEvent) => {
+          if (ev && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] DesktopLayer action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            ev.action, ev.timestamp.toString(), ev.getVerticalAxisValue().toString(), ev.getHorizontalAxisValue().toString());
+          if (!ev || !this.axisEventGate.shouldHandle(ev.action, ev.timestamp, ev.getVerticalAxisValue(),
+            ev.getHorizontalAxisValue(), ev.source, ev.sourceTool)) return;
         if (this.floating) return;  // 悬浮窗态: 输入旁路
         this.noteHardwareActivity();
         const rootId = WineWindowManager.getInstance().getDesktopRootId();
@@ -650,7 +669,9 @@ export struct DesktopLayer {
         const wpy = Math.round(vp2px(ev.y));
         const vert = ev.getVerticalAxisValue();
         const horiz = ev.getHorizontalAxisValue();
-        const step = ev.scrollStep ?? 0;
+        // Hardware AxisEvent values are continuous vp; virtual wheels pass
+        // normalized detents through the same NAPI with a nonnegative step.
+        const step = -1;
         const hit = testNapi.findToplevelAt(wpx, wpy) as number;
         const tl: number = hit > 0 ? hit : rootId;
         if (vert !== 0) testNapi.sendScrollEvent(tl, 0, vert, step, wpx, wpy);

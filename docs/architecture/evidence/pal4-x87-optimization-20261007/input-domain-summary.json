@@ -1,0 +1,82 @@
+[
+  {
+    "tid": 484,
+    "op": "add",
+    "pc": 0,
+    "rc": 0,
+    "n": 771,
+    "normal": 575,
+    "bothLow40Zero": 575,
+    "bothLow11Zero": 575
+  },
+  {
+    "tid": 484,
+    "op": "div",
+    "pc": 0,
+    "rc": 0,
+    "n": 21,
+    "normal": 20,
+    "bothLow40Zero": 20,
+    "bothLow11Zero": 20
+  },
+  {
+    "tid": 484,
+    "op": "mul",
+    "pc": 0,
+    "rc": 0,
+    "n": 957,
+    "normal": 779,
+    "bothLow40Zero": 779,
+    "bothLow11Zero": 779
+  },
+  {
+    "tid": 484,
+    "op": "sub",
+    "pc": 0,
+    "rc": 0,
+    "n": 299,
+    "normal": 259,
+    "bothLow40Zero": 259,
+    "bothLow11Zero": 259
+  },
+  {
+    "tid": 628,
+    "op": "add",
+    "pc": 2,
+    "rc": 0,
+    "n": 854,
+    "normal": 810,
+    "bothLow40Zero": 145,
+    "bothLow11Zero": 810
+  },
+  {
+    "tid": 628,
+    "op": "div",
+    "pc": 2,
+    "rc": 0,
+    "n": 1,
+    "normal": 1,
+    "bothLow40Zero": 1,
+    "bothLow11Zero": 1
+  },
+  {
+    "tid": 628,
+    "op": "mul",
+    "pc": 2,
+    "rc": 0,
+    "n": 981,
+    "normal": 917,
+    "bothLow40Zero": 834,
+    "bothLow11Zero": 917
+  },
+  {
+    "tid": 628,
+    "op": "sub",
+    "pc": 2,
+    "rc": 0,
+    "n": 212,
+    "normal": 191,
+    "bothLow40Zero": 136,
+    "bothLow11Zero": 191
+  }
+]

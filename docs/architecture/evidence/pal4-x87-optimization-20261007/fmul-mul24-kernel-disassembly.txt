@@ -1,0 +1,80 @@
+
+/data/src/winehua/build-pal4-x87-20261007/mul24/Bin/libwow64fex.dll:	file format coff-arm64
+
+Disassembly of section .text:
+
+00000001800aaf80 <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_>:
+1800aaf80: a9bf7bfd    	stp	x29, x30, [sp, #-0x10]!
+1800aaf84: 910003fd    	mov	x29, sp
+1800aaf88: aa0203e8    	mov	x8, x2
+1800aaf8c: aa0103e9    	mov	x9, x1
+1800aaf90: f9400021    	ldr	x1, [x1]
+1800aaf94: 79401122    	ldrh	w2, [x9, #0x8]
+1800aaf98: f9400103    	ldr	x3, [x8]
+1800aaf9c: 79401104    	ldrh	w4, [x8, #0x8]
+1800aafa0: 39400c08    	ldrb	w8, [x0, #0x3]
+1800aafa4: 7100811f    	cmp	w8, #0x20
+1800aafa8: 54000321    	b.ne	0x1800ab00c <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_+0x8c>
+1800aafac: 39400408    	ldrb	w8, [x0, #0x1]
+1800aafb0: 350002e8    	cbnz	w8, 0x1800ab00c <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_+0x8c>
+1800aafb4: 1200388b    	and	w11, w4, #0x7fff
+1800aafb8: ea01007f    	tst	x3, x1
+1800aafbc: 528fffe9    	mov	w9, #0x7fff             // =32767
+1800aafc0: 12003848    	and	w8, w2, #0x7fff
+1800aafc4: d368fc6a    	lsr	x10, x3, #40
+1800aafc8: 7a494164    	ccmp	w11, w9, #0x4, mi
+1800aafcc: 128fffac    	mov	w12, #-0x7ffe           // =-32766
+1800aafd0: 7a401904    	ccmp	w8, #0x0, #0x4, ne
+1800aafd4: 7a491104    	ccmp	w8, w9, #0x4, ne
+1800aafd8: aa010069    	orr	x9, x3, x1
+1800aafdc: 0b0b0108    	add	w8, w8, w11
+1800aafe0: 7a401964    	ccmp	w11, #0x0, #0x4, ne
+1800aafe4: 92409d29    	and	x9, x9, #0xffffffffff
+1800aafe8: 1297ffab    	mov	w11, #-0xbffe           // =-49150
+1800aafec: fa401920    	ccmp	x9, #0x0, #0x0, ne
+1800aaff0: d368fc29    	lsr	x9, x1, #40
+1800aaff4: 9ba97d49    	umull	x9, w10, w9
+1800aaff8: d36ffd2a    	lsr	x10, x9, #47
+1800aaffc: 0b0a0108    	add	w8, w8, w10
+1800ab000: 0b0b010b    	add	w11, w8, w11
+1800ab004: 7a4c0160    	ccmp	w11, w12, #0x0, eq
+1800ab008: 540000a2    	b.hs	0x1800ab01c <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_+0x9c>
+1800ab00c: 94038b2f    	bl	0x18018dcc8 <extF80_mul>
+1800ab010: 92403c21    	and	x1, x1, #0xffff
+1800ab014: a8c17bfd    	ldp	x29, x30, [sp], #0x10
+1800ab018: d65f03c0    	ret
+1800ab01c: 1287ffcb    	mov	w11, #-0x3fff           // =-16383
+1800ab020: 91005d4c    	add	x12, x10, #0x17
+1800ab024: 52a0080d    	mov	w13, #0x400000          // =4194304
+1800ab028: 0b0b010b    	add	w11, w8, w11
+1800ab02c: b269a3e8    	mov	x8, #-0x800000          // =-8388608
+1800ab030: 9aca2108    	lsl	x8, x8, x10
+1800ab034: 9aca21aa    	lsl	x10, x13, x10
+1800ab038: 8a280128    	bic	x8, x9, x8
+1800ab03c: 9acc2529    	lsr	x9, x9, x12
+1800ab040: 9240012c    	and	x12, x9, #0x1
+1800ab044: eb0a011f    	cmp	x8, x10
+1800ab048: 9a9f018a    	csel	x10, x12, xzr, eq
+1800ab04c: 9a9f954a    	csinc	x10, x10, xzr, ls
+1800ab050: 8b09014a    	add	x10, x10, x9
+1800ab054: 52a02009    	mov	w9, #0x1000000          // =16777216
+1800ab058: eb09015f    	cmp	x10, x9
+1800ab05c: 1a8b1569    	cinc	w9, w11, eq
+1800ab060: 528fffcb    	mov	w11, #0x7ffe            // =32766
+1800ab064: 6b0b013f    	cmp	w9, w11
+1800ab068: 54fffd28    	b.hi	0x1800ab00c <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_+0x8c>
+1800ab06c: d3585d4b    	lsl	x11, x10, #40
+1800ab070: 52a0200c    	mov	w12, #0x1000000         // =16777216
+1800ab074: d2f0000d    	mov	x13, #-0x8000000000000000 // =-9223372036854775808
+1800ab078: eb0c015f    	cmp	x10, x12
+1800ab07c: 9a8b01aa    	csel	x10, x13, x11, eq
+1800ab080: 4a02008b    	eor	w11, w4, w2
+1800ab084: 1211016b    	and	w11, w11, #0x8000
+1800ab088: 2a0b0121    	orr	w1, w9, w11
+1800ab08c: b4000088    	cbz	x8, 0x1800ab09c <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_+0x11c>
+1800ab090: 39400808    	ldrb	w8, [x0, #0x2]
+1800ab094: 32000108    	orr	w8, w8, #0x1
+1800ab098: 39000808    	strb	w8, [x0, #0x2]
+1800ab09c: aa0a03e0    	mov	x0, x10
+1800ab0a0: 17ffffdc    	b	0x1800ab010 <_ZN12X80SoftFloat4FMULEP15softfloat_stateRKS_S3_+0x90>
+		...

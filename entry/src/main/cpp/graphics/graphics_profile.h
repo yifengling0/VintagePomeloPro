@@ -36,6 +36,7 @@ struct HostGraphicsProfile {
     bool deferSharedMemoryUnref = false;
     bool perfSummary = false;
     GpuUploadPolicy gpuUpload = GpuUploadPolicy::Automatic;
+    std::string_view presentMode = "fifo";
 };
 
 struct DxvkRuntimeProfile {
@@ -67,12 +68,20 @@ struct GuestGraphicsPolicy {
     bool deferSharedMemoryUnref = false;
     bool disableGpuUpload = false;
     bool serializeDescriptorUpdates = false;
+    // Direct uses the OHOS driver in the Wine process. This does not imply
+    // which graphics API the game calls or which API composes the desktop.
+    bool directVulkan = false;
+    // Bridge path paired with legacy DXVK's explicit range copies.
+    bool directPreciseMaps = false;
 };
 
 struct ProductGraphicsPolicy {
     std::string_view route;
     HostGraphicsProfile host;
     GuestGraphicsPolicy guest;
+    // A separate consumer decision, resolved centrally with the transport.
+    // EGL can consume native Direct images without changing the guest driver.
+    bool vulkanDesktop = false;
 };
 
 D3dBackendKind ParseD3dBackend(std::string_view backend);
@@ -81,6 +90,19 @@ bool UsesVenusPresent(D3dBackendKind backend);
 // Resolves one of the two normal product routes. DXVK generations and the
 // VKD3D DXGI companion may differ in adapter details without becoming routes.
 bool ResolveProductGraphicsPolicy(D3dBackendKind backend,
+                                  ProductGraphicsPolicy* policy);
+// Set only after the native child buffer/fence roundtrip has passed. Unknown
+// or failed capability checks leave product sessions on Venus.
+void SetProductDirectVulkanVerified(bool verified);
+bool IsProductDirectVulkanVerified();
+// Native Wine display capability, separate from the driver/buffer probe.
+// X11 uses the private Venus/XID presenter; OHOS Direct has no Xlib WSI.
+// Set before resolving Host and Guest, and hold for the complete session.
+void SetProductDirectPresentationSupported(bool supported);
+// A session owns both the guest transport and its desktop consumer. Explicit
+// LAB experiments remain separate from the automatically selected product.
+bool ResolveSessionGraphicsPolicy(std::string_view experiment,
+                                  D3dBackendKind backend,
                                   ProductGraphicsPolicy* policy);
 // VKD3D uses DXVK 2.6.2's DXGI companion. WineD3D and unknown backends do
 // not resolve a DXVK runtime.
@@ -103,6 +125,11 @@ bool BuildLabGuestGraphicsEnvironment(std::string_view name,
 
 // Serializes the Guest half of a normal product route. This keeps product
 // operation independent from the historical LAB profile registry.
+// Guest Venus contract for a child whose native process cannot use Direct.
+// The global Direct capability and the active desktop consumer stay intact.
+bool BuildVenusGuestGraphicsEnvironment(
+    D3dBackendKind backend, std::vector<std::string>* environment);
+
 bool BuildProductGuestGraphicsEnvironment(
     D3dBackendKind backend, std::vector<std::string>* environment);
 

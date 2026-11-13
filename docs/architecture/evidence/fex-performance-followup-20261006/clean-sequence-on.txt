@@ -1,0 +1,2 @@
+f32 bits=3f800000 ie_before=1 ie_after=1 flags_before=00000212 flags_after=00000212
+f64 bits=3ff0000000000000 ie_before=1 ie_after=1 flags_before=00000202 flags_after=00000202

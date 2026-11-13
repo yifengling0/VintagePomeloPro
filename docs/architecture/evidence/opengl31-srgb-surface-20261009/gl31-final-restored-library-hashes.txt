@@ -1,0 +1,3 @@
+sha256sum: /data/app/el1/bundle/public/com.vintage.pomelopro/libs/arm64/libvirglrenderer.so: Permission denied
+sha256sum: /data/app/el1/bundle/public/com.vintage.pomelopro/libs/arm64/libwinehua_vtest_server.so: Permission denied
+a5ce84e4a41f4ecaebca10230c4ea4e665ffb6ed4f9626674c4f12e682f01aa0  /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/guest_gfx/lib/libgallium-25.0.1.so

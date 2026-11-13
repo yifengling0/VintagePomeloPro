@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "runtimes": {
+    "legacy": {
+      "commit": "5dff1d7b3dc3c2cd7f51356b99213bcc427b1af9",
+      "sourceSha256": "5d51aa800baffd4c13d74aa7ccb816b8ad37cf0d68b84ffa4953d3d60124df52",
+      "files": {
+        "arm64x/d3d11.dll": "f5a2bcd943ce6176905b86d319df204bc58eccd3f4b4e70bca0605c12f94cffa",
+        "arm64x/dxgi.dll": "57c8a1af71974572920de15a204ff21d0218821a0cd790f58422bd2e6ec4af77",
+        "x64/d3d11.dll": "f5a2bcd943ce6176905b86d319df204bc58eccd3f4b4e70bca0605c12f94cffa",
+        "x64/dxgi.dll": "57c8a1af71974572920de15a204ff21d0218821a0cd790f58422bd2e6ec4af77",
+        "x86/d3d10.dll": "46418d17575851359813dd27cb8176814db63f4e32b78b8cfb0384cf07b4c5e4",
+        "x86/d3d10_1.dll": "b5749edfa658eb1936d3aa2055a1c3707a6b17d36762b8aad8d300c421ae7caf",
+        "x86/d3d10core.dll": "e6dfcc4506f081b53f2b9b76577949623dd4f5f0629a53c06489506c6af3d377",
+        "x86/d3d11.dll": "6a9915261cb6da168d39ab0b3085794d3fc8b73a920c3d935d86d1b93ee83396",
+        "x86/dxgi.dll": "7f40d002b1675e64f312900738e6aad791c946c64aaa4333244b2f744a298c4d"
+      },
+      "patches": [
+        {
+          "path": "patches/dxvk/0001-bgra-uav-storage-view.patch",
+          "sha256": "e9fb7117abff5a6127b7e1a946a00c8153382cc96600974c2b0de9eaee9c4c8e"
+        },
+        {
+          "path": "patches/dxvk/0002-bc-family-capability-fallback.patch",
+          "sha256": "5f131d88f032642f8bccb5760c9099313aac3fefa9fd3e7145fe3892bed51b1b"
+        },
+        {
+          "path": "patches/dxvk/0003-sampler-stage-specialization.patch",
+          "sha256": "214962c829b7df882cb7e368eff00f02f24c38136ff3248551a9438a02e4c661"
+        },
+        {
+          "path": "patches/dxvk/0004-occlusion-query-generation-and-pass.patch",
+          "sha256": "75040831ab7c00ce863357ef8396c7b18aca2ac02c526ab59aee97d1a2a145da"
+        },
+        {
+          "path": "patches/dxvk/0005-share-instance-between-factories.patch",
+          "sha256": "8f5dd58a4a673773e066fc0f5f55bf75d9b4f47f47e06fcd804a865606e32ffa"
+        }
+      ],
+      "patchedSourceSha256": "6a30bf2d4e980ba47bf2e7ed617f1fb6057e514d08cfc5a291faaa5444f853cc"
+    },
+    "modern-2.6": {
+      "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
+      "sourceSha256": "6047450311643f2b992fd2154d2563327ffffda7fa587d1713232025917c0c59",
+      "files": {
+        "arm64x/d3d11.dll": "47625387eefb3a039ee1d535134d70db915d39dc10e76d9e748a8c4a28f92127",
+        "arm64x/dxgi.dll": "383a3256f051f1f380d992febc3715ab5d630b37dd015473c15ec5f6adac551e",
+        "x64/d3d11.dll": "47625387eefb3a039ee1d535134d70db915d39dc10e76d9e748a8c4a28f92127",
+        "x64/dxgi.dll": "383a3256f051f1f380d992febc3715ab5d630b37dd015473c15ec5f6adac551e",
+        "x86/d3d11.dll": "eb5be7e70d3262058312be8233dfd845f4ea447dd080f647feb7a53076617576",
+        "x86/dxgi.dll": "5631eb512eb4409386ceca0458a17e70a411d75d677f6122b77b75a5d42120ef"
+      }
+    }
+  },
+  "venus": {
+    "commit": "557fa3e781ea6e78fcff3ee759c25f60c3055064",
+    "sha256": "0519fc902f06b4f96029c2070d5914b3788d48f3e7bca6b6ca9e2df746755437",
+    "patches": [
+      {
+        "path": "patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch",
+        "sha256": "1461b42bc5cd34a57e1ba662855060671741065ba0f3543233500d752fed76b9"
+      },
+      {
+        "path": "patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch",
+        "sha256": "6f3f3d53c821b5b5917cde979b7e84a9b88ac3200fdbfd372d510b97d718a380"
+      },
+      {
+        "path": "patches/mesa/0003-venus-present-retry-single-ring-drain.patch",
+        "sha256": "eee95c0edfb7f0c2c362f269e1598f268417f3f50914e3d122fdb5cc83c68681"
+      },
+      {
+        "path": "patches/mesa/0004-venus-wine-owned-low-map.patch",
+        "sha256": "1ab2b08f8ba685e6bc9d47c9c8d45ac0196971c706424f5cc05917943674f2cf"
+      },
+      {
+        "path": "patches/mesa/0005-zink-ohos-explicit-vulkan-loader.patch",
+        "sha256": "0a1bdf1b59ddce0a999b2780d006899a5ec50d22304006fa9a2acdfbd49ca6ad"
+      },
+      {
+        "path": "patches/mesa/0006-virgl-vtest-serialize-socket-transactions.patch",
+        "sha256": "d3b2d7f9516758570a227d181ffd78ec171700b0183115895e9e2e7497e52835"
+      },
+      {
+        "path": "patches/mesa/0007-virgl-gpu-srgb-surface-storage.patch",
+        "sha256": "297d7aefd18c9b73c573e20b21346758f775293a5b2ea9c144380d7c1fabf308"
+      },
+      {
+        "path": "patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch",
+        "sha256": "e3f064fddff218d0c551e4581e86843c8f3de0175cf72ba4de2552e9e4292cf1"
+      },
+      {
+        "path": "patches/mesa/0009-venus-order-shadow-export-after-ring.patch",
+        "sha256": "2338ac0f63422de0d26b706d4dd6bcd263cbf61b23a2fdfd9189dcc3dd712eb4"
+      }
+    ]
+  }
+}

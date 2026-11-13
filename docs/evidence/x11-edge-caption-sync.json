@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-03",
+  "device": "MatePad Edge QXS-W00 / Maleoon 916B",
+  "branch": "feature/ohos-proton-x11-integration",
+  "compiledFromBaseCommit": "3bfcaa51",
+  "candidate": {
+    "name": "VintagePomeloPro-1.5.5-x11-edge-debug-signed.hap",
+    "bytes": 820619143,
+    "sha256": "54558fd3fde1789494f119f53b7beebc0e6800af90d56bea2c2b0e07790fe0d0",
+    "unsignedSha256": "b0866eee36ddb0bc3968a37076b68277c092c8230397ca01121f1203e23b0549",
+    "signatureVerified": true,
+    "profile": "debug",
+    "tool": "Windows hap-sign-tool",
+    "accountSecretsPersisted": false
+  },
+  "modules": {
+    "win32u.so": "e827d44941c963726ec4b0a9332b389b5b463319adab25abb6fd9e0f4a1d95c8",
+    "libentry.so": "4febdd516859597b4f69001979c68f3cb5173f92dafdd04245be07506afae8ff",
+    "libvirgl_child.so": "63aff1c7c4d2b727d07f00dd28cdfe3fe03a902b299136776ee8aeeee7a68ff6"
+  },
+  "additionalDiagnosticExe": {
+    "name": "x11-pacing-cube.exe",
+    "sha256": "c5f82de547513343a3339e4d7f030324ba726fba80fb829b023c1114865e6225",
+    "notIncludedInHap": true
+  },
+  "releaseAccepted": false,
+  "cleanCiRebuildVerified": false,
+  "atomicCaptionSameHapAb": {
+    "signedHapSha256": "7cf61588932631c4f774dc156ea90a64843551c7b3c73dbc87a9c874be472ab0",
+    "singleBlitOn": {
+      "label": "caption-fixed-title-stress-product",
+      "samples": 100,
+      "captionBlank": 0,
+      "clientBlank": 0,
+      "uniqueClientFrames": 100,
+      "stop": "sample-limit",
+      "limitation": "Fixed initial geometry only; sparse screenshots cannot exclude sub-interval flicker."
+    },
+    "singleBlitOff": {
+      "label": "caption-off-fixed-title-stress-product",
+      "samples": 100,
+      "captionBlank": 4,
+      "clientBlank": 0,
+      "uniqueClientFrames": 100,
+      "stop": "sample-limit",
+      "limitation": "Fixed initial geometry only; sparse screenshots cannot exclude sub-interval flicker."
+    }
+  },
+  "textOnlyPcCaptionSampling": {
+    "label": "pc-caption-text-controls-product",
+    "samples": 20,
+    "captionBlank": 0,
+    "clientBlank": 0,
+    "uniqueClientFrames": 20,
+    "stop": "sample-limit",
+    "host": "PC WineWindowAbility; no DesktopAbility",
+    "limitation": "Stable geometry only; sparse screenshots cannot exclude sub-interval flicker."
+  },
+  "controls": [
+    {
+      "step": "initial",
+      "bounds": [
+        655,
+        421,
+        2746,
+        1815
+      ],
+      "time": 1793666100.970054
+    },
+    {
+      "step": "dragged",
+      "bounds": [
+        835,
+        501,
+        2926,
+        1895
+      ],
+      "time": 1793666105.5822198
+    },
+    {
+      "step": "maximized",
+      "bounds": [
+        0,
+        17,
+        3120,
+        2070
+      ],
+      "time": 1793666108.355637
+    },
+    {
+      "step": "restored",
+      "bounds": [
+        835,
+        501,
+        2927,
+        1895
+      ],
+      "time": 1793666111.6505613
+    },
+    {
+      "step": "resized",
+      "bounds": [
+        835,
+        501,
+        2767,
+        1755
+      ],
+      "time": 1793666117.0205512
+    }
+  ],
+  "limitation": "Sparse screenshots cannot exclude sub-interval flicker; resize/system animations are separate from steady-state caption erase.",
+  "renderCases": [
+    {
+      "label": "pc-caption-text-controls-product",
+      "actualHost": "PC WineWindowAbility",
+      "frames": 17067,
+      "status": "PASS",
+      "renderer": "D3D11",
+      "requestedBackend": "DXVK 1.10",
+      "reportedBackend": "dxvk_legacy",
+      "angleRegressions": 0,
+      "realExitZeroConfirmed": true,
+      "note": ""
+    },
+    {
+      "label": "caption-text-desktop-virgl-product",
+      "actualHost": "PC WineWindowAbility",
+      "frames": 5840,
+      "status": "PASS",
+      "renderer": "D3D9",
+      "requestedBackend": "WineD3D/VirGL",
+      "reportedBackend": "unknown",
+      "angleRegressions": 0,
+      "realExitZeroConfirmed": true,
+      "note": "unknown backend label is not treated as successful backend identification"
+    },
+    {
+      "label": "virtual-caption-text-product",
+      "actualHost": "DesktopAbility virtual, verified by layout",
+      "frames": 7146,
+      "status": "PASS",
+      "renderer": "D3D11",
+      "requestedBackend": "DXVK 1.10",
+      "reportedBackend": "dxvk_legacy",
+      "angleRegressions": 0,
+      "realExitZeroConfirmed": true,
+      "note": "Exact game PID matched in a later bounded query; the initial short log tail omitted the callback. No runtime change was made.",
+      "initialExitCallbackObserved": false,
+      "exitEvidenceCollectedLater": true,
+      "exitSource": "ncp-exit"
+    },
+    {
+      "label": "virtual-exit-audit-product",
+      "actualHost": "DesktopAbility virtual, verified by layout",
+      "frames": 1384,
+      "status": "PASS",
+      "renderer": "D3D11",
+      "requestedBackend": "DXVK 1.10",
+      "reportedBackend": "dxvk_legacy",
+      "angleRegressions": 0,
+      "realExitZeroConfirmed": true,
+      "note": ""
+    }
+  ],
+  "virtualCaptionSampling": {
+    "label": "virtual-caption-text-product",
+    "samples": 12,
+    "captionBlank": 0,
+    "clientBlank": 0,
+    "uniqueClientFrames": 12,
+    "stop": "sample-limit",
+    "limitation": "Fixed initial geometry only; sparse screenshots cannot exclude sub-interval flicker."
+  },
+  "ciPreflight": {
+    "result": "PASS",
+    "checks": 217,
+    "testedBaseCommit": "00c181ff50faef58257d35516e93525cdbe9b9b5",
+    "fullCleanRebuild": false
+  }
+}

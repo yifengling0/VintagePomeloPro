@@ -1,0 +1,146 @@
+{
+  "on-cold": {
+    "records": 264,
+    "winePids": [
+      452
+    ],
+    "metrics": {
+      "wgl_lock_wait": {
+        "calls": 299764,
+        "totalUs": 27637,
+        "maxUs": 126,
+        "bytes": 0
+      },
+      "map_driver": {
+        "calls": 99350,
+        "totalUs": 61868,
+        "maxUs": 184,
+        "bytes": 0
+      },
+      "map_shadow": {
+        "calls": 99350,
+        "totalUs": 1513314,
+        "maxUs": 931,
+        "bytes": 26044006400
+      },
+      "shadow_in": {
+        "calls": 97649,
+        "totalUs": 1475592,
+        "maxUs": 929,
+        "bytes": 25598099456
+      },
+      "shadow_flush": {
+        "calls": 99350,
+        "totalUs": 106841,
+        "maxUs": 973,
+        "bytes": 456843632
+      },
+      "gl_flush": {
+        "calls": 99350,
+        "totalUs": 31287,
+        "maxUs": 140,
+        "bytes": 456843632
+      },
+      "gl_unmap": {
+        "calls": 99350,
+        "totalUs": 45651,
+        "maxUs": 413,
+        "bytes": 0
+      },
+      "wgl_swap": {
+        "calls": 1701,
+        "totalUs": 3879584,
+        "maxUs": 139567,
+        "bytes": 0
+      },
+      "tex_subimage": {
+        "calls": 240,
+        "totalUs": 159203,
+        "maxUs": 10688,
+        "bytes": 0
+      },
+      "compile_shader": {
+        "calls": 1,
+        "totalUs": 3726,
+        "maxUs": 3726,
+        "bytes": 0
+      },
+      "link_program": {
+        "calls": 1,
+        "totalUs": 9256,
+        "maxUs": 9256,
+        "bytes": 0
+      },
+      "buffer_subdata": {
+        "calls": 26,
+        "totalUs": 980,
+        "maxUs": 255,
+        "bytes": 2002
+      }
+    },
+    "limitation": "Aligned log reports, not exact capture boundaries. Report windows may cross boundaries; nested metrics must not be summed as disjoint costs. No off-CPU or end-to-end input latency."
+  },
+  "on-warm": {
+    "records": 273,
+    "winePids": [
+      452
+    ],
+    "metrics": {
+      "wgl_lock_wait": {
+        "calls": 376712,
+        "totalUs": 34482,
+        "maxUs": 131,
+        "bytes": 0
+      },
+      "map_driver": {
+        "calls": 124861,
+        "totalUs": 75745,
+        "maxUs": 166,
+        "bytes": 0
+      },
+      "map_shadow": {
+        "calls": 124861,
+        "totalUs": 1865548,
+        "maxUs": 1382,
+        "bytes": 32731561984
+      },
+      "shadow_in": {
+        "calls": 122859,
+        "totalUs": 1820138,
+        "maxUs": 1379,
+        "bytes": 32206749696
+      },
+      "shadow_flush": {
+        "calls": 124861,
+        "totalUs": 118553,
+        "maxUs": 852,
+        "bytes": 538572496
+      },
+      "gl_flush": {
+        "calls": 124861,
+        "totalUs": 38250,
+        "maxUs": 154,
+        "bytes": 538572496
+      },
+      "gl_unmap": {
+        "calls": 124861,
+        "totalUs": 55924,
+        "maxUs": 101,
+        "bytes": 0
+      },
+      "wgl_swap": {
+        "calls": 2001,
+        "totalUs": 4316575,
+        "maxUs": 7453,
+        "bytes": 0
+      },
+      "buffer_subdata": {
+        "calls": 26,
+        "totalUs": 714,
+        "maxUs": 233,
+        "bytes": 2002
+      }
+    },
+    "limitation": "Aligned log reports, not exact capture boundaries. Report windows may cross boundaries; nested metrics must not be summed as disjoint costs. No off-CPU or end-to-end input latency."
+  }
+}

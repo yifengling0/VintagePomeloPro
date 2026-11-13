@@ -21,7 +21,9 @@ import {
   createDefaultAppSettings,
   createDefaultGlobalSettings,
   normalizeGraphicsLaunchPreset,
-  normalizeWineLanguage
+  normalizeAppWineTranslationEngine,
+  normalizeWineLanguage,
+  normalizeWineTranslationEngine
 } from '../model/AppModels';
 
 const STORE_NAME = 'vintage_pomelo_pro';
@@ -33,6 +35,7 @@ const RECENT_LAUNCHES_KEY = 'recent_launches_v1';
 const RECENT_LAUNCHES_V2_KEY = 'recent_launches_v2';
 const PLAY_TIME_KEY = 'play_time_v1';
 const SGDB_KEY = 'sgdb_api_key_v1';
+const DECK_MOTION_KEY = 'deck_motion_v1';
 const BENTO_STATE_KEY = 'console_bento_state_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
@@ -47,6 +50,35 @@ interface BentoState {
 export class AppSettingsStore {
   private static instance: AppSettingsStore | null = null;
   private store: preferences.Preferences | null = null;
+  private globalListeners: Set<() => void> = new Set<() => void>();
+  private portableWriter: ((value: AppSettings) => Promise<void>) | null = null;
+  setPortableWriter(writer: (value: AppSettings) => Promise<void>): void { this.portableWriter = writer; }
+  reloadConfiguration(): void {
+    this.appSettings.clear(); this.lastPlayedAt.clear(); this.playMinutes.clear();
+    this.loadGlobal(); this.loadApps(); this.loadRecentLaunches(); this.loadBentoState(); this.loadRenderMode(); this.loadDeckMotion();
+    this.libraryPath = this.store?.getSync(LIBRARY_PATH_KEY, '') as string || '';
+  }
+  async remapAppId(oldId: string, newId: string): Promise<void> {
+    if (oldId === newId || !this.store) return;
+    const old = this.appSettings.get(oldId);
+    if (old && !this.appSettings.has(newId)) {
+      const value = this.normalizeAppSettings(old); value.appId = newId;
+      await this.saveAppSettings(value, 'portable');
+    }
+    if (this.appSettings.has(oldId)) await this.removeAppSettings(oldId);
+    this.recentLaunches = Array.from(new Set<string>(this.recentLaunches.map((id: string): string => id === oldId ? newId : id)));
+    if (this.lastPlayedAt.has(oldId)) this.lastPlayedAt.set(newId, Math.max(this.lastPlayedAt.get(newId) ?? 0, this.lastPlayedAt.get(oldId) ?? 0));
+    if (this.playMinutes.has(oldId)) this.playMinutes.set(newId, Math.max(this.playMinutes.get(newId) ?? 0, this.playMinutes.get(oldId) ?? 0));
+    this.lastPlayedAt.delete(oldId); this.playMinutes.delete(oldId);
+    this.bentoOrder = Array.from(new Set<string>(this.bentoOrder.map((id: string): string => id === oldId ? newId : id)));
+    await this.store.put(RECENT_LAUNCHES_KEY, JSON.stringify(this.recentLaunches));
+    await this.store.put(RECENT_LAUNCHES_V2_KEY, JSON.stringify(this.mapToRecord(this.lastPlayedAt)));
+    await this.store.put(PLAY_TIME_KEY, JSON.stringify(this.mapToRecord(this.playMinutes)));
+    await this.setBentoState(this.bentoSort, this.bentoOrder);
+  }
+  subscribeGlobalChanges(listener: () => void): void { this.globalListeners.add(listener); }
+  unsubscribeGlobalChanges(listener: () => void): void { this.globalListeners.delete(listener); }
+
   private appSettings: Map<string, AppSettings> = new Map<string, AppSettings>();
   private globalSettings: GlobalSettings = createDefaultGlobalSettings();
   // 最近启动的 appId 列表 (最新在前), 持久化, 供"最近"分类使用
@@ -58,7 +90,6 @@ export class AppSettingsStore {
   private bentoOrder: string[] = [];
   private bentoWriteChain: Promise<void> = Promise.resolve();
   private libraryPath: string = '';
-  private managedWineWindowsHost: boolean = false;
   private renderMode: string = 'dxvk_1_10';
 
   static getInstance(): AppSettingsStore {
@@ -67,7 +98,6 @@ export class AppSettingsStore {
   }
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
-    this.managedWineWindowsHost = this.detectManagedWineWindowsHost();
     if (this.store) return;
     this.store = await preferences.getPreferences(context, STORE_NAME);
     this.loadGlobal();
@@ -78,6 +108,7 @@ export class AppSettingsStore {
     this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
     this.loadBentoState();
     this.loadRenderMode();
+    this.loadDeckMotion();
   }
 
   private loadBentoState(): void {
@@ -113,6 +144,18 @@ export class AppSettingsStore {
       await store.flush();
     });
     await this.bentoWriteChain;
+  }
+
+  private loadDeckMotion(): void {
+    const previous = AppStorage.get<boolean>('hmosdeck.motion') ?? true;
+    const value = this.store?.getSync(DECK_MOTION_KEY, previous);
+    AppStorage.setOrCreate<boolean>('hmosdeck.motion', typeof value === 'boolean' ? value : true);
+  }
+  async setDeckMotion(enabled: boolean): Promise<void> {
+    if (!this.store) return;
+    await this.store.put(DECK_MOTION_KEY, enabled);
+    await this.store.flush();
+    AppStorage.setOrCreate<boolean>('hmosdeck.motion', enabled);
   }
 
   getSgdbApiKey(): string { return this.sgdbApiKey; }
@@ -200,6 +243,8 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode ?? DesktopWindowMode.FULLSCREEN,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
+      wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -233,8 +278,8 @@ export class AppSettingsStore {
 
   private detectManagedWineWindowsHost(): boolean {
     // Device model is commonly just "emulator" for both tablet and PC HVDs.
-    // Window topology must follow the declared device class so the tablet
-    // emulator keeps the composed Wine desktop while 2-in-1/PC stays multiton.
+    // Follow the runtime PC setting as well as the static device class;
+    // Edge reports tablet even while running a freeform PC workspace.
     return DeviceCapabilityPolicy.usesManagedWineWindows();
   }
 
@@ -243,7 +288,7 @@ export class AppSettingsStore {
     // WineWindowManager is created by EntryAbility before the settings store
     // finishes its asynchronous preference load. Detect the host on demand so
     // the first native callback never observes the temporary tablet default.
-    return this.managedWineWindowsHost || this.detectManagedWineWindowsHost();
+    return this.detectManagedWineWindowsHost();
   }
 
   private loadGlobal(): void {
@@ -266,10 +311,12 @@ export class AppSettingsStore {
         desktopWindowMode: stored.desktopWindowMode ??
           this.resolveDesktopWindowModeDefault(defaults.desktopWindowMode),
         keepScreenOn: stored.keepScreenOn ?? defaults.keepScreenOn,
+        wineTranslationEngine: normalizeWineTranslationEngine(stored.wineTranslationEngine),
+        wineDisplayRoute: stored.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
         viewMode: stored.viewMode ?? defaults.viewMode,
-        uiSkin: stored.uiSkin === UiSkin.CONSOLE ? UiSkin.CONSOLE : UiSkin.CLASSIC,
+        uiSkin: stored.uiSkin === UiSkin.CONSOLE || stored.uiSkin === UiSkin.DECK ? UiSkin.DECK : UiSkin.CLASSIC,
         consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ?
           ConsoleCardLayout.BENTO_TILES : ConsoleCardLayout.FOCUS_3D,
         consolePalette: stored.consolePalette === ConsolePalette.BLUE ||
@@ -330,9 +377,12 @@ export class AppSettingsStore {
         GameBackgroundMode.MANUAL : GameBackgroundMode.AUTO,
       manualBackgroundPath: value.manualBackgroundPath ?? '',
       favorite: value.favorite ?? defaults.favorite,
+      wineTranslationEngine: normalizeAppWineTranslationEngine(value.wineTranslationEngine),
       box64Preset: value.box64Preset ?? defaults.box64Preset,
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
+      dxvkFloatControls: value.dxvkFloatControls !== false,
+      fexStrictPrecision: value.fexStrictPrecision === true,
       disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager ?? defaults.disableMfDxgiDeviceManager,
       preferMfMpeg4Handler: value.preferMfMpeg4Handler ?? defaults.preferMfMpeg4Handler,
       executable: value.executable ?? defaults.executable,
@@ -351,8 +401,13 @@ export class AppSettingsStore {
   async saveGlobalSettings(value: GlobalSettings): Promise<void> {
     this.globalSettings = value;
     if (!this.store) return;
-    await this.store.put(GLOBAL_KEY, JSON.stringify(value));
+    const raw = this.store.getSync(GLOBAL_KEY, '') as string;
+    const preserved = JSON.parse(raw || '{}') as Record<string, string>;
+    const changed = JSON.parse(JSON.stringify(value)) as Record<string, string>;
+    Object.keys(changed).forEach((key: string): void => { preserved[key] = changed[key]; });
+    await this.store.put(GLOBAL_KEY, JSON.stringify(preserved));
     await this.store.flush();
+    this.globalListeners.forEach((listener: () => void): void => listener());
   }
 
   async setViewMode(value: ViewMode): Promise<void> {
@@ -363,6 +418,8 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
+      wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: value,
@@ -399,6 +456,8 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
+      wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -435,6 +494,8 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
+      wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -472,6 +533,8 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
+      wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: current.box64Preset,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -508,6 +571,8 @@ export class AppSettingsStore {
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
       keepScreenOn: current.keepScreenOn,
+      wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
+      wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
       box64Preset: value,
       desktopInputProfileId: current.desktopInputProfileId,
       viewMode: current.viewMode,
@@ -540,13 +605,14 @@ export class AppSettingsStore {
     return this.appSettings.get(appId) ?? createDefaultAppSettings(appId);
   }
 
-  async saveAppSettings(value: AppSettings): Promise<void> {
+  async saveAppSettings(value: AppSettings, source: string = 'local'): Promise<void> {
     this.appSettings.set(value.appId, this.normalizeAppSettings(value));
     if (!this.store) return;
     const values: AppSettings[] = [];
     this.appSettings.forEach((item: AppSettings) => values.push(item));
     await this.store.put(APP_SETTINGS_KEY, JSON.stringify(values));
     await this.store.flush();
+    if (source === 'local' && this.portableWriter) await this.portableWriter(value);
   }
 
   async removeAppSettings(appId: string): Promise<void> {

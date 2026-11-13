@@ -1,0 +1,234 @@
+--- /dev/null
++++ b/FEXCore/include/FEXCore/Utils/FloatDiagnostics.h
+@@ -0,0 +1,67 @@
++// SPDX-License-Identifier: MIT
++#pragma once
++#include <array>
++#include <cstddef>
++#include <cstdint>
++
++namespace FEXCore {
++enum class FloatDiagnosticOp : size_t { Load32, Load64, Store32, Store64, Add, Sub, Mul, Div, Other, Count };
++inline constexpr size_t FloatDiagnosticOpCount = static_cast<size_t>(FloatDiagnosticOp::Count);
++struct FloatDiagnosticWindow {
++  uint64_t BeginNS {}, EndNS {};
++  std::array<uint64_t, FloatDiagnosticOpCount> Calls {}, Samples {}, SampleNS {}, MaxNS {};
++  std::array<uint64_t, 4> Precision {}, Rounding {};
++};
++struct FloatDiagnostics {
++  FloatDiagnosticWindow Window {};
++  std::array<unsigned, FloatDiagnosticOpCount> UntilSample {};
++  bool Begun {};
++};
++uint64_t FloatDiagnosticNow();
++void FloatDiagnosticReport(const FloatDiagnosticWindow&);
++
++// One owner per emulated thread. Sample each operation independently, so a
++// frequent conversion cannot starve arithmetic samples. Timing excludes ABI
++// spill/fill and the report itself; it is NOT an estimate of total CPU time.
++class FloatDiagnosticScope {
++public:
++  FloatDiagnosticScope(FloatDiagnostics* Stats, FloatDiagnosticOp Op, uint16_t FCW)
++    : Stats {Stats}, Index {static_cast<size_t>(Op)} {
++    if (!Stats) return;
++    ++Stats->Window.Calls[Index];
++    ++Stats->Window.Precision[(FCW >> 8) & 3];
++    ++Stats->Window.Rounding[(FCW >> 10) & 3];
++    if (Stats->UntilSample[Index]) { --Stats->UntilSample[Index]; return; }
++    Stats->UntilSample[Index] = 1020;
++    Sampled = true;
++    BeginNS = FloatDiagnosticNow();
++    if (!Stats->Begun) {
++      Stats->Window.BeginNS = BeginNS;
++      Stats->Begun = true;
++    }
++  }
++  FloatDiagnosticScope(const FloatDiagnosticScope&) = delete;
++  FloatDiagnosticScope& operator=(const FloatDiagnosticScope&) = delete;
++  ~FloatDiagnosticScope() {
++    if (!Sampled) return;
++    const auto Now = FloatDiagnosticNow();
++    auto& W = Stats->Window;
++    const auto Duration = Now >= BeginNS ? Now - BeginNS : 0;
++    ++W.Samples[Index];
++    W.SampleNS[Index] += Duration;
++    if (Duration > W.MaxNS[Index]) W.MaxNS[Index] = Duration;
++    if (Now >= W.BeginNS && Now - W.BeginNS >= 1'000'000'000) {
++      W.EndNS = Now;
++      const auto Completed = W;
++      W = {};
++      W.BeginNS = Now;
++      FloatDiagnosticReport(Completed);
++    }
++  }
++private:
++  FloatDiagnostics* Stats;
++  size_t Index;
++  uint64_t BeginNS {};
++  bool Sampled {};
++};
++} // namespace FEXCore
+--- a/FEXCore/include/FEXCore/Debug/InternalThreadState.h
++++ b/FEXCore/include/FEXCore/Debug/InternalThreadState.h
+@@ -6,6 +6,7 @@
+ #include <FEXCore/Utils/TypeDefines.h>
+ #include <FEXCore/Utils/LongJump.h>
+ #include <FEXCore/Utils/JITCompileDiagnostics.h>
++#include <FEXCore/Utils/FloatDiagnostics.h>
+ #include <FEXCore/fextl/memory.h>
+ #include <FEXCore/fextl/vector.h>
+ 
+@@ -106,6 +107,7 @@
+   FEXCore::SHMStats::ThreadStats* ThreadStats {};
+ 
+   NonMovableUniquePtr<FEXCore::JITCompileDiagnostics> CompileDiagnostics;
++  NonMovableUniquePtr<FEXCore::FloatDiagnostics> FloatDiagnostics;
+ 
+   UnalignedExclusiveStore ExclusiveStore;
+ 
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -275,6 +275,7 @@
+   FEXCore::ThunkHandler* ThunkHandler {};
+   fextl::unique_ptr<FEXCore::CPU::Dispatcher> Dispatcher;
+   bool WindowsJITDiagnosticsEnabled {};
++  bool WindowsFloatDiagnosticsEnabled {};
+   CodeCache CodeCache;
+   fextl::unique_ptr<CodeMapWriter> CodeMapWriter;
+ 
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -102,12 +102,32 @@
+ using CompileDiagnosticScope = FEXCore::JITDiagnosticScope<JITDiagnosticClock, JITDiagnosticReporter>;
+ } // namespace
+ 
++namespace FEXCore {
++uint64_t FloatDiagnosticNow() {
++  return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++void FloatDiagnosticReport(const FloatDiagnosticWindow& W) {
++  LogMan::Msg::IFmt("[FEX-FLOAT-PERF] schema=1 pid={} tid={} begin_ns={} end_ns={} pc={}/{}/{}/{} rc={}/{}/{}/{} sample_stride=1021",
++    getpid(), FHU::Syscalls::gettid(), W.BeginNS, W.EndNS,
++    W.Precision[0], W.Precision[1], W.Precision[2], W.Precision[3],
++    W.Rounding[0], W.Rounding[1], W.Rounding[2], W.Rounding[3]);
++  static constexpr const char* Names[] = {"load32", "load64", "store32", "store64", "add", "sub", "mul", "div", "other"};
++  for (size_t i = 0; i < FloatDiagnosticOpCount; ++i) {
++    if (!W.Calls[i]) continue;
++    LogMan::Msg::IFmt("[FEX-FLOAT-OP] schema=1 pid={} tid={} end_ns={} op={} calls={} samples={} sampled_ns={} max_sample_ns={}",
++      getpid(), FHU::Syscalls::gettid(), W.EndNS, Names[i], W.Calls[i], W.Samples[i], W.SampleNS[i], W.MaxNS[i]);
++  }
++}
++} // namespace FEXCore
++
+ namespace FEXCore::Context {
+ ContextImpl::ContextImpl(const FEXCore::HostFeatures& Features)
+   : HostFeatures {Features}
+   , CPUID {this}
+   , CodeCache {*this} {
+ #ifdef _WIN32
++  const char* FloatPerf = std::getenv("FEX_FLOATPERF");
++  WindowsFloatDiagnosticsEnabled = FloatPerf && std::strcmp(FloatPerf, "1") == 0;
+   const char* JITPerf = std::getenv("FEX_JITPERF");
+   WindowsJITDiagnosticsEnabled = JITPerf && std::strcmp(JITPerf, "1") == 0;
+   if (WindowsJITDiagnosticsEnabled) {
+@@ -451,6 +471,9 @@
+   // Set up the thread manager state
+   Thread->CurrentFrame->Thread = Thread;
+ 
++  if (WindowsFloatDiagnosticsEnabled) {
++    Thread->FloatDiagnostics = fextl::make_unique<FEXCore::FloatDiagnostics>();
++  }
+   if (WindowsJITDiagnosticsEnabled) {
+     Thread->CompileDiagnostics = fextl::make_unique<FEXCore::JITCompileDiagnostics>();
+   }
+--- a/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
++++ b/FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h
+@@ -46,9 +46,11 @@
+ // Wrapper for SoftFloat state to handle X87 exceptions
+ class ScopedSoftFloatState {
+ public:
+-  FEXCORE_PRESERVE_ALL_ATTR ScopedSoftFloatState(uint16_t FCW, FEXCore::Core::CpuStateFrame* Frame, bool Force80BitPrecision = false)
++  FEXCORE_PRESERVE_ALL_ATTR ScopedSoftFloatState(uint16_t FCW, FEXCore::Core::CpuStateFrame* Frame, bool Force80BitPrecision = false,
++      FEXCore::FloatDiagnosticOp Op = FEXCore::FloatDiagnosticOp::Other)
+     : State(SoftFloatStateFromFCW(FCW, Force80BitPrecision))
+-    , Frame(Frame) {}
++    , Frame(Frame)
++    , Diagnostic(Frame->Thread->FloatDiagnostics.get(), Op, FCW) {}
+ 
+   FEXCORE_PRESERVE_ALL_ATTR ~ScopedSoftFloatState() {
+     HandleX87Exception(State, Frame);
+@@ -64,19 +66,20 @@
+ 
+ private:
+   FEXCore::Core::CpuStateFrame* Frame;
++  FEXCore::FloatDiagnosticScope Diagnostic;
+ };
+ 
+ template<>
+ struct OpHandlers<IR::OP_F80CVTTO> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle4(uint16_t FCW, float src, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Load32};
+     return X80SoftFloat(&State.State, src);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle8(uint16_t FCW, double src, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Load64};
+     return X80SoftFloat(&State.State, src);
+   }
+ };
+@@ -108,13 +111,13 @@
+ struct OpHandlers<IR::OP_F80CVT> {
+   FEXCORE_PRESERVE_ALL_ATTR static float handle4(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Store32};
+     return X80SoftFloat(src).ToF32(&State.State);
+   }
+ 
+   FEXCORE_PRESERVE_ALL_ATTR static double handle8(uint16_t FCW, VectorRegType src, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Store64};
+     return X80SoftFloat(src).ToF64(&State.State);
+   }
+ };
+@@ -261,7 +264,7 @@
+ struct OpHandlers<IR::OP_F80ADD> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Add};
+     return X80SoftFloat::FADD(&State.State, Src1, Src2);
+   }
+ };
+@@ -270,7 +273,7 @@
+ struct OpHandlers<IR::OP_F80SUB> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Sub};
+     return X80SoftFloat::FSUB(&State.State, Src1, Src2);
+   }
+ };
+@@ -279,7 +282,7 @@
+ struct OpHandlers<IR::OP_F80MUL> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Mul};
+     return X80SoftFloat::FMUL(&State.State, Src1, Src2);
+   }
+ };
+@@ -288,7 +291,7 @@
+ struct OpHandlers<IR::OP_F80DIV> {
+   FEXCORE_PRESERVE_ALL_ATTR static VectorRegType handle(uint16_t FCW, VectorRegType Src1, VectorRegType Src2, FEXCore::Core::CpuStateFrame* Frame) {
+     FEXCORE_PROFILE_INSTANT_INCREMENT(Frame->Thread, AccumulatedFloatFallbackCount, 1);
+-    ScopedSoftFloatState State {FCW, Frame};
++    ScopedSoftFloatState State {FCW, Frame, false, FEXCore::FloatDiagnosticOp::Div};
+     return X80SoftFloat::FDIV(&State.State, Src1, Src2);
+   }
+ };

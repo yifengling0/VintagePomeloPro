@@ -6,7 +6,7 @@ mkdir -p "$out"
 # Compile the pinned Wayland server for the host; no OHOS/guest artifacts or
 # submodule sources are modified. This test exercises real resources and pipes.
 if [[ ! -f "$out/wayland/build.ninja" ]]; then
-    CC=cc CXX=c++ meson setup "$out/wayland" "$root/thirdparty/wayland" \
+    CC=cc CXX=c++ meson setup "$out/wayland" "${WAYLAND_TEST_SOURCE:-$root/thirdparty/wayland}" \
         -Ddocumentation=false -Dtests=false -Ddtd_validation=false
 fi
 ninja -C "$out/wayland" -j4

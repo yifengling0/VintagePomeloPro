@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: MIT
+// Experimental opaque BC1 -> ETC2 RGB transcode. No device addresses, decoded
+// image allocation or host pixel transfer. This is a probe, not BC emulation.
+#version 450
+layout(local_size_x = 64) in;
+layout(set=0,binding=0,std430) readonly buffer Source { uvec2 source[]; };
+layout(set=0,binding=1,std430) writeonly buffer Destination { uvec2 encoded[]; };
+layout(push_constant) uniform Parameters { uint blocks; } params;
+const int modifiers[32] = int[32](
+    2,8,-2,-8, 5,17,-5,-17, 9,29,-9,-29, 13,42,-13,-42,
+    18,60,-18,-60, 24,80,-24,-80, 33,106,-33,-106, 47,183,-47,-183);
+ivec3 rgb565(uint c) {
+    ivec3 v=ivec3((c>>11)&31u,(c>>5)&63u,c&31u);
+    return ivec3((v.x<<3)|(v.x>>2),(v.y<<2)|(v.y>>4),(v.z<<3)|(v.z>>2));
+}
+uint swap32(uint v) {
+    return ((v&255u)<<24)|((v&65280u)<<8)|((v>>8)&65280u)|(v>>24);
+}
+void main() {
+    uint id=gl_GlobalInvocationID.x;
+    if(id>=params.blocks)return;
+    uvec2 bc=source[id];
+    uint c0=bc.x&65535u,c1=bc.x>>16;
+    ivec3 palette[4];palette[0]=rgb565(c0);palette[1]=rgb565(c1);
+    palette[2]=c0>c1?(2*palette[0]+palette[1])/3:(palette[0]+palette[1])/2;
+    palette[3]=c0>c1?(palette[0]+2*palette[1])/3:ivec3(0);
+    ivec3 pixels[16];
+    for(uint i=0;i<16;i++)pixels[i]=palette[(bc.y>>(2*i))&3u];
+    uint high=0,low=0;
+    // ETC1 individual mode is also a valid ETC2 RGB block. Search the eight
+    // modifier tables with a quantized base per 2x4 subblock. Recompression is
+    // lossy; callers must not advertise this as byte-preserving BC support.
+    for(uint part=0;part<2;part++) {
+        ivec3 sum=ivec3(0);
+        for(uint y=0;y<4;y++)for(uint x=0;x<2;x++)sum+=pixels[y*4+part*2+x];
+        ivec3 base=clamp((sum+ivec3(68))/136,ivec3(0),ivec3(15));
+        ivec3 expanded=base*17;
+        uint bestError=0xffffffffu,bestTable=0,bestBits=0;
+        for(uint table=0;table<8;table++) {
+            uint error=0,bits=0;
+            for(uint y=0;y<4;y++)for(uint x=part*2;x<part*2+2;x++) {
+                ivec3 p=pixels[y*4+x];uint pe=0xffffffffu,selector=0;
+                for(uint s=0;s<4;s++) {
+                    ivec3 delta=p-clamp(expanded+ivec3(modifiers[table*4+s]),ivec3(0),ivec3(255));
+                    uint e=uint(dot(vec3(delta),vec3(delta)));
+                    if(e<pe){pe=e;selector=s;}
+                }
+                error+=pe;
+                uint bit=x*4+y;
+                bits|=(selector&1u)<<bit;
+                bits|=(selector>>1u)<<(bit+16u);
+            }
+            if(error<bestError){bestError=error;bestTable=table;bestBits=bits;}
+        }
+        high|=uint(base.r)<<(part==0?28:24);
+        high|=uint(base.g)<<(part==0?20:16);
+        high|=uint(base.b)<<(part==0?12:8);
+        high|=bestTable<<(part==0?5:2);
+        low|=bestBits;
+    }
+    encoded[id]=uvec2(swap32(high),swap32(low));
+}

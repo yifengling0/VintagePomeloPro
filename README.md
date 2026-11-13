@@ -127,3 +127,14 @@ QQ 群：**966307250**（Vintage Pomelo Team）
 ## 上游项目
 
 本工程基于 [winehua/WineHua](https://github.com/winehua/WineHua/)（Run Windows exe on HarmonyOS based on box64 and Wine）开发。
+
+
+## 许可证
+
+本工程保留 WineHua 上游已有的 [LGPL-2.1-or-later 授权](LICENSE)。第三方代码、字体、音色库及外部软件按各自许可处理，不由根目录许可证统一重新授权。
+
+- [许可范围与分发检查清单](LICENSING.md)
+- [依赖版本、许可及待核实项](THIRD_PARTY_NOTICES.md)
+- [已核实的上游许可原文与来源校验](licenses/README.md)
+
+这些文档不代表当前 HAP 已完成许可合规验收；音色库授权、实际二进制依赖及随包声明/对应源码仍须按分发清单核实。

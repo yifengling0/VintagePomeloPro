@@ -1,0 +1,7 @@
+{
+  "battery_c": {
+    "before": 36.0,
+    "after": 36.0
+  },
+  "method": "ThermalService Battery millidegrees; no GPU clock or throttling inference."
+}

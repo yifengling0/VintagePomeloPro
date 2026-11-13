@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-27",
+  "gameAppId": "2923300",
+  "gameBuildId": "25834277",
+  "installedStateFlags": "4",
+  "gameExecutableFormat": "ELF64 x86_64 (e_machine=62)",
+  "observedSteamLaunchChain": [
+    "steam-launch-wrapper",
+    "ARM64 official reaper",
+    "FEX-Emu/fex-compat-tool (Python 3 script)",
+    "SteamLinuxRuntime_soldier/_v2-entry-point",
+    "SteamLinuxRuntime/scout-on-soldier-entry-point-v2",
+    "Banana.x86_64"
+  ],
+  "observedHandoffLimit": "FEX-Emu/fex-compat-tool falls outside STEAMOHOS_CODE_ROOT and falls back to kernel exec",
+  "sameAppScriptExecProbe": "inaccessible or not found",
+  "depotFileMode": "0660 on document storage",
+  "officialFexScriptInterpreter": "/usr/bin/env python3",
+  "officialFexDefaultGraphicsProviderRoot": "/usr/share/guestos/fex-mesa",
+  "nativeFexRuntimeIntegrated": false,
+  "gameImageEntryObserved": false,
+  "vulkanWarning": {
+    "process": "steamrtarm64/vulkandriverquery",
+    "missingExtensions": [
+      "VK_KHR_surface",
+      "VK_KHR_xlib_surface"
+    ],
+    "observedBeforeGameLaunch": true,
+    "gameVulkanFailureProven": false
+  },
+  "launches": [
+    {
+      "startLogUtc": "2026-10-27 08:13:36",
+      "exitLogUtc": "2026-10-27 08:13:36",
+      "reportedReaperExitCode": 0
+    },
+    {
+      "startLogUtc": "2026-10-27 08:14:13",
+      "exitLogUtc": "2026-10-27 08:14:13",
+      "reportedReaperExitCode": 0
+    },
+    {
+      "startLogUtc": "2026-10-27 08:15:02",
+      "exitLogUtc": "2026-10-27 08:15:03",
+      "reportedReaperExitCode": 0
+    }
+  ],
+  "limits": [
+    "Shell probe confirms non-execution; no errno-specific trace was obtained inside official reaper",
+    "Reaper reports zero; that does not establish game execution or successful completion",
+    "Downloaded FEX executable and pressure-vessel were not manually activated; downstream native graphics/audio compatibility is not validated",
+    "Existing GNU Proton supports Windows PE through Wine; that is a separate route from Linux ELF"
+  ]
+}

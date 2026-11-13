@@ -6,6 +6,12 @@ export interface PointerPosition {
   valid: boolean;
 }
 
+export interface PointerInput {
+  rawDx: number;
+  rawDy: number;
+  fromMouse: boolean;
+}
+
 export class InputRouter {
   private static instance: InputRouter | null = null;
   private activeToplevelId: number = 0;
@@ -36,12 +42,13 @@ export class InputRouter {
     testNapi.sendKeyEvent(this.activeToplevelId, evdevCode, pressed);
   }
 
-  sendPointer(action: number, x: number, y: number, button: number): void {
+  sendPointer(action: number, x: number, y: number, button: number, input?: PointerInput): void {
     if (this.activeToplevelId <= 0) return;
     this.rememberPointer(x, y);
     if (action === MouseAction.Press && button > 0) this.pressedButtons.add(button);
     if (action === MouseAction.Release && button > 0) this.pressedButtons.delete(button);
-    testNapi.sendPointerEvent(this.activeToplevelId, action, x, y, button);
+    testNapi.sendPointerEvent(this.activeToplevelId, action, x, y, button,
+      input?.rawDx ?? 0, input?.rawDy ?? 0, input?.fromMouse ?? false);
   }
 
   sendPointerDelta(deltaX: number, deltaY: number): void {

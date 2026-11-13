@@ -1,0 +1,156 @@
+{
+  "date": "2026-11-03",
+  "deviceClass": "ordinary tablet; Edge and phone untouched",
+  "sourceBaseline": "c1971a322e00eb043b036e5e2d1fd8c3f829eb64",
+  "route": "ARM64 Steam -> FEX -> sniper x86-64 Godot/MegaDot CoreCLR 9.0.7 -> native Vulkan/Venus -> Maleoon 910 -> NativeBuffer",
+  "baseline": {
+    "extent": [
+      1920,
+      1080
+    ],
+    "observedHudFpsRange": [
+      18,
+      22
+    ],
+    "scene": "main menu, no battle/save changes",
+    "hiperfSeconds": 12,
+    "hiperfFrequencyHz": 99,
+    "samples": 8097,
+    "lostSamples": 0,
+    "topSymbol": "GNU libc __GI___fstatat64",
+    "topSymbolOffset": "0xd99d0",
+    "topSymbolSamplePercent": 11.66,
+    "libcSha256": "01b18cc3e7990e5c3dc222429e0df5f7e744912668ad0400940cd1a3ef43c7e4",
+    "callerSymbols": [
+      "DepotLinkTarget",
+      "DepotResolveImpl",
+      "FollowCloud"
+    ],
+    "mainThreadResolve": {
+      "calls": 32768,
+      "cumulativeUs": 15201692,
+      "maximumUs": 13550,
+      "note": "cumulative operation wall time, not frame cost; nested counters must not be added"
+    },
+    "x11Geometry": [
+      1200,
+      800
+    ],
+    "extentNote": "Actual Vulkan swapchain extent; X11 window geometry differs and is not render resolution."
+  },
+  "fix": {
+    "contract": "After one parent resolution, reuse physical leaf metadata for lstat/nofollow stat variants and avoid a second parent resolution in readlink. No persistent path cache.",
+    "posixSha256": "a12eb5d2273acb1c794381793057b6938705aed75d4675498b28cf705c107dbf",
+    "posixBytes": 304728,
+    "sourceAndPayloadAuditPassed": true,
+    "hostTestsPassed": 37,
+    "deepOrdinaryLeafMetadataCalls": {
+      "lstat": 1,
+      "readlink": 2,
+      "components": 9
+    },
+    "directoryScanMetadataCalls": {
+      "shallow": 257,
+      "deep": 257,
+      "entries": 256
+    },
+    "negativeCache": false
+  },
+  "deviceCandidate": {
+    "sha256": "d09db7b6f74ea6fcd6b863fcc239490b2c821e5aa5a16582adbe081d854a926e",
+    "bytes": 672859781,
+    "baselineSha256": "ba2a4bac57226e678b4dc7b55794a815c3c5eb56c4e2362e4a9b4e89a803d7cb",
+    "changedEntries": [
+      "resources/rawfile/linux-steam/bootstrap/fex-manifest.json",
+      "resources/rawfile/linux-steam/bootstrap/libsteamohos_posix_hap.so",
+      "resources/rawfile/linux-steam/bootstrap/posix-manifest.json"
+    ],
+    "signatureVerified": true,
+    "installed": true,
+    "postInstallLaunchTested": false,
+    "note": "Controlled diagnostic package based on the installed 1.5.3 payload; only POSIX companion and two manifests replaced. Full branch HAP rebuild not performed."
+  },
+  "hsl": {
+    "installed": true,
+    "loginCompleted": true,
+    "gameInstalled": true,
+    "gameBuild": "23811903",
+    "depotId": "2868843",
+    "depotManifest": "7881097836989620034",
+    "gameElfSha256": "0c21999e14b9ea44b7fa2cea38d3f27bbf63a784393d7932e2fa68a0819aa69a",
+    "swapchainExtent": [
+      1920,
+      1080
+    ],
+    "battleFps": 30.30762236699394,
+    "scene": "act2-floor19-turn1-idle",
+    "note": "Sequential same-device reference; user subsequently played cards in VPP, so later scene is not pixel-identical. No claim of strict interleaved benchmark."
+  },
+  "acceptance": {
+    "performanceImprovementProven": false,
+    "wholeGapExplained": false,
+    "endToEndDeliveryTested": true
+  },
+  "cleanup": {
+    "depotProfileMarkerRemoved": true,
+    "boundedLogsOnly": true,
+    "candidateUnsignedRemoved": false
+  },
+  "vppBattle": {
+    "scene": "act2-floor19-turn1-idle-after-user-cards",
+    "seconds": 40.76600000006147,
+    "frames": 720,
+    "fps": 17.661776970978618,
+    "note": "Normal diagnostic-free 1.5.3 control. Earlier 2-3 FPS rose naturally to 13-18 without a code or quality change. Never count that warmup as optimization benefit."
+  },
+  "input": {
+    "persistentTotalFailureReproduced": false,
+    "normalControlMainMenuTouchPassed": true,
+    "normalControlPauseMenuPassed": true,
+    "userConfirmedManualCardActions": true,
+    "laterMismatchReproduced": true,
+    "observed": "Game pause image remained visible, X11 focus was Steam, and HUD rose to 30 FPS while game button failed. Faster HUD in this state is not a valid active-game performance result.",
+    "fix": "On real Wayland pointer/keyboard enter send EWMH activation; primary activation clears a remembered child only when known distinct PIDs and no transient/leader/group relation prove it unrelated. Preserve legacy CEF chooser handling. No focus polling.",
+    "hostTests": "Xvfb desktop 3 cases; real XTEST/Wayland input and native WSI synchronization passed; regression failed before fix.",
+    "deviceFixVerified": true,
+    "deviceFixScope": "Short standard-device acceptance after complete offline repair: main menu, touch opens settings after activation, keyboard Escape returns, menu confirmation exits; no manual XSetInputFocus. Intermittent long-session focus-loss elimination and battle performance are not proven."
+  },
+  "currentSample": {
+    "seconds": 6,
+    "frequencyHz": 99,
+    "samples": 1988,
+    "lostSamples": 0,
+    "hotspot": "POSIX path processing / libc readlinkat",
+    "mainThreadTopEventPercent": 18.4,
+    "note": "Sample share is not frame time and does not prove the whole gap. Non-root user-cycle-only sample was invalid and excluded."
+  },
+  "delivery": {
+    "hapOwnedDesktop": {
+      "name": "steamohos_gnu_desktop_hap",
+      "bytes": 77944,
+      "sha256": "03de038016cacf50d41f7c12bee99c2ab17babdaa27af41b17191b7369bda7f6"
+    },
+    "nativeGraphics": {
+      "name": "libsteamohos_native_vulkan.so",
+      "bytes": 389264,
+      "sha256": "4f4cf96d5e0f23d7dd08252b6b5290c763b167f45fa7ca2bca58356c1baecbd3"
+    },
+    "sourceBuild": "Incremental proRelease HAP, payload audit, final HAP/offline pairing and local signature verification passed. Ordinary-tablet complete offline repair, automatic companion SHA verification, native Spire2 menu/input/normal exit passed. Remote CI not run.",
+    "candidate": {
+      "name": "VintagePomeloPro-1.5.5-spire2-focus-debug-signed.hap",
+      "bytes": 666826084,
+      "sha256": "5fd4f58109a54b157a46b6faf1a52e4b62c1c67814e7aeb5fd2f226c29df0c2b",
+      "signatureVerified": true,
+      "tabletAuthorized": true,
+      "payloadUnchanged": true,
+      "sourceUnsignedSha256": "6a0837c916d5e79f39a9bbd85c9bb7d2f2ee8d153986eb2b195527ca9c1d6974"
+    },
+    "offlineArchiveRepackRequired": false,
+    "supervisorDeploymentTestPassed": true,
+    "deviceCompanionHashesMatched": {
+      "steamohos_gnu_desktop_hap": true,
+      "libsteamohos_posix_hap.so": true,
+      "libsteamohos_native_vulkan.so": true
+    }
+  }
+}

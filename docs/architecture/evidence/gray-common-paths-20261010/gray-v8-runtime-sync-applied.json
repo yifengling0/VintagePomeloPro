@@ -1,0 +1,92 @@
+{
+  "hap": "unified-present-gray-v8-20261010-unsigned.hap",
+  "hapSha256": "66ed64863540b4a52af28f5c8ebedfdb85e75bc03d94901371ec702c56e7e548",
+  "applied": true,
+  "changes": [
+    {
+      "path": "entry/libs/arm64-v8a/ntdll.so",
+      "before": "751b9c01993a764175500d2cbf9a743ebd48eb7f34f12442892a0d3683296079",
+      "after": "f12c3aec35db5d406ebaab2367de163f8baafc3df7844f6f89033fee332d677d",
+      "hapEntry": "libs/arm64-v8a/ntdll.so",
+      "size": 3407312
+    },
+    {
+      "path": "entry/libs/arm64-v8a/win32u.so",
+      "before": "b92e5fcb31e75244d6ff61f481d267edde3333f0f3593dfb708d92b1c94788d1",
+      "after": "75a712820636496e3027f5d76e0a456c5831041ca7598ade17ae679354e38d3b",
+      "hapEntry": "libs/arm64-v8a/win32u.so",
+      "size": 8727112
+    },
+    {
+      "path": "entry/libs/arm64-v8a/opengl32.so",
+      "before": "cc923a2fd4862528a2bcabfaca5f73a619993f09df9107a39b6fa858e695e8e0",
+      "after": "bce7346fef67b7438d253fa5b3780d6a137f9bc5189c0050ef9aa00a7379767a",
+      "hapEntry": "libs/arm64-v8a/opengl32.so",
+      "size": 6126384
+    },
+    {
+      "path": "entry/libs/arm64-v8a/winewayland.so",
+      "before": "64870c1f0ceb4bca3f1993d94ec28f1640721429401ac0294f78ef20bf6a0f09",
+      "after": "5b08e778ea056b2dbc029be0ed435bcaed0c646d65d2885e61c464420eb0e282",
+      "hapEntry": "libs/arm64-v8a/winewayland.so",
+      "size": 1308720
+    },
+    {
+      "path": "entry/libs/arm64-v8a/libEGL.so",
+      "before": "86930f70d9fbe5568ad27afd28f4921dd6d293cd56efa947d916db0352799b62",
+      "after": "8652f33ea106ecd390a77348236c4ddbda7b77e4123cdea38cb6e2bc6353e363",
+      "hapEntry": "libs/arm64-v8a/libEGL.so",
+      "size": 467232
+    },
+    {
+      "path": "entry/libs/arm64-v8a/libEGL.so.1",
+      "before": "86930f70d9fbe5568ad27afd28f4921dd6d293cd56efa947d916db0352799b62",
+      "after": "8652f33ea106ecd390a77348236c4ddbda7b77e4123cdea38cb6e2bc6353e363",
+      "hapEntry": "libs/arm64-v8a/libEGL.so.1",
+      "size": 467232
+    },
+    {
+      "path": "entry/libs/arm64-v8a/libgallium-25.0.1.so",
+      "before": "6773b69f1a6500c773df8651d1e57948761907491359159e67ffe31d8d3df0c7",
+      "after": "52926d95dc21b411cfb45060ba2b62bbd842a79e5e786e19e92623303254e40f",
+      "hapEntry": "libs/arm64-v8a/libgallium-25.0.1.so",
+      "size": 15385232
+    },
+    {
+      "path": "entry/libs/arm64-v8a/libvirglrenderer.so.1",
+      "before": "c8dcb7ca381ea528a1a32e2677987760cc5e3d0a08b6dc44ae1547355d802130",
+      "after": "5e77a30ce67bcf99af68862d5a0e222dbc2d6214e3c04e578f18b752bc7e8c8d",
+      "hapEntry": "libs/arm64-v8a/libvirglrenderer.so.1",
+      "size": 3206464
+    },
+    {
+      "path": "entry/libs/arm64-v8a/libwinehua_vtest_server.so",
+      "before": "13e86ded96a4d9345bad7b447ea8897ed9bb38e9b576c88b98a619814cfab48a",
+      "after": "0557f75591e7d48cf9d3b9fec421351c2edaeb9a27569bd48164d9b30803c0c3",
+      "hapEntry": "libs/arm64-v8a/libwinehua_vtest_server.so",
+      "size": 169392
+    },
+    {
+      "path": "entry/src/main/resources/rawfile/wine-data.zip",
+      "before": "bee36a048201da898448d606387f51e1413dccf3f00227b5811352c50ca61d27",
+      "after": "0131ca9feeb51fb348740d9257f599caf249f2ffbb966b233738232216912872",
+      "hapEntry": "resources/rawfile/wine-data.zip",
+      "size": 223588500
+    },
+    {
+      "path": "entry/src/main/resources/rawfile/wine_runtime.version",
+      "before": "6c881a9b49a96169ec2530471a55fced9494e5ef191eee3b6609a4584ad50bfa",
+      "after": "aa17c28c6fb0a90dd6052eecbe43cc7fe649c4e0e4718e5b455b0a97a1e4dcbd",
+      "hapEntry": "resources/rawfile/wine_runtime.version",
+      "size": 85
+    },
+    {
+      "path": "entry/src/main/resources/rawfile/wine-runtime-manifest.json",
+      "before": "25f216124145dbf3a28e63ac92f0456940467c03dc281db769d65fc8494114ed",
+      "after": "244ede8fc7b473794709af0a13ebfd9817782207273a540da714053d23d18c54",
+      "hapEntry": "resources/rawfile/wine-runtime-manifest.json",
+      "size": 190
+    }
+  ],
+  "policy": "Explicit graphics/Wine/FEX asset allowlist; generated libentry, probes, child helpers and unrelated assets excluded"
+}

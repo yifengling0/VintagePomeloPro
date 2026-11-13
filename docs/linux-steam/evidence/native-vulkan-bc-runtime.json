@@ -1,0 +1,203 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "baseCommit": "7f66d9fecd312b5c15707ab27796db3d6787eddb",
+  "status": "experimental-probes-pass-game-acceptance-incomplete",
+  "defaultReleaseEnabled": false,
+  "device": "ordinary tablet; Maleoon 910",
+  "execution": "Steam ARM64 -> FEX -> GNU Vulkan adapter -> Venus -> OHOS receiver",
+  "probeComponents": {
+    "signedHapSha256": "4bbdc3ed39bf948c810a02e49881441840ce9c559c15cc97f179456865df8bf1",
+    "wsiSha256": "57f7457467a4d9eb9d3ecd2621f3ff8311f8278dbd99b51a7faf773e5cf17cf3",
+    "venusSha256": "53340d59c7a8245dd1a9486d18e5cd9f6f9a2cbb8287ab979f0dc7736192a6c7",
+    "receiverSha256": "5c1ad3d8289f56dedf1fd13a70faf559cb94273eacc5c84723b2394399f692f9",
+    "probeSha256": "ffbea2c57e912e3703678ea4f7009f861c4fc1f1ab103386c726e9bba0cc344a",
+    "verifiedAfterStartup": true
+  },
+  "syntheticProbe": {
+    "applicationApiVersion": "1.1",
+    "decoderVariants": 11,
+    "blocksPerVariant": 128,
+    "independentReference": "bcdec CPU implementation",
+    "resourceFormats": 16,
+    "extent": [
+      31,
+      17
+    ],
+    "mipLevels": 3,
+    "arrayLayers": 2,
+    "nonzeroSuballocationAndPadding": true,
+    "mixedRawCopiesPerFormat": 2,
+    "partialUpdate": true,
+    "exactCopyMismatches": 0,
+    "samplingMismatches": 0,
+    "guardMismatches": 0,
+    "computeStateRestored": true,
+    "completion": "VK_BC complete decoder_cases=11 resource_cases=16 mismatches=0 result=0",
+    "coherenceCompletion": "VK_COHERENCE complete type=1 result=0",
+    "bc1RgbaBacking": "ETC2 RGB A1, 8 bytes/block",
+    "transparentAndMixedAlphaHardwareSampling": true
+  },
+  "officialBananaTests": [
+    {
+      "elapsedSecondsFromLaunchRequest": 76.4,
+      "bcUploadsAtLastReport": 256,
+      "reportedVulkanAllocationPeakBytes": 1537458176,
+      "allocationFailures": 0,
+      "termination": "system-memory-manager",
+      "systemEvidence": "11:46:26.959 ExecuteKillAction StabilityCheckKill pid=21361; kernel sender memmgrservice pid=884 sent SIG9 to the host and receiver at 11:46:27",
+      "gameUiAccepted": false,
+      "clickAccepted": false
+    },
+    {
+      "presentationControl": "requested Steam desktop before game launch",
+      "elapsedSecondsFromLaunchRequest": 67.9,
+      "bcUploadsAtLastReport": 512,
+      "reportedVulkanAllocationPeakBytes": 1775920640,
+      "allocationFailures": 0,
+      "termination": "system-memory-manager",
+      "systemEvidence": "11:55:07.027 ExecuteKillAction StabilityCheckKill pid=27625; framework independently recorded killReason=StabilityCheckKill, FOREGROUND=1",
+      "gameUiAccepted": false,
+      "clickAccepted": false
+    }
+  ],
+  "baselineSteamIsolation": {
+    "gameStarted": false,
+    "experimentalBcAdapterInstalled": false,
+    "browserPid": 34694,
+    "firstPssKiB": 693895,
+    "secondPssKiB": 2630680,
+    "largestAnonymousMappingSecondSampleRssKiB": 2263192,
+    "sampleIntervalSecondsApprox": 25,
+    "conclusion": "subsequent allocation sampling identifies eager softpipe sampler tile-cache allocation; see softpipeTextureCache",
+    "rssFromDifferentProcessesMustNotBeSummedAsUniquePhysicalMemory": true
+  },
+  "limits": [
+    "ETC2/EAC re-encoding is lossy and has no full game quality acceptance",
+    "BC4/5 and BC6 use uncompressed backing; savings are format-dependent",
+    "2D optimal images only; external compressed, sparse, alias and 3D images unsupported",
+    "synthetic sampling is narrower than the exact-copy checks",
+    "earlier independent Unity SIGSEGV remains unresolved; these system kills do not explain it",
+    "allocation telemetry is not total PSS, GPU residency or an equivalent-stage A/B memory comparison",
+    "Banana rendering, input and sustained operation have not passed acceptance"
+  ],
+  "safety": {
+    "displayFrameReadbacks": 0,
+    "cpuPixelCopiesInBcUpload": 0,
+    "gameAssetsModified": false,
+    "sharedElfReplacedOnlyWhileUidStopped": true,
+    "baselineRestoredAndVerified": true
+  },
+  "softpipeTextureCache": {
+    "scope": "GNU Steam software GL only; original OHOS Wine Mesa patch list unchanged",
+    "patch": "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch",
+    "patchSha256": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb",
+    "allocationSite": "sp_create_tex_tile_cache; observed offset 0x634620 in the symbol-bearing GNU libGL",
+    "observedCumulativeRequestedBytes": 1890099072,
+    "observedCalls": 7204,
+    "cumulativeNotLive": true,
+    "allocationObservationSource": "session sample; the fixed call-site histogram log was subsequently reused",
+    "cacheCapacityUnchanged": true,
+    "unusedResidentPages": 1,
+    "cachePages": 65,
+    "actualCacheLifecycleTestPassed": true,
+    "asanUbsanPassed": true,
+    "candidateSha256": "a8ebce2b8fc9678a709f741735bb0805da460ee7a55727ebda5d06bc060785df",
+    "browserEarlyUsedHeapBytes": 40713872,
+    "browserLaterPssKiB": 643847,
+    "historicalBaselinePssKiB": 2630680,
+    "equivalentStageAbComparison": false,
+    "released": false
+  },
+  "postSoftpipeGameTests": [
+    {
+      "launcherMode": "official",
+      "elapsedSeconds": 128.1,
+      "stopReason": "guest-fatal",
+      "allocationPeakBytes": 2399513344,
+      "allocationFailures": 0,
+      "gameUiAccepted": false,
+      "clickAccepted": false
+    },
+    {
+      "freshGame": true,
+      "stopReason": "guest-fatal",
+      "elapsedSeconds": 139.8,
+      "candidateSha256": "4bbdc3ed39bf948c810a02e49881441840ce9c559c15cc97f179456865df8bf1",
+      "wsiSha256": "57f7457467a4d9eb9d3ecd2621f3ff8311f8278dbd99b51a7faf773e5cf17cf3",
+      "bcUploads": 768,
+      "launcherMode": "native_guest_signal_launcher",
+      "sharedElfStagedWhileStopped": true,
+      "signedDiagnostic": true,
+      "componentIdentityVerifiedAfterStartup": true,
+      "allocationPeakBytes": 2421115648,
+      "allocationFailures": 0,
+      "softwareGlSha256": "a8ebce2b8fc9678a709f741735bb0805da460ee7a55727ebda5d06bc060785df",
+      "softwareGlVerifiedAfterStartup": true,
+      "cpuControl": "default",
+      "gameAssetsModified": false
+    },
+    {
+      "freshGame": true,
+      "stopReason": "guest-fatal",
+      "elapsedSeconds": 135.5,
+      "candidateSha256": "4bbdc3ed39bf948c810a02e49881441840ce9c559c15cc97f179456865df8bf1",
+      "wsiSha256": "57f7457467a4d9eb9d3ecd2621f3ff8311f8278dbd99b51a7faf773e5cf17cf3",
+      "bcUploads": 768,
+      "launcherMode": "native_guest_signal_launcher",
+      "sharedElfStagedWhileStopped": true,
+      "signedDiagnostic": true,
+      "componentIdentityVerifiedAfterStartup": true,
+      "allocationPeakBytes": 2436333568,
+      "allocationFailures": 0,
+      "softwareGlSha256": "a8ebce2b8fc9678a709f741735bb0805da460ee7a55727ebda5d06bc060785df",
+      "softwareGlVerifiedAfterStartup": true,
+      "cpuControl": "FEX_MULTIBLOCK=0",
+      "gameAssetsModified": false,
+      "completeUiObserved": true,
+      "observedFps": 54,
+      "effectiveFexConfigurationReadBack": false,
+      "clickAccepted": false,
+      "launchOptionsRestored": true
+    }
+  ],
+  "originalHostFaultObservations": [
+    {
+      "hostPcZero": true,
+      "hostLrNonzero": true,
+      "guestLastSavedPc": "libc read syscall",
+      "rootCauseConfirmed": false
+    },
+    {
+      "freshGame": true,
+      "freshProbe": false,
+      "stopReason": "guest-fatal",
+      "elapsedSeconds": 127.5,
+      "candidateSha256": "3946d1dbaab3d732216e2c68afcab5c6192c4718e9107eb31ffff7d420db120f",
+      "wsiSha256": "57f7457467a4d9eb9d3ecd2621f3ff8311f8278dbd99b51a7faf773e5cf17cf3",
+      "bcUploads": 768,
+      "launcherMode": "native_guest_signal_launcher",
+      "clickProbeSent": true,
+      "clickProbeAccepted": false,
+      "sharedElfStagedWhileStopped": true,
+      "signedDiagnostic": true,
+      "componentIdentityVerifiedAfterStartup": true,
+      "allocationPeakBytes": 2399513344,
+      "allocationFailures": 0,
+      "softwareGlSha256": "a8ebce2b8fc9678a709f741735bb0805da460ee7a55727ebda5d06bc060785df",
+      "softwareGlVerifiedAfterStartup": true,
+      "counterBefore": 2,
+      "counterAfter": 2,
+      "observedFps": 60,
+      "completeUiObserved": true,
+      "originalHostFault": "FEXMemJIT zero-address access",
+      "guestElfOffset": "0x18d3a27",
+      "rawFaultCodeRead": false
+    }
+  ],
+  "originalHostFaultLimits": [
+    "Raw host context does not prove emulator defect; guest pointers and earlier corruption remain possible.",
+    "No per-game workaround, asset changes, CPU framebuffer copy or published BC capability.",
+    "Subsequent two sessions failed before a fresh game process; old Player.log metrics are not new-run measurements."
+  ]
+}

@@ -1,0 +1,680 @@
+{
+  "shadow": {
+    "map_shadow": {
+      "windows": 37,
+      "calls_per_second": {
+        "min": 4502.992001343103,
+        "median": 4614.549402823019,
+        "max": 5072.365489314708
+      },
+      "total_ms_per_second": {
+        "min": 158.7105042211183,
+        "median": 167.84257133740851,
+        "max": 177.73155879088463
+      },
+      "requested_bytes_per_second": {
+        "min": 2360864670.4001727,
+        "median": 2419352877.307275,
+        "max": 2659380357.6618295
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 962,
+        "median": 1259,
+        "max": 2432
+      }
+    },
+    "shadow_in": {
+      "windows": 37,
+      "calls_per_second": {
+        "min": 4501.992668897176,
+        "median": 4612.575264041062,
+        "max": 5070.427992947513
+      },
+      "total_ms_per_second": {
+        "min": 156.87382316088284,
+        "median": 165.95045586308493,
+        "max": 175.64570480066396
+      },
+      "requested_bytes_per_second": {
+        "min": 2360340732.390763,
+        "median": 2418317860.0335603,
+        "max": 2658364551.566466
+      },
+      "copied_bytes_per_second": {
+        "min": 2360340732.390763,
+        "median": 2418317860.0335603,
+        "max": 2658364551.566466
+      },
+      "max_call_us": {
+        "min": 962,
+        "median": 1258,
+        "max": 2431
+      }
+    },
+    "shadow_flush": {
+      "windows": 37,
+      "calls_per_second": {
+        "min": 4502.992001343103,
+        "median": 4614.549402823019,
+        "max": 5072.365489314708
+      },
+      "total_ms_per_second": {
+        "min": 1.8678896193362988,
+        "median": 2.289,
+        "max": 3.008855574932403
+      },
+      "requested_bytes_per_second": {
+        "min": 1243421.3945084685,
+        "median": 1296409.2513524054,
+        "max": 1826625.0750779842
+      },
+      "copied_bytes_per_second": {
+        "min": 1243421.3945084685,
+        "median": 1296409.2513524054,
+        "max": 1826625.0750779842
+      },
+      "max_call_us": {
+        "min": 590,
+        "median": 708,
+        "max": 931
+      }
+    },
+    "gl_flush": {
+      "windows": 37,
+      "calls_per_second": {
+        "min": 4503.991333789029,
+        "median": 4614.549402823019,
+        "max": 5072.365489314708
+      },
+      "total_ms_per_second": {
+        "min": 1.4724945691919884,
+        "median": 1.6210351267531684,
+        "max": 1.7628765986380954
+      },
+      "requested_bytes_per_second": {
+        "min": 1243589.282359384,
+        "median": 1296409.2513524054,
+        "max": 1826625.0750779842
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 3,
+        "median": 11,
+        "max": 55
+      }
+    },
+    "gl_unmap": {
+      "windows": 37,
+      "calls_per_second": {
+        "min": 4503.991333789029,
+        "median": 4614.549402823019,
+        "max": 5072.365489314708
+      },
+      "total_ms_per_second": {
+        "min": 2.001648069411419,
+        "median": 2.222232999820553,
+        "max": 2.366
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 4,
+        "median": 19,
+        "max": 143
+      }
+    },
+    "wgl_swap": {
+      "windows": 6,
+      "calls_per_second": {
+        "min": 1.9357111609234117,
+        "median": 1.939802134916813,
+        "max": 2.0
+      },
+      "total_ms_per_second": {
+        "min": 7.139870617066004,
+        "median": 7.959063292582474,
+        "max": 10.617798261833025
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 4159,
+        "median": 5154.0,
+        "max": 6699
+      }
+    },
+    "tex_subimage": {
+      "windows": 37,
+      "calls_per_second": {
+        "min": 11.999952000192,
+        "median": 12.991321797039577,
+        "max": 14.0
+      },
+      "total_ms_per_second": {
+        "min": 3.3419866320534717,
+        "median": 3.7785875519652627,
+        "max": 4.198921741653169
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 335,
+        "median": 386,
+        "max": 586
+      }
+    },
+    "wgl_lock_wait": {
+      "windows": 36,
+      "calls_per_second": {
+        "min": 13445.213992192008,
+        "median": 14000.457694240054,
+        "max": 14915.609054036373
+      },
+      "total_ms_per_second": {
+        "min": 1.3596287381119196,
+        "median": 1.4999996003741614,
+        "max": 1.71487652888992
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 1,
+        "median": 4.0,
+        "max": 97
+      }
+    },
+    "map_driver": {
+      "windows": 36,
+      "calls_per_second": {
+        "min": 4503.991333789029,
+        "median": 4611.901504689551,
+        "max": 5072.365489314708
+      },
+      "total_ms_per_second": {
+        "min": 2.8637045051810888,
+        "median": 3.1818791117943395,
+        "max": 3.506754527183097
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 8,
+        "median": 33.5,
+        "max": 140
+      }
+    }
+  },
+  "shared": {
+    "gl_unmap": {
+      "windows": 49,
+      "calls_per_second": {
+        "min": 4553.863384098477,
+        "median": 4692.950535799433,
+        "max": 4979.280119763077
+      },
+      "total_ms_per_second": {
+        "min": 2.0687201775619264,
+        "median": 2.2331195192225035,
+        "max": 2.5327146409215024
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 4,
+        "median": 27,
+        "max": 174
+      }
+    },
+    "tex_subimage": {
+      "windows": 49,
+      "calls_per_second": {
+        "min": 12.757254952758904,
+        "median": 12.99961001169965,
+        "max": 13.999720005599888
+      },
+      "total_ms_per_second": {
+        "min": 3.681887302317835,
+        "median": 4.058443124866118,
+        "max": 4.334608884831297
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 338,
+        "median": 402,
+        "max": 528
+      }
+    },
+    "wgl_lock_wait": {
+      "windows": 49,
+      "calls_per_second": {
+        "min": 13493.932530337348,
+        "median": 13965.23400115085,
+        "max": 15105.09951425138
+      },
+      "total_ms_per_second": {
+        "min": 1.714998285001715,
+        "median": 1.8658867273063706,
+        "max": 2.150576246705808
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 1,
+        "median": 24,
+        "max": 156
+      }
+    },
+    "map_driver": {
+      "windows": 48,
+      "calls_per_second": {
+        "min": 4553.863384098477,
+        "median": 4692.982283926205,
+        "max": 4979.280119763077
+      },
+      "total_ms_per_second": {
+        "min": 3.3963208978305373,
+        "median": 3.6486086773599973,
+        "max": 4.2427545480259115
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 9,
+        "median": 36.5,
+        "max": 137
+      }
+    },
+    "map_direct": {
+      "windows": 48,
+      "calls_per_second": {
+        "min": 4553.863384098477,
+        "median": 4692.982283926205,
+        "max": 4979.280119763077
+      },
+      "total_ms_per_second": {
+        "min": 0.5610608077900001,
+        "median": 0.6479011059778772,
+        "max": 0.7985262218878892
+      },
+      "requested_bytes_per_second": {
+        "min": 2387535925.922222,
+        "median": 2460474295.675102,
+        "max": 2610576815.430344
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 8,
+        "median": 14.0,
+        "max": 134
+      }
+    },
+    "gl_flush": {
+      "windows": 48,
+      "calls_per_second": {
+        "min": 4553.863384098477,
+        "median": 4692.982283926205,
+        "max": 4979.280119763077
+      },
+      "total_ms_per_second": {
+        "min": 1.3589266150150092,
+        "median": 1.5064377567442426,
+        "max": 1.7196472902020463
+      },
+      "requested_bytes_per_second": {
+        "min": 1248758.1680093869,
+        "median": 1308368.9587812216,
+        "max": 1823355.5328893422
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 4,
+        "median": 7.5,
+        "max": 166
+      }
+    },
+    "wgl_swap": {
+      "windows": 9,
+      "calls_per_second": {
+        "min": 1.934136838247169,
+        "median": 1.942464210096929,
+        "max": 1.9723826974700247
+      },
+      "total_ms_per_second": {
+        "min": 7.025542514358145,
+        "median": 8.253836181040654,
+        "max": 12.22404814394346
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 4525,
+        "median": 5334,
+        "max": 8503
+      }
+    }
+  },
+  "sysmem-experiment": {
+    "gl_unmap": {
+      "windows": 19,
+      "calls_per_second": {
+        "min": 0.9250462754399289,
+        "median": 0.9575242253629017,
+        "max": 0.9999740006759824
+      },
+      "total_ms_per_second": {
+        "min": 0.0009383362922204414,
+        "median": 0.00192257409600566,
+        "max": 0.003998768379339163
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 1,
+        "median": 2,
+        "max": 4
+      }
+    },
+    "buffer_subdata": {
+      "windows": 29,
+      "calls_per_second": {
+        "min": 1865.5208037010975,
+        "median": 2110.0398970556294,
+        "max": 2398.729394481865
+      },
+      "total_ms_per_second": {
+        "min": 7.432007115415682,
+        "median": 8.088103978569302,
+        "max": 8.916849530518643
+      },
+      "requested_bytes_per_second": {
+        "min": 298399.4849605486,
+        "median": 337425.8453558906,
+        "max": 383200.626073179
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 205,
+        "median": 351,
+        "max": 1360
+      }
+    },
+    "tex_subimage": {
+      "windows": 29,
+      "calls_per_second": {
+        "min": 9.981384717501859,
+        "median": 11.218234866834878,
+        "max": 12.49838963056683
+      },
+      "total_ms_per_second": {
+        "min": 2.526939634949649,
+        "median": 3.135293017994722,
+        "max": 3.355966362360393
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 307,
+        "median": 356,
+        "max": 505
+      }
+    },
+    "wgl_lock_wait": {
+      "windows": 28,
+      "calls_per_second": {
+        "min": 10.613294019119367,
+        "median": 14.579878961492593,
+        "max": 16.802894578639414
+      },
+      "total_ms_per_second": {
+        "min": 0.0019812906721825797,
+        "median": 0.00615591540553514,
+        "max": 0.01011104687021736
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 1,
+        "median": 1.0,
+        "max": 2
+      }
+    },
+    "map_driver": {
+      "windows": 18,
+      "calls_per_second": {
+        "min": 0.9250462754399289,
+        "median": 0.9594056366828658,
+        "max": 0.9999740006759824
+      },
+      "total_ms_per_second": {
+        "min": 0.001883576157692996,
+        "median": 0.004915601274273701,
+        "max": 0.006997844663843536
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 2,
+        "median": 5.0,
+        "max": 7
+      }
+    },
+    "map_direct": {
+      "windows": 18,
+      "calls_per_second": {
+        "min": 0.9250462754399289,
+        "median": 0.9594056366828658,
+        "max": 0.9999740006759824
+      },
+      "total_ms_per_second": {
+        "min": 0.006592516551925486,
+        "median": 0.013304649639930683,
+        "max": 0.018568412530707512
+      },
+      "requested_bytes_per_second": {
+        "min": 484990.66165784944,
+        "median": 503004.86244518636,
+        "max": 524274.36886640947
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 7,
+        "median": 14.0,
+        "max": 20
+      }
+    },
+    "gl_flush": {
+      "windows": 18,
+      "calls_per_second": {
+        "min": 0.9250462754399289,
+        "median": 0.9594056366828658,
+        "max": 0.9999740006759824
+      },
+      "total_ms_per_second": {
+        "min": 0.0009348529055695731,
+        "median": 0.0019112505694036082,
+        "max": 0.003998768379339163
+      },
+      "requested_bytes_per_second": {
+        "min": 484990.66165784944,
+        "median": 503004.86244518636,
+        "max": 524274.36886640947
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 1,
+        "median": 2.0,
+        "max": 4
+      }
+    },
+    "wgl_swap": {
+      "windows": 1,
+      "calls_per_second": {
+        "min": 1.8978771295367567,
+        "median": 1.8978771295367567,
+        "max": 1.8978771295367567
+      },
+      "total_ms_per_second": {
+        "min": 117.67407566266752,
+        "median": 117.67407566266752,
+        "max": 117.67407566266752
+      },
+      "requested_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "copied_bytes_per_second": {
+        "min": 0.0,
+        "median": 0.0,
+        "max": 0.0
+      },
+      "max_call_us": {
+        "min": 67610,
+        "median": 67610,
+        "max": 67610
+      }
+    }
+  }
+}

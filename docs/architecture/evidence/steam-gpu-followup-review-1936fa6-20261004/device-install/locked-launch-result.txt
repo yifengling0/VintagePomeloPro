@@ -1,0 +1,5 @@
+error: failed to start ability.
+Error Code:10106102  Error Message:The device screen is locked during the application launch, unlock screen failed.
+Error cause: The current mode is developer mode, and the screen cannot be unlocked automatically
+  Try the following:
+  > Check in the settings whether the current device is in developer mode, and turn off developer mode

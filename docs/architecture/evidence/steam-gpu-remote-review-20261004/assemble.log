@@ -1,0 +1,28 @@
+[32m[BUILD][0m === 组装布局 (arm64-v8a) ===
+[32m[BUILD][0m === 组装布局 (arm64-v8a) ===
+[32m[BUILD][0m     winehua-gm.sf2 → rawfile audio/
+[32m[BUILD][0m   → Wine aarch64 .so → libs/arm64-v8a/
+[32m[BUILD][0m     Wine .so: 30 files
+[33m[WARN][0m libm.so 未找到
+[33m[WARN][0m libintl.so.8 未找到
+[33m[WARN][0m libm.so 未找到
+[32m[BUILD][0m     GStreamer plugins (76) → rawfile bin/aarch64-unix/gstreamer-1.0/
+[32m[BUILD][0m     交叉编译依赖 → libs/arm64-v8a/
+[32m[BUILD][0m     libwineserver.so → libs/arm64-v8a/
+[32m[BUILD][0m     libarm64ecfex.dll → rawfile aarch64-windows/
+[32m[BUILD][0m     libwow64fex.dll → rawfile aarch64-windows/
+[32m[BUILD][0m     wowbox64.dll → rawfile aarch64-windows/
+[32m[BUILD][0m     libc++.dll → rawfile aarch64-windows/ (arm64x runtime)
+[32m[BUILD][0m     libunwind.dll → rawfile aarch64-windows/ (arm64x runtime)
+[32m[BUILD][0m     ARM64X C++ runtime ← /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/aarch64-w64-mingw32/bin → /data/src/winehua/build/staging/wine-data/bin/aarch64-windows
+[32m[BUILD][0m   aarch64-windows → 657 files
+[32m[BUILD][0m   stripping debug symbols...
+[32m[BUILD][0m   aarch64-windows PE stripped
+[32m[BUILD][0m   i386-windows → 651 files (ALL)
+[32m[BUILD][0m   i386 exe stubs → 106 files
+[32m[BUILD][0m   32-bit PE stripped
+[32m[BUILD][0m     ARM64X C++ runtime ← /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/aarch64-w64-mingw32/bin → /data/src/winehua/build/staging/wine-data/dxvk/legacy/arm64x
+[32m[BUILD][0m     ARM64X C++ runtime ← /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/aarch64-w64-mingw32/bin → /data/src/winehua/build/staging/wine-data/dxvk/legacy/x64
+[32m[BUILD][0m     ARM64X C++ runtime ← /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/aarch64-w64-mingw32/bin → /data/src/winehua/build/staging/wine-data/dxvk/modern-2.6/arm64x
+[32m[BUILD][0m     ARM64X C++ runtime ← /data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/aarch64-w64-mingw32/bin → /data/src/winehua/build/staging/wine-data/dxvk/modern-2.6/x64
+sha256sum: /data/src/winehua/build/guest_vulkan/x86_64/lib/libvulkan_virtio.so: No such file or directory

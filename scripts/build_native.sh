@@ -1,14 +1,20 @@
 #!/bin/bash
 # build_native.sh — Native compositor (Wayland compositor) 依赖
-# 产物: entry/libs/$NATIVE_ARCH/ (.so) + entry/src/main/cpp/protocols/ (头文件)
+# 产物: entry/libs/$NATIVE_ARCH/ (.so) + build/native_$NATIVE_ARCH/protocols/ (协议头文件)
 # 注意: 协议文件 (xdg-shell-protocol.c 等) 架构无关, 只生成一次
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+python3 "$SCRIPT_DIR/detach_build_hardlinks.py" "$NATIVE_LIBS"
 
-NATIVE_TARGET="${NATIVE_TARGET:-aarch64-linux-ohos}"
-WINEHUA_INC="$WINEHUA/entry/src/main/cpp/protocols"
+# NATIVE_TARGET 由 env.sh 按 NATIVE_ARCH 推导 (arm64-v8a→aarch64-linux-ohos,
+# x86_64→x86_64-linux-ohos); 这里显式断言, 防止环境残留/空值静默错配。
+: "${NATIVE_TARGET:?env.sh 未按 NATIVE_ARCH=$NATIVE_ARCH 推导出 NATIVE_TARGET}"
 NATIVE_BUILD="$BUILD_DIR/native_${NATIVE_ARCH}"
+WINEHUA_PROTOCOL_SOURCE="$WINEHUA/entry/src/main/cpp/protocols"
+# Generated protocol C/headers belong to the architecture's build tree. Never
+# overwrite tracked protocol snapshots while compiling a clean source checkout.
+WINEHUA_INC="$NATIVE_BUILD/protocols"
 if [ "$HOST_OS" = "Darwin" ] || [ "$HOST_OS" = "HarmonyOS" ]; then
     export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     export PKG_CONFIG_PATH_FOR_BUILD="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH_FOR_BUILD:+:$PKG_CONFIG_PATH_FOR_BUILD}"
@@ -33,6 +39,8 @@ pkg-config = '$PKG_CONFIG_BIN'
 [built-in options]
 c_args = ['--target=$NATIVE_TARGET', '--sysroot=$SYSROOT', '-I$ffi_prefix/include']
 c_link_args = ['--target=$NATIVE_TARGET', '--sysroot=$SYSROOT', '-fuse-ld=lld', '-L$ffi_prefix/lib']
+# meson 构建机依赖查找 (wayland-scanner 等) 由此选项决定, 环境变量 PKG_CONFIG_PATH 会被它覆盖
+build.pkg_config_path = ['$BUILD_DIR/host-tools/lib/pkgconfig']
 
 [host_machine]
 system = 'linux'
@@ -45,7 +53,7 @@ XEOF
 
 # ── 1. libffi ──
 build_libffi() {
-    if [ -f "$NATIVE_LIBS/libffi.so.8" ]; then
+    if [ -f "$NATIVE_LIBS/libffi.so.8" ] && [ -f "$NATIVE_BUILD/libffi/install/lib/pkgconfig/libffi.pc" ]; then
         log "libffi ($NATIVE_ARCH) 已就绪，跳过"
         return 0
     fi
@@ -56,11 +64,7 @@ build_libffi() {
     mkdir -p "$build"
     cd "$build"
 
-    # Git checkouts do not ship configure. autoreconf must run beside configure.ac;
-    # running autogen from the out-of-tree build directory silently did nothing.
-    if [ ! -x "$src/configure" ]; then
-        (cd "$src" && ./autogen.sh)
-    fi
+    if [ ! -x "$src/configure" ]; then (cd "$src" && ./autogen.sh); fi
     if [ "$HOST_OS" = "Darwin" ]; then
         CC="$OHOS_SDK/native/llvm/bin/clang" CCAS="$OHOS_SDK/native/llvm/bin/clang" \
         AR="$OHOS_SDK/native/llvm/bin/llvm-ar" \
@@ -95,44 +99,6 @@ copy_soname_with_linker_alias() {
     fi
 }
 
-find_first_matching_file() {
-    local search_root="$1"
-    shift
-
-    local pattern=""
-    for pattern in "$@"; do
-        local match=""
-        match="$(find "$search_root" -maxdepth 3 -type f -name "$pattern" | sort | head -n 1)"
-        if [ -n "$match" ]; then
-            printf '%s\n' "$match"
-            return 0
-        fi
-    done
-    return 1
-}
-
-ensure_host_wayland_scanner_pkgconfig() {
-    local scanner_bin="$BUILD_DIR/host-tools/bin/wayland-scanner"
-    local pc_dir="$BUILD_DIR/host-tools/lib/pkgconfig"
-    local pc_file="$pc_dir/wayland-scanner.pc"
-
-    [ -x "$scanner_bin" ] || err "host wayland-scanner missing: $scanner_bin"
-
-    mkdir -p "$pc_dir"
-    cat > "$pc_file" << EOF
-prefix=$BUILD_DIR/host-tools
-exec_prefix=\${prefix}
-bindir=\${exec_prefix}/bin
-datarootdir=\${prefix}/share
-pkgdatadir=\${datarootdir}/wayland
-wayland_scanner=\${bindir}/wayland-scanner
-
-Name: Wayland Scanner
-Description: Wayland scanner
-Version: 1.22.0
-EOF
-}
-
 # ── 2. ARM64 bridge libs used by Box64 wrapped native libraries ──
 remove_native_egl_linker_stubs() {
     # The Native SDK files are link-time stubs. OHOS host processes must load
@@ -141,7 +107,7 @@ remove_native_egl_linker_stubs() {
 }
 
 build_native_freetype() {
-    if [ -f "$NATIVE_LIBS/libfreetype.so.6" ] && [ -f "$NATIVE_LIBS/libfreetype.so" ]; then
+    if [ -f "$NATIVE_LIBS/libfreetype.so.6" ] && [ -f "$NATIVE_LIBS/libfreetype.so" ] && [ -f "$NATIVE_BUILD/freetype/install/lib/pkgconfig/freetype2.pc" ]; then
         log "freetype ($NATIVE_ARCH) 已就绪，跳过"
         return 0
     fi
@@ -161,18 +127,16 @@ build_native_freetype() {
         -DCMAKE_SHARED_LINKER_FLAGS="--target=$NATIVE_TARGET --sysroot=$SYSROOT -fuse-ld=lld" \
         -DCMAKE_EXE_LINKER_FLAGS="--target=$NATIVE_TARGET --sysroot=$SYSROOT -fuse-ld=lld" \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$build/install" \
         -DFT_DISABLE_ZLIB=ON \
         -DFT_DISABLE_BROTLI=ON \
         -DFT_DISABLE_HARFBUZZ=ON \
         -DFT_DISABLE_PNG=ON \
         -DFT_DISABLE_BZIP2=ON \
         -DBUILD_SHARED_LIBS=ON
-    ninja -C "$build"
+    ninja -C "$build" install
 
-    local freetype_so=""
-    freetype_so="$(find_first_matching_file "$build" 'libfreetype.so.*' 'libfreetype.so')"
-    [ -n "$freetype_so" ] || err "freetype shared library not found under $build"
-    copy_soname_with_linker_alias "$freetype_so" "libfreetype.so.6" "libfreetype.so"
+    copy_soname_with_linker_alias "$build/libfreetype.so.6.20.2" "libfreetype.so.6" "libfreetype.so"
     log "freetype ($NATIVE_ARCH) → $NATIVE_LIBS"
 }
 
@@ -201,25 +165,29 @@ build_native_libxml2() {
     cmake --build "$build"
     cmake --install "$build"
 
-    local libxml2_so=""
-    libxml2_so="$(find_first_matching_file "$build" 'libxml2.so.*' 'libxml2.so')"
-    [ -n "$libxml2_so" ] || err "libxml2 shared library not found under $build"
-    copy_soname_with_linker_alias "$libxml2_so" "libxml2.so.2" "libxml2.so"
+    copy_soname_with_linker_alias "$(compgen -G "$build/libxml2.so.2.*" | head -1)" "libxml2.so.2" "libxml2.so"
     log "libxml2 ($NATIVE_ARCH) → $NATIVE_LIBS"
 }
 
 build_native_xkbcommon() {
+    # 版本取自源码; 装好后记 marker, 守卫校验一致 (防升级后被"文件存在"误跳过)
+    local src="$ROOT/thirdparty/libxkbcommon"
+    local ver
+    ver=$(sed -n "s/^[[:space:]]*version[[:space:]]*:[[:space:]]*'\([^']*\)'.*/\1/p" "$src/meson.build" | head -1)
+    [ -n "$ver" ] || { err "无法从 $src/meson.build 解析 version"; return 1; }
+
     if [ -f "$NATIVE_LIBS/libxkbcommon.so.0" ] \
        && [ -f "$NATIVE_LIBS/libxkbcommon.so" ] \
        && [ -f "$NATIVE_LIBS/libxkbregistry.so.0" ] \
-       && [ -f "$NATIVE_LIBS/libxkbregistry.so" ]; then
-        log "xkbcommon ($NATIVE_ARCH) 已就绪，跳过"
+       && [ -f "$NATIVE_LIBS/libxkbregistry.so" ] \
+       && [ "$(cat "$NATIVE_LIBS/.xkbcommon_version" 2>/dev/null)" = "$ver" ]; then
+        log "xkbcommon ($NATIVE_ARCH, $ver) 已就绪，跳过"
         return 0
     fi
 
-    log "--- xkbcommon ($NATIVE_ARCH) ---"
-    local src="$ROOT/thirdparty/libxkbcommon"
-    local build="$NATIVE_BUILD/xkbcommon"
+    log "--- xkbcommon ($NATIVE_ARCH, $ver) ---"
+    # 构建目录按版本隔离 (升级时旧 meson 缓存不可复用)
+    local build="$NATIVE_BUILD/xkbcommon_$ver"
     local cross
     cross="$(gen_native_cross)"
 
@@ -235,97 +203,171 @@ build_native_xkbcommon() {
         -Denable-bash-completion=false
     ninja -C "$build"
 
-    copy_soname_with_linker_alias "$build/libxkbcommon.so.0.0.0" "libxkbcommon.so.0" "libxkbcommon.so"
-    copy_soname_with_linker_alias "$build/libxkbregistry.so.0.0.0" "libxkbregistry.so.0" "libxkbregistry.so"
-    log "xkbcommon ($NATIVE_ARCH) → $NATIVE_LIBS"
+    # 产物尾缀随版本变 (实测: 1.7.0=so.0.0.0, 1.13.2 不同), glob 取实际产物
+    copy_soname_with_linker_alias "$(compgen -G "$build/libxkbcommon.so.0.*" | head -1)" "libxkbcommon.so.0" "libxkbcommon.so"
+    copy_soname_with_linker_alias "$(compgen -G "$build/libxkbregistry.so.0.*" | head -1)" "libxkbregistry.so.0" "libxkbregistry.so"
+    echo "$ver" > "$NATIVE_LIBS/.xkbcommon_version"
+    log "xkbcommon ($NATIVE_ARCH, $ver) → $NATIVE_LIBS"
 }
 
 # ── 3. wayland (server + client) ──
 build_wayland() {
+    # 版本取自源码; 装好后记版本到 marker, 守卫校验 marker 与源码一致
+    # (防升级 submodule 后被"文件存在"误跳过 — 实测: 1.22→1.26 时旧 .so 原样留存)
+    local src="$ROOT/thirdparty/wayland"
+    local ver
+    ver=$(sed -n "s/^[[:space:]]*version[[:space:]]*:[[:space:]]*'\([^']*\)'.*/\1/p" "$src/meson.build" | head -1)
+    [ -n "$ver" ] || { err "无法从 $src/meson.build 解析 version"; return 1; }
+
     if [ -f "$NATIVE_LIBS/libwayland-server.so.0" ] \
        && [ -f "$NATIVE_LIBS/libwayland-client.so.0" ] \
-       && [ -f "$NATIVE_LIBS/libwayland-egl.so.1" ]; then
-        log "wayland ($NATIVE_ARCH) 已就绪，跳过"
+       && [ -f "$NATIVE_LIBS/libwayland-egl.so.1" ] \
+       && [ "$(cat "$NATIVE_LIBS/.wayland_version" 2>/dev/null)" = "$ver" ]; then
+        log "wayland ($NATIVE_ARCH, $ver) 已就绪，跳过"
         return 0
     fi
 
-    log "--- wayland ($NATIVE_ARCH) ---"
-    local src="$ROOT/thirdparty/wayland"
-    local build="$NATIVE_BUILD/wayland"
+    log "--- wayland ($NATIVE_ARCH, $ver) ---"
+    # 构建目录按版本隔离: 旧版本 meson 缓存不可复用 (同 build_wayland.sh 教训)
+    local build="$NATIVE_BUILD/wayland_$ver"
     local cross
     cross="$(gen_native_cross)"
 
     # libffi 头文件/库已在 cross file 的 c_args/c_link_args 中
-    ensure_host_wayland_scanner_pkgconfig
-    export PATH="$BUILD_DIR/host-tools/bin:$PATH"
-    export PKG_CONFIG_PATH="$BUILD_DIR/host-tools/lib/pkgconfig:$NATIVE_BUILD/libffi/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-    export PKG_CONFIG_PATH_FOR_BUILD="$BUILD_DIR/host-tools/lib/pkgconfig${PKG_CONFIG_PATH_FOR_BUILD:+:$PKG_CONFIG_PATH_FOR_BUILD}"
+    export PKG_CONFIG_PATH="$NATIVE_BUILD/libffi/install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     meson setup "$build" "$src" \
         --cross-file "$cross" \
         -Ddocumentation=false -Dtests=false -Dscanner=false
 
     ninja -C "$build"
 
-    # 安装 .so 到 Native libs
-    cp "$build/src/libwayland-server.so.0.22.0" "$NATIVE_LIBS/libwayland-server.so.0"
-    cp "$build/src/libwayland-client.so.0.22.0" "$NATIVE_LIBS/libwayland-client.so.0"
-    cp "$build/egl/libwayland-egl.so.1.22.0" "$NATIVE_LIBS/libwayland-egl.so.1"
+    # 安装 .so 到 Native libs (版本尾缀随 tag 走, glob 取实际产物, 取不到即失败)
+    local f
+    for f in server client; do
+        local g
+        g=$(ls "$build/src/libwayland-$f.so.0."* 2>/dev/null | head -1)
+        [ -n "$g" ] || { err "未找到产物 libwayland-$f"; return 1; }
+        cp "$g" "$NATIVE_LIBS/libwayland-$f.so.0"
+    done
+    g=$(ls "$build/egl/libwayland-egl.so.1."* 2>/dev/null | head -1)
+    [ -n "$g" ] || { err "未找到产物 libwayland-egl"; return 1; }
+    cp "$g" "$NATIVE_LIBS/libwayland-egl.so.1"
     ln -sf libwayland-server.so.0 "$NATIVE_LIBS/libwayland-server.so"
     ln -sf libwayland-client.so.0 "$NATIVE_LIBS/libwayland-client.so"
-    ln -sf libwayland-egl.so.1 "$NATIVE_LIBS/libwayland-egl.so"
+    ln -sf libwayland-egl.so.1    "$NATIVE_LIBS/libwayland-egl.so"
+    echo "$ver" > "$NATIVE_LIBS/.wayland_version"
 
-    log "wayland ($NATIVE_ARCH) → $NATIVE_LIBS"
+    log "wayland ($NATIVE_ARCH, $ver) → $NATIVE_LIBS"
+}
+
+# host 侧 wayland .pc: NATIVE_LIBS 里的 aarch64 .so 是 host 进程 (Xwayland 子进程、
+# display_compositor) 的链接目标, 但此前只有 .so 没有 pc——host 消费者 (wlroots/
+# meson_host_build) 会静默回退解析到 sysroot-ext 的 GUEST 侧 (x86_64) pc, 侧别错乱。
+# 本函数无条件执行 (自身带版本守卫), 让 pc 与 .so 同源同版本。
+emit_wayland_host_pc() {
+    local src="$ROOT/thirdparty/wayland"
+    local ver
+    ver=$(sed -n "s/^[[:space:]]*version[[:space:]]*:[[:space:]]*'\([^']*\)'.*/\1/p" "$src/meson.build" | head -1)
+    [ -n "$ver" ] || { err "emit_wayland_host_pc: 无法解析 version"; return 1; }
+
+    [ -f "$NATIVE_LIBS/libwayland-server.so.0" ] \
+        && [ -f "$NATIVE_LIBS/libwayland-client.so.0" ] \
+        || { err "emit_wayland_host_pc: $NATIVE_LIBS 缺 wayland .so, 先跑 build_wayland"; return 1; }
+
+    # HOST_EXT 目录树此前由 display-libs 的首个 meson_host_build 顺带建立;
+    # 毁灭性重建 (rm -rf build/) 里 build_native 与 display 链是并行分支,
+    # 本函数可能先跑到 —— 目录自建, 不依赖别人的副作用 (T7 演练实测断链)。
+    mkdir -p "$HOST_EXT_PC"
+
+    # 版本守卫: pc 已存在且 Version 行一致才跳过 (直接读文件, 不走 pkg-config——
+    # 顶层 PKG_CONFIG_LIBDIR 里 guest 侧同名 pc 同版本, 会混淆判读)
+    if [ -f "$HOST_EXT_PC/wayland-server.pc" ] && [ -f "$HOST_EXT_PC/wayland-client.pc" ] \
+       && [ "$(sed -n 's/^Version: //p' "$HOST_EXT_PC/wayland-server.pc")" = "$ver" ]; then
+        return 0
+    fi
+
+    cat > "$HOST_EXT_PC/wayland-client.pc" << EOF
+Name: Wayland Client
+Description: Wayland client side library (host 侧, $NATIVE_ARCH, 链接目标是 entry/libs)
+Version: $ver
+Requires.private: libffi
+Libs: -L$NATIVE_LIBS -lwayland-client
+Cflags: -I$WINEHUA_INC
+EOF
+    cat > "$HOST_EXT_PC/wayland-server.pc" << EOF
+Name: Wayland Server
+Description: Wayland server side library (host 侧, $NATIVE_ARCH, 链接目标是 entry/libs)
+Version: $ver
+Requires.private: libffi
+Libs: -L$NATIVE_LIBS -lwayland-server
+Cflags: -I$WINEHUA_INC
+EOF
+    log "wayland host pc ($NATIVE_ARCH, $ver) → $HOST_EXT_PC"
 }
 
 # ── 3. xdg-shell + wayland 协议文件 (架构无关, 只生成一次) ──
 build_protocols() {
-    local cpp_dir="$WINEHUA/entry/src/main/cpp/protocols"
-    local scanner="$WAYLAND_SCANNER"
-    local need_xdg=0
-    local need_wh=0
-    [ -f "$cpp_dir/xdg-shell-protocol.c" ] || need_xdg=1
-    [ -f "$cpp_dir/winehua-toplevel-protocol.c" ] || need_wh=1
-    if [ "$need_xdg" -eq 0 ] && [ "$need_wh" -eq 0 ]; then
-        log "协议文件已就绪，跳过"
-        return 0
-    fi
-
+    # Scanner output is small; regenerate it rather than trust checkout mtimes
+    # or leave a partial previous invocation looking complete.
     log "--- 生成 Wayland 协议文件 ---"
+    local scanner="$WAYLAND_SCANNER"
 
-    if [ "$need_xdg" -eq 1 ]; then
-        # wayland core protocol
-        local wl_xml="$ROOT/thirdparty/wayland/protocol/wayland.xml"
-        "$scanner" server-header "$wl_xml" "$WINEHUA_INC/wayland-server-protocol.h"
-        "$scanner" client-header "$wl_xml" "$WINEHUA_INC/wayland-client-protocol.h"
-        "$scanner" code "$wl_xml" /dev/null
+    # wayland core protocol
+    local wl_xml="$ROOT/thirdparty/wayland/protocol/wayland.xml"
+    "$scanner" server-header "$wl_xml" "$WINEHUA_INC/wayland-server-protocol.h"
+    "$scanner" client-header "$wl_xml" "$WINEHUA_INC/wayland-client-protocol.h"
+    "$scanner" code "$wl_xml" /dev/null
 
-        # xdg-shell protocol
-        local xdg_xml="$ROOT/thirdparty/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
-        "$scanner" server-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-server-protocol.h"
-        "$scanner" client-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-client-protocol.h"
-        "$scanner" private-code "$xdg_xml" "$cpp_dir/xdg-shell-protocol.c"
-    fi
+    # xdg-shell protocol
+    local xdg_xml="$ROOT/thirdparty/wayland-protocols/stable/xdg-shell/xdg-shell.xml"
+    "$scanner" server-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-server-protocol.h"
+    "$scanner" client-header "$xdg_xml" "$WINEHUA_INC/xdg-shell-client-protocol.h"
+    "$scanner" private-code "$xdg_xml" "$WINEHUA_INC/xdg-shell-protocol.c"
 
-    if [ "$need_wh" -eq 1 ]; then
-        # WineHua 私有协议 (权威源在 winewayland.drv, 双端同一 XML)
-        local wh_xml="$ROOT/thirdparty/wine/dlls/winewayland.drv/winehua-toplevel.xml"
-        "$scanner" server-header "$wh_xml" "$cpp_dir/winehua-toplevel-server-protocol.h"
-        "$scanner" private-code "$wh_xml" "$cpp_dir/winehua-toplevel-protocol.c"
-    fi
+    # WineHua 私有协议 (权威源在 winewayland.drv/Makefile.in 同文件, 双端
+    # 同一 XML; server 侧只需 server-header + private-code)
+    local wh_xml="$WINEHUA_PROTOCOL_SOURCE/winehua-toplevel.xml"
+    "$scanner" server-header "$wh_xml" "$WINEHUA_INC/winehua-toplevel-server-protocol.h"
+    "$scanner" private-code "$wh_xml" "$WINEHUA_INC/winehua-toplevel-protocol.c"
 
-    log "协议文件 → $WINEHUA_INC + $cpp_dir"
+    local entry name xml
+    for entry in \
+        "unstable/relative-pointer/relative-pointer-unstable-v1.xml:relative-pointer-unstable-v1" \
+        "unstable/pointer-constraints/pointer-constraints-unstable-v1.xml:pointer-constraints-unstable-v1" \
+        "unstable/text-input/text-input-unstable-v3.xml:text-input-unstable-v3" \
+        "staging/pointer-warp/pointer-warp-v1.xml:pointer-warp-v1" \
+        "stable/viewporter/viewporter.xml:viewporter"; do
+        xml="$ROOT/thirdparty/wayland-protocols/${entry%%:*}"
+        name="${entry#*:}"
+        "$scanner" server-header "$xml" "$WINEHUA_INC/$name-server-protocol.h"
+        "$scanner" private-code "$xml" "$WINEHUA_INC/$name-server-protocol.c"
+    done
+    log "协议文件 → $WINEHUA_INC"
 }
 
-# ── 4. wayland 头文件 (架构无关, 只安装一次) ──
+# ── 4. wayland 头文件 (架构无关, 按版本守卫安装) ──
 install_headers() {
-    if [ -f "$WINEHUA_INC/wayland-server-core.h" ]; then
-        log "wayland 头文件已就绪，跳过"
+    # 守卫比对已装 wayland-version.h 的 WAYLAND_VERSION 与源码版本, 不一致即重装。
+    # 踩坑: 旧版用"文件存在"守卫, 1.22 时代的遗留头(实为更早的手工截短 stub,
+    # 连 wl_proxy_get_queue 都没有)一直挡住 1.26 重装, 直到 wlroots 编译报
+    # undeclared 才暴露——文件存在守卫在升级场景失明, 本项目第三次踩同款坑。
+    local src="$ROOT/thirdparty/wayland"
+    local ver
+    ver=$(sed -n "s/^[[:space:]]*version[[:space:]]*:[[:space:]]*'\([^']*\)'.*/\1/p" "$src/meson.build" | head -1)
+    [ -n "$ver" ] || { err "install_headers: 无法从 $src/meson.build 解析 version"; return 1; }
+
+    local inst_ver
+    inst_ver=$(sed -n 's/^#define WAYLAND_VERSION "\(.*\)"/\1/p' "$WINEHUA_INC/wayland-version.h" 2>/dev/null | head -1 || true)
+    if [ -n "$inst_ver" ] && [ "$inst_ver" = "$ver" ]; then
+        log "wayland 头文件 ($ver) 已就绪，跳过"
         return 0
     fi
 
-    log "--- 安装 wayland 头文件 ---"
-    local src="$ROOT/thirdparty/wayland"
-    local build="$NATIVE_BUILD/wayland"
+    log "--- 安装 wayland 头文件 (已装=${inst_ver:-无} → $ver) ---"
+    # 生成头取自版本化构建目录 (T1 起构建目录带版本后缀, 未版本化旧路径已废)
+    local build="$NATIVE_BUILD/wayland_$ver"
+    [ -f "$build/src/wayland-version.h" ] \
+        || { err "install_headers: $build 缺生成头, 先跑本脚本完成 build_wayland"; return 1; }
 
     cp "$src/src/wayland-server-core.h" \
        "$src/src/wayland-server.h" \
@@ -338,7 +380,7 @@ install_headers() {
        "$build/src/wayland-client-protocol.h" \
        "$build/src/wayland-version.h" \
        "$WINEHUA_INC/"
-    log "wayland 头文件 → $WINEHUA_INC"
+    log "wayland 头文件 ($ver) → $WINEHUA_INC"
 }
 
 # ── 5. libepoxy (VirGL host 渲染器依赖, EGL 函数加载) ──
@@ -396,12 +438,17 @@ build_virglrenderer() {
     local python_with_yaml
     local config_stamp="$build/.winehua-config"
     local expected_config="venus=1;render-server-mode=thread;render-server-worker=thread;vulkan-dload=1"
+    local overlay_sha
+    overlay_sha="$(cat "$ROOT/scripts/apply_virglrenderer_ohos_patches.sh" "$ROOT"/patches/virglrenderer/*.patch | sha256sum | cut -d' ' -f1)"
+    expected_config="$expected_config;overlays=$overlay_sha"
+
+    [ -d "$src" ] || err "thirdparty/virglrenderer is missing"
+    bash "$ROOT/scripts/apply_virglrenderer_ohos_patches.sh" "$src"
 
     rm -f "$NATIVE_LIBS/libvirgl_test_server.so"
 
     if [ -f "$NATIVE_LIBS/libvirglrenderer.so.1" ] && \
        [ -f "$NATIVE_LIBS/libwinehua_vtest_server.so" ] && \
-       [ -x "$NATIVE_LIBS/virgl_test_server" ] && \
        [ "$(cat "$config_stamp" 2>/dev/null || true)" = "$expected_config" ] && \
        [ -z "$(find "$src" -newer "$NATIVE_LIBS/libwinehua_vtest_server.so" -type f \
            \( -name '*.c' -o -name '*.h' -o -name 'meson.build' \) -print -quit 2>/dev/null)" ]; then
@@ -422,7 +469,15 @@ build_virglrenderer() {
     export PATH="$(dirname "$python_with_yaml"):$PATH"
 
     rm -rf "$build"
-    meson setup "$build" "$src" \
+    # external-egl-without-gbm 的豁免分支只在 libdrm_dep **未找到**时生效
+    # (virglrenderer meson.build:302)。libdrm.pc 在 sysroot-ext (guest 侧
+    # 2.4.134) 与 SDK sysroot (2.4.120) 恒可见, meson 的 found 只看 pc 存在
+    # (guest x86_64 .so 链接试跑失败也照 found), 一旦 found → 强制要求
+    # gbm.pc —— 而 libdrm ≥2.4.121 已无 gbm (拆去 mesa), gbm 永远供不出来。
+    # 本库编出后 NEEDED 只有 epoxy+libc (无 gbm, 2026-10-04 老产物实证),
+    # 所以收窄视野到 epoxy: 豁免分支确定性生效, 不再依赖构建顺序。
+    # 改动若要让 virgl 真用 gbm, 需 host 侧 mesa libgbm 链, 另立项。
+    PKG_CONFIG_LIBDIR="$epoxy_pc" meson setup "$build" "$src" \
         --cross-file "$cross" \
         --prefix "$build/install" \
         --libdir lib \
@@ -446,16 +501,11 @@ build_virglrenderer() {
         find "$build/install/lib" -maxdepth 1 -name 'libvirglrenderer.so.1*' ! -name '*.so.1.*' -exec cp {} "$NATIVE_LIBS/libvirglrenderer.so.1" \;
     ln -sf libvirglrenderer.so.1 "$NATIVE_LIBS/libvirglrenderer.so"
 
-    # virgl_test_server
-    [ -f "$build/install/bin/virgl_test_server" ] || \
-        find "$build" -name 'virgl_test_server' -type f -exec cp {} "$NATIVE_LIBS/virgl_test_server" \;
-    cp "$build/install/bin/virgl_test_server" "$NATIVE_LIBS/" 2>/dev/null || true
-    chmod +x "$NATIVE_LIBS/virgl_test_server" 2>/dev/null || true
+    # virgl host 启动走 NCP libvirgl_child.so / 进程内 dlopen libwinehua_vtest_server.so;
+    # 鸿蒙沙箱不支持 exec, virgl_test_server / virgl_render_server 可执行 ELF 从不被
+    # exec, 仅打包 .so 产物。
     cp "$build/install/lib/libwinehua_vtest_server.so" "$NATIVE_LIBS/" 2>/dev/null || \
         find "$build" -name 'libwinehua_vtest_server.so' -type f -exec cp {} "$NATIVE_LIBS/libwinehua_vtest_server.so" \;
-    if [ -x "$build/install/libexec/virgl_render_server" ]; then
-        cp "$build/install/libexec/virgl_render_server" "$NATIVE_LIBS/"
-    fi
     printf '%s\n' "$expected_config" > "$config_stamp"
     rm -f "$NATIVE_LIBS/libvirgl_test_server.so"
 
@@ -467,7 +517,9 @@ build_libffi
 build_native_freetype
 build_native_libxml2
 build_native_xkbcommon
+bash "$SCRIPT_DIR/build_wayland.sh" --scanner-only
 build_wayland
+emit_wayland_host_pc
 build_protocols
 install_headers
 build_libepoxy
@@ -477,4 +529,4 @@ remove_native_egl_linker_stubs
 log "Native compositor 依赖就绪 ($NATIVE_ARCH)"
 log "  libs:  $NATIVE_LIBS"
 log "  inc:   $WINEHUA_INC"
-log "  proto: $WINEHUA/entry/src/main/cpp/protocols/xdg-shell-protocol.c"
+log "  proto: $WINEHUA_INC/xdg-shell-protocol.c"

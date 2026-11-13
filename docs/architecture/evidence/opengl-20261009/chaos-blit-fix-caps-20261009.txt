@@ -1,0 +1,10 @@
+GL-CAP virgl layer=host-egl create_ctx req=3.2 compat=0 shared=0 result=OK egl_error=0x0
+GL-CAP virgl layer=capset set=2 version=1 max_version=2 gl_ver=0 gles_ver=32 glsl_level=430 use_gles=1 capset2=1
+GL-CAP virgl layer=capset-color texture_srgb_decode=1 srgb_write_control=0 egl_image_srgb_import=1 conditional_render=0
+GL-CAP virgl layer=capset-ubo feat_ubo=1 max_uniform_block_size=65536 gl_max_uniform_block_size=65536 guest_es3_needs=16384 max_uniform_blocks=12
+GL-CAP virgl layer=capset set=1 version=1 max_version=1 gl_ver=0 gles_ver=32 glsl_level=430 use_gles=1 capset2=0
+GL-CAP virgl layer=capset-color texture_srgb_decode=1 srgb_write_control=0 egl_image_srgb_import=1 conditional_render=0
+GL-CAP virgl layer=host-egl create_ctx req=3.2 compat=0 shared=1 result=OK egl_error=0x0
+GL-CAP virgl layer=host-egl create_ctx req=3.2 compat=0 shared=1 result=OK egl_error=0x0
+GL-CAP virgl layer=host-egl create_ctx req=3.2 compat=0 shared=1 result=OK egl_error=0x0
+GL-CAP virgl layer=host-egl create_ctx req=3.2 compat=0 shared=1 result=OK egl_error=0x0

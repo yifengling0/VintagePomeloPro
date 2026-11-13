@@ -1,3 +1,5 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { AxisEventGate } from '../service/InputEventGate';
 import { hilog } from '../service/LogService';
 import testNapi from 'libentry.so';
 import { EVDEV_KEY_ENTER, OH2EVDEV } from '../common/KeyMap';
@@ -5,6 +7,8 @@ import { mapMouseButton } from '../common/MouseMap';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { FpsHud } from '../components/FpsHud';
+import { HostWindowTasks } from '../service/HostWindowTasks';
+import { InputOverlaySurface, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 
 const DOMAIN = 0x0000;
 
@@ -12,8 +16,10 @@ const DOMAIN = 0x0000;
 // 不再使用 libraryname='entry', 从根本上消除多窗口 XComponent exports 冲突
 class WineXComponentController extends XComponentController {
   toplevelId: number = 0;
+  private surfaceId: string = '';
 
   onSurfaceCreated(surfaceId: string): void {
+    this.surfaceId = surfaceId;
     hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceCreated tl=%{public}d surfaceId=%{public}s',
       this.toplevelId, surfaceId);
     try {
@@ -24,17 +30,19 @@ class WineXComponentController extends XComponentController {
   }
 
   onSurfaceChanged(surfaceId: string, rect: SurfaceRect): void {
+    if (surfaceId !== this.surfaceId || rect.surfaceWidth <= 0 || rect.surfaceHeight <= 0) return;
     hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceChanged tl=%{public}d surfaceId=%{public}s rect=%{public}s',
       this.toplevelId, surfaceId, JSON.stringify(rect));
     try {
-      testNapi.resizeRenderer(this.toplevelId, rect.surfaceWidth, rect.surfaceHeight);
+      testNapi.resizeRenderer(this.toplevelId, rect.surfaceWidth, rect.surfaceHeight, BigInt(surfaceId));
       // surface 是物理像素, Wine 需要逻辑坐标 (统一经 getEffectiveScale, 不再硬编码 2.0)
       const s = WineWindowManager.getInstance().getEffectiveScale();
       const w = Math.round(rect.surfaceWidth / s);
       const h = Math.round(rect.surfaceHeight / s);
       hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceChanged tl=%{public}d → notifyToplevelResize(%{public}d, %{public}d)',
         this.toplevelId, w, h);
-      testNapi.notifyToplevelResize(this.toplevelId, w, h);
+      testNapi.notifyToplevelResize(this.toplevelId, w, h,
+        WineWindowManager.getInstance().isHostWindowResizing(this.toplevelId));
     } catch (e) {
       hilog.error(DOMAIN, 'WineWindow', 'ERR onSurfaceChanged resizeRenderer: %{public}s', JSON.stringify(e));
     }
@@ -44,18 +52,22 @@ class WineXComponentController extends XComponentController {
     hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onSurfaceDestroyed tl=%{public}d surfaceId=%{public}s',
       this.toplevelId, surfaceId);
     try {
-      testNapi.destroyRenderer(this.toplevelId);
+      testNapi.destroyRenderer(this.toplevelId, BigInt(surfaceId));
+      if (this.surfaceId === surfaceId) this.surfaceId = '';
     } catch (e) {
       hilog.error(DOMAIN, 'WineWindow', 'ERR onSurfaceDestroyed destroyRenderer: %{public}s', JSON.stringify(e));
     }
   }
 }
 
-@Entry
+@Entry({ useSharedStorage: true })
 @Component
 struct WineWindow {
+  private inputSurface: InputOverlaySurface = new InputOverlaySurface();
+  private axisTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   controller: WineXComponentController = new WineXComponentController();
-  @State toplevelId: number = 0;
+  @LocalStorageProp('wineToplevelId') toplevelId: number = 0;
   @State surfacePxW: number = 1;
   @State surfacePxH: number = 1;
 
@@ -94,11 +106,14 @@ struct WineWindow {
   private scrollLogCounter: number = 0;
 
   aboutToAppear(): void {
-    // 关键: aboutToAppear 是 loadContent 的同步调用, 在下一个 Ability 覆盖前读取
-    this.toplevelId = testNapi.getCurrentToplevelId() as number;
+    // LocalStorage is passed by the owner before this scene is constructed.
     // 同步设置给 controller: 保证 onSurfaceCreated 拿到正确的 toplevelId
     this.controller.toplevelId = this.toplevelId;
     hilog.info(DOMAIN, 'WineWindow', 'aboutToAppear tl=%{public}d', this.toplevelId);
+  }
+
+  aboutToDisappear(): void {
+    InputOverlayWindowCoordinator.getInstance().releaseSurfaceBounds(this.inputSurface);
   }
 
   build() {
@@ -115,8 +130,18 @@ struct WineWindow {
         // 为后续 ARGB 异型窗口方案 (子窗口路线) 预留
         .backgroundColor('#00000000')
         .focusable(false)
+        .onAreaChange((_o: Area, n: Area) => {
+          this.surfacePxW = vp2px(n.width as number);
+          this.surfacePxH = vp2px(n.height as number);
+          InputOverlayWindowCoordinator.getInstance().updateSurfaceBounds(this.inputSurface,
+            'window-' + this.toplevelId, vp2px(Number(n.globalPosition.x)), vp2px(Number(n.globalPosition.y)),
+            this.surfacePxW, this.surfacePxH);
+          hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onAreaChange tl=%{public}d w=%{public}d h=%{public}d',
+            this.toplevelId, Math.round(this.surfacePxW), Math.round(this.surfacePxH));
+        })
         // -- 触摸事件 (参考 DesktopWindow 桌面模式手势状态机, 单窗口无目标查找) --
         .onTouch((ev: TouchEvent) => {
+          if (ev.type === TouchType.Down) HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
           try {
             if (this.toplevelId <= 0) return;
 
@@ -240,12 +265,11 @@ struct WineWindow {
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Press, this.pendingPx, this.pendingPy, btnLeft);
                 testNapi.sendPointerEvent(this.toplevelId, MouseAction.Move, px, py, btnLeft);
               } else if (this.isDragging) {
-                // Pad 多窗口 (subWindow 承载): 触摸拖动 wine 标题栏 → wine 已发
+                // Managed window (Ability/subWindow): 触摸拖动 wine 标题栏 → wine 已发
                 // move 请求 (moveGrabPending), 由 OHOS startMoving 接管系统拖拽。
                 // 必须在触摸路径处理 — 本状态机的合成 mouse Move 被守卫吞掉,
                 // onMouse 分支到不了。startMoving 后系统接管。
-                if (WineWindowManager.getInstance().shouldStartMoving(this.toplevelId) &&
-                    WineWindowManager.getInstance().fusionUsesSubWindow()) {
+                if (WineWindowManager.getInstance().shouldStartMoving(this.toplevelId)) {
                   try {
                     const win = WineWindowManager.getInstance().getWindow(this.toplevelId);
                     if (win) {
@@ -320,12 +344,16 @@ struct WineWindow {
         // 轴事件不冒泡 (AxisEvent.propagation 需显式激活), 挂外层 Stack 收不到,
         // 必须挂在命中链顶端的 XComponent 上
         .onAxisEvent((event?: AxisEvent) => {
+          if (event && this.axisTraceCount++ < 32) hilog.info(DOMAIN, 'CLICK-PIPE', '[AXIS-PHASE] WineWindow action=%{public}d time=%{public}s v=%{public}s h=%{public}s',
+            event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString());
+          if (!event || !this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+            event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
           if (this.toplevelId <= 0 || !event) return;
           const px = vp2px(event.x);
           const py = vp2px(event.y);
           const vert = event.getVerticalAxisValue();
           const horiz = event.getHorizontalAxisValue();
-          const step = event.scrollStep ?? 0;
+          const step = -1; // Hardware AxisEvent values are continuous vp.
           if (vert !== 0) {
             hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] SCROLL tl=%{public}d vert=%{public}d step=%{public}d px=(%{public}d,%{public}d)',
               this.toplevelId, Math.round(vert), step, Math.round(px), Math.round(py));
@@ -349,6 +377,7 @@ struct WineWindow {
 
     // -- 鼠标事件 --
     .onMouse((event: MouseEvent) => {
+      if (event.action === MouseAction.Press) HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
       if (this.toplevelId <= 0) return;
       // Wine 发起 xdg_toplevel.move → 下一个 MOVE 时调用 OHOS 原生 startMoving()
       // 必须优先于手势守卫: 守卫本意是拦"手指触摸的合成 mouse Move",
@@ -401,23 +430,17 @@ struct WineWindow {
         hilog.info(DOMAIN, 'CLICK-PIPE', '[ArkTS] MOUSE tl=%{public}d action=%{public}d px=(%{public}d,%{public}d) btn=%{public}d',
           this.toplevelId, event.action, Math.round(px), Math.round(py), btn);
       }
-      // 按输入设备类型缩放 rawDelta (相对模式增量 = rawDx × kSensRel 无标定,
-      // 触控板 raw 单位约为鼠标 5~10 倍, 不缩放则"移动一点点光标跑很多");
-      // 绝对模式有差分自标定, 缩放不影响结果
-      // event.deviceId 类型是 number|undefined (运行时恒有, 类型标注缺省)
-      let rawDx = event.rawDeltaX ?? 0;
-      let rawDy = event.rawDeltaY ?? 0;
-      const devId = event.deviceId ?? 0;
-      if (devId > 0) {
-        const s = InputDeviceMapper.getInstance().getScale(devId);
-        rawDx *= s;
-        rawDy *= s;
-      }
-      testNapi.sendPointerEvent(this.toplevelId, event.action, px, py, btn, rawDx, rawDy, true);
+      // Physical raw motion uses the shared main-branch calibration once.
+      // Absolute coordinates are still mapped by the native input resolver.
+      const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+        event.deviceId ?? 0, event.rawDeltaX ?? 0, event.rawDeltaY ?? 0);
+      testNapi.sendPointerEvent(this.toplevelId, event.action, px, py, btn,
+        motion.rawDx, motion.rawDy, true);
     })
 
     // -- 键盘事件 --
     .onKeyEvent((event: KeyEvent) => {
+      HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
       hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] onKeyEvent keyCode=%{public}d type=%{public}d tl=%{public}d',
         event.keyCode, event.type, this.toplevelId);
       if (this.toplevelId <= 0) return;
@@ -434,19 +457,13 @@ struct WineWindow {
       if (evdevCode === EVDEV_KEY_ENTER) {
         if (pressed) {
           this.lastEnterDownTs = Date.now();
-        } else if (Date.now() - this.lastEnterDownTs > WineWindow.ENTER_SYNTH_WINDOW_MS) {
+        } else if (Date.now() - this.lastEnterDownTs > WineWindow.ENTER_SYNTH_WINDOW_MS &&
+          !WineImeCoordinator.getInstance().hasAttachedSession()) {
           hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] ENTER SYNTH down (missing down)');
           testNapi.sendKeyEvent(this.toplevelId, EVDEV_KEY_ENTER, true);
         }
       }
       testNapi.sendKeyEvent(this.toplevelId, evdevCode, pressed);
-    })
-
-    .onAreaChange((_o: Area, n: Area) => {
-      this.surfacePxW = vp2px(n.width as number);
-      this.surfacePxH = vp2px(n.height as number);
-      hilog.info(DOMAIN, 'WineWindow', '[Ctrl] onAreaChange tl=%{public}d w=%{public}d h=%{public}d',
-        this.toplevelId, Math.round(this.surfacePxW), Math.round(this.surfacePxH));
     })
   }
 }

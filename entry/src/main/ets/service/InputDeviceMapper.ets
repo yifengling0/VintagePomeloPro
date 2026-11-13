@@ -4,6 +4,11 @@ import { inputDevice } from '@kit.InputKit';
 const DOMAIN = 0x0000;
 const TAG = 'DEV-MAP';
 
+export interface RawPointerMotion {
+  rawDx: number;
+  rawDy: number;
+}
+
 // InputDeviceMapper: 鼠标事件的 deviceId → 输入设备类型 映射, 以及 rawDelta →
 // 注入增量的最终缩放系数 (统一在 ArkTS, C++ 只做透传)。来源: ArkUI MouseEvent
 // 运行时携带 deviceId (类型定义无此字段, 20260822 实测鼠标=17/触控板=15),
@@ -12,7 +17,7 @@ const TAG = 'DEV-MAP';
 //
 // 系数组成 (20260822 从 C++ 迁入):
 //   - MOUSE_SCALE=2.5: 原 C++ kSensRel, raw 硬件单位 → 游戏内增量的全局校准
-//   - 触控板系数 0.75 = 2.5 × 0.3 (0.3 为设备差): 实测触控板 raw 每事件
+//   - 触控板系数 0.625 = 2.5 × 0.25 (0.25 为设备差): 实测触控板 raw 每事件
 //     4~14 而鼠标 0.5~2, 不衰减则"移动一点点光标跑很多", 手感不合适调
 //     TOUCHPAD_DEVICE_SCALE
 class InputDeviceMapper {
@@ -33,7 +38,7 @@ class InputDeviceMapper {
 
   // 读事件 deviceId → 增量缩放系数。deviceId 无效/查询失败一律按鼠标系数
   getScale(deviceId: number): number {
-    if (!deviceId) return InputDeviceMapper.MOUSE_SCALE;
+    if (deviceId <= 0) return InputDeviceMapper.MOUSE_SCALE;
     let isTouchpad: boolean | undefined = this.touchpadCache.get(deviceId);
     if (isTouchpad === undefined) {
       isTouchpad = this.queryIsTouchpad(deviceId);
@@ -42,6 +47,14 @@ class InputDeviceMapper {
     return isTouchpad
       ? InputDeviceMapper.MOUSE_SCALE * InputDeviceMapper.TOUCHPAD_DEVICE_SCALE
       : InputDeviceMapper.MOUSE_SCALE;
+  }
+
+  // All physical mouse entry points use the same calibration, including
+  // events without a valid device ID. Absolute coordinates stay unchanged;
+  // zero raw motion stays zero so native coordinate-difference fallback works.
+  calibrateRawMotion(deviceId: number, rawDx: number, rawDy: number): RawPointerMotion {
+    const scale = this.getScale(deviceId);
+    return { rawDx: rawDx * scale, rawDy: rawDy * scale };
   }
 
   private queryIsTouchpad(deviceId: number): boolean {

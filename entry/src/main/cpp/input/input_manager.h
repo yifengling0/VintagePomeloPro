@@ -2,6 +2,7 @@
 #include <wayland-server-core.h>
 #include <wayland-server-protocol.h>
 #include <cstdint>
+#include <atomic>
 
 #include "compositor/frame/geometry.h"
 #include "compositor/frame/display_policy.h"      // DisplayPolicy (6A 装配注入共享引用)
@@ -66,17 +67,24 @@ public:
     // fromMouse: 来自物理鼠标 onMouse 通道 (触屏 onTouch 路径传 false) —
     //   相对模式下区分点击语义, 见 ACT_PRESS 处理
     void SendPointerEvent(uint32_t toplevelId, int action, double px, double py, int button,
-                          double rawDx = 0, double rawDy = 0, bool fromMouse = false);
+                          double rawDx = 0, double rawDy = 0, bool fromMouse = false, bool sourceLocal = false);
 
     // evdevCode: 已由 ArkTS KeyMap 映射的 evdev keycode
     // pressed: true=按下, false=释放
     void SendKeyEvent(uint32_t toplevelId, int evdevCode, bool pressed);
 
+    // JS thread enqueues only an identity; resolve resources on the Wayland thread.
+    void RequestToplevelActivation(uint32_t toplevelId);
+    void RequestToplevelClose(uint32_t toplevelId, wl_resource* expected);
+    void RequestHostResize(uint32_t toplevelId, int32_t width, int32_t height, bool resizing);
+    bool RequestExternalHostMove(uint32_t source, uint32_t host, uint32_t resizeEdges = 0);
+    bool IsExternalHostResizing(uint32_t host) const;
+
     // axis: 0=垂直(SCROLL_VERTICAL), 1=水平(SCROLL_HORIZONTAL)
     // value: 轴值 (正值=向下/向右, 负值=向上/向左)
-    // scrollStep: ArkTS AxisEvent.scrollStep
+    // scrollStep: negative = hardware continuous vp; nonnegative = virtual detents
     // px/py: 鼠标在组件上的物理像素坐标
-    void SendScrollEvent(uint32_t toplevelId, int axis, double value, int scrollStep, double px, double py);
+    void SendScrollEvent(uint32_t toplevelId, int axis, double value, int scrollStep, double px, double py, bool sourceLocal = false);
 
     // -- Wayland 线程注入 (编制层委托 InputInjector; 公开方法保留 —
     //    wl_core.cpp 首帧 focus 预设直接调用本方法) --
@@ -93,12 +101,13 @@ public:
 
     // -- 状态重置 (Seat resource destroy 时调用) --
     void ResetPointerEnter();
-    // fullscreen/遮罩切换会改变物理坐标到 surface 局部坐标的映射。递增 epoch
-    // 让下一帧相对输入只重建基准、不发送坐标系跳变量。
     void InvalidateRelativePointerBaseline(const char* reason);
     void ResetKeyboardEnter();
-    // Wine 会话终结统一收口 (WaylandServer::ResetSessionState 调用): 清残留
-    // 按键/修饰键/指针位置/可见性/相对输入基线, 防热重启后新会话卡键或漂移
+
+    // -- Wine 会话终结统一收口 (WaylandServer::ResetSessionState 调用) --
+    // 全量复位会话级状态 (焦点/按键/修饰键/指针位置/可见性表), 使下一次
+    // 引擎启动 (冷/热) 从与冷启动一致的基线开始 — 热重启复用同一进程,
+    // 任何"只清不重置"的字段都会跨会话残留 (卡键/修饰键污染/焦点漂移)
     void ResetSessionState();
 
     // surface 销毁时重置焦点, 防止后续 Inject*Leave 引用已销毁的 surface
@@ -166,6 +175,7 @@ private:
     // 构造注入其引用, 见 InputManager 构造函数)
     InputStateTracker tracker_;
     InputQueue queue_;
+    std::atomic<uint32_t> pendingExternalResize_{0};
     InputInjector injector_;
 
     // 6A 装配注入的子组件引用 (指针形式: InputManager 单例可能先于

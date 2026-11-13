@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "deviceClass": "USB tablet",
+  "app": {
+    "versionName": "1.5.2",
+    "versionCode": 1005020,
+    "buildMode": "release",
+    "provisioning": "debug"
+  },
+  "candidate": {
+    "name": "VintagePomeloPro-1.5.2-cloud-debug-signed.hap",
+    "bytes": 591216037,
+    "sha256": "5e6bd14e3baef5147f57a5c233febf7f4dc15a6ac8d28320e35a4214be2e600c",
+    "signatureVerified": true,
+    "buildMode": "release",
+    "profile": "debug",
+    "baseCommit": "335c6eb7d74033be1d29bcbe0c12281ce3babf75"
+  },
+  "adapter": {
+    "schemaVersion": 1,
+    "architecture": "aarch64-linux-gnu",
+    "name": "libsteamohos_posix_hap.so",
+    "bytes": 231968,
+    "sha256": "944ffc4ae547f68e1c1fb15faae27098dfb6ff8816a8aaf92c955762f6c53df6"
+  },
+  "test": {
+    "appId": "695630",
+    "game": "NewPAL",
+    "launchSource": "official Linux ARM64 Steam",
+    "runtime": "GE-Proton11-11-aarch64",
+    "gameMenuObserved": true,
+    "closeMethod": "Deck ordinary close-game window request; no force termination",
+    "gameExit": {
+      "status": "proton_game_exited",
+      "exitCode": 0,
+      "exitCodeSource": "gnu-waitpid",
+      "runtimeBackend": "gnu-proton"
+    },
+    "runnerExit": {
+      "exitCode": 0,
+      "signal": 0,
+      "timedOut": false,
+      "cancelled": false
+    },
+    "actualSavePath": "<APP_FILES>/steamohos-native/proton-probe/prefix/drive_c/users/steamuser/Documents/My Games/NewPAL/0.sav",
+    "originalOhosSaveSha256": "2b4a2f99ffa5063925c1a8dd49e362c12dc3fc52dbd39aaafdaa6ccdc9b8d608",
+    "beforeFinalRun": {
+      "ohos": [
+        "2b4a2f99ffa5063925c1a8dd49e362c12dc3fc52dbd39aaafdaa6ccdc9b8d608"
+      ],
+      "gnu": [
+        "2b4a2f99ffa5063925c1a8dd49e362c12dc3fc52dbd39aaafdaa6ccdc9b8d608"
+      ]
+    },
+    "afterFinalRun": {
+      "ohos": [
+        "2b4a2f99ffa5063925c1a8dd49e362c12dc3fc52dbd39aaafdaa6ccdc9b8d608"
+      ],
+      "gnu": [
+        "2b4a2f99ffa5063925c1a8dd49e362c12dc3fc52dbd39aaafdaa6ccdc9b8d608"
+      ]
+    },
+    "watchedSaveFiles": 1,
+    "exitAutoCloudFoundFiles": 1,
+    "newProgressSaved": false,
+    "crossDeviceNewSaveUploadDownloadVerified": false,
+    "remoteConflictResolutionVerified": false
+  },
+  "cloudLogClock": "UTC (device local time UTC+08:00)",
+  "cloudLogExcerpt": [
+    "[2026-10-27 02:14:45] [AppID 695630] Download OK for file My Games/NewPAL/0.sav",
+    "[2026-10-27 02:14:45] [AppID 695630] Download complete, result OK",
+    "[2026-10-27 02:22:16] [AppID 695630] File is in sync My Games/NewPAL/0.sav",
+    "[2026-10-27 02:24:08] [AppID 695630] Starting sync (AC Launch,down,)",
+    "[2026-10-27 02:24:09] [AppID 695630]     Watching file <STEAM_ROOT>/library/steamapps/compatdata/695630/pfx/drive_c/users/steamuser/My Documents/My Games/NewPAL/0.sav",
+    "[2026-10-27 02:24:09] [AppID 695630] AutoCloud done. Watching 1 files",
+    "[2026-10-27 02:32:01] [AppID 695630] Starting sync (up,AC Exit,)",
+    "[2026-10-27 02:32:01] [AppID 695630]     Evaluating rule 0 with root=\"WinMyDocuments\" path=\"My Games/NewPAL\" pattern=\"*.*\"",
+    "[2026-10-27 02:32:01] [AppID 695630]         Found 1 files that match <STEAM_ROOT>/library/steamapps/compatdata/695630/pfx/drive_c/users/steamuser/My Documents/My Games/NewPAL/*.*",
+    "[2026-10-27 02:32:01] [AppID 695630]\tSkipping un-modified file My Games/NewPAL/0.sav",
+    "[2026-10-27 02:32:01] [AppID 695630] AutoCloud complete",
+    "[2026-10-27 02:32:01] [AppID 695630] Upload complete in build list"
+  ],
+  "hostChecks": [
+    "full model regression",
+    "GNU/OHOS per-game Cloud path IO and cleanup",
+    "provider-owned config (root CI fixture)",
+    "ASan/UBSan directory collision protection and VDF parsing",
+    "GNU exec / filesystem / singleton regressions",
+    "10 runtime dependency restore tests",
+    "separate verified HAP supervisor and POSIX installation",
+    "pinned PE bootstrap closure",
+    "HAP payload audit",
+    "POSIX source/binary manifest verification"
+  ],
+  "unchangedArtifacts": {
+    "wineSha256": "b22fd627960e1bfeb43d8cc394a263de04f74d9a177ab9fe3c571e09070d63d6",
+    "linuxRelease": "bd6c3b38e7de36d6893cb7a4b6ecc2758f9a313a6c12b32a0f011c8b58249b5a",
+    "gnuZipSha256": "8c98e7836a0ee3278095225ac90acb7a05b4204cd6a2cde7be7a0f853cc88523",
+    "geZipSha256": "97327f3a9e8155a11050dcf4960543d61841db44e22afc9531cd066b224085be"
+  },
+  "limits": [
+    "Existing-save download and unmodified launch/exit synchronization only.",
+    "No new save or cross-device round trip. No all-game compatibility claim.",
+    "The prior formal HAP/APP in artifacts/release-1.5.2-deck predates this fix."
+  ],
+  "privacy": "Account IDs, device ID, tokens, raw logs and screenshots are excluded."
+}

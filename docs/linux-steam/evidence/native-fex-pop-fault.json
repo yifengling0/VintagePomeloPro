@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "status": "instruction-fix-verified-game-not-fixed",
+  "architecture": "GNU ARM64 FEX executing GNU x86_64 ELF",
+  "device": "ordinary MatePad MLR-AL10",
+  "fexSourceRevision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+  "patchSha256": "a881186f3e72af122013ef9c0d4c6087896cd375538f18360723b61350ef0080",
+  "probeSourceSha256": "f92531e620e064b326705e0d35bcc95eb60cc3962a2b49b278645290a5593c67",
+  "deviceProbeSha256": "503205197b69a44dab652da9550f80dde6d7ff5402e7edcb7765d303b163f2d9",
+  "sourceProvenance": "HSL GNU CPU probe (LGPL-2.1-or-later), itself ported from original VPP Wine probes",
+  "deviceRuns": {
+    "officialValve": {
+      "fresh": true,
+      "passed": false,
+      "fexSha256": "f9cbb7a70e804b9930fed02fd9d1349d49d7808faace703063a9b4944bc3568e",
+      "elapsedSeconds": 59.3,
+      "events": [
+        "HSL_FEX_CPU case=xorps repeats=64 bad=0",
+        "HSL_FEX_CPU case=xorpd repeats=64 bad=0",
+        "HSL_FEX_CPU case=pxor repeats=64 bad=0",
+        "HSL_FEX_CPU case=pop-destination-fault delta=0 stored=12345678 faults=1 precise=0 pass=0",
+        "HSL_FEX_CPU case=pop-smc-write delta=8 stored=695e003446 faults=0 precise=1 pass=0",
+        "HSL_FEX_CPU case=pop-stack-address stored=12345678 pass=1",
+        "HSL_FEX_CPU_RESULT bits=64 failures=2"
+      ]
+    },
+    "rebuiltStock": {
+      "fresh": true,
+      "passed": false,
+      "fexSha256": "2eb82cfea0a615c9023a4bf2eb793fc03af8b0db9defd075a00b30a650c2c3d9",
+      "elapsedSeconds": 54.4,
+      "events": [
+        "HSL_FEX_CPU case=xorps repeats=64 bad=0",
+        "HSL_FEX_CPU case=xorpd repeats=64 bad=0",
+        "HSL_FEX_CPU case=pxor repeats=64 bad=0",
+        "HSL_FEX_CPU case=pop-destination-fault delta=0 stored=12345678 faults=1 precise=0 pass=0",
+        "HSL_FEX_CPU case=pop-smc-write delta=8 stored=6178803446 faults=0 precise=1 pass=0",
+        "HSL_FEX_CPU case=pop-stack-address stored=12345678 pass=1",
+        "HSL_FEX_CPU_RESULT bits=64 failures=2"
+      ]
+    },
+    "precisePop": {
+      "fresh": true,
+      "passed": true,
+      "fexSha256": "effeb9ebb0221b9de7b39b3cfe757c5b207680bebba5f27786fabdedcd1a4c8c",
+      "elapsedSeconds": 27.8,
+      "events": [
+        "HSL_FEX_CPU case=xorps repeats=64 bad=0",
+        "HSL_FEX_CPU case=xorpd repeats=64 bad=0",
+        "HSL_FEX_CPU case=pxor repeats=64 bad=0",
+        "HSL_FEX_CPU case=pop-destination-fault delta=0 stored=12345678 faults=1 precise=1 pass=1",
+        "HSL_FEX_CPU case=pop-smc-write delta=0 stored=12345678 faults=0 precise=1 pass=1",
+        "HSL_FEX_CPU case=pop-stack-address stored=12345678 pass=1",
+        "HSL_FEX_CPU_RESULT bits=64 failures=0"
+      ]
+    }
+  },
+  "hostReferences": {
+    "32": {
+      "sourceSha256": "f92531e620e064b326705e0d35bcc95eb60cc3962a2b49b278645290a5593c67",
+      "elfSha256": "47641dbc9bc8510725b413afdca70cb914b43bf182a251afe4266e1fa08f2eac",
+      "exitCode": 0,
+      "events": [
+        "HSL_FEX_CPU case=xorps repeats=64 bad=0",
+        "HSL_FEX_CPU case=xorpd repeats=64 bad=0",
+        "HSL_FEX_CPU case=pxor repeats=64 bad=0",
+        "HSL_FEX_CPU case=pop-destination-fault delta=0 stored=12345678 faults=1 precise=1 pass=1",
+        "HSL_FEX_CPU case=pop-smc-write delta=0 stored=12345678 faults=0 precise=1 pass=1",
+        "HSL_FEX_CPU case=pop-stack-address stored=12345678 pass=1",
+        "HSL_FEX_CPU_RESULT bits=32 failures=0"
+      ],
+      "passed": true
+    },
+    "64": {
+      "sourceSha256": "f92531e620e064b326705e0d35bcc95eb60cc3962a2b49b278645290a5593c67",
+      "elfSha256": "fe708364db42d0dff2c82a074bd7150ab40d18da54aa81566bf31080570df171",
+      "exitCode": 0,
+      "events": [
+        "HSL_FEX_CPU case=xorps repeats=64 bad=0",
+        "HSL_FEX_CPU case=xorpd repeats=64 bad=0",
+        "HSL_FEX_CPU case=pxor repeats=64 bad=0",
+        "HSL_FEX_CPU case=pop-destination-fault delta=0 stored=12345678 faults=1 precise=1 pass=1",
+        "HSL_FEX_CPU case=pop-smc-write delta=0 stored=12345678 faults=0 precise=1 pass=1",
+        "HSL_FEX_CPU case=pop-stack-address stored=12345678 pass=1",
+        "HSL_FEX_CPU_RESULT bits=64 failures=0"
+      ],
+      "passed": true
+    }
+  },
+  "banana": {
+    "candidateSha256": "48a50be5fcafce73ed24a87786b3d0a7e62578021dbc3f693f6950bb4ccf4a6c",
+    "wsiSha256": "57f7457467a4d9eb9d3ecd2621f3ff8311f8278dbd99b51a7faf773e5cf17cf3",
+    "fexSha256": "effeb9ebb0221b9de7b39b3cfe757c5b207680bebba5f27786fabdedcd1a4c8c",
+    "stopReason": "guest-fatal",
+    "elapsedSeconds": 124.9,
+    "bcUploads": 768,
+    "allocationPeakBytes": 2444012288,
+    "allocationFailures": 0,
+    "clickProbeSent": true,
+    "freshGame": true,
+    "clickProbeAccepted": false,
+    "beforeCount": 2,
+    "afterCount": 2,
+    "visualFps": 60,
+    "presentedFrameMarker": 720,
+    "displayPixelReadbacks": 0,
+    "hostPcWasNull": true,
+    "lrWasInFexJit": true,
+    "firstInvalidWriteLocated": false
+  },
+  "restored": true,
+  "releaseEnabled": false,
+  "boundaries": [
+    "Memory POP fix does not change register POP, including POP RSP",
+    "GNU i386 probe has host reference only; no GNU FEX device acceptance yet",
+    "Native game still SIGSEGV; no claim that the first invalid write is located",
+    "No game assets, databases, accounts, saves or Windows Wine graphics changed"
+  ]
+}

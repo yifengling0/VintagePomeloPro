@@ -112,6 +112,8 @@ export class PicsDepotInfo {
   /** manifest GID (uint64 十进制字符串)。 */
   manifestGid: string = '';
   sharedDepot: boolean = false;
+  /** depotfromapp: 共享 depot 的归属 app (redist / 引擎内容所在游戏)。 */
+  depotFromApp: number = 0;
 }
 
 export class PicsAppInfo {
@@ -217,6 +219,7 @@ export class PicsProductInfoResponse {
       depot.depotId = depotId;
       depot.manifestGid = /^\d+$/.test(gid) && gid !== '0' ? gid : '';
       depot.sharedDepot = shared;
+      depot.depotFromApp = Number(entry.text('depotfromapp')) || 0;
       const size = Number(entry.text('maxsize'));
       depot.sizeOnDisk = Number.isSafeInteger(size) && size > 0 ? size : 0;
       app.depots.push(depot);

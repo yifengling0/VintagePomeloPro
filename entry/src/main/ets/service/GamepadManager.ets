@@ -30,6 +30,13 @@ export class GamepadManager {
   private axisKeys: Set<number> = new Set<number>();
   private connected: boolean = false;
   private outputMode: ControllerOutputMode = 'dinput';
+  private hostNavigation: boolean = false;
+
+  setHostNavigation(enabled: boolean): void {
+    if (this.hostNavigation === enabled) return;
+    this.releaseAll();
+    this.hostNavigation = enabled;
+  }
   private connectionListeners: Set<GamepadConnectionListener> = new Set<GamepadConnectionListener>();
   private activityListeners: Set<GamepadActivityListener> = new Set<GamepadActivityListener>();
   private navigationListeners: Set<GamepadNavigationListener> = new Set<GamepadNavigationListener>();
@@ -277,10 +284,10 @@ export class GamepadManager {
     const active = Math.abs(x) >= this.deadzone || Math.abs(y) >= this.deadzone;
     if (active) this.notifyActivity();
     if (axisType === 0) {
-      this.setAxisKey(30, x < -this.deadzone);
-      this.setAxisKey(32, x > this.deadzone);
-      this.setAxisKey(17, y < -this.deadzone);
-      this.setAxisKey(31, y > this.deadzone);
+      this.setAxisKey(this.hostNavigation ? 105 : 30, x < -this.deadzone);
+      this.setAxisKey(this.hostNavigation ? 106 : 32, x > this.deadzone);
+      this.setAxisKey(this.hostNavigation ? 103 : 17, y < -this.deadzone);
+      this.setAxisKey(this.hostNavigation ? 108 : 31, y > this.deadzone);
     } else if (axisType === 2) {
       this.setAxisKey(105, x < -this.deadzone);
       this.setAxisKey(106, x > this.deadzone);

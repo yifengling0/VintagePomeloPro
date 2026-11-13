@@ -1,0 +1,2 @@
+sha256sum: /data/storage/el1/bundle/libs/arm64/libvirglrenderer.so: Permission denied
+sha256sum: /data/storage/el1/bundle/libs/arm64/libwinehua_vtest_server.so: Permission denied

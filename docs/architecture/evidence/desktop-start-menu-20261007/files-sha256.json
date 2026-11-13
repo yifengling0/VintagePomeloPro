@@ -1,0 +1,65 @@
+[
+  {
+    "file": "package-identity.json",
+    "sha256": "1f5606f1394028240c1dd1b40439431c1d130032238f6e0d1a0d5436c0a6fd33"
+  },
+  {
+    "file": "input-build-identity.json",
+    "sha256": "80369f49d6074f9b0dc3757a62420acb5d305c08a7b4b4317e800e3f1c3f58a7"
+  },
+  {
+    "file": "desktop-compare-2-probe-result.txt",
+    "sha256": "2a7265c476c5f22cd2d1268f7c155f1b4e7ff93ff4a5f505e29bf42b2cc7a79d",
+    "captureSha256": "162bb0b57edfa34fe2ce3713e93910d8dfb1f933b93403a5f85f7ceb26c81290"
+  },
+  {
+    "file": "input-fixed-compare-probe-result.txt",
+    "sha256": "a040a8de085e4ad4d8cff84897e2e980e2fd46e6a979b184b3689f8260c704b8",
+    "captureSha256": "9b80645d710c6eb507ab5bfab02d71be8a28c0db28728a0ee0a71f522b72ff79"
+  },
+  {
+    "file": "fixed-probe-complete.txt",
+    "sha256": "19b8a1420d19f80b3236a30f5089dddfabee7c4e9abc32b053bbdc03f2b9aed3",
+    "captureSha256": "0ee65018fe272936c24c410e26e71523c917625cbd25f33d72c8e765212192d1"
+  },
+  {
+    "file": "x64-default-result-0.txt",
+    "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "captureSha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6"
+  },
+  {
+    "file": "x64-strict-result-later.txt",
+    "sha256": "9900f38334376d7800a163b5c8d34359d2bd40a59eb689b48f8decbdfba82ec9",
+    "captureSha256": "8c70a02e4c84d0f0d4f1375321101821a37e4bb12918c859548e94bc51e44978"
+  },
+  {
+    "file": "x64-dll-identity.txt",
+    "sha256": "e0f21b89fb99eb8d74ec7178992deafcbdd0051f92d97b4c399f2fb4ad74ae5c",
+    "captureSha256": "cf41ca4be89a012d2b001c45f6df6aa88f4eeece9323b260622e9da8221688d1"
+  },
+  {
+    "file": "input-fixed-install.txt",
+    "sha256": "387c55f1e874c2acee81489e9a8275334e45e10a28b2638162de1220b519f928",
+    "captureSha256": "e32c4a0353f0f7f4fa27ffa3411a827c7df5d809a9da3e6810319ca2e5d0bece"
+  },
+  {
+    "file": "input-fixed-cold-1-after-click-1.png",
+    "sha256": "f5922b2626e357febab8b4d6708605520fae24e0797d70bdfe2eeb77ed67a1ce",
+    "localOnly": true
+  },
+  {
+    "file": "input-fixed-cold-2-after-click-1.png",
+    "sha256": "f5922b2626e357febab8b4d6708605520fae24e0797d70bdfe2eeb77ed67a1ce",
+    "localOnly": true
+  },
+  {
+    "file": "fixed-run-dialog.png",
+    "sha256": "c58b3dadc0fdd7e166c59dd66bd5d8ac0868bbff5156ec71c1d636ab53d0092a",
+    "localOnly": true
+  },
+  {
+    "file": "fixed-explorer-click-result.png",
+    "sha256": "0e63932182cb7ae5e7066be8badf1f67e908fd5a6fc0c1b680f6b0ec555fe386",
+    "localOnly": true
+  }
+]

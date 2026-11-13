@@ -4,6 +4,18 @@
 *.d
 *.dll
 *.exe
+# Self-owned Wine window adapter required by standard Linux Steam HAP builds.
+!entry/src/main/resources/rawfile/hmosdeck/hmosdeck-steam.exe
+# Pinned small GE helper closure; required without downloading the upstream archive.
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/lsass.exe
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/psapi.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/wevtsvc.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/wsock32.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/mswsock.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/dwmapi.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/dwrite.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/uiautomationcore.dll
+!entry/src/main/resources/rawfile/linux-proton/bootstrap/oleacc.dll
 .deps/
 .libs/
 
@@ -53,6 +65,7 @@ thirdparty/freetype-VER-2-13-3/
 entry/src/main/resources/rawfile/wine-data.zip
 entry/src/main/resources/rawfile/wine-runtime-manifest.json
 entry/src/main/resources/rawfile/wine_runtime.version
+entry/src/main/resources/rawfile/linux-steam/hmosdeck-gnu-arm64-v1.zip
 tmp/
 prebuilt/
 
@@ -63,3 +76,24 @@ prebuilt/
 # Python caches
 __pycache__/
 *.pyc
+thirdparty/wine-proton/
+
+# Local HAP build packages
+*.hap
+thirdparty/wine-valve-rpgxp-alpha/
+
+# Local experiment/build trees; source lives in entry/, scripts/, patches/, tests/.
+/workspace_temp/
+/build-fex-vm-contract-*/
+
+# Reproducible GNU Proton binary component; source/lock/builder are tracked.
+entry/src/main/resources/rawfile/linux-proton/gnu-proton.zip
+
+# Locked GNU media PE supplement, independent of historical Proton ZIPs.
+!entry/src/main/resources/rawfile/linux-proton/media/files/lib/wine/aarch64-windows/*.dll
+
+# Independently verified GNU DXVK/GE PE support (outside immutable upstream ZIP).
+!entry/src/main/resources/rawfile/linux-proton/dxvk-support/**/*.dll
+
+# Rebuilt from the pinned, complete GE module contract.
+/entry/src/main/resources/rawfile/linux-proton/modules-support/

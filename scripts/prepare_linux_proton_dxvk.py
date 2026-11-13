@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Verify/install the independent GNU DXVK support payload for normal HAP builds."""
+import argparse
+import hashlib
+import json
+from pathlib import Path, PurePosixPath
+import shutil
+import tarfile
+
+ROOT = Path(__file__).resolve().parents[1]
+RAW = Path('entry/src/main/resources/rawfile/linux-proton/dxvk-support')
+LOCK = Path('docs/linux-steam/gnu-dxvk-support.lock.json')
+PROFILE = {
+    'VPP_GNU_DXVK_PROFILE': 'legacy-1.10.3',
+    'WINEHUA_DXVK_RELAXED_FEATURES': '1',
+    'DXVK_WINEHUA_COMMAND_QUERY_RESET': '1',
+    'DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED': '1',
+    'DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT': 'auto',
+    'DXVK_WINEHUA_PRECISE_SHADOW': '1',
+    'DXVK_WINEHUA_BATCH_MAPPED_FLUSH': '1',
+    'VN_OHOS_PRECISE_SHADOW': '1',
+    'VN_WINEHUA_PERSISTENT_MAP_SYNC': '0',
+}
+NATIVE = ('libproton_probe.so', 'libproton_vulkan.so', 'libvulkan_virtio.so', 'nsiproxy.so')
+BRIDGE = ('vulkan-1.dll', 'winevulkan.dll', 'd3dcompiler_47.dll')
+
+def sha(path):
+    h = hashlib.sha256()
+    with path.open('rb') as f:
+        for b in iter(lambda: f.read(1048576), b''): h.update(b)
+    return h.hexdigest()
+
+def sources(root):
+    fixture = root/'entry/src/main/cpp/linux_steam/gnu_fixture'
+    paths = [root/'scripts/linux_component_identity.py'] + [root/'scripts'/n for n in ('prepare_linux_proton_dxvk.py',
+        'build_linux_proton_probe.py', 'proton_optional_syscalls.py', 'build_linux_proton_venus.py', 'build_linux_proton_vulkan.py')]
+    paths += [root/'scripts/build_linux_proton_network.py', root/'scripts/proton_network_contract.py',
+        root/'docs/linux-steam/gnu-proton-network.lock.json']
+    paths += list((root/'patches/linux-proton/wine-ge').glob('*.patch'))
+    paths += list((root/'patches/linux-proton/mesa').glob('*.patch')) + list((root/'patches/linux-proton/mesa-base').glob('*.patch'))
+    paths += list(fixture.glob('*.h')) + list(fixture.parent.glob('*.h'))
+    paths += [fixture/n for n in ('exec_compat.cpp', 'filesystem_compat.c', 'posix_compat.c',
+        'sysvipc_compat.c', 'popen_compat.c', 'socket_metadata.c', 'syscall_compat.S', 'proton_vulkan_wsi.cpp')]
+    paths += [fixture.parent/n for n in ('native_loader.cpp', 'native_loader_entry.S')]
+    paths += [root/'docs/linux-steam/gnu-dxvk-source.lock.json', root/'docs/linux-steam/gnu-venus-base.lock.json']
+    return {p.relative_to(root).as_posix(): sha(p) for p in sorted(set(paths))}
+
+def verify(root=ROOT, hap=None):
+    from dxvk_pe import validate_dxvk, inspect_pe
+    m = json.loads((root/LOCK).read_text())
+    upstream = json.loads((root/'docs/linux-steam/gnu-proton-probe.lock.json').read_text())
+    source_lock = json.loads((root/'docs/linux-steam/gnu-dxvk-source.lock.json').read_text())
+    backend = next(r for r in upstream['selected'] if r['path']=='files/lib/wine/aarch64-unix/winevulkan.so')
+    if (m['schemaVersion']!=1 or m['architecture']!='aarch64-linux-gnu' or m['profile']!=PROFILE or
+            m['backend']!=backend or m['distribution']!=upstream['distribution'] or m['sources']!=sources(root)):
+        raise ValueError('GNU DXVK source/profile/backend mismatch; rebuild companion')
+    if (root/RAW/'manifest.json').read_bytes()!=(root/LOCK).read_bytes():
+        raise ValueError('GNU DXVK packaged manifest mismatch')
+    if hap and hap.read('resources/rawfile/linux-proton/dxvk-support/manifest.json')!=(root/LOCK).read_bytes():
+        raise ValueError('HAP GNU DXVK manifest mismatch')
+    network=json.loads((root/'docs/linux-steam/gnu-proton-network.lock.json').read_text())
+    nsi=next(r for r in upstream['selected'] if r['path']=='files/lib/wine/aarch64-unix/nsiproxy.so')
+    ntdll=next(r for r in upstream['selected'] if r['path']=='files/lib/wine/aarch64-unix/ntdll.so')
+    if m.get('network') != dict(wineRevision=network['wineRevision'],unixCallSlots=network['unixCallSlots'],backend=nsi,ntdll=ntdll):
+        raise ValueError('GNU NSI PE/Unix version mismatch')
+    expected=set(NATIVE)|{'LICENSE.dxvk'}|{'pe/'+n for n in BRIDGE}
+    expected|={'dlls/'+a+'/'+n for a in ('arm64x','i386') for n in ('d3d11.dll','dxgi.dll')}
+    names=set()
+    for row in m['files']:
+        name=row['path']
+        if name not in expected or name in names: raise ValueError('Unexpected GNU DXVK member')
+        names.add(name);path=root/RAW/name
+        if path.is_symlink() or path.stat().st_size!=row['bytes'] or sha(path)!=row['sha256']:
+            raise ValueError('GNU DXVK payload mismatch: '+name)
+        data=path.read_bytes()
+        if name in NATIVE:
+            if data[:6]!=b'\x7fELF\x02\x01' or int.from_bytes(data[18:20],'little')!=183:
+                raise ValueError('Non-GNU ARM64 support object: '+name)
+        elif name.startswith('dlls/'):
+            _,arch,dll=name.split('/')
+            pin=source_lock['variants']['legacy-1.10.3']['architectures'][arch]['files'][dll]
+            if any(row[k]!=pin[k] for k in ('bytes','sha256')): raise ValueError('Unpinned DXVK fork DLL')
+            validate_dxvk(data, dll, arch)
+        elif name.startswith('pe/'):
+            pe=inspect_pe(data)
+            if pe['architecture']!='arm64x': raise ValueError('GE bridge lacks both ARM64X views: '+name)
+            if row.get('source')!='files/lib/wine/aarch64-windows/'+PurePosixPath(name).name:
+                raise ValueError('GE PE/Unix bridge source mismatch')
+        if hap and hap.read('resources/rawfile/linux-proton/dxvk-support/'+name)!=data:
+            raise ValueError('HAP GNU DXVK payload mismatch')
+    if names!=expected or sum(r['bytes'] for r in m['files'])!=m['installedBytes']:
+        raise ValueError('GNU DXVK payload closure mismatch')
+    actual={p.relative_to(root/RAW).as_posix() for p in (root/RAW).rglob('*') if p.is_file()}
+    if actual!=expected|{'manifest.json'}:raise ValueError('Unlisted GNU DXVK file')
+    identity={k:v for k,v in m.items() if k!='id'}
+    if hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(',',':')).encode()).hexdigest()!=m['id']:
+        raise ValueError('GNU DXVK identity mismatch')
+    return m
+
+def prepare(args):
+    from dxvk_pe import validate_dxvk
+    upstream=json.loads((ROOT/'docs/linux-steam/gnu-proton-probe.lock.json').read_text())
+    source_lock=json.loads((ROOT/'docs/linux-steam/gnu-dxvk-source.lock.json').read_text())
+    dist=upstream['distribution']
+    if args.archive.stat().st_size!=dist['bytes']:
+        raise ValueError('GE archive size mismatch')
+    h=hashlib.sha512()
+    with args.archive.open('rb') as f:
+        for b in iter(lambda:f.read(1048576),b''):h.update(b)
+    if h.hexdigest()!=dist['sha512']:raise ValueError('GE archive hash mismatch')
+    chosen={}; origins={}
+    for name,folder in [('libproton_probe.so',args.shim),('libproton_vulkan.so',args.wsi),('libvulkan_virtio.so',args.venus)]:
+        chosen[name]=folder/name
+    for arch in ('arm64x','i386'):
+        for dll in ('d3d11.dll','dxgi.dll'):
+            source=args.dxvk/arch/'bin'/dll
+            pin=source_lock['variants']['legacy-1.10.3']['architectures'][arch]['files'][dll]
+            if source.stat().st_size!=pin['bytes'] or sha(source)!=pin['sha256']:raise ValueError('DXVK source-built identity mismatch')
+            validate_dxvk(source.read_bytes(),dll,arch)
+            chosen['dlls/'+arch+'/'+dll]=source
+    from proton_network_contract import validate_network_build
+    network_path,_=validate_network_build(args.network_build)
+    chosen['nsiproxy.so']=network_path
+    chosen['LICENSE.dxvk']=args.license
+    if sha(args.license)!=source_lock['variants']['legacy-1.10.3']['license']['sha256']:raise ValueError('DXVK license mismatch')
+    dest=ROOT/RAW;dest.mkdir(parents=True,exist_ok=True)
+    for name,source in chosen.items():
+        p=dest/name;p.parent.mkdir(parents=True,exist_ok=True)
+        if p.is_symlink():raise ValueError('Linked GNU DXVK output')
+        if not p.is_file() or sha(p)!=sha(source):shutil.copyfile(source,p)
+    prefix=dist['file'].removesuffix('.tar.gz')+'/'
+    wanted={prefix+'files/lib/wine/aarch64-windows/'+n:n for n in BRIDGE}
+    with tarfile.open(args.archive,'r|gz') as stream:
+        for member in stream:
+            name=member.name.removeprefix('./')
+            if name not in wanted:continue
+            if not member.isfile() or not 0<member.size<32*1048576:raise ValueError('Invalid GE bridge member')
+            relative='pe/'+wanted.pop(name);p=dest/relative;p.parent.mkdir(parents=True,exist_ok=True)
+            if p.is_symlink():raise ValueError('Linked GE bridge output')
+            data=stream.extractfile(member).read()
+            if not p.is_file() or p.read_bytes()!=data:p.write_bytes(data)
+            chosen[relative]=p;origins[relative]=name[len(prefix):]
+    if wanted:raise ValueError('Missing original GE Vulkan bridge')
+    files=[dict(path=n,bytes=(dest/n).stat().st_size,sha256=sha(dest/n),**({'source':origins[n]} if n in origins else {})) for n in sorted(chosen)]
+    backend=next(r for r in upstream['selected'] if r['path']=='files/lib/wine/aarch64-unix/winevulkan.so')
+    m=dict(schemaVersion=1,architecture='aarch64-linux-gnu',profile=PROFILE,backend=backend,distribution=dist,
+        sources=sources(ROOT),files=files,installedBytes=sum(r['bytes'] for r in files),
+        deviceValidation='pending VPP device validation; HSL evidence does not qualify VPP')
+    network=json.loads((ROOT/'docs/linux-steam/gnu-proton-network.lock.json').read_text())
+    selected={r['path']:r for r in upstream['selected']}
+    m['network']=dict(wineRevision=network['wineRevision'],unixCallSlots=network['unixCallSlots'],
+        backend=selected['files/lib/wine/aarch64-unix/nsiproxy.so'],ntdll=selected['files/lib/wine/aarch64-unix/ntdll.so'])
+    m.pop('id',None)
+    m['id']=hashlib.sha256(json.dumps(m,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    text=json.dumps(m,indent=2)+'\n';(ROOT/LOCK).write_text(text);(dest/'manifest.json').write_text(text)
+    return verify()
+
+def validate_probe_source_receipt(shim, build, root=ROOT):
+    allowed=set()
+    fixture=root/'entry/src/main/cpp/linux_steam/gnu_fixture'
+    shim_sources=[fixture/n for n in ('exec_compat.cpp','filesystem_compat.c','posix_compat.c',
+        'sysvipc_compat.c','popen_compat.c','socket_metadata.c','syscall_compat.S')]
+    shim_sources += list(fixture.glob('*.h')) + list(fixture.parent.glob('*.h'))
+    shim_sources += [fixture.parent/n for n in ('native_loader.cpp','native_loader_entry.S')]
+    for source in shim_sources:
+        # Generated inputs are independently pinned below. Sources transformed
+        # by the builder have their actual compiled generated hash in receipt.
+        if source.name in ('exec_compat.cpp','filesystem_compat.c','posix_compat.c','syscall_compat.S'):
+            if build['buildInputs'].get('originalSources',{}).get(str(source.resolve()))!=sha(source):
+                raise ValueError('Stale rebuilt shim original source: '+source.name)
+        else:
+            if build['buildInputs']['sources'].get(str(source.resolve()))!=sha(source):
+                raise ValueError('Stale rebuilt shim source: '+source.name)
+        allowed.add(str(source.relative_to(root)))
+    for name,digest in build['generatedSources'].items():
+        if sha(shim/name)!=digest:raise ValueError('Generated shim source changed: '+name)
+    return allowed
+
+def refresh_probe(shim, network_build):
+    """Refresh only the independently rebuilt probe; keep qualified WSI/DXVK bytes."""
+    path=shim/'libproton_probe.so'
+    build=json.loads((shim/'posix-probe-identity.json').read_text())
+    if (build['sha256']!=sha(path) or build['bytes']!=path.stat().st_size or
+        build['buildInputs']['script']!=sha(ROOT/'scripts/build_linux_proton_probe.py')):
+        raise ValueError('Proton probe does not match its current builder')
+    from proton_network_contract import validate_network_build
+    network_path, _=validate_network_build(network_build)
+    m=json.loads((ROOT/LOCK).read_text())
+    current=sources(ROOT)
+    changed={n for n in set(m['sources'])|set(current) if m['sources'].get(n)!=current.get(n)}
+    allowed={'scripts/linux_component_identity.py','scripts/prepare_linux_proton_dxvk.py','scripts/build_linux_proton_probe.py','scripts/proton_optional_syscalls.py',
+        'scripts/build_linux_proton_network.py','scripts/proton_network_contract.py',
+        'docs/linux-steam/gnu-proton-network.lock.json'}
+    allowed.update(str(p.relative_to(ROOT)) for p in (ROOT/'patches/linux-proton/wine-ge').glob('*.patch'))
+    # Only the shim closure may change during this refresh. Validate every
+    # rebuilt original input against this checkout; WSI/Venus/DXVK inputs still
+    # require their independent full build if they change.
+    allowed.update(validate_probe_source_receipt(shim, build))
+    if changed-allowed:raise ValueError('Other native inputs changed; use full support rebuild')
+    for row in m['files']:
+        source=ROOT/RAW/row['path']
+        if source.is_symlink() or source.stat().st_size!=row['bytes'] or sha(source)!=row['sha256']:
+            raise ValueError('Previous support payload changed: '+row['path'])
+    shutil.copyfile(path,ROOT/RAW/path.name)
+    row=next(r for r in m['files'] if r['path']==path.name)
+    row.update(bytes=path.stat().st_size,sha256=sha(path))
+    shutil.copyfile(network_path,ROOT/RAW/'nsiproxy.so')
+    m['files']=[r for r in m['files'] if r['path']!='nsiproxy.so']
+    m['files'].append(dict(path='nsiproxy.so',bytes=network_path.stat().st_size,sha256=sha(network_path)))
+    m['files'].sort(key=lambda r:r['path'])
+    upstream=json.loads((ROOT/'docs/linux-steam/gnu-proton-probe.lock.json').read_text())
+    selected={r['path']:r for r in upstream['selected']}
+    network=json.loads((ROOT/'docs/linux-steam/gnu-proton-network.lock.json').read_text())
+    m['network']=dict(wineRevision=network['wineRevision'],unixCallSlots=network['unixCallSlots'],
+        backend=selected['files/lib/wine/aarch64-unix/nsiproxy.so'],ntdll=selected['files/lib/wine/aarch64-unix/ntdll.so'])
+    m['installedBytes']=sum(r['bytes'] for r in m['files']);m['sources']=current
+    m['probeBuild']=dict(script=build['buildInputs']['script'],generatedSources=build['generatedSources'],
+        compilers=build['buildInputs']['compilers'],scope='GNU Wine only; existing WSI/Venus/DXVK unchanged')
+    m.pop('id',None)
+    m['id']=hashlib.sha256(json.dumps(m,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    text=json.dumps(m,indent=2)+'\n';(ROOT/LOCK).write_text(text);(ROOT/RAW/'manifest.json').write_text(text)
+    return verify()
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--refresh-probe',action='store_true');p.add_argument('--refresh',action='store_true');p.add_argument('--verify-only',action='store_true')
+    p.add_argument('--network-build',type=Path,help='Verified GNU NSI build receipt')
+    for n in ('archive','dxvk','shim','wsi','venus','license'):p.add_argument('--'+n,type=Path)
+    a=p.parse_args()
+    if a.refresh_probe:
+        if a.refresh or a.verify_only or not a.shim or not a.network_build:p.error('Probe refresh requires --shim and --network-build')
+        m=refresh_probe(a.shim,a.network_build)
+    elif a.refresh:
+        if a.verify_only or not a.network_build or not all(getattr(a,n) for n in ('archive','dxvk','shim','wsi','venus','license')):p.error('Refresh requires all verified build inputs')
+        m=prepare(a)
+    else:m=verify()
+    print('Verified GNU DXVK support:',len(m['files']),'files,',m['installedBytes'],'bytes')
+if __name__=='__main__':main()

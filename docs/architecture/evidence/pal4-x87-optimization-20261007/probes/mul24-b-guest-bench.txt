@@ -1,0 +1,6 @@
+pass=0 mode=guest-jit count=8000000 ns_per_op=24.851 result=f3d1bc0000000000:3fff
+pass=1 mode=guest-jit count=8000000 ns_per_op=18.494 result=f3d1bc0000000000:3fff
+pass=2 mode=guest-jit count=8000000 ns_per_op=18.784 result=f3d1bc0000000000:3fff
+pass=3 mode=guest-jit count=8000000 ns_per_op=21.070 result=f3d1bc0000000000:3fff
+pass=4 mode=guest-jit count=8000000 ns_per_op=19.215 result=f3d1bc0000000000:3fff
+complete=1

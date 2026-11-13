@@ -1,0 +1,1433 @@
+[32m[BUILD][0m === 打包 HAP (arm64-v8a) ===
+[32m[BUILD][0m SDK versions: target=6.1.0(23), compatible=6.1.0(23)
+[32m[BUILD][0m abiFilters: ["arm64-v8a"]
+[32m[BUILD][0m   已移除 hnpPackages 配置
+> hvigor [32mFinished :entry:default@PreBuild... after 36 ms [39m
+> hvigor [32mFinished :entry:default@CreateModuleInfo... after 1 ms [39m
+> hvigor [32mFinished :entry:default@GenerateMetadata... after 2 ms [39m
+> hvigor [32mFinished :entry:default@ConfigureCmake... after 547 ms [39m
+> hvigor [32mFinished :entry:default@MergeProfile... after 4 ms [39m
+> hvigor [32mFinished :entry:default@CreateBuildProfile... after 2 ms [39m
+> hvigor [32mFinished :entry:default@PreCheckSyscap... after 1 ms [39m
+> hvigor [32mFinished :entry:default@GeneratePkgSdkInfo... after 2 ms [39m
+> hvigor [32mFinished :entry:default@ProcessIntegratedHsp... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithCmake... after 13 ms [39m
+> hvigor [32mFinished :entry:default@MakePackInfo... after 2 ms [39m
+> hvigor [32mFinished :entry:default@SyscapTransform... after 58 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@GeneratePkgContextInfo...  [39m
+> hvigor [32mFinished :entry:default@ProcessProfile... after 133 ms [39m
+> hvigor [32mFinished :entry:default@ProcessRouterMap... after 2 ms [39m
+> hvigor [32mFinished :entry:default@ProcessShareConfig... after 1 ms [39m
+> hvigor [32mFinished :entry:default@ProcessStartupConfig... after 3 ms [39m
+> hvigor [32mUP-TO-DATE :entry:default@ProcessResource...  [39m
+> hvigor [32mFinished :entry:default@GenerateLoaderJson... after 6 ms [39m
+> hvigor [32mFinished :entry:default@CompileResource... after 351 ms [39m
+> hvigor [32mFinished :entry:default@BuildJS... after 1 ms [39m
+> hvigor [32mFinished :entry:default@BuildNativeWithNinja... after 8 s 20 ms [39m
+> hvigor [32mFinished :entry:default@ProcessLibs... after 155 ms [39m
+> hvigor [32mFinished :entry:default@DoNativeStrip... after 774 ms [39m
+> hvigor [32mFinished :entry:default@CacheNativeLibs... after 8 ms [39m
+> hvigor [33mWARN: [33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/LogService.ets:5:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/LogService.ets:326:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputRouter.ets:1:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputDispatcher.ets:1:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:72:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:76:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:78:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:123:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:124:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:163:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:167:12
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:182:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:183:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:189:21
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:192:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:193:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:229:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:230:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:231:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:251:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:313:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:354:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:355:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:548:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:549:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:557:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:558:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:567:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:578:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:579:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:591:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:592:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:599:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:631:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:632:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:633:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:649:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:650:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:658:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSettingsStore.ets:659:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputOverlayWindowCoordinator.ets:190:21
+ 'loadContent' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PopupWindowManager.ets:3:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PopupWindowManager.ets:169:22
+ 'loadContent' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PopupWindowManager.ets:255:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PopupWindowManager.ets:323:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PopupWindowManager.ets:326:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/FusionWindowManager.ets:3:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/FusionWindowManager.ets:116:22
+ 'loadContent' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ModalWindowManager.ets:3:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ModalWindowManager.ets:140:22
+ 'loadContent' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineWindowManager.ets:6:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineWindowManager.ets:190:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineWindowManager.ets:230:35
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineWindowManager.ets:579:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppCatalogService.ets:548:30
+ 'decodeWithStream' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:29:16
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:30:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:30:33
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:31:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:34:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:35:3
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:39:16
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:40:8
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:43:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:47:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:59:16
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:61:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/ManagedSmokePayloadService.ets:63:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:5:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:363:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:379:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:384:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:389:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:416:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:485:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:500:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:502:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:504:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:506:3
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:543:16
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:544:8
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:549:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:553:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1379:12
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1587:19
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1591:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1598:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1600:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1603:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1609:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1612:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/WineEngineService.ets:1627:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSessionService.ets:3:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSessionService.ets:496:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSessionService.ets:501:15
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/AppSessionService.ets:509:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/SmokeRunner.ets:1:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/EntryAbility.ets:16:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/GamepadManager.ets:6:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:4:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:181:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:183:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:184:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:191:20
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:196:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:198:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:199:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/DesktopAbility.ets:297:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/entryability/WineWindowAbility.ets:4:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/GameArtworkService.ets:62:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/GameArtworkService.ets:301:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/GameArtworkService.ets:377:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/GameArtworkService.ets:378:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/IconExtractor.ets:101:10
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/IconExtractor.ets:102:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/IconExtractor.ets:111:15
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/IconExtractor.ets:439:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/IconExtractor.ets:443:13
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/IconExtractor.ets:445:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/LauncherAdapterRegistry.ets:41:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:260:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:260:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:268:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:273:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:273:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:291:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:291:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:294:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FileBrowserView.ets:294:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/common/BreakpointSystem.ets:29:33
+ 'matchMediaSync' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:12:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:14:26
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:15:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:16:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:17:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:18:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:53:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:54:26
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:55:20
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:56:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:57:19
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:64:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:66:26
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:67:20
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:72:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCryptoAdapter.ets:74:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamHttpTransport.ets:19:32
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamHttpTransport.ets:29:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:39:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:67:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:107:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:108:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:113:23
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:131:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:132:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:137:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:138:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:143:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:148:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:149:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamAccountStore.ets:154:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCmRuntime.ets:44:32
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamCmRuntime.ets:49:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamChunkDecoder.ets:1:20
+ Currently module for 'libsteamdecompress.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDownloadService.ets:4:20
+ Currently module for 'libsteamdecompress.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamLibrary.ets:190:30
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:42:24
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:43:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:215:20
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:217:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:219:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:235:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/InputProfileService.ets:236:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PerformanceMonitorService.ets:5:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PerformanceMonitorService.ets:111:66
+ The system capacity of this api 'batteryInfo' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/service/PerformanceMonitorService.ets:111:78
+ The system capacity of this api 'batteryTemperature' is not supported on all devices
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FpsHud.ets:1:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/FpsHud.ets:60:7
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:4:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:190:50
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:352:23
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:353:23
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:411:33
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:412:33
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:546:35
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:547:35
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:574:33
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:575:33
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:649:32
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/DesktopLayer.ets:650:32
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/common/StatusOnlyImmersiveShell.ets:46:22
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/common/StatusOnlyImmersiveShell.ets:52:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/common/StatusOnlyImmersiveShell.ets:67:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:8:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:203:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:865:14
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1083:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1083:12
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1171:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1171:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1234:19
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1265:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1265:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1282:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1287:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1287:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1298:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1298:12
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1307:20
+ 'showDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1322:18
+ 'showDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1343:17
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1360:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1360:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:1369:18
+ 'showActionMenu' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:2528:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:2528:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:2531:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:2531:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:2533:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:2533:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3294:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3294:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3299:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3299:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3325:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3330:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/Index.ets:3330:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/HostVulkanSmoke.ets:2:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:13:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:277:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:441:50
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:466:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:468:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:468:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:480:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:480:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:549:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:549:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:556:17
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:565:24
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:714:17
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:746:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:748:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:748:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:782:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:782:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:807:22
+ 'showDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:818:22
+ 'showDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:831:22
+ 'showDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:846:22
+ 'showDialog' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:861:19
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:882:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:882:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:909:19
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:924:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:924:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:945:9
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:945:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1019:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1019:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1041:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1041:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1079:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1079:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1140:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1140:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1161:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1161:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1180:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1180:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1254:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1254:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1272:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1274:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1274:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1282:17
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1290:26
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1295:24
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1297:24
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1332:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1336:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1336:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1344:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1346:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1346:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1354:17
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1361:24
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1363:24
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1403:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1411:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1662:24
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1678:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1678:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:1839:35
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2171:30
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2305:46
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2316:46
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2344:42
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2489:43
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2499:30
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SystemSettings.ets:2501:30
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:269:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:351:28
+ 'getParams' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:436:29
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:436:42
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:459:19
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:487:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:487:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:494:38
+ 'PhotoViewPicker' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:495:45
+ 'PhotoSelectOptions' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:496:26
+ 'MIMEType' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:496:44
+ 'PhotoViewMIMETypes' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:496:63
+ 'IMAGE_TYPE' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:497:26
+ 'maxSelectNumber' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:498:40
+ 'select' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:499:29
+ 'photoUris' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:500:51
+ 'photoUris' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:502:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:510:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:510:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:517:38
+ 'PhotoViewPicker' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:518:34
+ 'PhotoSelectOptions' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:519:15
+ 'MIMEType' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:519:33
+ 'PhotoViewMIMETypes' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:519:52
+ 'IMAGE_TYPE' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:520:15
+ 'maxSelectNumber' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:521:40
+ 'select' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:522:29
+ 'photoUris' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:523:90
+ 'photoUris' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:525:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:529:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:530:19
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:530:32
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:537:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:537:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:543:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:543:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:613:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:613:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:619:17
+ 'show' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:625:94
+ 'back' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:640:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:640:12
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:656:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/AppSettings.ets:656:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/HelpCenter.ets:66:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/HelpCenter.ets:345:47
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:22:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:830:61
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:830:85
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:835:59
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:835:83
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:848:64
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:848:88
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:863:64
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:863:88
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:871:60
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:871:84
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:908:62
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:908:77
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1041:22
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1042:22
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1102:21
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1103:21
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1124:22
+ 'px2vp' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1125:22
+ 'px2vp' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1217:17
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1218:17
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1293:20
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1294:20
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1299:32
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1299:70
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1506:56
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1506:66
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1524:58
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1524:68
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1529:59
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/components/VirtualInputOverlay.ets:1529:69
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:101:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:143:28
+ 'getParams' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:301:12
+ 'back' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:595:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:595:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:608:5
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:608:18
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:676:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputLayoutEditor.ets:676:20
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:31:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:75:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:230:52
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:260:17
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:261:17
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:417:26
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:417:47
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:614:15
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:615:15
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:706:32
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:706:53
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:717:32
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:717:53
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:720:34
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:720:55
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:806:15
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/InputOverlay.ets:807:15
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:2:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:161:25
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:162:25
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:207:35
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:208:35
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:324:22
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:325:22
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:395:18
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:396:18
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:446:25
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WineWindow.ets:447:25
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/DesktopWindow.ets:29:15
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/DesktopWindow.ets:30:17
+ 'px2vp' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/DesktopWindow.ets:31:17
+ 'px2vp' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/DesktopWindow.ets:38:32
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/DesktopWindow.ets:49:32
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:2:22
+ Currently module for 'libentry.so' is not verified. If you're importing napi, its verification will be enabled in later SDK version. Please make sure the corresponding .d.ts file is provided and the napis are correctly declared.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:138:25
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:139:25
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:183:35
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:184:35
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:270:22
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:271:22
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:315:18
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:316:18
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:330:18
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/WinePopup.ets:331:18
+ 'vp2px' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamAccount.ets:55:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamAccount.ets:267:12
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamAccount.ets:328:65
+ 'decodeWithStream' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamAccount.ets:497:37
+ 'back' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamAccount.ets:740:46
+ 'setPasteData' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:52:12
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:52:12
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:67:10
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:67:10
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:89:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:90:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:90:55
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:96:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:103:25
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:107:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:112:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:114:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:115:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:116:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:122:18
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:124:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:125:7
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:126:17
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/steam/SteamDepotFileSink.ets:130:11
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:40:46
+ 'getContext' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:64:27
+ 'getParams' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:130:41
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:136:10
+ Function may throw exceptions. Special handling is required.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:136:17
+ 'pushUrl' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:318:22
+ 'showToast' has been deprecated.
+[39m[39m
+[33mWARN: [33m[33mArkTS:WARN File: /data/src/winehua/entry/src/main/ets/pages/SteamGameDetail.ets:341:37
+ 'back' has been deprecated.
+[39m[39m
+[39m
+> hvigor [32mFinished :entry:default@CompileArkTS... after 34 s 798 ms [39m
+> hvigor [32mFinished :entry:default@GeneratePkgModuleJson... after 2 ms [39m
+> hvigor [32mFinished :entry:default@ProcessCompiledResources... after 1 ms [39m
+> hvigor [33mWARN: WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::arrayBaseOffset has been called by com.alibaba.fastjson2.util.JDKUtils (file:/apps/harmony/sdk/default/openharmony/toolchains/lib/app_packing_tool.jar)
+WARNING: Please consider reporting this to the maintainers of class com.alibaba.fastjson2.util.JDKUtils
+WARNING: sun.misc.Unsafe::arrayBaseOffset will be removed in a future release
+[39m
+> hvigor [32mFinished :entry:default@PackageHap... after 836 ms [39m
+> hvigor [32mFinished :entry:default@PackingCheck... after 7 ms [39m
+> hvigor [33mWARN: No signingConfig found for product default[39m
+> hvigor [32mFinished :entry:default@SignHap... after 1 ms [39m
+> hvigor [32mFinished :entry:default@CollectDebugSymbol... after 1 ms [39m
+> hvigor [32mFinished :entry:assembleHap... after 1 ms [39m
+> hvigor [32mBUILD SUCCESSFUL in 1 min 2 s 175 ms [39m
+-rw-r--r-- 1 root root 340M Oct  4 13:16 /data/src/winehua/entry/build/default/outputs/default/entry-default-unsigned.hap
+[32m[BUILD][0m HAP 构建完成 (unsigned, arm64-v8a); 安装前必须自行签名

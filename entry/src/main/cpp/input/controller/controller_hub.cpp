@@ -80,6 +80,43 @@ void ControllerHub::SetButton(ControllerSourceId source, uint32_t slot, LogicalB
     if (changed && cb) cb(slot, snap);
 }
 
+// Compatibility for the legacy single-axis NAPI. Paired callers use SetStick.
+void ControllerHub::SetAxis(ControllerSourceId source, uint32_t slot, LogicalAxis axis, float value)
+{
+    const uint32_t src = static_cast<uint32_t>(source);
+    const uint32_t ax = static_cast<uint32_t>(axis);
+    if (src >= kSourceCount || ax >= static_cast<uint32_t>(LogicalAxis::Count) || slot >= kMaxControllerSlots) return;
+    if (axis == LogicalAxis::LT || axis == LogicalAxis::RT) {
+        SetTrigger(source, slot, axis == LogicalAxis::LT ? LogicalTrigger::Left : LogicalTrigger::Right, value);
+        return;
+    }
+    if (!std::isfinite(value)) value = 0.f;
+    value = std::clamp(value, -1.f, 1.f);
+    const uint32_t stIdx = ax / 2;
+    StateListener cb;
+    LogicalGamepadState snap;
+    bool changed;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!enabled_) return;
+        auto& st = slots_[slot];
+        auto& stick = st.sticks[src][stIdx];
+        if (ax % 2) stick.y = value;
+        else stick.x = value;
+        stick.active = std::sqrt(stick.x * stick.x + stick.y * stick.y) > innerDeadzone_;
+        if (stick.active) {
+            stick.activitySequence = st.nextActivitySequence++;
+            st.stickOwner[stIdx] = source;
+        } else if (st.stickOwner[stIdx] == source) {
+            st.stickOwner[stIdx] = PickStickOwner(st, stIdx);
+        }
+        changed = RecomputeLocked(slot);
+        cb = listener_;
+        snap = st.logical;
+    }
+    if (changed && cb) cb(slot, snap);
+}
+
 void ControllerHub::SetStick(ControllerSourceId source, uint32_t slot, LogicalStick stick, float x, float y)
 {
     const uint32_t src = static_cast<uint32_t>(source);

@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-05",
+  "upstreamCommit": "b21c49352ea56f23ececbe3c87f0fc681be8024b",
+  "upstreamPr": "https://github.com/FEX-Emu/FEX/pull/5618",
+  "sourcePin": "86ff33bbe299cd8959a6610198c169b67ec419db",
+  "scope": "OHOS Wine FEX WOW64 and ARM64EC; no game-specific matching",
+  "device": "ordinary tablet",
+  "app": "1.5.6 / 1005060",
+  "comparison": {
+    "beforeModule": "210e7e664027e38e516d04413d2bfa066dd0cb34a75b147af40b1a794e5a7d34",
+    "afterModule": "8af968c30e9cdb974dd3f52b88dde9b127b1767525fb096fde69334496477d56",
+    "matrixProbeCases": 2584,
+    "beforeErrors": 48,
+    "afterErrors": 0,
+    "onlyAdditionalFexCodeChange": "StartNewBlock at both SMC successors"
+  },
+  "genericProbe": {
+    "casesPerRun": 1248,
+    "nativeWindowsX86": "PASS",
+    "nativeWindowsX64": "PASS",
+    "tabletWow64Strict": "PASS",
+    "tabletArm64ec": "not run"
+  },
+  "sourceReplay": {
+    "fresh": "PASS",
+    "incremental": "PASS",
+    "vmBehavior": "PASS"
+  },
+  "packagingGuards": {
+    "pairedDllHashes": "PASS",
+    "legacyBuildRejected": "PASS",
+    "stalePatchRejected": "PASS",
+    "transformedDllIdentity": "PASS",
+    "makeCacheInvalidation": "PASS"
+  },
+  "game": {
+    "name": "Aokana",
+    "userAcceptance": "resolved",
+    "observed": "Chinese story, name and menu text rendered correctly",
+    "speakerAudio": "not listened",
+    "entireGame": "not tested",
+    "strictPrecisionSettingsUi": "previous install rejected for insufficient device storage"
+  },
+  "reducedPrecisionAfterFix": {
+    "cases": 65536,
+    "errors": 1398,
+    "conclusion": "separate x87 precision limitation remains"
+  },
+  "managedGeometryCaveat": "Matrix/Rect/Vector recovered; UV extended-precision oracle differs. Mixed report is not a full PASS; native same-Mono run AVed.",
+  "gnuSourceCheck": {
+    "source": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+    "invalidatedBlockReset": true,
+    "continuationBlockReset": true
+  },
+  "packageUpdate": {
+    "changedPayloadMembers": [
+      "bin/aarch64-windows/libwow64fex.dll",
+      "bin/aarch64-windows/libarm64ecfex.dll",
+      "fex-simd-zero.json"
+    ],
+    "addedRepairRecord": false,
+    "payloadSha256": "9fa0df72acd0f816275b1961e828dfe0dc38f6f94e6c8228f4187c1baca418ce",
+    "repair": {
+      "schemaVersion": 1,
+      "repairVersion": 2,
+      "sourceHash": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "fixes": {
+        "smcBlockState": {
+          "upstreamCommit": "b21c49352ea56f23ececbe3c87f0fc681be8024b",
+          "patchSha256": "86602d07e8cb4eab602a333a8653c2c50ed9d3198bbe30904f75188daba7bc87"
+        }
+      },
+      "patchSha256": "778fd618c516295ea2443001a3f1d3d0502cb82017f01bfe7418303e932b7145",
+      "modules": {
+        "arm64ec": {
+          "member": "bin/aarch64-windows/libarm64ecfex.dll",
+          "sha256": "8b440138cd72c60d9f668cd1c3635db100b862e448da8b690bff766956fa69e4"
+        },
+        "wow64": {
+          "member": "bin/aarch64-windows/libwow64fex.dll",
+          "sha256": "8af968c30e9cdb974dd3f52b88dde9b127b1767525fb096fde69334496477d56"
+        }
+      }
+    }
+  },
+  "fullRuntimeReleaseGate": {
+    "status": "FAIL",
+    "reason": "existing unreviewed core replacement bin/aarch64-windows/msxml6.dll",
+    "changedByThisFix": false
+  },
+  "newHapOrAppBuilt": false
+}

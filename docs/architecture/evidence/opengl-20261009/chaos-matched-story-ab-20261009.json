@@ -1,0 +1,316 @@
+{
+  "comparison": "Same device, default product route, same WineD3D DLLs, complete Wine restart per package",
+  "sampling": "Fresh root image presentation rate, one-second log intervals; not GPU render time or per-frame latency",
+  "limitations": [
+    "Single device and scene, no locked CPU/GPU clocks; thermal snapshots retained",
+    "Candidate includes queue, socket transaction and geometry fixes; not an isolated one-line benchmark",
+    "Static narrative throughput is not proof that all games run at 60 FPS"
+  ],
+  "rows": [
+    {
+      "label": "chaos-ab-gpu-story",
+      "summary": {
+        "start": "2026-10-09T17:18:23.077969+08:00",
+        "end": "2026-10-09T17:18:53.080805+08:00",
+        "seconds": 30,
+        "pids": [
+          49171,
+          49601,
+          49615,
+          49638,
+          49647,
+          49691,
+          49707,
+          49725,
+          49768,
+          49790,
+          49797,
+          49812,
+          49845,
+          49950,
+          50057,
+          50122,
+          50210,
+          50303,
+          50484
+        ],
+        "directSamples": 30,
+        "directMean": 58.27733333333333,
+        "directMin": 56.58,
+        "directMax": 59.97,
+        "method": "1s fresh-image publication; GL-PERF has a different interval and is kept raw",
+        "scene": "New Game first narrative card: 2009-11-06 22:28, black background and Chinese text",
+        "inputDuringCapture": false,
+        "resolution": [
+          1280,
+          720
+        ],
+        "backendSetting": "dxvk_legacy; actual game is builtin D3D9 / WineD3D / VirGL"
+      },
+      "screenshots": [
+        {
+          "file": "chaos-ab-gpu-story-before.png",
+          "size": [
+            2560,
+            1600
+          ],
+          "roi": [
+            512,
+            640,
+            2048,
+            960
+          ],
+          "rgbMeanAbsoluteDifference": 0.0,
+          "rgbMaxAbsoluteDifference": 0,
+          "sha256": "f44a5759f7cf95e515b4e3b61b47e187b94b87e307264d3ec7eb04db01784e1a"
+        },
+        {
+          "file": "chaos-ab-gpu-story-after.png",
+          "size": [
+            2560,
+            1600
+          ],
+          "roi": [
+            512,
+            640,
+            2048,
+            960
+          ],
+          "rgbMeanAbsoluteDifference": 0.0,
+          "rgbMaxAbsoluteDifference": 0,
+          "sha256": "34cbeaaa78a25e45ba78a01c7966d565e6b04190ded093aeafe542bf5a88a486"
+        }
+      ],
+      "sampledUploadCounters": [
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624,
+        43062624
+      ],
+      "uploadBytesDeltaBetweenLoggedEndpoints": 0,
+      "routeCounterLines": [
+        "10-09 17:18:23.126 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=17400 layers=4 direct=0 draws=0 acquireWaits=17375 releaseFences=17374 producerRetired=0 releaseErrors=0 imports=2 reuses=17373 uiUploadBytes=43062624 glSources=1 glDraws=17376 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:25.186 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=17520 layers=4 direct=0 draws=0 acquireWaits=17495 releaseFences=17494 producerRetired=0 releaseErrors=0 imports=2 reuses=17493 uiUploadBytes=43062624 glSources=1 glDraws=17496 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:27.261 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=17640 layers=4 direct=0 draws=0 acquireWaits=17615 releaseFences=17614 producerRetired=0 releaseErrors=0 imports=2 reuses=17613 uiUploadBytes=43062624 glSources=1 glDraws=17616 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:29.327 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=17760 layers=4 direct=0 draws=0 acquireWaits=17735 releaseFences=17734 producerRetired=0 releaseErrors=0 imports=2 reuses=17733 uiUploadBytes=43062624 glSources=1 glDraws=17736 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:31.411 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=17880 layers=4 direct=0 draws=0 acquireWaits=17855 releaseFences=17854 producerRetired=0 releaseErrors=0 imports=2 reuses=17853 uiUploadBytes=43062624 glSources=1 glDraws=17856 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:33.456 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18000 layers=4 direct=0 draws=0 acquireWaits=17975 releaseFences=17974 producerRetired=0 releaseErrors=0 imports=2 reuses=17973 uiUploadBytes=43062624 glSources=1 glDraws=17976 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:35.509 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18120 layers=4 direct=0 draws=0 acquireWaits=18095 releaseFences=18094 producerRetired=0 releaseErrors=0 imports=2 reuses=18093 uiUploadBytes=43062624 glSources=1 glDraws=18096 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:37.573 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18240 layers=4 direct=0 draws=0 acquireWaits=18215 releaseFences=18214 producerRetired=0 releaseErrors=0 imports=2 reuses=18213 uiUploadBytes=43062624 glSources=1 glDraws=18216 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:39.609 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18360 layers=4 direct=0 draws=0 acquireWaits=18335 releaseFences=18334 producerRetired=0 releaseErrors=0 imports=2 reuses=18333 uiUploadBytes=43062624 glSources=1 glDraws=18336 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:41.660 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18480 layers=4 direct=0 draws=0 acquireWaits=18455 releaseFences=18454 producerRetired=0 releaseErrors=0 imports=2 reuses=18453 uiUploadBytes=43062624 glSources=1 glDraws=18456 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:43.737 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18600 layers=4 direct=0 draws=0 acquireWaits=18575 releaseFences=18574 producerRetired=0 releaseErrors=0 imports=2 reuses=18573 uiUploadBytes=43062624 glSources=1 glDraws=18576 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:45.789 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18720 layers=4 direct=0 draws=0 acquireWaits=18695 releaseFences=18694 producerRetired=0 releaseErrors=0 imports=2 reuses=18693 uiUploadBytes=43062624 glSources=1 glDraws=18696 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:47.852 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18840 layers=4 direct=0 draws=0 acquireWaits=18815 releaseFences=18814 producerRetired=0 releaseErrors=0 imports=2 reuses=18813 uiUploadBytes=43062624 glSources=1 glDraws=18816 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:49.899 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=18960 layers=4 direct=0 draws=0 acquireWaits=18935 releaseFences=18934 producerRetired=0 releaseErrors=0 imports=2 reuses=18933 uiUploadBytes=43062624 glSources=1 glDraws=18936 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:18:51.965 49171 49844 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=19080 layers=4 direct=0 draws=0 acquireWaits=19055 releaseFences=19054 producerRetired=0 releaseErrors=0 imports=2 reuses=19053 uiUploadBytes=43062624 glSources=1 glDraws=19056 directGameCpuReadBytes=0 directGameCpuUploadBytes=0"
+      ]
+    },
+    {
+      "label": "chaos-ab-shm-story",
+      "summary": {
+        "start": "2026-10-09T17:24:51.466828+08:00",
+        "end": "2026-10-09T17:25:21.469734+08:00",
+        "seconds": 30,
+        "pids": [
+          53128,
+          53501,
+          53521,
+          53547,
+          53558,
+          53585,
+          53602,
+          53616,
+          53658,
+          53676,
+          53691,
+          53706,
+          53717,
+          53819,
+          53941,
+          54059,
+          54115,
+          54273
+        ],
+        "directSamples": 29,
+        "directMean": 13.424137931034483,
+        "directMin": 9.7,
+        "directMax": 15.99,
+        "method": "1s fresh-image publication; GL-PERF has a different interval and is kept raw",
+        "scene": "New Game first narrative card: 2009-11-06 22:28, black background and Chinese text",
+        "inputDuringCapture": false,
+        "resolution": [
+          1280,
+          720
+        ],
+        "backendSetting": "dxvk_legacy; actual game is builtin D3D9 / WineD3D / VirGL"
+      },
+      "screenshots": [
+        {
+          "file": "chaos-ab-shm-story-before.png",
+          "size": [
+            2560,
+            1600
+          ],
+          "roi": [
+            512,
+            640,
+            2048,
+            960
+          ],
+          "rgbMeanAbsoluteDifference": 0.0,
+          "rgbMaxAbsoluteDifference": 0,
+          "sha256": "ca6f56e3a950a2bbb9006ee6ea134dabb6e2dd6d95536abbef0ad8f5447f2ac1"
+        },
+        {
+          "file": "chaos-ab-shm-story-after.png",
+          "size": [
+            2560,
+            1600
+          ],
+          "roi": [
+            512,
+            640,
+            2048,
+            960
+          ],
+          "rgbMeanAbsoluteDifference": 0.0,
+          "rgbMaxAbsoluteDifference": 0,
+          "sha256": "8c1081ab794493cb0ebab1a905739a1d99c4760263392e283a4b9a39c3f553a9"
+        }
+      ],
+      "sampledUploadCounters": [
+        9698286816,
+        10140654816,
+        10583022816,
+        11025390816
+      ],
+      "uploadBytesDeltaBetweenLoggedEndpoints": 1327104000,
+      "routeCounterLines": [
+        "10-09 17:24:53.992 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=2640 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=9698286816 gameCpuReadBytes=0 gameCpuUploadBytes=0",
+        "10-09 17:25:03.497 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=2760 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=10140654816 gameCpuReadBytes=0 gameCpuUploadBytes=0",
+        "10-09 17:25:11.894 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=2880 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=10583022816 gameCpuReadBytes=0 gameCpuUploadBytes=0",
+        "10-09 17:25:20.638 53128 53740 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=3000 layers=4 direct=0 draws=0 acquireWaits=0 releaseFences=0 producerRetired=0 releaseErrors=0 imports=0 reuses=0 uiUploadBytes=11025390816 gameCpuReadBytes=0 gameCpuUploadBytes=0"
+      ]
+    },
+    {
+      "label": "chaos-ab-gpu-repeat-story",
+      "summary": {
+        "start": "2026-10-09T17:31:52.033405+08:00",
+        "end": "2026-10-09T17:32:22.035965+08:00",
+        "seconds": 30,
+        "pids": [
+          56440,
+          56902,
+          56916,
+          56943,
+          56953,
+          56984,
+          56995,
+          57010,
+          57046,
+          57066,
+          57077,
+          57096,
+          57128,
+          57196,
+          57302,
+          57380,
+          57453,
+          57513
+        ],
+        "directSamples": 30,
+        "directMean": 58.61966666666667,
+        "directMin": 56.85,
+        "directMax": 59.98,
+        "method": "1s fresh-image publication; GL-PERF has a different interval and is kept raw",
+        "scene": "New Game first narrative card: 2009-11-06 22:28, black background and Chinese text",
+        "inputDuringCapture": false,
+        "resolution": [
+          1280,
+          720
+        ],
+        "backendSetting": "dxvk_legacy; actual game is builtin D3D9 / WineD3D / VirGL"
+      },
+      "screenshots": [
+        {
+          "file": "chaos-ab-gpu-repeat-story-before.png",
+          "size": [
+            2560,
+            1600
+          ],
+          "roi": [
+            512,
+            640,
+            2048,
+            960
+          ],
+          "rgbMeanAbsoluteDifference": 0.0,
+          "rgbMaxAbsoluteDifference": 0,
+          "sha256": "f44a5759f7cf95e515b4e3b61b47e187b94b87e307264d3ec7eb04db01784e1a"
+        },
+        {
+          "file": "chaos-ab-gpu-repeat-story-after.png",
+          "size": [
+            2560,
+            1600
+          ],
+          "roi": [
+            512,
+            640,
+            2048,
+            960
+          ],
+          "rgbMeanAbsoluteDifference": 0.0,
+          "rgbMaxAbsoluteDifference": 0,
+          "sha256": "f44a5759f7cf95e515b4e3b61b47e187b94b87e307264d3ec7eb04db01784e1a"
+        }
+      ],
+      "sampledUploadCounters": [
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696,
+        34437696
+      ],
+      "uploadBytesDeltaBetweenLoggedEndpoints": 0,
+      "routeCounterLines": [
+        "10-09 17:31:53.584 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12240 layers=4 direct=0 draws=0 acquireWaits=12214 releaseFences=12213 producerRetired=0 releaseErrors=0 imports=2 reuses=12212 uiUploadBytes=34437696 glSources=1 glDraws=12216 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:31:55.634 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12360 layers=4 direct=0 draws=0 acquireWaits=12334 releaseFences=12333 producerRetired=0 releaseErrors=0 imports=2 reuses=12332 uiUploadBytes=34437696 glSources=1 glDraws=12336 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:31:57.665 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12480 layers=4 direct=0 draws=0 acquireWaits=12454 releaseFences=12453 producerRetired=0 releaseErrors=0 imports=2 reuses=12452 uiUploadBytes=34437696 glSources=1 glDraws=12456 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:31:59.709 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12600 layers=4 direct=0 draws=0 acquireWaits=12574 releaseFences=12573 producerRetired=0 releaseErrors=0 imports=2 reuses=12572 uiUploadBytes=34437696 glSources=1 glDraws=12576 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:01.791 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12720 layers=4 direct=0 draws=0 acquireWaits=12694 releaseFences=12693 producerRetired=0 releaseErrors=0 imports=2 reuses=12692 uiUploadBytes=34437696 glSources=1 glDraws=12696 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:03.838 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12840 layers=4 direct=0 draws=0 acquireWaits=12814 releaseFences=12813 producerRetired=0 releaseErrors=0 imports=2 reuses=12812 uiUploadBytes=34437696 glSources=1 glDraws=12816 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:05.884 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=12960 layers=4 direct=0 draws=0 acquireWaits=12934 releaseFences=12933 producerRetired=0 releaseErrors=0 imports=2 reuses=12932 uiUploadBytes=34437696 glSources=1 glDraws=12936 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:07.937 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13080 layers=4 direct=0 draws=0 acquireWaits=13054 releaseFences=13053 producerRetired=0 releaseErrors=0 imports=2 reuses=13052 uiUploadBytes=34437696 glSources=1 glDraws=13056 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:09.984 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13200 layers=4 direct=0 draws=0 acquireWaits=13174 releaseFences=13173 producerRetired=0 releaseErrors=0 imports=2 reuses=13172 uiUploadBytes=34437696 glSources=1 glDraws=13176 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:12.025 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13320 layers=4 direct=0 draws=0 acquireWaits=13294 releaseFences=13293 producerRetired=0 releaseErrors=0 imports=2 reuses=13292 uiUploadBytes=34437696 glSources=1 glDraws=13296 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:14.072 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13440 layers=4 direct=0 draws=0 acquireWaits=13414 releaseFences=13413 producerRetired=0 releaseErrors=0 imports=2 reuses=13412 uiUploadBytes=34437696 glSources=1 glDraws=13416 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:16.116 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13560 layers=4 direct=0 draws=0 acquireWaits=13534 releaseFences=13533 producerRetired=0 releaseErrors=0 imports=2 reuses=13532 uiUploadBytes=34437696 glSources=1 glDraws=13536 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:18.153 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13680 layers=4 direct=0 draws=0 acquireWaits=13654 releaseFences=13653 producerRetired=0 releaseErrors=0 imports=2 reuses=13652 uiUploadBytes=34437696 glSources=1 glDraws=13656 directGameCpuReadBytes=0 directGameCpuUploadBytes=0",
+        "10-09 17:32:20.190 56440 57127 I A02330/com.vintage.pomelopro/DirectVkDesktop: scene presents=13800 layers=4 direct=0 draws=0 acquireWaits=13774 releaseFences=13773 producerRetired=0 releaseErrors=0 imports=2 reuses=13772 uiUploadBytes=34437696 glSources=1 glDraws=13776 directGameCpuReadBytes=0 directGameCpuUploadBytes=0"
+      ]
+    }
+  ],
+  "firstGpuToShmRatio": 4.341234694751263
+}

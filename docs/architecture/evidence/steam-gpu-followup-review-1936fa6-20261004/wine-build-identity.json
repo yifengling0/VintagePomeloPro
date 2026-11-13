@@ -1,0 +1,141 @@
+{
+  "configure_sha256": "89433c14afdafffb8ad62a9f659582b12df94048d95d1b8daa9fa6e88bd95fc2",
+  "main_commit": "1936fa68864dbb0ecda8ed6d571c167e14991842",
+  "request": {
+    "active_gitlink": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+    "build_path": "/data/src/winehua/build-gpu-followup-1936fa6-20261004",
+    "build_script_sha256": "b27226a55cf65b6767f0cf86718a8835c0e2ba9c656273407679d1ddab41202a",
+    "configuration": [
+      "AR=",
+      "CC=",
+      "CFLAGS=",
+      "CROSSCFLAGS=",
+      "CXX=",
+      "CXXFLAGS=",
+      "GUEST_ARCH=aarch64",
+      "HOST_OS=Linux",
+      "HOST_TRIPLE=aarch64-unknown-linux-ohos",
+      "LDFLAGS=",
+      "LLVM_MINGW=/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64",
+      "NATIVE_ARCH=arm64-v8a",
+      "PKG_CONFIG_BIN=/usr/bin/pkg-config",
+      "SYSROOT=/apps/harmony/sdk/default/openharmony/native/sysroot",
+      "TARGET=aarch64-linux-ohos",
+      "WINE_ARCH=aarch64"
+    ],
+    "environment_script_sha256": "638f2f4fbe1df56cd50983f026aee71c085cd0c694830705b082e6c4ab2e5d27",
+    "gitlink_verified": true,
+    "identity_guard_sha256": "bb10b5ab5e196d51045657354f2c4e5fa9b5efed6b3824bf9147947c97189900",
+    "ordered_overlays": [
+      {
+        "path": "patches/wine/0001-win32u-repair-external-font-registration.patch",
+        "sha256": "156df4179268f661af52ec08fac39747a614d6a977a00bfd1905b51bae876101"
+      },
+      {
+        "path": "patches/wine/0002-ntdll-ohos-signal-safe-stack-read.patch",
+        "sha256": "91be7161f5746c9dea58bc8ad304cebccd59e672ea684a519633b084779345e1"
+      },
+      {
+        "path": "patches/wine/0006-app-managed-desktop-lifetime.patch",
+        "sha256": "0486883bc1eb4ffb1965db5c3a0d279dd712867eee2326cad71a22a854fe87b3"
+      },
+      {
+        "path": "patches/wine/0007-client-only-window-state.patch",
+        "sha256": "dad2636aaf0095c3c4e1d84cbcc1b529f8bed1969572d3f7b14e1a855fb021f1"
+      },
+      {
+        "path": "patches/wine/0008-win32u-surface-region-lock-order.patch",
+        "sha256": "eb3258cd8c50d1c074ce5e1294ae76a7735b88f9ded2aa2ecb6feef34dda784d"
+      },
+      {
+        "path": "patches/wine/0009-direct-ohos-wsi-and-resize-smoke.patch",
+        "sha256": "d0c75baa4ee98dcca30f47f0a76e05e4a696cea1c0c4ece8fa1317b04db10cdc"
+      },
+      {
+        "path": "patches/wine/0010-winewayland-decoration-owner-floating.patch",
+        "sha256": "3670c294dad4dd9dae34f66d230e46da69b370a7e083721a3e55652c67a41144"
+      },
+      {
+        "path": "patches/wine/0011-wineboot-durable-prefix-completion.patch",
+        "sha256": "57a6fb2799b64f6ff62389bce5a98d0a7e1c9c49553feb3deba4953e118a3585"
+      },
+      {
+        "path": "patches/wine/0012-wineserver-locked-registry-migration.patch",
+        "sha256": "a1ad8075c7e7442e93e2097d1fef03b8b13258a67993bcd895db18f20bc1f403"
+      },
+      {
+        "path": "patches/wine/0013a-ntdll-ohos-rpgxp-diagnostics.patch",
+        "sha256": "0073927d692c6562524c1b04561f97337b750bdb57fae314d0d42305ad6e7b04"
+      },
+      {
+        "path": "patches/wine/0014-win32u-font-aa-override.patch",
+        "sha256": "6e9dbbfa811a782cf4aa1154381f74b4103a7e2287124dcff18e5481603c425a"
+      },
+      {
+        "path": "patches/wine/0015-ohos-exec-section-eof-pread.patch",
+        "sha256": "b9bfb7af698c54a4637e7735950b707b7b53c9b3f2e38a69d684c01673b05a42"
+      },
+      {
+        "path": "patches/wine/0016-ntdll-honor-pe-large-address-aware-default.patch",
+        "sha256": "4af10fcfccf6187b08c4a7d1650f19a91bdaf0e0838bf83728a343006f661d39"
+      },
+      {
+        "path": "patches/wine/0017-wayland-configure-window-lifetime.patch",
+        "sha256": "b1de0d78400e54f209001d76629a106f9b26d76db24a9c66881287d0ca6b6934"
+      },
+      {
+        "path": "patches/wine/0018-private-vulkan-present-validation.patch",
+        "sha256": "60ec5ff8980feb7b7c278f3cb2f33afeb49ad092af0b38bce39e1af41e4d9513"
+      },
+      {
+        "path": "patches/wine/0019-ntdll-broker-log-metadata.patch",
+        "sha256": "2b73fc3c26af1a41f25c76d75bc051beafdc2a0971b0d812eb43ea8478b85bc2"
+      },
+      {
+        "path": "patches/wine/0020-broker-v2-startup-contract.patch",
+        "sha256": "a18eb3ebbf9eb303a26587446a83daa7f30d64ad4e9dd7f6ef06864743ec0ec4"
+      },
+      {
+        "path": "patches/wine/0021-wayland-shm-state-cache.patch",
+        "sha256": "819591439c6f7da98819276622ea128354488bcdb945c867039b3a7d556ccb3a"
+      },
+      {
+        "path": "patches/wine/0022-private-vulkan-signal-only-acquire.patch",
+        "sha256": "5da0e67fb007d70049231df8519cb18cc81c78eec77cbe6432a35978de91a3c8"
+      }
+    ],
+    "source_path": "/data/src/winehua/thirdparty/wine-valve",
+    "tools": [
+      {
+        "path": "/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang-15",
+        "sha256": "94748f3ea26083a98ea8d2fc07fd305feebbc2b33952d441d52ccc42f0c69ab7",
+        "version_sha256": "dc4a69c80eb1b1f4c1b86946dc346492c1601d224b8ed66b4625681637dd3720"
+      }
+    ]
+  },
+  "schema": 1,
+  "source": {
+    "basis": "git-head-and-effective-delta",
+    "generated_inputs": {
+      "configure": "9ead90782e5ff0fcec3590bfe2f65c4d6171b6519c0d7777f595cdb3ccf3cad6",
+      "dlls/ntdll/ntsyscalls.h": "51764e5f942f51746b1ab6b80f60705517865e4ae99209adf230e685c1c3e3a2",
+      "dlls/vulkan-1/vulkan-1.spec": "5ec861d00cf1479381d4b90a26fda662818f4d94ca8008e48e584aa4e1c527a0",
+      "include/config.h.in": "2f936ba9408147dc5f59fdb61f649db1535f7484c36a57e9ec8544f5e4b828d9",
+      "include/wine/vulkan.h": "b772a109409b72cd435fee980e2025ab89a2066d24381e339b0a8da7419148b4"
+    },
+    "head": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+    "pin_verified": true,
+    "tracked_delta_sha256": "1837d371f82a050844bf2354e0848f168d3ab33888fb53bcec1ec544593607d2",
+    "tree_sha256": "49c4fd57a33dec0260b6687bfcb713abbe60f69b970fdda01f29e794fcb0d24a",
+    "untracked_files": [
+      [
+        "dlls/ntdll/unix/ohos_spawn_protocol.h",
+        "c837256f596f5639dbb35213a7295f9b9315865754bb5f7899b6d2c09c8573f0"
+      ],
+      [
+        "dlls/win32u/font.c.orig",
+        "31b034f8a83c8e99930c6df048cfb05d27ca03f534e7531348ef2882eee35584"
+      ]
+    ]
+  }
+}

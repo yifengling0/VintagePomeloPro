@@ -74,6 +74,13 @@ export struct ConsoleGameCard {
     }
   }
 
+  private subtitle(): string {
+    if (this.app.steam && !this.app.steam.appId) return this.running ? 'Steam 客户端 · 运行中' : 'Steam 客户端 · 打开 Steam';
+    if (this.app.steam) return this.running ? 'Steam · 运行中' :
+      this.app.steam.state === 'installing' ? 'Steam · 查看安装进度' : 'Steam · 开始游戏';
+    return this.running ? '运行中' : (this.lastPlayed ? this.lastPlayed : '查看详情');
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       if (this.artPath().length > 0 && !this.artFailed) {
@@ -101,7 +108,7 @@ export struct ConsoleGameCard {
             SymbolGlyph($r('sys.symbol.star_fill')).fontSize(15).fontColor(['#FFFFD166'])
           }
         }.width('100%')
-        Text(this.running ? '运行中' : (this.lastPlayed ? this.lastPlayed : '查看详情'))
+        Text(this.subtitle())
           .fontSize(11).fontColor('#CFE2E2EA').maxLines(1).width('100%')
       }
       .width('100%')

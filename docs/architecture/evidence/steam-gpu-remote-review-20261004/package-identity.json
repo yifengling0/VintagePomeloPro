@@ -1,0 +1,16 @@
+{
+  "commit": "2add84d3298924279eed5c38ccde3a61663855c2",
+  "bytes": 358145113,
+  "sha256": "ef4a8b7b1ee7c86a89a2079e1fa9cefa2148c312574063a4eef1ffb0ba29f5fa",
+  "nativeWin32uSha256": "7d5bbca191a5bdcc13291eb63464bc4b188dda1d49927c2a24769866af77d20a",
+  "wineSourceSha256": "9852bd55e304f5b670937cac6527833bb702f878657dfeb0790c05ddc3441ff1",
+  "checks": [
+    "current Wine srcdir",
+    "no acquire command buffer fields in source and rebuilt object",
+    "packaged Win32u matches new stripped output",
+    "AArch64 ELF",
+    "new binding retirement markers"
+  ],
+  "version": "1.4.5-proton.26-alpha (1004035)",
+  "build": "Debug/native O0 diagnostic build"
+}

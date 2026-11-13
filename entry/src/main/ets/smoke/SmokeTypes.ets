@@ -1,0 +1,97 @@
+// Smoke 自动化请求的公共类型 (EntryAbility 解析 Want → AppStorage →
+// SmokeHook 消费 → SmokeRunner 消费)。独立文件避免 SmokeHook ↔
+// SmokeRunner 的循环 import。
+
+// job: host 生成的"跑什么、怎么跑"描述 (docs/SMOKE_V2_DESIGN.md §5)。
+// 三种选测方式互斥, 优先级 inline > tests > suite:
+//   inline —— 内联测试定义 (调试临时用例: exe 先推送到 C:\smoke, 定义随 job 下发,
+//             不经过 suites.json)
+//   tests  —— 按 testId 选测 (跑 suite 的子集)
+//   suite  —— 跑整个 suite
+// params 对选中的所有测试生效 (env 合并 / argv 追加 / 后端与时长覆盖),
+// 用于调试参数组合, 不需要改仓库任何文件。
+export interface SmokeJobParams {
+  env?: Record<string, string>;
+  argv?: string[];
+  d3dBackend?: string;
+  dxvkBackend?: string;
+  seconds?: number;
+  timeoutMs?: number;
+}
+
+// 测试实例定义：suites.json 条目与 job.inline 条目同一形状（SmokeRunner 消费）
+export interface SmokeSuiteTest {
+  testId: string;
+  exe: string;
+  env?: Record<string, string>;
+  // 'raw' = 原样用 argv（d3d12 等自有参数的程序）；缺省 = 生成统一 smoke 协议 argv
+  argvMode?: string;
+  argv?: string[];
+  // 'present'（默认，带 --seconds）/ 'offscreen'（wine-vulkan offscreen 系）
+  mode?: string;
+  // Display tests wait for the same desktop surface readiness as product launches.
+  requiresDesktop?: boolean;
+  benchmarkMonitor?: boolean;
+  // 追加参数（如 d3d9-cube 的 --d3d9）
+  extraArgs?: string[];
+  d3dBackend?: string;
+  dxvkBackend?: string;
+  // venus 呈现通道开关 (WINEHUA_PRESENT_BACKEND; 留空时由 wine_exe.cpp 派生)
+  presentBackend?: string;
+  seconds?: number;
+  timeoutMs?: number;
+  // C 型注入配对用例: true = runner 在轮询循环里驱动注入编排
+  // (等 guest 的 inject-request 文件 → smokeMapPoint 换算 → sendPointerEvent
+  // 逐条注入 → 写 inject-done 文件), 见 SmokeRunner.runInjectable
+  inject?: boolean;
+}
+
+// inject-request-<testId>.json 的内容（guest 声明希望被注入的序列）
+export interface InjectAction {
+  // 'click' | 'doubleClick' | 'type' | 'ime' | 'swipe' | 'wheel'
+  type: string;
+  // guest 桌面坐标（click/doubleClick/swipe 起点/wheel 悬停点）
+  x?: number;
+  y?: number;
+  // 'left' | 'right'（缺省 left）
+  button?: string;
+  // type/ime 的文本（type = ASCII 键序展开；ime = IME commit 字符串）
+  text?: string;
+  // swipe 的总位移（等距插值 Move，raw 增量传 rawDx/rawDy）
+  dx?: number;
+  dy?: number;
+  steps?: number;
+  // wheel 的格数（每格 wheel delta 120）
+  notches?: number;
+  // sleep 的时长（ms）；key 的 evdev 键码
+  ms?: number;
+  code?: number;
+}
+
+export interface InjectSpec {
+  actions?: InjectAction[];
+  // 相邻动作间隔（ms），缺省 250
+  actionGapMs?: number;
+}
+
+export interface SmokeJob {
+  suite?: string;
+  tests?: string[];
+  inline?: SmokeSuiteTest[];
+  params?: SmokeJobParams;
+  prefix?: string;
+  longSeconds?: number;
+}
+
+export interface SmokeRequest {
+  suite: string;
+  runId: string;
+  // 'want' = 外部脚本 aa start 协议; 'ui' = 侧边栏手动入口
+  source: string;
+  // 'reuse' = 复用当前 .wine; 'clean' = 先清 prefix (只清 C 盘, 不删运行时)
+  prefix?: string;
+  // dxvk-long/dxvk-modern-long 的墙钟目标 (seconds=-1 哨兵)
+  longSeconds?: number;
+  // job 内容 (host 经 winehua.job_file 下发; 无 job 时按 suite + 5 键走旧协议)
+  job?: SmokeJob;
+}

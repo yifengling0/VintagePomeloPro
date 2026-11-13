@@ -31,6 +31,8 @@ struct diagnostics {
     VkResult physical_result;
     uint32_t loader_api;
     VkPhysicalDeviceProperties properties;
+    VkPhysicalDeviceFloatControlsPropertiesKHR float_controls;
+    BOOL float_controls_available;
     VkPhysicalDeviceFeatures core;
     uint32_t queue_family;
     BOOL api12;
@@ -287,6 +289,23 @@ static void collect_vulkan(struct diagnostics *state)
     }
     if (!physical) goto cleanup;
     vkGetPhysicalDeviceProperties(physical, &state->properties);
+
+    {
+        PFN_vkGetPhysicalDeviceProperties2 get_properties2 = (PFN_vkGetPhysicalDeviceProperties2)
+            vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2");
+        if (!get_properties2)
+            get_properties2 = (PFN_vkGetPhysicalDeviceProperties2)
+                vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR");
+        if (get_properties2) {
+            VkPhysicalDeviceProperties2 properties2 = { 0 };
+            state->float_controls.sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR;
+            properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+            properties2.pNext = &state->float_controls;
+            get_properties2(physical, &properties2);
+            state->float_controls_available = TRUE;
+        }
+    }
     vkGetPhysicalDeviceFeatures(physical, &state->core);
     state->api12 = state->properties.apiVersion >= VK_API_VERSION_1_2;
     state->api13 = state->properties.apiVersion >= VK_API_VERSION_1_3;
@@ -432,6 +451,24 @@ static void build_report(const struct diagnostics *state, char *report, size_t s
     append_text(report, size, "  Vendor/device/driver: 0x%04x / 0x%08x / %u\r\n",
                 state->properties.vendorID, state->properties.deviceID, state->properties.driverVersion);
     append_text(report, size, "  Graphics queue: %s\r\n", state->queue_family == UINT32_MAX ? "unavailable" : "available");
+
+    append_text(report, size, "\r\nFloat controls (VK_KHR_shader_float_controls)\r\n");
+    if (state->float_controls_available) {
+        append_text(report, size, "  denormBehaviorIndependence=%d roundingModeIndependence=%d\r\n",
+                    (int)state->float_controls.denormBehaviorIndependence,
+                    (int)state->float_controls.roundingModeIndependence);
+        append_text(report, size, "  F32 denormFlush=%s denormPreserve=%s signedZeroNanPreserve=%s roundingRTE=%s\r\n",
+                    bool_text(state->float_controls.shaderDenormFlushToZeroFloat32),
+                    bool_text(state->float_controls.shaderDenormPreserveFloat32),
+                    bool_text(state->float_controls.shaderSignedZeroInfNanPreserveFloat32),
+                    bool_text(state->float_controls.shaderRoundingModeRTEFloat32));
+        append_text(report, size, "  F64 denormFlush=%s denormPreserve=%s signedZeroNanPreserve=%s\r\n",
+                    bool_text(state->float_controls.shaderDenormFlushToZeroFloat64),
+                    bool_text(state->float_controls.shaderDenormPreserveFloat64),
+                    bool_text(state->float_controls.shaderSignedZeroInfNanPreserveFloat64));
+    } else {
+        append_text(report, size, "  query unavailable\r\n");
+    }
     append_text(report, size, "\r\nD3D11-relevant Vulkan features\r\n");
     append_text(report, size, "  Geometry=%s Tessellation=%s MultiDrawIndirect=%s\r\n",
                 bool_text(state->core.geometryShader), bool_text(state->core.tessellationShader), bool_text(state->core.multiDrawIndirect));
@@ -513,6 +550,11 @@ static void write_result_json(const struct diagnostics *state)
         "  \"vulkan\": {\"instanceResult\": %d, \"physicalDeviceResult\": %d,"
         "\"loaderApiVersion\": \"%s\", \"deviceApiVersion\": \"%s\", \"deviceName\": \"%s\","
         "\"vendorId\": %u, \"deviceId\": %u, \"driverVersion\": %u, \"graphicsQueueFamily\": %u},\n"
+        "  \"floatControls\": {\"available\": %s, \"denormBehaviorIndependence\": %d, \"roundingModeIndependence\": %d,"
+
+        "\"denormFlushToZeroFloat32\": %s, \"denormPreserveFloat32\": %s, \"signedZeroInfNanPreserveFloat32\": %s, \"roundingModeRTEFloat32\": %s,"
+
+        "\"denormFlushToZeroFloat64\": %s, \"denormPreserveFloat64\": %s, \"signedZeroInfNanPreserveFloat64\": %s},\n"
         "  \"features\": {\"geometryShader\": %s, \"tessellationShader\": %s, \"multiDrawIndirect\": %s,"
         "\"dualSrcBlend\": %s, \"multiViewport\": %s, \"robustBufferAccess\": %s,"
         "\"timelineSemaphore\": %s, \"bufferDeviceAddress\": %s, \"descriptorIndexing\": %s,"
@@ -544,6 +586,16 @@ static void write_result_json(const struct diagnostics *state)
         getenv("USE_LIBBOX64") && getenv("USE_LIBBOX64")[0] == '1' ? "true" : "false",
         (int)state->instance_result, (int)state->physical_result, loader_version, device_version, device_name,
         state->properties.vendorID, state->properties.deviceID, state->properties.driverVersion, state->queue_family,
+        bool_text(state->float_controls_available),
+        (int)state->float_controls.denormBehaviorIndependence,
+        (int)state->float_controls.roundingModeIndependence,
+        bool_text(state->float_controls.shaderDenormFlushToZeroFloat32),
+        bool_text(state->float_controls.shaderDenormPreserveFloat32),
+        bool_text(state->float_controls.shaderSignedZeroInfNanPreserveFloat32),
+        bool_text(state->float_controls.shaderRoundingModeRTEFloat32),
+        bool_text(state->float_controls.shaderDenormFlushToZeroFloat64),
+        bool_text(state->float_controls.shaderDenormPreserveFloat64),
+        bool_text(state->float_controls.shaderSignedZeroInfNanPreserveFloat64),
         bool_text(state->core.geometryShader), bool_text(state->core.tessellationShader), bool_text(state->core.multiDrawIndirect),
         bool_text(state->core.dualSrcBlend), bool_text(state->core.multiViewport), bool_text(state->core.robustBufferAccess),
         bool_text(state->timeline_semaphore), bool_text(state->buffer_device_address), bool_text(state->descriptor_indexing),

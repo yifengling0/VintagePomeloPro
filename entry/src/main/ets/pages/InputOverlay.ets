@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { common, Want } from '@kit.AbilityKit';
 import { mapMouseButton } from '../common/MouseMap';
 import {
@@ -7,7 +8,8 @@ import {
   OH2EVDEV,
   asciiToEvdevKey
 } from '../common/KeyMap';
-import { InputRouter } from '../service/InputRouter';
+import { InputRouter, PointerInput } from '../service/InputRouter';
+import { InputDeviceMapper } from '../service/InputDeviceMapper';
 import { GamepadManager } from '../service/GamepadManager';
 import { WineWindowManager } from '../service/WineWindowManager';
 import {
@@ -23,7 +25,7 @@ import { InputOverlayListener, InputOverlaySnapshot, InputOverlayWindowCoordinat
 import { InputProfileService } from '../service/InputProfileService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { AppSessionService } from '../service/AppSessionService';
-import { InputEventGate } from '../service/InputEventGate';
+import { AxisEventGate, InputEventGate } from '../service/InputEventGate';
 import { EngineState } from '../model/AppModels';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
@@ -55,6 +57,9 @@ interface TouchpadFinger {
 @Entry
 @Component
 struct InputOverlayPage {
+  private axisTraceCount: number = 0;
+  private mouseTraceCount: number = 0;
+  private axisEventGate: AxisEventGate = new AxisEventGate();
   @State private snapshot: InputOverlaySnapshot = InputOverlayWindowCoordinator.getInstance().getSnapshot();
   @State private profile: InputProfile = createDefaultInputProfile();
   @State private settings: GlobalSettings = createDefaultGlobalSettings();
@@ -138,12 +143,13 @@ struct InputOverlayPage {
     InputOverlayWindowCoordinator.getInstance().subscribe(this.listener);
     this.engineListener = (state: EngineState): void => {
       this.engineState = state;
-      const busy = state === EngineState.PREPARING || state === EngineState.SWITCHING;
+      const busy = state === EngineState.PREPARING || state === EngineState.SWITCHING || state === EngineState.ERROR;
       InputOverlayWindowCoordinator.getInstance().setEngineBusy(busy).catch(() => {});
     };
     WineEngineService.getInstance().subscribe(this.engineListener);
     InputOverlayWindowCoordinator.getInstance().setEngineBusy(
-      this.engineState === EngineState.PREPARING || this.engineState === EngineState.SWITCHING).catch(() => {});
+      this.engineState === EngineState.PREPARING || this.engineState === EngineState.SWITCHING ||
+      this.engineState === EngineState.ERROR).catch(() => {});
     this.settings = AppSettingsStore.getInstance().getGlobalSettings();
     this.loadProfile(this.snapshot.profileId);
   }
@@ -157,7 +163,7 @@ struct InputOverlayPage {
     this.mouseLeftActive = false;
     this.resetTouchpadGesture();
     InputDispatcher.getInstance().releaseAll('overlay-page-disappear');
-    testNapi.wineTextInputSetArmed(false);
+    WineImeCoordinator.getInstance().setKeyboardVisible(false);
   }
 
   private cancelCursorTimers(): void {
@@ -275,6 +281,10 @@ struct InputOverlayPage {
             value.consumed = true;
             if (value.buttonDown) InputDispatcher.getInstance().releaseSource(this.directSource(activeTouchId));
           });
+          // Direct touch scrolls the panel under the gesture, even before any
+          // mouse click. Keep this starting position while fingers move so
+          // Xwayland does not alternate absolute motion and wheel devices.
+          InputDispatcher.getInstance().rememberPointer(this.lastMidX, this.lastMidY);
         } else if (this.directTouches.size > 2) {
           this.twoFingerTapEligible = false;
         }
@@ -445,7 +455,7 @@ struct InputOverlayPage {
     hilog.info(0x0000, 'HostKb', 'toggle host keyboard now=%{public}s',
       this.hostKeyboardActive ? 'on' : 'off');
     if (this.hostKeyboardActive) {
-      testNapi.wineTextInputSetArmed(true);
+      WineImeCoordinator.getInstance().setKeyboardVisible(true);
       this.hostImeReseedPending = true;
       this.hostImeBuffer = InputOverlayPage.HOST_SENTINEL;
       this.hostImeContent = InputOverlayPage.HOST_SENTINEL;
@@ -458,7 +468,7 @@ struct InputOverlayPage {
       }, 32);
     } else {
       focusController.clearFocus();
-      testNapi.wineTextInputSetArmed(false);
+      WineImeCoordinator.getInstance().setKeyboardVisible(false);
       this.pendingHostCommit = '';
       this.hostImeBuffer = '';
       this.hostImeContent = '';
@@ -470,7 +480,7 @@ struct InputOverlayPage {
   /** 宿主键盘关闭时转发蓝牙/实体 KeyEvent; 打开时不拦截, 拼音走 TextInput/IME。 */
   private handleHardwareKey(ev: KeyEvent): void {
     if (this.hostKeyboardActive) return;
-    const rootId = WineWindowManager.getInstance().getDesktopRootId();
+    const rootId = this.snapshot.session.toplevelId || WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;
     ev.stopPropagation();
     // Keyboard arrows share OHOS codes with gamepad D-pad. Do not let the
@@ -488,7 +498,8 @@ struct InputOverlayPage {
     if (code === EVDEV_KEY_ENTER) {
       if (pressed) {
         this.lastEnterDownTs = Date.now();
-      } else if (Date.now() - this.lastEnterDownTs > InputOverlayPage.ENTER_SYNTH_WINDOW_MS) {
+      } else if (Date.now() - this.lastEnterDownTs > InputOverlayPage.ENTER_SYNTH_WINDOW_MS &&
+          !WineImeCoordinator.getInstance().hasAttachedSession()) {
         InputRouter.getInstance().sendKey(EVDEV_KEY_ENTER, true);
       }
     }
@@ -797,6 +808,10 @@ struct InputOverlayPage {
   }
 
   private handleDirectMouse(event: MouseEvent): void {
+    if (event.action !== MouseAction.Move && this.mouseTraceCount++ < 32) {
+      hilog.info(0x0000, 'CLICK-PIPE', '[MOUSE-PHASE] overlay action=%{public}d button=%{public}d source=%{public}d tool=%{public}d',
+        event.action, event.button, event.source, event.sourceTool);
+    }
     if (!this.eventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
     event.stopPropagation();
     const source = 'external-mouse';
@@ -806,16 +821,20 @@ struct InputOverlayPage {
     const x = vp2px(event.windowX);
     const y = vp2px(event.windowY);
     const button = mapMouseButton(event.button);
+    // Keep hardware origin and raw motion through the shared dispatcher.
+    // A frozen host cursor has no absolute movement; games still need its
+    // raw delta, and button presses must not warp a self-drawn cursor.
+    const input: PointerInput = { rawDx: 0, rawDy: 0, fromMouse: true };
     if (event.action === MouseAction.Press) {
       if (button === 272) {
         if (this.mouseLeftReleaseTimer >= 0) clearTimeout(this.mouseLeftReleaseTimer);
         this.mouseLeftReleaseTimer = -1;
         this.mouseLeftActive = true;
       }
-      InputDispatcher.getInstance().pointerDown(source, x, y, button);
+      InputDispatcher.getInstance().pointerDown(source, x, y, button, input);
     }
     else if (event.action === MouseAction.Release) {
-      InputDispatcher.getInstance().pointerUp(source, x, y, button);
+      InputDispatcher.getInstance().pointerUp(source, x, y, button, input);
       if (button === 272) {
         if (this.mouseLeftReleaseTimer >= 0) clearTimeout(this.mouseLeftReleaseTimer);
         this.mouseLeftReleaseTimer = setTimeout((): void => {
@@ -825,15 +844,33 @@ struct InputOverlayPage {
       }
       this.hideForExternalInput();
     }
-    else InputDispatcher.getInstance().pointerMove(source, x, y, false);
+    else if (event.action === MouseAction.Move) {
+      const motion = InputDeviceMapper.getInstance().calibrateRawMotion(
+        event.deviceId ?? 0, event.rawDeltaX ?? 0, event.rawDeltaY ?? 0);
+      input.rawDx = motion.rawDx;
+      input.rawDy = motion.rawDy;
+      InputDispatcher.getInstance().pointerMove(source, x, y, false, input);
+    }
   }
 
-  private handleDirectAxis(event?: AxisEvent): void {
+  private handleDirectAxis(event?: AxisEvent, origin: string = 'direct'): void {
     if (!event) return;
+    if (this.axisTraceCount++ < 32) hilog.info(0x0000, 'CLICK-PIPE', '[AXIS-PHASE] overlay=%{public}s action=%{public}d time=%{public}s v=%{public}s h=%{public}s source=%{public}d tool=%{public}d',
+      origin, event.action, event.timestamp.toString(), event.getVerticalAxisValue().toString(), event.getHorizontalAxisValue().toString(), event.source, event.sourceTool);
+    if (!this.axisEventGate.shouldHandle(event.action, event.timestamp, event.getVerticalAxisValue(),
+      event.getHorizontalAxisValue(), event.source, event.sourceTool)) return;
     const vertical = event.getVerticalAxisValue();
     const horizontal = event.getHorizontalAxisValue();
-    if (vertical !== 0) InputDispatcher.getInstance().scroll('external-mouse', 0, vertical, event.scrollStep ?? 40);
-    if (horizontal !== 0) InputDispatcher.getInstance().scroll('external-mouse', 1, horizontal, event.scrollStep ?? 40);
+    if (vertical === 0 && horizontal === 0) return;
+    // Controls may forward component-local AxisEvents. Use window coordinates
+    // as for physical mouse motion, rather than the old virtual cursor.
+    const dispatcher = InputDispatcher.getInstance();
+    // Native scrolling hit-tests and synchronizes the pointer when its position
+    // changes. A mouse move before every wheel switches Xwayland XI devices
+    // and resets Chromium's scrolling baseline, even at stationary coordinates.
+    dispatcher.rememberPointer(vp2px(event.windowX), vp2px(event.windowY));
+    if (vertical !== 0) dispatcher.scroll('external-mouse', 0, vertical, -1);
+    if (horizontal !== 0) dispatcher.scroll('external-mouse', 1, horizontal, -1);
   }
 
   private async openInputEditor(route: string): Promise<void> {
@@ -848,7 +885,7 @@ struct InputOverlayPage {
         profileName: this.profile.name || '默认键鼠手柄',
         appId: session?.appId ?? '',
         baseProfileId: this.settings.desktopInputProfileId || 'default',
-        returnAbilityName: 'DesktopAbility',
+        returnAbilityName: WineWindowManager.getInstance().getDesktopMode() ? 'DesktopAbility' : 'WineWindowAbility',
         returnSessionId: this.snapshot.session.sessionId,
         returnToplevelId: this.snapshot.session.toplevelId.toString()
       }
@@ -916,7 +953,7 @@ struct InputOverlayPage {
           },
           onUnhandledTouch: (event: TouchEvent): void => this.handleOverlayTouch(event),
           onUnhandledMouse: (event: MouseEvent): void => this.handleDirectMouse(event),
-          onUnhandledAxis: (event?: AxisEvent): void => this.handleDirectAxis(event)
+          onUnhandledAxis: (event?: AxisEvent): void => this.handleDirectAxis(event, 'virtual')
         })
         .zIndex(10)
       }

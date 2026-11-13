@@ -1,0 +1,9 @@
+{
+  "unchanged_members": 7093,
+  "steam_exe_bat_cfg": "byte-identical",
+  "full_crc": "PASS",
+  "overlay_crc": "PASS",
+  "same_four_dlls": "PASS",
+  "only_added_client_format": "VSZa",
+  "original_archive_unchanged": "6fef7f410bdfcb0df852dd72e46aaa17b8d370caacd0f044f655e1febebc2153"
+}

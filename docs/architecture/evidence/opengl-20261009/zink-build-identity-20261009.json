@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "arch": "aarch64",
+  "galliumDrivers": [
+    "zink",
+    "virgl",
+    "softpipe"
+  ],
+  "platforms": [
+    "wayland"
+  ],
+  "opengl": true,
+  "libraries": {
+    "lib/libgallium-25.0.1.so": "7bcf4ef5e76bd841f765cdb0d734383d581e7cbc5ed516fa260889c55d45b878"
+  }
+}

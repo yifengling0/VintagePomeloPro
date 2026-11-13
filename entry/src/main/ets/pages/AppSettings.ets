@@ -1,4 +1,5 @@
 import { skinColor } from '../service/SkinColors';
+import { PortableGameConfigurationService } from '../service/PortableGameConfigurationService';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
 import fs from '@ohos.file.fs';
@@ -8,6 +9,11 @@ import { hilog } from '../service/LogService';
 import {
   BOX64_APP_PRESET_IDS,
   BOX64_PRESET_DEFAULT,
+  WineTranslationEngine,
+  APP_WINE_TRANSLATION_ENGINES,
+  normalizeAppWineTranslationEngine,
+  resolveAppWineTranslationEngine,
+  appWineTranslationEngineLabel,
   GRAPHICS_LAUNCH_PRESET_IDS,
   AppDescriptor,
   AppSettings as StoredAppSettings,
@@ -24,9 +30,9 @@ import {
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
-import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import { LengthMetrics, window } from '@kit.ArkUI';
 import deviceInfo from '@ohos.deviceInfo';
 import {
@@ -332,7 +338,8 @@ struct AppSettingsPage {
   }
 
   private profileEditorId(): string {
-    return this.currentProfileId() === 'default' ? 'app-' + this.value.appId : this.currentProfileId();
+    return this.currentProfileId().startsWith('app-') ? this.currentProfileId() :
+      PortableGameConfigurationService.getInstance().dedicatedProfileId(this.value.appId);
   }
 
   private profileEditorName(): string {
@@ -630,6 +637,12 @@ struct AppSettingsPage {
 
   private async editInputProfile(): Promise<void> {
     const profileId = this.profileEditorId();
+    const baseProfileId = this.currentProfileId() === 'default' ? this.globalProfileId() : this.currentProfileId();
+    const service = InputProfileService.getInstance();
+    if (!service.hasProfile(profileId)) {
+      const independent = service.ensureProfile(profileId, this.profileEditorName(), baseProfileId);
+      await service.saveProfile(independent);
+    }
     const next = cloneAppSettings(this.value);
     next.inputProfileId = profileId;
     this.value = next;
@@ -643,7 +656,7 @@ struct AppSettingsPage {
         appId: this.value.appId,
         profileId: profileId,
         profileName: this.profileEditorName(),
-        baseProfileId: this.globalProfileId()
+        baseProfileId: baseProfileId
       }
     });
   }
@@ -659,6 +672,20 @@ struct AppSettingsPage {
   private setFavorite(value: boolean): void {
     const next = cloneAppSettings(this.value);
     next.favorite = value;
+    this.value = next;
+    void this.persist();
+  }
+
+  private selectedTranslationEngine(): WineTranslationEngine {
+    return resolveAppWineTranslationEngine(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine,
+      this.value.wineTranslationEngine);
+  }
+
+  private setTranslationEngine(engine: string): void {
+    const selected = normalizeAppWineTranslationEngine(engine);
+    if (selected === this.value.wineTranslationEngine) return;
+    const next = cloneAppSettings(this.value);
+    next.wineTranslationEngine = selected;
     this.value = next;
     void this.persist();
   }
@@ -679,6 +706,14 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setDxvkFloatControls(enabled: boolean): void {
+    if (enabled === this.value.dxvkFloatControls) return;
+    const next = cloneAppSettings(this.value);
+    next.dxvkFloatControls = enabled;
+    this.value = next;
+    void this.persist();
+  }
+
   private setDisableMfDxgiDeviceManager(enabled: boolean): void {
     if (enabled === this.value.disableMfDxgiDeviceManager) return;
     const next = cloneAppSettings(this.value);
@@ -687,13 +722,15 @@ struct AppSettingsPage {
     void this.persist();
   }
 
-  private setPreferMfMpeg4Handler(enabled: boolean): void {
-    if (enabled === this.value.preferMfMpeg4Handler) return;
+  private setFexStrictPrecision(enabled: boolean): void {
+    if (enabled === this.value.fexStrictPrecision) return;
     const next = cloneAppSettings(this.value);
-    next.preferMfMpeg4Handler = enabled;
+    next.fexStrictPrecision = enabled;
     this.value = next;
     void this.persist();
   }
+
+
 
   private setExtraLaunchArguments(text: string): void {
     const next = cloneAppSettings(this.value);
@@ -730,7 +767,7 @@ struct AppSettingsPage {
               }.alignItems(HorizontalAlign.Start).layoutWeight(1)
               Toggle({ type: ToggleType.Switch, isOn: this.value.favorite }).onChange((value: boolean): void => this.setFavorite(value))
             }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
-            if (this.app && this.app.source === AppSource.DOWNLOAD) {
+            if (this.app && this.app.source === AppSource.DOWNLOAD && !this.app.steam) {
               Column({ space: 6 }) {
                 Text('当前游戏目录').fontSize(13).fontColor(skinColor('text_secondary'))
                 Text(this.app.directory).fontSize(12).fontColor(skinColor('text_primary')).maxLines(2)
@@ -821,28 +858,66 @@ struct AppSettingsPage {
 
           Column({ space: 12 }) {
             Text('兼容性').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
-            Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
-            Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
-              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-              ForEach(BOX64_APP_PRESET_IDS, (preset: string) => {
-                Button(box64PresetLabel(preset))
-                  .height(42)
-                  .padding({ left: 12, right: 12 })
-                  .margin({ right: 8, bottom: 8 })
-                  .borderRadius(14)
-                  .fontSize(12)
-                  .fontColor(this.value.box64Preset === preset ?
-                    '#FFFFFFFF' : skinColor('text_primary'))
-                  .backgroundColor(this.value.box64Preset === preset ?
-                    skinColor('accent') : skinColor('search_background'))
-                  .id('app-settings-box64-' + preset)
-                  .onClick(() => this.setBox64Preset(preset))
-              }, (preset: string): string => preset)
+            Text('转译引擎').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+            Row({ space: 8 }) {
+              ForEach(APP_WINE_TRANSLATION_ENGINES, (engine: string) => {
+                Button(appWineTranslationEngineLabel(engine)).layoutWeight(1).height(42).borderRadius(14)
+                  .fontColor(this.value.wineTranslationEngine === engine ? '#FFFFFFFF' : skinColor('text_primary'))
+                  .backgroundColor(this.value.wineTranslationEngine === engine ? skinColor('accent') : skinColor('search_background'))
+                  .id('app-settings-engine-' + engine)
+                  .onClick((): void => this.setTranslationEngine(engine))
+              }, (engine: string): string => engine)
             }.width('100%')
-            Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
-              '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
+            Text('仅用于原 Wine 的 32 位 Windows 程序，可按游戏保存。选择 Box64 后可设置兼容性预设；完全退出游戏后，从首页重新启动生效。Wine 桌面内直接启动使用全局设置。Windows Steam 游戏也可按游戏保存兼容设置。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            Row({ space: 12 }) {
+              Column({ space: 4 }) {
+                Text('浮点控制（floatControls）').fontSize(13)
+                  .fontColor(skinColor('text_secondary')).width('100%')
+                Text('按 D3D11 语义保留 NaN 与 denormal。部分手机 GPU 开启后加载场景会崩溃，可关闭该游戏的浮点控制。')
+                  .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              }.layoutWeight(1).alignItems(HorizontalAlign.Start)
+              Toggle({ type: ToggleType.Switch, isOn: this.value.dxvkFloatControls })
+                .id('app-settings-float-controls')
+                .onChange((enabled: boolean): void => this.setDxvkFloatControls(enabled))
+            }.width('100%')
+            if (this.selectedTranslationEngine() === WineTranslationEngine.BOX64) {
+              Text('Box64 兼容性预设').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+              Text('影响程序在兼容模拟层上的稳定性与性能；跟随全局表示使用系统设置中的预设。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                ForEach(BOX64_APP_PRESET_IDS, (preset: string) => {
+                  Button(box64PresetLabel(preset))
+                    .height(42)
+                    .padding({ left: 12, right: 12 })
+                    .margin({ right: 8, bottom: 8 })
+                    .borderRadius(14)
+                    .fontSize(12)
+                    .fontColor(this.value.box64Preset === preset ?
+                      '#FFFFFFFF' : skinColor('text_primary'))
+                    .backgroundColor(this.value.box64Preset === preset ?
+                      skinColor('accent') : skinColor('search_background'))
+                    .id('app-settings-box64-' + preset)
+                    .onClick(() => this.setBox64Preset(preset))
+                }, (preset: string): string => preset)
+              }.width('100%')
+              Text(this.value.box64Preset === BOX64_PRESET_DEFAULT ?
+                '此应用跟随全局兼容性预设。' : '此应用使用「' + box64PresetLabel(this.value.box64Preset) + '」。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            }
+            if (this.selectedTranslationEngine() === WineTranslationEngine.FEX) {
+              Row() {
+                Column({ space: 4 }) {
+                  Text('FEX 严格浮点精度').fontSize(15).fontWeight(FontWeight.Medium)
+                    .fontColor(skinColor('text_primary'))
+                  Text('用于浮点精度导致的启动或音频解码异常。可能降低帧率、延长加载；仅对此游戏生效，完全退出游戏后从首页重新启动。')
+                    .fontSize(11).fontColor(skinColor('text_secondary'))
+                }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+                Toggle({ type: ToggleType.Switch, isOn: this.value.fexStrictPrecision })
+                  .onChange((value: boolean): void => this.setFexStrictPrecision(value))
+              }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
+              .id('app-settings-fex-strict-precision')
+            }
             Text('Media Foundation 视频').fontSize(13).fontColor(skinColor('text_secondary'))
               .width('100%').margin({ top: 8 })
             Text('默认关闭。不要因为游戏是 Unity 就自动打开；仅在开场视频黑屏、花屏、有声无画或卡死时按需启用。')
@@ -858,17 +933,7 @@ struct AppSettingsPage {
                 .onChange((value: boolean): void => this.setDisableMfDxgiDeviceManager(value))
             }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             .id('app-settings-mf-disable-dxgi')
-            Row() {
-              Column({ space: 4 }) {
-                Text('优先 Wine MPEG4 Handler').fontSize(15).fontWeight(FontWeight.Medium)
-                  .fontColor(skinColor('text_primary'))
-                Text('实验性。handler 查找失败时先试 Wine MPEG4，再回退 GStreamer。不要和无视频问题一起乱开。')
-                  .fontSize(11).fontColor(skinColor('text_secondary'))
-              }.alignItems(HorizontalAlign.Start).layoutWeight(1)
-              Toggle({ type: ToggleType.Switch, isOn: this.value.preferMfMpeg4Handler })
-                .onChange((value: boolean): void => this.setPreferMfMpeg4Handler(value))
-            }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
-            .id('app-settings-mf-prefer-mpeg4')
+
           }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
 
           Column({ space: 12 }) {

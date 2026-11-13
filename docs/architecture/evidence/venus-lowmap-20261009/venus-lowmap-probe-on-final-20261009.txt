@@ -1,0 +1,60 @@
+Fri Oct  9 09:26:30 CST 2026
+Modify: 2026-10-09 09:26:19.752763881 +0800
+pointer_bits	32
+
+device	0x00000000	level=0xb000
+
+adapter	Virtio-GPU Venus (Maleoon 910)
+
+render_target	0x00000000
+
+buffers	0x00000000
+
+upload_map	0	0x00000000	02545800
+
+readback_map	0	0x00000000	04600000
+
+upload_readback	0	bad=0
+
+upload_map	1	0x00000000	02505800
+
+readback_map	1	0x00000000	04600000
+
+upload_readback	1	bad=0
+
+upload_map	2	0x00000000	02545800
+
+readback_map	2	0x00000000	04600000
+
+upload_readback	2	bad=0
+
+upload_map	3	0x00000000	02505800
+
+readback_map	3	0x00000000	04600000
+
+upload_readback	3	bad=0
+
+textures	0x00000000
+
+texture_upload_readback	0	bad=0
+
+texture_upload_readback	1	bad=0
+
+texture_upload_readback	2	bad=0
+
+texture_upload_readback	3	bad=0
+
+present	frames=120	hr=0x00000000	ms=994.950	fps=120.609
+
+RESULT	PASS
+
+hold_ms	30000
+
+MESA-VIRTIO: debug: winehua venus map: sample=2 fd=54 size=16777216 ptr=0x7003901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=3 fd=55 size=16777216 ptr=0x7004901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=4 fd=56 size=16777216 ptr=0x7005901000 wine_owned=0 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=0 fd=47 size=16777216 ptr=0x2500000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=1 fd=51 size=16777216 ptr=0x3600000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=2 fd=54 size=16777216 ptr=0x4600000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=3 fd=55 size=16777216 ptr=0x5600000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0
+MESA-VIRTIO: debug: winehua venus map: sample=4 fd=56 size=16777216 ptr=0x6600000 wine_owned=1 map_errno=0 fstat_result=-1 fstat_errno=13 inode=0 dev=0

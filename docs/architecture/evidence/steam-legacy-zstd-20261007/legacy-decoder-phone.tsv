@@ -1,0 +1,6 @@
+legacy-steam-decoder	bits=32	pid=764	utc=2026-10-07T10:09:05.040Z	fixture_source=SteamKit_public_tests
+GUARD	exact_DLL_and_entrypoints=MATCH
+pkzip	magic=504b0304	input=292	result=1	output=544	allocated=544	sha1=MATCH	PASS
+vzip	magic=565a6110	input=278	result=1	output=798	allocated=798	sha1=MATCH	PASS
+zstd	magic=56535a61	input=157	result=2	output=0	allocated=0	sha1=NO_OUTPUT_OR_MISMATCH	PASS
+RESULT	failures=0

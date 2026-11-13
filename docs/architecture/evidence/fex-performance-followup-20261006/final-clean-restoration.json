@@ -1,0 +1,21 @@
+{
+  "verifiedHostTime": "2026-10-06T22:52:08.216643+08:00",
+  "bundle": "com.vintage.pomelopro",
+  "versionName": "1.4.5-proton.26-alpha",
+  "versionCode": 1004035,
+  "installSucceeded": true,
+  "hapSha256": "d6f2340843b1f6c76ea18833b6782697c727a68c2a80f8bf3ded8705d6193b27",
+  "runtimeVerified": true,
+  "runtimeSha256": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+  "probeSwitch": "off",
+  "stickyIEAndFlagsProbeCompleted": true,
+  "sessionStopped": true,
+  "remainingTargetUIDProcesses": 0,
+  "evidence": [
+    "final-clean-restore.txt",
+    "final-clean-identity-runtime.txt",
+    "final-clean-identity.txt",
+    "final-clean-session-stop-state-0.txt",
+    "final-clean-bundle.txt"
+  ]
+}

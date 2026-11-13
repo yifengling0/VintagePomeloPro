@@ -1,3 +1,4 @@
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { window } from '@kit.ArkUI';
@@ -21,15 +22,23 @@ export default class DesktopAbility extends UIAbility {
   private toplevelId: number = 0;
   private stage: window.WindowStage | null = null;
   private mainWindow: window.Window | null = null;
+  private foreground: boolean = false;
   private windowSizeCallback: ((size: window.Size) => void) | null = null;
   private windowResizeGeneration: number = 0;
   private desktopOrientation: ScreenOrientationSetting = ScreenOrientationSetting.SENSOR_LANDSCAPE;
   private lastAppliedWindowMode: string = '';
   private immersiveMaximized: boolean = false;
   private vdStatusAttached: boolean = false;
+  private pcModeListener: () => void = () => {
+    if (this.mainWindow) void this.applyDesktopWindowMode(this.mainWindow).catch((error: Error) => {
+      hilog.warn(DOMAIN, TAG, 'PC mode window update failed: %{public}s', JSON.stringify(error));
+    });
+  };
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     try {
+      DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
+      DeviceCapabilityPolicy.addPcModeListener(this.pcModeListener);
       const params = want.parameters ?? {};
       this.toplevelId = Number(params.toplevelId) || 0;
       const requestedOrientation = String(params.desktopOrientation ?? '');
@@ -99,6 +108,8 @@ export default class DesktopAbility extends UIAbility {
         const mw = windowStage.getMainWindowSync();
         if (mw) {
           this.mainWindow = mw;
+          WineImeCoordinator.getInstance().observeWindow(0, mw, true);
+          if (this.foreground) WineImeCoordinator.getInstance().foreground(0, mw, true);
           testNapi.registerHostWindow(mw.getWindowProperties().id);
           // The orientation request and the immersive layout are asynchronous.
           // Measuring windowRect before both transactions settle can feed the
@@ -158,16 +169,15 @@ export default class DesktopAbility extends UIAbility {
         ]);
         await target.setWindowBackgroundColor('#000000');
         this.attachVirtualDesktopStatus(target);
-        this.immersiveMaximized = true;
-        WineWindowManager.getInstance().enterImmersiveFullscreen(target, 0);
-        AppStorage.setOrCreate('vdImmersive', true);
-        hilog.info(DOMAIN, TAG, '[DWA] pc-virtual auto immersive (DISABLE_HOVER)');
+        const mode = AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode;
+        if (mode !== DesktopWindowMode.FLOATING) await this.requestImmersive(target);
+        hilog.info(DOMAIN, TAG, '[DWA] pc-virtual window mode=%{public}s', mode ?? DesktopWindowMode.FULLSCREEN);
       } catch (e) {
         hilog.warn(DOMAIN, TAG, '[DWA] pc-virtual immersive setup partial: %{public}s',
           JSON.stringify(e));
       }
-      this.lastAppliedWindowMode = 'pc-virtual';
-      hilog.info(DOMAIN, TAG, '[DWA] pc virtual desktop: immersive fullscreen');
+      this.lastAppliedWindowMode = this.requestedWindowMode();
+      hilog.info(DOMAIN, TAG, '[DWA] pc virtual desktop host configured');
       return;
     }
     const mode = AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode
@@ -207,6 +217,9 @@ export default class DesktopAbility extends UIAbility {
   }
 
   onForeground(): void {
+    this.foreground = true;
+    if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow, true);
+    DeviceCapabilityPolicy.refreshPcMode(this.context);
     hilog.info(DOMAIN, TAG, '[DWA] onForeground tl=%{public}d', this.toplevelId);
     WineWindowManager.getInstance().markDesktopAbilityForeground(this.toplevelId);
     InputRouter.getInstance().setActiveToplevel(WineWindowManager.getInstance().getDesktopRootId());
@@ -236,7 +249,7 @@ export default class DesktopAbility extends UIAbility {
     const currentMode = AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode
       ?? DesktopWindowMode.FULLSCREEN;
     AppStorage.setOrCreate('desktopWindowMode', currentMode);
-    if (currentMode !== this.lastAppliedWindowMode && this.mainWindow) {
+    if (this.requestedWindowMode() !== this.lastAppliedWindowMode && this.mainWindow) {
       this.applyDesktopWindowMode(this.mainWindow).catch((error: Error) => {
         hilog.warn(DOMAIN, TAG, '[DWA] re-apply window mode failed: %{public}s', JSON.stringify(error));
       });
@@ -248,6 +261,8 @@ export default class DesktopAbility extends UIAbility {
   }
 
   onBackground(): void {
+    this.foreground = false;
+    WineImeCoordinator.getInstance().background(this.mainWindow);
     hilog.info(DOMAIN, TAG, '[DWA] onBackground tl=%{public}d', this.toplevelId);
     WineWindowManager.getInstance().markDesktopAbilityBackground(this.toplevelId);
     GamepadManager.getInstance().releaseAll();
@@ -263,6 +278,9 @@ export default class DesktopAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    WineImeCoordinator.getInstance().unobserveWindow(this.mainWindow);
+    DeviceCapabilityPolicy.removePcModeListener(this.pcModeListener);
+    DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     hilog.info(DOMAIN, TAG, '[DWA] onDestroy tl=%{public}d', this.toplevelId);
     try {
       if (this.mainWindow && this.windowSizeCallback) {
@@ -297,20 +315,32 @@ export default class DesktopAbility extends UIAbility {
     target.on('windowStatusChange', (statusType: number) => {
       hilog.info(DOMAIN, TAG, '[DWA] windowStatusChange status=%{public}d immersive=%{public}s',
         statusType, this.immersiveMaximized ? 'yes' : 'no');
-      if (statusType === window.WindowStatusType.MAXIMIZE ||
-        statusType === window.WindowStatusType.FULL_SCREEN) {
-        if (!this.immersiveMaximized) {
-          this.immersiveMaximized = true;
-          WineWindowManager.getInstance().enterImmersiveFullscreen(target, 0);
-        }
+      if (statusType === window.WindowStatusType.MAXIMIZE) {
+        if (!AppStorage.get<boolean>('vdRestoring')) void this.requestImmersive(target);
+      } else if (statusType === window.WindowStatusType.FULL_SCREEN) {
+        this.immersiveMaximized = true;
         AppStorage.setOrCreate('vdImmersive', true);
       } else {
-        if (this.immersiveMaximized) {
-          this.immersiveMaximized = false;
-        }
+        this.immersiveMaximized = false;
         AppStorage.setOrCreate('vdImmersive', false);
       }
     });
+  }
+
+  private requestedWindowMode(): string {
+    const mode = AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode
+      ?? DesktopWindowMode.FULLSCREEN;
+    return DeviceCapabilityPolicy.usesManagedWineWindows() ? 'pc-' + mode : mode;
+  }
+
+  private async requestImmersive(target: window.Window): Promise<void> {
+    if (this.immersiveMaximized) return;
+    this.immersiveMaximized = true; // in flight; the system FULL_SCREEN event publishes success
+    const accepted = await WineWindowManager.getInstance().enterImmersiveFullscreen(target, 0);
+    if (!accepted) {
+      this.immersiveMaximized = false;
+      AppStorage.setOrCreate('vdImmersive', false);
+    }
   }
 
   /** 桌面打开期间按设置保持屏幕常亮，避免游玩中自动锁屏。 */

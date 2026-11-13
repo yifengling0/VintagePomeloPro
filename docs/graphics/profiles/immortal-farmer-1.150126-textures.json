@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "immortal-farmer-1.150126-ui-textures",
+  "status": "experimental-device-validation-required",
+  "catalog": {
+    "name": "catalog.json",
+    "sourceSha256": "ea4cc4415515c08122cf71bedca67e631a6452b64ccace6b93830b748b4bd7e5"
+  },
+  "bundleDirectory": "StandaloneWindows64",
+  "bundles": [
+    {
+      "name": "uicommonpacked_assets_all_ed47d3b223c299225243857d4cd8fd3f.bundle",
+      "sourceSha256": "024de62d3bf1c8688b59daf0d4038b259b1c821903321fe1f79dcdc1f5fa4d30",
+      "assetBundleIndexPathId": 1,
+      "textures": [
+        {
+          "name": "MAP1-2.0",
+          "description": [14360, 4724, 1, 12],
+          "rawImageReferences": [5694994827920398133]
+        },
+        {
+          "name": "biany",
+          "description": [14360, 4724, 1, 12],
+          "rawImageReferences": [3804789869347950176]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "architecture": "aarch64-linux-gnu",
+  "profile": {
+    "VPP_GNU_DXVK_PROFILE": "legacy-1.10.3",
+    "WINEHUA_DXVK_RELAXED_FEATURES": "1",
+    "DXVK_WINEHUA_COMMAND_QUERY_RESET": "1",
+    "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED": "1",
+    "DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT": "auto",
+    "DXVK_WINEHUA_PRECISE_SHADOW": "1",
+    "DXVK_WINEHUA_BATCH_MAPPED_FLUSH": "1",
+    "VN_OHOS_PRECISE_SHADOW": "1",
+    "VN_WINEHUA_PERSISTENT_MAP_SYNC": "0"
+  },
+  "backend": {
+    "path": "files/lib/wine/aarch64-unix/winevulkan.so",
+    "bytes": 865088,
+    "type": "0",
+    "link": "",
+    "sha256": "51d518586b4b7f986180e4cdfe78aa01d46f8bbaf5bcab24fed508c608af5e12"
+  },
+  "distribution": {
+    "tag": "GE-Proton11-11",
+    "architecture": "aarch64",
+    "file": "GE-Proton11-11-aarch64.tar.gz",
+    "bytes": 648071663,
+    "sha512": "4863f86773514ce7cc2c7867d393b725fcd9e32f7948a3b4035ae67a84b3e0ff4b179c479079a0dcf141c159faa19f67e7b82b3ed4c4b0ef9720226d55594661",
+    "source": "https://github.com/GloriousEggroll/proton-ge-custom/releases/download/GE-Proton11-11/GE-Proton11-11-aarch64.tar.gz",
+    "kind": "community GNU Proton; not a Valve binary distribution"
+  },
+  "sources": {
+    "docs/linux-steam/gnu-dxvk-source.lock.json": "afb646803a30f05b1811b8127df64f32eea24d7b88b1486d7ac81b5486ee4bfd",
+    "docs/linux-steam/gnu-proton-network.lock.json": "2bc647d9fd33e63c6c882f36197b83461e2f9d5ef92e2204e6af45d708eee204",
+    "docs/linux-steam/gnu-venus-base.lock.json": "50637fbe63f363f607c9c702adbfbe9026ac6c2e9d95096187dd18a494866f40",
+    "entry/src/main/cpp/linux_steam/audio_bootstrap_relay.h": "fe66d700ff62df438f8827d39ba038a9a17d292da3d68f1cabc3d46d38e963be",
+    "entry/src/main/cpp/linux_steam/cloud_tool_selection.h": "21716bfe84ad5181d0fd3442f0428e9bda31f2080495c76767eba1d7852e0c60",
+    "entry/src/main/cpp/linux_steam/component_group.h": "580eb6c68ae154ff5f0eaa4c187bfd362f940f42c97f4ee74cd51db4e1955701",
+    "entry/src/main/cpp/linux_steam/cooperative_process.h": "5497bf18cb209c901abc8fab31180b480e129fa54c5fa36fca8054e0d9eafa80",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/deck_action_uri.h": "a4056d6075382f69f4411f7cb83a3c9e7631831a5e9c0e4e52dec213dd0794da",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/deck_session_control.h": "ff2f010cc19d176fa4f125746dab988568d2c203efef6f58a5e8da4b855a2319",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/depot_links.h": "a0e3949aa34921ebcddb5407b189f625d3773d59bd5cd85a9a513cb5f3914cb0",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/exec_compat.cpp": "3a788602aab5f16a3c023480a5e01d200ea2927196a57e100a6736e1302d5052",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/filesystem_compat.c": "54280966be51c3da3c8f6fb41b20b872e859506ba311ff264ffae8146cf2a753",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/lsof_socket_backend.h": "448f8bb3e5ae1302b595a030ee4a9580271c0e192eeaf19e5e70ab8c2ddc7f00",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_executable.h": "bd0bdcc1192f33aa09298485daa45c8fce14a2430c936e18ff903236a325f9ae",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex.h": "d1ca67a35df09fdb6e5f0c77213633966e19d32bc667f8ccd36ce86951e5868d",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_fex_core.h": "03d08bacd7100330220c69882f00b4d27a105076838323b25eea731f1effd6a6",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_game_session.h": "dbf49c1e6dda46a69cf125bebfbec4abf800a2e2b3f352566aa03ef46e2a9671",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_abi.h": "dec3c75fff5804fb396a383bf379d0f05795cf79baa11b13e5a66c96fdec699c",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_guest_mapping.h": "ab91c3d9f0902e583d9eb612ea66f520a382bd075fe3ac7354c0fdc62a6ec63c",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_jit_capability.h": "fff3783f76094a9c3fd0c6eb610b773fb504a097e6615e69ec6cbf6cebf9637c",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_openat2.h": "79162e39f39aa5bf818c22b5d6f0dd92ebdb7674fbcab742f207dd938a3b03cd",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_seccomp.h": "c72e56d7d8328297a875b171180fcaf55b6b565a4cde3dbd22892535b2121173",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_signal_context.h": "8f3c290636303776b910363fc3141ddbb1d61bfc45006a9c0bf59d5025700756",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_udev_api.h": "eccf219bf788c53cf025d04c3d22c0e136487d1785b9904ad92d4996e7a7cb83",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/native_x11_window.h": "8fae1e825238022752a0b27eab29903cad3e5edd1553d930e611160ab04f9008",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/pointer_observer.h": "edd492b4934e36da6ae54dbfc89b702d4ed835687f41f3742a281bf883cf8f1b",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/popen_compat.c": "a7322a8cc52a0fb521e28723fc3fc40aa614d813f9cdd2176438a6cf17e0a115",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/posix_compat.c": "e5c9f641c09b12afebcc2cdf40197dcf78d72140aaaa94bf71ddd4df73dd841c",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_audio_clock.h": "a63d4978ff2237e456eaa8a9fb5496ca8ab61922e2a38d002de664f2a4e37e72",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_dsound_observer.h": "d7647f5fdb2b7212c83ef167e1be7b91aa9a58d24ae28b309af85880c07834ab",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_exec_policy.h": "336a32ea3895b095f9b6ac400818f0af2aec9ccd45d8dbc23f1ae9b5efc90473",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_file_mapping.h": "0930759d5c0a853e2e318c8e24cc8d4b02203fe3e92769ec99729c17ba2e9b5f",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/proton_vulkan_wsi.cpp": "0b78e5874fb402064cc054966350f0a7213a8af8aa32212c8319ebce4bbd7501",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/runtime_mtree.h": "3fadc927aa904b41d331ecc25803ee5d02cead5e48450714179673d30e09cf45",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/sdl3_virtual_abi.h": "d49ed146cc43ec255a972203d1c2dc5b72b74bbd6c7565bc2ec58a0aa22dcbd7",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/socket_metadata.c": "a7b5d279526b299f78d5bde7eb9c3575caeabf3c59ea5ef18a1e9a9b6d045fb1",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/socket_query_protocol.h": "f02c13821d20ee1f82e1acbd7edc6dde9d2d23db02fc1fdc3fc82ec067ae5e94",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/steamclient_probe.h": "5b8ee45797420b54ca876a947773bd9d7dc1abe5f052e2ab046966eab19055c3",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/syscall_compat.S": "05c114b61095cdfce0d1838b51eb3d7f7966ec0ad5b2e904fb5833141940a9ee",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/sysvipc_compat.c": "331a9577faa2bd1fcb20c57446cb850cf8130e92e69feee91a99dc06e9e32d84",
+    "entry/src/main/cpp/linux_steam/gnu_fixture/wine_window_bridge.h": "9d916f6f04a7148df6b39bf8fc19161c55dff92f817db28f266b272cefeb12e6",
+    "entry/src/main/cpp/linux_steam/host_napi.h": "896e15da921f939e38941572599fd6b6e532a26226eae15a0bccb005e6d80a5b",
+    "entry/src/main/cpp/linux_steam/launch_broker.h": "a224d9f74d763b9027cbbf310c1c119302a0b19647bef5de9091416c3dffedbd",
+    "entry/src/main/cpp/linux_steam/launch_wire.h": "81bf852e20b5b3a4629b8a109b58cab3f3c8396fc6f623c23dfc0112bc0ab954",
+    "entry/src/main/cpp/linux_steam/native_buffer_probe.h": "790a6cea6fea05db2a65f3d03d5151ed344ab2834ab893411b8f1b51dd1368c8",
+    "entry/src/main/cpp/linux_steam/native_exec.h": "ed6fcaed80ad63fb8364d1e022a2493ca75b7d814b18eb7fb1d5a4e4971dc999",
+    "entry/src/main/cpp/linux_steam/native_kernel_maps.h": "29fbf6336954d08523ae02fcb19e5233108f91a7ca131637a2d15e2da9e975dd",
+    "entry/src/main/cpp/linux_steam/native_loader.cpp": "225e197f016c06271ae449db3fb0421f5021a8d8855af7a30ccecb9f15d3fe0f",
+    "entry/src/main/cpp/linux_steam/native_loader.h": "f78cafb2e7ebcf19681043d8b704b99c68d4a9785055ef430f5610ab94c82270",
+    "entry/src/main/cpp/linux_steam/native_loader_entry.S": "d09d1d7bfbba764145960486d9543c469cfcae84ebfc46ab8b3e5eaa4ef632e2",
+    "entry/src/main/cpp/linux_steam/native_x11_endpoint.h": "08d5a4a5da562934fb2934f1381e163adcd0e78fa7127ba50285b17ad7ea5e61",
+    "entry/src/main/cpp/linux_steam/proton_game_paths.h": "a53e53da6562d653e77336aed8d8e75cba17e4bd269bf34365db959a6be5f072",
+    "entry/src/main/cpp/linux_steam/proton_probe.h": "a6dccc06178bb15aba06fceb020d9201158c5dde156acc19d32376744084770a",
+    "entry/src/main/cpp/linux_steam/proton_setup_cache.h": "e86ca3cff64cf66da8f87b703a3a162e043b9d0e1b76dd9604dd1165f8c197c7",
+    "entry/src/main/cpp/linux_steam/proton_user_paths.h": "aefd2b829d32f386d1e92a79c6069db3160e29111c1951bf0ad91345f37068f1",
+    "entry/src/main/cpp/linux_steam/runtime_lease.h": "5e1fbeb1395c51db271f3408b0dc470aabe33cbc007270857196e5d341f1fa62",
+    "entry/src/main/cpp/linux_steam/surface_probe.h": "ee77bca7ed8b1b437a3bb5685eab9aea929985d496cee7192f01b1095b7fcb15",
+    "entry/src/main/cpp/linux_steam/window_process_message.h": "6e02fe32422093e5ff3fd96520b528dd03f8c449565161a1a4d3c3bda4b977fe",
+    "entry/src/main/cpp/linux_steam/wine_paths.h": "a332c64da055a86313e58fa6a7d93f8a0098de5d6ec3a8705ea533912dd26014",
+    "entry/src/main/cpp/linux_steam/xwayland_probe.h": "b2604b510bafd1e7961c69285e0326f726bb3b6209451a6a12fee7aad6be941a",
+    "patches/linux-proton/mesa/0001-gnu-wow64-shared-map-fd.patch": "7b0684b9ee767d714fd8b773b3071b9050c9c2974fd15f89c6fff02ae06f6461",
+    "patches/linux-proton/mesa/0002-export-shared-map-entry.patch": "57da418f8bea0442fe7fc503c5e779952d5c053922aa49efc25b483acd3f83c4",
+    "patches/linux-proton/mesa/0003-validate-bc-aggregate-capability.patch": "5639d4e9369ea3b63cf7bd49cd2511cecc75afbd3aa0079f594343b068db46c2",
+    "patches/linux-proton/mesa/0004-negotiate-precise-shadow-context.patch": "05f53fc88ea841f71ee2657eb5f27663a5a51ce3c1f285451bc46145d06b62fa",
+    "patches/linux-proton/mesa-base/0001-gnu-venus-native-memory-base.patch": "22af0978c628ec5a1cf737b491f3912795b4bed44b9e9375ec0bb510c846493f",
+    "patches/linux-proton/wine-ge/0001-nsiproxy-propagate-interface-enumeration-failures.patch": "b852251c39c691b3f086dfb754fed4b23d3f0e94c67767af1430d8d8f03f3e87",
+    "scripts/build_linux_proton_network.py": "c79271473a7119a897184c64f691af00d3f2485826afe6b7bde549c2bbb8f308",
+    "scripts/build_linux_proton_probe.py": "7eeed4345f93de979e6da3602f05c87baa8b0bbbfdf50eea3cd3cf8d47a54202",
+    "scripts/build_linux_proton_venus.py": "a1d819becc598a370aa60d865f4b5a190ad94ae428c906afb3846dd39d3e0f3c",
+    "scripts/build_linux_proton_vulkan.py": "76c04e8e6ce00d6a77803c138fcefd096a7397a868247fa9dc025c807750763e",
+    "scripts/linux_component_identity.py": "12536dc1ff34b91e465cefb371b77c0f2f4c7a748dc8dad567f32beb87765f24",
+    "scripts/prepare_linux_proton_dxvk.py": "86f9a7c47072851c0f7c11a259398590aff1fa578225f5ea27d433392dd4f95c",
+    "scripts/proton_network_contract.py": "d7af9a0069098b8d18183c0017c6d5673154dcc172808c5722d8d17a14956d79",
+    "scripts/proton_optional_syscalls.py": "e420e7cd3c4759b096f45264983b987c7a1a630abdecf973fa1c93a9882590e3"
+  },
+  "files": [
+    {
+      "path": "LICENSE.dxvk",
+      "bytes": 980,
+      "sha256": "240101b852af584ded719e7335a36f9a3aae3ac816774cf3f460c00d2c88c161"
+    },
+    {
+      "path": "dlls/arm64x/d3d11.dll",
+      "bytes": 8195072,
+      "sha256": "57ff14261a47eb995891dede311ee7e643916e2c60c1a4420ffa4d71a4cfb1af"
+    },
+    {
+      "path": "dlls/arm64x/dxgi.dll",
+      "bytes": 5648896,
+      "sha256": "88f01189db175686dc272a6e510ee51562bc8e1247d740a14d00071ea4e9638b"
+    },
+    {
+      "path": "dlls/i386/d3d11.dll",
+      "bytes": 4740608,
+      "sha256": "54ec7ad5475ce968fb69f07864a1e697853f7a985069cb94017db3cc9141fc6b"
+    },
+    {
+      "path": "dlls/i386/dxgi.dll",
+      "bytes": 3328512,
+      "sha256": "69880cc2820361c63ff033978ae0594a21ace5a792f4a205b4c27a8242913876"
+    },
+    {
+      "path": "libproton_probe.so",
+      "bytes": 298192,
+      "sha256": "f196d5d186dfca5a05d8d37694c2004e605abc4abf70a5b79a5fb7b8752160bc"
+    },
+    {
+      "path": "libproton_vulkan.so",
+      "bytes": 159256,
+      "sha256": "a8b9c16f2a221be7de2f8318f6798b1fed9422624e2879f1357687f18c58c044"
+    },
+    {
+      "path": "libvulkan_virtio.so",
+      "bytes": 1649672,
+      "sha256": "6256917346047931715c41385ff4cb522528a708247dff4444b9250e5743f98b"
+    },
+    {
+      "path": "nsiproxy.so",
+      "bytes": 85568,
+      "sha256": "1ddb19648df8d44b8bd677bf12c84271e6ca6bf4ab3542c0d0d2cf817adc2512"
+    },
+    {
+      "path": "pe/d3dcompiler_47.dll",
+      "bytes": 1114112,
+      "sha256": "ee18ed2bbc4d20e07ebb47c914fb3d4b0b13291f11e70afbef9143b7bca6be1d",
+      "source": "files/lib/wine/aarch64-windows/d3dcompiler_47.dll"
+    },
+    {
+      "path": "pe/vulkan-1.dll",
+      "bytes": 655360,
+      "sha256": "68adcfb292b9d30a1f694e4d2da82fdecfb523c5d8c020818ea1a9b9866525c2",
+      "source": "files/lib/wine/aarch64-windows/vulkan-1.dll"
+    },
+    {
+      "path": "pe/winevulkan.dll",
+      "bytes": 1114112,
+      "sha256": "ce3872f7c7d8494117c0f5190c06ec2f1d864a7dea93385e4b584cd1f6bd5b2e",
+      "source": "files/lib/wine/aarch64-windows/winevulkan.dll"
+    }
+  ],
+  "installedBytes": 26990340,
+  "deviceValidation": "pending VPP device validation; HSL evidence does not qualify VPP",
+  "probeBuild": {
+    "script": "7eeed4345f93de979e6da3602f05c87baa8b0bbbfdf50eea3cd3cf8d47a54202",
+    "generatedSources": {
+      "exec_probe.cpp": "8de0f0c2255f754791f6da6c9413c5fc1e695054e87825dec0b1c4692ef3c80a",
+      "filesystem_probe.c": "f1c642d28dd27929971a9654e125978df8c7e90047be5a827dc925d8f91c6eef",
+      "posix_probe.c": "0b7040d073ae17f67759112787f19eefbdad46a560b4c390c65ce3ddca589643",
+      "syscall_probe.S": "df00b0018a6718f9ad8bfe52c901a66cc7106b1255b659308a2d12ed4b315324"
+    },
+    "compilers": {
+      "aarch64-linux-gnu-gcc-11": "70a2d6626629079a8d94b97184b121d4e3a1bfe880c44e7db30670bb73e4028e",
+      "aarch64-linux-gnu-g++-11": "7445ea6370b53771feeb0bfeac48a844838089f621a06009560ab37fa4393da7"
+    },
+    "scope": "GNU Wine only; existing WSI/Venus/DXVK unchanged"
+  },
+  "network": {
+    "wineRevision": "c53678ab22a85f0fad3588dd34f0452a463bd015",
+    "unixCallSlots": 7,
+    "backend": {
+      "path": "files/lib/wine/aarch64-unix/nsiproxy.so",
+      "bytes": 82656,
+      "type": "0",
+      "link": "",
+      "sha256": "4e7f1d962d8c47b6512a15a4c4ff8f1461b8cb85bbf57eccbfb0f3720dfffdbb"
+    },
+    "ntdll": {
+      "path": "files/lib/wine/aarch64-unix/ntdll.so",
+      "bytes": 756664,
+      "type": "0",
+      "link": "",
+      "sha256": "9b1e37c0873fee48c156568f2e02dace57653bb3f2234461852050a84165c184"
+    }
+  },
+  "id": "ff394fa4d2487256cef501a28e0142ea2c88beda702c98add500bf363c88c0f9"
+}

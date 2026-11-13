@@ -4,6 +4,9 @@ import { hilog } from './LogService';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { pointer } from '@kit.InputKit';
 import testNapi from 'libentry.so';
+import smokeNapi from 'libsmoke_napi.so';
+import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
+import { InputDispatcher } from './InputDispatcher';
 import {
   DesktopWindowMode,
   ScreenOrientationSetting,
@@ -22,8 +25,27 @@ const TAG = 'WineWM';
 const DESKTOP_SESSION_ID = 'desktop';
 export type SessionAssociationCallback = (sessionId: string, clientPid: number, toplevelId: number) => void;
 
+class RequestedHostGeometry {
+  x: number = 0;
+  y: number = 0;
+  w: number = 1;
+  h: number = 1;
+}
+
+class HostResizeState {
+  width: number = 0;
+  height: number = 0;
+  ending: boolean = false;
+  timer: number = -1;
+}
+
 export class WineWindowManager {
   private static instance: WineWindowManager | null = null;
+  private hostResizes: Map<number, HostResizeState> = new Map();
+  private requestedGeometry: Map<number, RequestedHostGeometry> = new Map();
+  private applyingGeometry: Set<number> = new Set();
+  private foregroundAbilities: Set<number> = new Set();
+  private restoringAbilities: Map<number, Promise<void>> = new Map();
   private windowStage: window.WindowStage | null = null;
   private mainWindow: window.Window | null = null;
   private uiAbilityContext: common.UIAbilityContext | null = null;
@@ -31,6 +53,12 @@ export class WineWindowManager {
   private displayScale: number = 1.0;
   private scaleBoost: number = 1.0;  // 放大系数, 使 effectiveScale = displayScale × boost = 2.0
   private outputScalePercent: number = 100;
+  // Accepted desktop geometry, independent of the library window/display.
+  // Index finishes loading settings asynchronously, often before the desktop
+  // Ability has rotated. Re-reading that portrait display must not overwrite
+  // the landscape output used by Explorer's fixed-resolution /desktop shell.
+  private outputHostWidth: number = 0;
+  private outputHostHeight: number = 0;
   // 标题栏 + 边框总高度 (VP), 用于窗口 resize
   // = getWindowDecorHeight() + decorBorderOffset
   private measuredTitleBarH: number = 56;
@@ -58,6 +86,13 @@ export class WineWindowManager {
   // 自身藏光标 (启动瞬时 toplevelId==desktopRootId)"与"游戏子窗口真相对模式"。
   private pointerLockToplevel: number = 0;
   private desktopRootId: number = 0;
+  private desktopEmbeddedHost: boolean | null = null;
+
+  usesEmbeddedDesktopHost(): boolean {
+    return this.desktopEmbeddedHost ?? (!DeviceCapabilityPolicy.usesManagedWineWindows() &&
+      AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING);
+  }
+  private startupForegroundGuard: (() => boolean) | null = null;
   // 桌面启动器/悬浮窗可见性 (浮窗模式): Index 悬浮窗态=true → DesktopLayer
   // 跳过 root resize (桌面分辨率保持全屏, 缩略显示靠 letterbox); 全屏态=false
   desktopLauncherVisible: boolean = true;
@@ -66,6 +101,7 @@ export class WineWindowManager {
   private desktopAbilityRunning: boolean = false;
   private desktopAbilityForeground: boolean = false;
   private desktopAbilityRootId: number = 0;
+  private desktopAbilityRequest: Promise<void> | null = null;
   private desktopAbilityCtx: common.UIAbilityContext | null = null;
   // 主窗口 windowStage (ARGB 异型子窗口/popup 回退宿主)
   private mainWindowStage: window.WindowStage | null = null;
@@ -79,6 +115,7 @@ export class WineWindowManager {
    * 调用点: app 启动 (init) + 引擎每次启动前 (WineEngineService)。
    */
   applyModePolicy(): void {
+    const wasDesktop = this.isDesktopMode;
     const isPhone = DeviceCapabilityPolicy.isPhoneDevice();
     const explicitMode = DesktopModeService.getInstance().getOverrideMode();
     const savedMode = DesktopModeService.getInstance().mode;
@@ -92,7 +129,7 @@ export class WineWindowManager {
       this.presentationMode = this.isDesktopMode ?
         WinePresentationMode.DESKTOP : WinePresentationMode.MANAGED_WINDOWS;
     }
-    this.desktopRootId = 0;
+    if (wasDesktop !== this.isDesktopMode) this.desktopRootId = 0;
     testNapi.setDesktopMode(this.isDesktopMode);
     hilog.info(DOMAIN, TAG,
       '[MW] applyModePolicy=%{public}s nativeDesktop=%{public}s explicit=%{public}s',
@@ -106,13 +143,19 @@ export class WineWindowManager {
   // -- Pad 多窗口承载判定: 非 desktop 模式下, 每窗口是独立 UIAbility 主窗口
   //    (PC/2in1 现状) 还是主窗口 stage 下的 subWindow (Pad 多窗口)。
   //    调试键 winehua.fusionHost 可跨设备强制 (subwindow|ability)。
+  private fusionSubWindowHost: boolean | null = null;
+
+  private resolveFusionSubWindowHost(): boolean {
+    const forced = AppStorage.get<string>('winehua.fusionHost') ?? '';
+    if (forced === 'subwindow' || forced === 'ability') return forced === 'subwindow';
+    return DeviceCapabilityPolicy.isTabletDevice() && !DeviceCapabilityPolicy.usesManagedWineWindows();
+  }
+
   fusionUsesSubWindow(): boolean {
     if (this.isDesktopMode) return false;
-    if (DeviceCapabilityPolicy.isTabletDevice()) {
-      return AppStorage.get<string>('winehua.fusionHost') !== 'ability';
-    }
-    const forced = AppStorage.get<string>('winehua.fusionHost') ?? '';
-    return forced === 'subwindow';
+    // Keep a live session's carrier stable across PC/tablet mode changes.
+    // A new session picks up the current mode without rebuilding live surfaces.
+    return this.fusionSubWindowHost ?? this.resolveFusionSubWindowHost();
   }
 
   // toplevelId -> UIAbilityContext (用于 terminateSelf)
@@ -215,6 +258,20 @@ export class WineWindowManager {
       testNapi.setDisplayScale(this.displayScale * this.scaleBoost);
     }
 
+    HostWindowTasks.getInstance().setActivator(async (task: HostWindowTask,
+      current: () => boolean): Promise<boolean> => this.restoreTask(task, current));
+    HostWindowTasks.getInstance().setWineCloser(async (task: HostWindowTask, force: boolean): Promise<boolean> => {
+      const session = testNapi.getWineSession(task.sessionId);
+      if (!session || session.state === 'stopped') return false;
+      if (force) testNapi.stopWineSession(task.sessionId);
+      else testNapi.sendToplevelClose(task.toplevelId);
+      return true;
+    });
+    HostWindowTasks.getInstance().setLauncher(async (): Promise<void> => {
+      await this.startHostAbility({
+        bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility'
+      });
+    });
     hilog.info(DOMAIN, TAG, '[MW] registering toplevel callback...');
     testNapi.setToplevelCallback((id: number, event: string, data: string) => {
       hilog.info(DOMAIN, TAG, '[MW]  cb toplevel #%{public}d event=%{public}s data=%{public}s',
@@ -239,23 +296,24 @@ export class WineWindowManager {
       this.applyPointerVisibility();
     });
 
-    // A launcher resume recreates EntryAbility while the Wine desktop root can
-    // still be alive.  No new desktop_root event is emitted in that case, so
-    // explicitly bring the existing desktop compositor back to the foreground.
-    if (this.isDesktopMode && this.desktopRootId > 0) {
-      hilog.info(DOMAIN, TAG, '[MW] restoring existing DesktopAbility root=%{public}d',
-        this.desktopRootId);
-      this.startDesktopAbility(this.desktopRootId);
-    }
+    // Returning to the launcher is an explicit foreground choice. Existing
+    // desktop windows are restored through the task activator, never by init.
+
   }
 
   setPresentationMode(mode: WinePresentationMode): void {
+    HostWindowTasks.getInstance().reset();
+    this.fusionSubWindowHost = null;
+    this.desktopEmbeddedHost = null;
+    AppStorage.setOrCreate('desktopEmbeddedHost', false);
+    this.startupForegroundGuard = null;
     this.presentationMode = mode;
     this.isDesktopMode = mode === WinePresentationMode.DESKTOP;
     this.desktopRootId = 0;
     this.desktopAbilityRunning = false;
     this.desktopAbilityForeground = false;
     this.desktopAbilityRootId = 0;
+    this.desktopAbilityRequest = null;
     this.destroyed.clear();
     this.deferredRaiseTimers.forEach((timer: number): void => clearTimeout(timer));
     this.deferredRaiseTimers.clear();
@@ -269,8 +327,17 @@ export class WineWindowManager {
   }
 
   setOutputScalePercent(value: number): void {
-    this.outputScalePercent = Math.max(75, Math.min(150, value));
+    const nextScale = Math.max(75, Math.min(150, value));
+    if (nextScale === this.outputScalePercent && this.outputHostWidth > 0 && this.outputHostHeight > 0) {
+      return;
+    }
+    this.outputScalePercent = nextScale;
     try {
+      if (this.presentationMode === WinePresentationMode.DESKTOP &&
+        this.outputHostWidth > 0 && this.outputHostHeight > 0) {
+        this.syncOutputSize(this.outputHostWidth, this.outputHostHeight);
+        return;
+      }
       const currentDisplay = display.getDefaultDisplaySync();
       const safe = this.desktopDisplaySafeSize(currentDisplay.width, currentDisplay.height);
       this.syncOutputSize(safe.width, safe.height);
@@ -279,9 +346,23 @@ export class WineWindowManager {
     }
   }
 
-  syncOutputSize(widthPx: number, heightPx: number, forceToplevelResize: boolean = false): void {
-    if (widthPx <= 0 || heightPx <= 0) return;
+  syncOutputSize(widthPx: number, heightPx: number, forceToplevelResize: boolean = false): boolean {
+    if (widthPx <= 0 || heightPx <= 0) return false;
     try {
+      // Phone orientation transactions can first expose the old rectangle.
+      // Keep renderer sizing separate: a transient host surface can resize,
+      // but must not redefine the Wine desktop's resolution or configure it.
+      if (DeviceCapabilityPolicy.isPhoneDevice() &&
+        this.presentationMode === WinePresentationMode.DESKTOP) {
+        const orientation = AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
+          ?? ScreenOrientationSetting.SENSOR_LANDSCAPE;
+        const wantsLandscape = orientation !== ScreenOrientationSetting.PORTRAIT;
+        if (wantsLandscape ? widthPx < heightPx : heightPx < widthPx) {
+          hilog.info(DOMAIN, TAG, '[MW] skip transient output %{public}dx%{public}d requested=%{public}s',
+            widthPx, heightPx, orientation);
+          return false;
+        }
+      }
       const currentDisplay = display.getDefaultDisplaySync();
       this.displayScale = Math.max(0.1, currentDisplay.densityPixels);
       const effectiveScale = 2.0 * this.outputScalePercent / 100;
@@ -290,6 +371,8 @@ export class WineWindowManager {
       const outH = Math.max(1, Math.round(heightPx / effectiveScale));
       testNapi.setDisplayScale(effectiveScale);
       testNapi.setOutputSize(outW, outH);
+      this.outputHostWidth = widthPx;
+      this.outputHostHeight = heightPx;
       // setOutputSize updates compositor bookkeeping, but an existing Wine
       // Explorer desktop also needs an xdg configure. Some phone rotations do
       // not deliver a reliable XComponent surface-change callback, leaving the
@@ -307,8 +390,10 @@ export class WineWindowManager {
       hilog.info(DOMAIN, TAG,
         '[MW] host size=%{public}dx%{public}d output=%{public}dx%{public}d scale=%{public}s',
         widthPx, heightPx, outW, outH, effectiveScale.toFixed(2));
+      return true;
     } catch (error) {
       hilog.warn(DOMAIN, TAG, '[MW] syncOutputSize failed: %{public}s', JSON.stringify(error));
+      return false;
     }
   }
 
@@ -373,8 +458,48 @@ export class WineWindowManager {
       toplevelId, this.abilityContexts.size);
   }
 
+  isHostWindowResizing(id: number): boolean {
+    return this.hostResizes.has(id);
+  }
+
+  onHostWindowRectChange(id: number, change: window.RectChangeOptions): void {
+    if (this.desktopOwns(id) || !this.windows.has(id)) return;
+    const reason = change.reason;
+    const drag = reason === window.RectChangeReason.DRAG_START || reason === window.RectChangeReason.DRAG;
+    const end = reason === window.RectChangeReason.DRAG_END;
+    if (!drag && !end) return;
+    let state = this.hostResizes.get(id);
+    if (!state) {
+      if (!drag) return;
+      state = new HostResizeState();
+      this.hostResizes.set(id, state);
+    }
+    if (state.timer >= 0) clearTimeout(state.timer);
+    const scale = this.getEffectiveScale();
+    state.width = Math.max(1, Math.round(change.rect.width / scale));
+    state.height = Math.max(1, Math.round(change.rect.height / scale));
+    state.ending = end;
+    testNapi.notifyToplevelResize(id, state.width, state.height, true);
+    if (end) {
+      // Normally finish after Wine acknowledges this exact content size. The
+      // bound also ends size-move when an unresponsive client never commits.
+      state.timer = setTimeout((): void => this.finishHostResize(id), 500);
+      const accepted = this.lastResizeWineDim.get(id);
+      if (accepted && accepted[0] === state.width && accepted[1] === state.height) this.finishHostResize(id);
+    }
+  }
+
+  private finishHostResize(id: number): void {
+    const state = this.hostResizes.get(id);
+    if (!state) return;
+    if (state.timer >= 0) clearTimeout(state.timer);
+    this.hostResizes.delete(id);
+    testNapi.notifyToplevelResizeEnd(id);
+  }
+
   registerWindow(toplevelId: number, win: window.Window): void {
     this.windows.set(toplevelId, win);
+    this.pendingStarts.delete(toplevelId);
     hilog.info(DOMAIN, TAG, '[MW]  registerWindow #%{public}d (total=%{public}d, pendingStarts=%{public}s)',
       toplevelId, this.windows.size, this.pendingStarts.has(toplevelId) ? 'yes' : 'no');
   }
@@ -428,6 +553,7 @@ export class WineWindowManager {
     FusionWindowManager.getInstance().destroy(toplevelId);
     this.moveGrabPending.delete(toplevelId);
     this.clearPointerLockFor(toplevelId);
+    this.foregroundAbilities.delete(toplevelId);
     this.abilityContexts.delete(toplevelId);
     this.windows.delete(toplevelId);
     this.windowStages.delete(toplevelId);
@@ -440,6 +566,9 @@ export class WineWindowManager {
     this.surfaceSizes.delete(toplevelId);
     this.lastResizeTargetH.delete(toplevelId);
     this.lastResizeWineDim.delete(toplevelId);
+    const hostResize = this.hostResizes.get(toplevelId);
+    if (hostResize && hostResize.timer >= 0) clearTimeout(hostResize.timer);
+    this.hostResizes.delete(toplevelId);
     this.lastPreMaximizeDim.delete(toplevelId);
     this.lastTitles.delete(toplevelId);
     this.lastArgb.delete(toplevelId);
@@ -479,6 +608,97 @@ export class WineWindowManager {
     PopupWindowManager.getInstance().raisePopups(toplevelId);
   }
 
+  private desktopOwns(_id: number): boolean { return this.isDesktopMode; }
+
+  private async restoreTask(task: HostWindowTask, current: () => boolean): Promise<boolean> {
+    if (!current() || this.destroyed.has(task.toplevelId)) return false;
+    if (this.desktopOwns(task.toplevelId)) {
+      const root = this.desktopRootId || testNapi.getDesktopRootId();
+      if (root <= 0) return false;
+      InputDispatcher.getInstance().releaseAll('host-task-switch');
+      if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
+        AppStorage.setOrCreate('desktopLauncherVisible', false);
+        await this.startHostAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'EntryAbility' });
+      } else if (!this.desktopAbilityForeground) {
+        // startAbility foregrounds the existing singleton without restarting Wine.
+        await this.startHostAbility({ bundleName: 'com.vintage.pomelopro', abilityName: 'DesktopAbility',
+          parameters: { toplevelId: root } });
+      }
+      if (!current()) return false;
+      const target = HostWindowTasks.getInstance().focusTarget(task.toplevelId);
+      testNapi.activateToplevel(target);
+      InputDispatcher.getInstance().setActiveToplevel(target);
+      return true;
+    }
+    const win = this.windows.get(task.toplevelId);
+    if (!win) return false;
+    InputDispatcher.getInstance().releaseAll('host-task-switch');
+    try {
+      if (this.fusionUsesSubWindow()) {
+        await win.showWindow();
+        if (!current()) return false;
+        await win.raiseToAppTop();
+      } else {
+        // Window.restore() requires its Ability to be foreground. startAbility
+        // reuses the specified instance instead of creating a second window.
+        await this.foregroundWineWindow(task.toplevelId, win);
+      }
+      if (!current() || this.windows.get(task.toplevelId) !== win || this.destroyed.has(task.toplevelId)) return false;
+      this.raiseWindowGroup(task.toplevelId);
+      const target = HostWindowTasks.getInstance().focusTarget(task.toplevelId);
+      if (target !== task.toplevelId) testNapi.activateToplevel(task.toplevelId);
+      testNapi.activateToplevel(target);
+      InputDispatcher.getInstance().setActiveToplevel(target);
+      hilog.info(DOMAIN, TAG, '[TASK] restored tl=%{public}d focus=%{public}d', task.toplevelId, target);
+      return true;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, '[TASK] restore failed tl=%{public}d: %{public}s', task.toplevelId, JSON.stringify(error));
+      return false;
+    }
+  }
+
+  noteAbilityForeground(id: number, foreground: boolean): void {
+    // Set insertion order tracks the latest foreground event on multiwindow PCs.
+    this.foregroundAbilities.delete(id);
+    if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
+  }
+
+  private startHostAbility(want: Want): Promise<void> {
+    let context = (this.desktopAbilityForeground && this.desktopAbilityCtx) ? this.desktopAbilityCtx : this.uiAbilityContext;
+    let source = this.desktopAbilityForeground && this.desktopAbilityCtx ? 'desktop' : 'entry';
+    this.foregroundAbilities.forEach((id: number): void => {
+      const candidate = this.abilityContexts.get(id);
+      if (candidate && !this.destroyed.has(id)) {
+        context = candidate;
+        source = `window:${id}`;
+      }
+    });
+    if (!context) return Promise.reject(new Error('Foreground host context unavailable'));
+    hilog.info(DOMAIN, TAG, '[MW] host start ability=%{public}s from=%{public}s', want.abilityName ?? '', source);
+    try {
+      return context.startAbility(want);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  private async foregroundWineWindow(id: number, win: window.Window): Promise<void> {
+    if (this.windows.get(id) !== win || this.destroyed.has(id)) return;
+    const pending = this.restoringAbilities.get(id);
+    if (pending) return pending;
+    if (!this.abilityContexts.has(id)) throw new Error('Wine window Ability is unavailable');
+    const request = this.startHostAbility({
+      bundleName: 'com.vintage.pomelopro', moduleName: 'entry', abilityName: 'WineWindowAbility',
+      parameters: { toplevelId: id, restoreWineWindow: true }
+    });
+    this.restoringAbilities.set(id, request);
+    try {
+      await request;
+    } finally {
+      if (this.restoringAbilities.get(id) === request) this.restoringAbilities.delete(id);
+    }
+  }
+
   getWindow(toplevelId: number): window.Window | undefined {
     return this.windows.get(toplevelId);
   }
@@ -500,7 +720,7 @@ export class WineWindowManager {
     this.cancelDeferredRaise(id);
     const timer = setTimeout((): void => {
       this.deferredRaiseTimers.delete(id);
-      if (this.isDesktopMode || this.destroyed.has(id) || !this.loadedWindows.has(id) ||
+      if (this.desktopOwns(id) || this.destroyed.has(id) || !this.loadedWindows.has(id) ||
           this.fullscreenWindows.has(id)) {
         hilog.info(DOMAIN, TAG,
           '[MW] deferred raise #%{public}d skipped reason=%{public}s fullscreen=%{public}s loaded=%{public}s',
@@ -534,7 +754,7 @@ export class WineWindowManager {
       hilog.info(DOMAIN, TAG, '[MW] onAfterLoadContent #%{public}d: fullscreen, skip system raise', toplevelId);
     } else if (this.pendingRaises.delete(toplevelId)) {
       this.scheduleManagedRaise(toplevelId, 'pending-wine-raise');
-    } else if (!this.isDesktopMode) {
+    } else if (!this.desktopOwns(toplevelId)) {
       // 第二次打开窗口时 Wine 可能不再发 raise；延迟补一次，并让随后到达的
       // fullscreen 事件有机会取消它。
       this.scheduleManagedRaise(toplevelId, 'new-window-focus');
@@ -613,11 +833,13 @@ export class WineWindowManager {
 
   // -- toplevel 事件分发 --
   private onToplevelEvent(id: number, event: string, data: string): void {
+    HostWindowTasks.getInstance().onEvent(id, event, data);
+    if (event === 'minimized') InputDispatcher.getInstance().releaseAll('window-minimized');
     hilog.info(DOMAIN, TAG, '[MW] onToplevelEvent #%{public}d event=%{public}s hasWindow=%{public}s',
       id, event, this.windows.has(id) ? 'yes' : 'no');
 
     // PC 融合模式 modal: 不建 Ability。桌面模式由 compositor 组员化+输入拦截处理。
-    if (!this.isDesktopMode && (event === 'modal' || this.modalToplevelIds.has(id))) {
+    if (!this.desktopOwns(id) && (event === 'modal' || this.modalToplevelIds.has(id))) {
       if (event === 'modal') {
         try {
           const obj: Record<string, number> = JSON.parse(data) as Record<string, number>;
@@ -659,14 +881,12 @@ export class WineWindowManager {
       case 'created':
         try {
           const initial = JSON.parse(data) as Record<string, string | number>;
-          if (this.sessionAssociationCallback &&
-            (this.presentationMode === WinePresentationMode.MANAGED_WINDOWS ||
-              this.isDesktopMode)) {
+          if (this.sessionAssociationCallback) {
             this.sessionAssociationCallback(initial.sessionId as string ?? '', initial.clientPid as number ?? 0, id);
           }
         } catch (_) {
         }
-        if (this.isDesktopMode) {
+        if (this.desktopOwns(id)) {
           hilog.info(DOMAIN, TAG, '[MW] Desktop mode: toplevel #%{public}d created, skipping Ability', id);
         } else {
           hilog.info(DOMAIN, TAG, '[MW] managed windows -> startWineWindowAbility(#%{public}d)', id);
@@ -677,10 +897,17 @@ export class WineWindowManager {
         if (this.presentationMode === WinePresentationMode.DESKTOP) {
           hilog.info(DOMAIN, TAG, '[MW] desktop_root #%{public}d -> start DesktopAbility', id);
           if (this.sessionAssociationCallback) this.sessionAssociationCallback(DESKTOP_SESSION_ID, 0, id);
+          if (this.desktopRootId !== id || this.desktopEmbeddedHost === null) {
+            this.desktopEmbeddedHost = !DeviceCapabilityPolicy.usesManagedWineWindows() &&
+              AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING;
+          }
           this.desktopRootId = id;
+          AppStorage.setOrCreate('desktopEmbeddedHost', this.desktopEmbeddedHost);
           // 浮窗模式: Index 承载桌面 (desktopActive 驱动 @StorageProp)
           AppStorage.setOrCreate('desktopActive', true);
-          this.startDesktopAbility(id);
+          // The user may have navigated elsewhere while the engine booted.
+          // Keep the root registered; a later explicit task restore can show it.
+          if (!this.startupForegroundGuard || this.startupForegroundGuard()) this.startDesktopAbility(id);
         } else {
           // A stale explorer root may arrive while changing from an older PC
           // desktop session. Managed-window hosts expose only actual program
@@ -698,7 +925,7 @@ export class WineWindowManager {
         this.cancelDeferredRaise(id);
         hilog.info(DOMAIN, TAG, '[MW] fullscreen #%{public}d: cancel managed raise', id);
         // 桌面模式: 全屏由 C++ 合成器直接处理 (缩放绘制 + 输入映射), ArkTS 无需动作
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         // PC 模式: 游戏 xdg fullscreen → OHOS 沉浸式全屏 (盖住 dock/任务栏)。
         // 游戏画面由 popup (全屏拉伸) 承载, 主窗口最大化保证无系统 UI 露出。
         if (this.windows.has(id)) {
@@ -712,7 +939,7 @@ export class WineWindowManager {
       case 'unfullscreen':
         this.fullscreenWindows.delete(id);
         hilog.info(DOMAIN, TAG, '[MW] unfullscreen #%{public}d', id);
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           this.applyEvent(id, event, data);
         } else {
@@ -722,7 +949,7 @@ export class WineWindowManager {
         }
         break;
       case 'raise':
-        if (!this.isDesktopMode && !this.fullscreenWindows.has(id)) {
+        if (!this.desktopOwns(id) && !this.fullscreenWindows.has(id)) {
           if (this.fusionUsesSubWindow()) {
             this.raiseWindowGroup(id);
           } else if (this.loadedWindows.has(id)) {
@@ -735,7 +962,7 @@ export class WineWindowManager {
         break;
       case 'surface':
         // Desktop 模式: 非 root toplevel 事件跳过
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         // C++ 回报 XComponent surface 的物理像素尺寸, 用于动态校准标题栏高度
         try {
           const obj: Record<string, string | number> = JSON.parse(data) as Record<string, string | number>;
@@ -796,7 +1023,8 @@ export class WineWindowManager {
         break;
       case 'title':
       case 'resize':
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+      case 'geometry':
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           hilog.info(DOMAIN, TAG, '[MW] -> applyEvent directly #%{public}d %{public}s', id, event);
           this.applyEvent(id, event, data);
@@ -814,7 +1042,7 @@ export class WineWindowManager {
       case 'unmaximized':
       case 'limits':
       case 'argb':
-        if (this.isDesktopMode && id !== this.desktopRootId) return;
+        if (this.desktopOwns(id) && id !== this.desktopRootId) return;
         if (this.windows.has(id)) {
           this.applyEvent(id, event, data);
         } else {
@@ -828,7 +1056,7 @@ export class WineWindowManager {
       case 'popup_resize':
       case 'popup_hide':
         // PC 模式 popup 子窗口 (desktop 模式 C++ 不会发这些事件)
-        if (this.isDesktopMode) return;
+        if (this.desktopOwns(id)) return;
         // 父窗口 Wine 尺寸传给 PopupWindowManager: 全屏游戏把渲染 surface 放
         // popup (popup 尺寸==模拟分辨率==父窗口尺寸), 需判定并拉伸到宿主屏幕;
         // 普通菜单 popup 不受影响。
@@ -849,25 +1077,23 @@ export class WineWindowManager {
    * PC 沉浸全屏: 铺满屏幕并禁用顶/底边 hover 标题栏、关闭条和 Dock。
    * 默认无参 maximize() 是 ENTER_IMMERSIVE, 会弹出关闭条抢走边缘鼠标。
    */
-  enterImmersiveFullscreen(win: window.Window, logId: number = 0): void {
+  async enterImmersiveFullscreen(win: window.Window, logId: number = 0): Promise<boolean> {
     const label = logId > 0 ? '#' + logId.toString() : 'desktop';
     try {
-      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s → DISABLE_TITLE_AND_DOCK_HOVER', label);
-      win.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER).then(() => {
-        hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s OK (DISABLE_HOVER)', label);
-      }).catch((err: Error) => {
-        hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s DISABLE_HOVER failed, fallback: %{public}s',
-          label, JSON.stringify(err));
-        win.maximize().then(() => {
-          hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s OK (ENTER_IMMERSIVE fallback)', label);
-        }).catch((fallbackErr: Error) => {
-          hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s fallback failed: %{public}s',
-            label, JSON.stringify(fallbackErr));
-        });
-      });
+      await win.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER);
+      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s accepted (DISABLE_HOVER)', label);
+      return true;
     } catch (err) {
-      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s exception: %{public}s',
+      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s DISABLE_HOVER failed, fallback: %{public}s',
         label, JSON.stringify(err));
+    }
+    try {
+      await win.maximize();
+      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s accepted (fallback)', label);
+      return true;
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s failed: %{public}s', label, JSON.stringify(err));
+      return false;
     }
   }
 
@@ -897,6 +1123,33 @@ export class WineWindowManager {
     }
   }
 
+  // One in-flight native operation, one latest request per live host. Dragging
+  // must not enqueue an unbounded chain or move a replacement window after await.
+  private async applyRequestedGeometry(id: number, win: window.Window): Promise<void> {
+    if (this.applyingGeometry.has(id)) return;
+    this.applyingGeometry.add(id);
+    try {
+      while (this.windows.get(id) === win && !this.destroyed.has(id)) {
+        const request = this.requestedGeometry.get(id);
+        if (!request) break;
+        this.requestedGeometry.delete(id);
+        const scale = this.getEffectiveScale();
+        const w = Math.max(1, Math.round(request.w * scale));
+        const h = Math.max(1, Math.round(request.h * scale));
+        const rect = win.getGlobalRect();
+        if (rect.width !== w || rect.height !== h) await win.resize(w, h);
+        if (this.windows.get(id) !== win || this.destroyed.has(id)) break;
+        const x = Math.round(request.x * scale), y = Math.round(request.y * scale);
+        if (rect.left !== x || rect.top !== y) await win.moveWindowToGlobal(x, y);
+      }
+    } catch (err) {
+      hilog.warn(DOMAIN, TAG, '[MW] requested geometry #%{public}d: %{public}s', id, JSON.stringify(err));
+    } finally {
+      this.requestedGeometry.delete(id);
+      this.applyingGeometry.delete(id);
+    }
+  }
+
   // -- apply 单个事件到 window.Window --
   private applyEvent(toplevelId: number, event: string, data: string): void {
     const win = this.windows.get(toplevelId);
@@ -904,6 +1157,7 @@ export class WineWindowManager {
       hilog.warn(DOMAIN, TAG, '[MW] applyEvent #%{public}d: window NOT FOUND (unregistered?)', toplevelId);
       return;
     }
+
 
     // Pad 多窗口 (subWindow 承载): 系统接口差异适配 —
     //   title     → subWindow decorEnabled:false 时 setWindowTitle 报 1300002,
@@ -949,6 +1203,18 @@ export class WineWindowManager {
           hilog.warn(DOMAIN, TAG, '[MW] applyEvent title parse error: %{public}s', JSON.stringify(e));
         }
         break;
+      case 'geometry':
+        try {
+          const obj: Record<string, number> = JSON.parse(data) as Record<string, number>;
+          if (![obj.x, obj.y, obj.w, obj.h].every((v: number) => Number.isFinite(v)) || obj.w <= 0 || obj.h <= 0) break;
+          const request = new RequestedHostGeometry();
+          request.x = obj.x; request.y = obj.y; request.w = obj.w; request.h = obj.h;
+          this.requestedGeometry.set(toplevelId, request);
+          this.applyRequestedGeometry(toplevelId, win);
+        } catch (err) {
+          hilog.warn(DOMAIN, TAG, '[MW] geometry parse failed: %{public}s', JSON.stringify(err));
+        }
+        break;
       case 'resize':
         try {
           const obj: Record<string, string | number> = JSON.parse(data) as Record<string, string | number>;
@@ -962,6 +1228,13 @@ export class WineWindowManager {
             //  保存目标尺寸, 供 surface 事件校准 titleBarH + 重新 resize
             this.lastResizeTargetH.set(toplevelId, winH);
             this.lastResizeWineDim.set(toplevelId, [w, h]);
+            const hostResize = this.hostResizes.get(toplevelId);
+            if (hostResize) {
+              // Intermediate Wine buffers cannot resize the WMS window back
+              // underneath the user's pointer. Wait for the requested frame.
+              if (hostResize.ending && w === hostResize.width && h === hostResize.height) this.finishHostResize(toplevelId);
+              break;
+            }
             hilog.info(DOMAIN, TAG, '[MW-RESIZE] tl=%{public}d wine=%{public}dx%{public}d window=%{public}dx%{public}d scale=%{public}s',
               toplevelId, w, h, winW, winH, s.toFixed(1));
             win.resize(winW, winH);
@@ -1007,7 +1280,8 @@ export class WineWindowManager {
         break;
       case 'restored':
         hilog.info(DOMAIN, TAG, '[MW] showWindow #%{public}d', toplevelId);
-        win.showWindow().catch((e: Error) => {
+        if (this.foregroundAbilities.has(toplevelId)) break;
+        this.foregroundWineWindow(toplevelId, win).catch((e: Error) => {
           hilog.warn(DOMAIN, TAG, '[MW] showWindow #%{public}d failed: %{public}s', toplevelId, JSON.stringify(e));
         });
         break;
@@ -1072,19 +1346,20 @@ export class WineWindowManager {
     }
   }
 
-  // -- startAbility 启动 multiton 实例 (Pad 多窗口模式经 startFusionSubWindow 分叉) --
-  private startWineWindowAbility(id: number, data: string): void {
+  // -- startAbility 启动 specified 实例 (Pad 多窗口模式经 startFusionSubWindow 分叉) --
+  private startWineWindowAbility(id: number, data: string): Promise<void> {
     if (this.modalToplevelIds.has(id)) {
       hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: modal, skip Ability', id);
-      return;
+      return Promise.resolve();
     }
+    if (this.fusionSubWindowHost === null) this.fusionSubWindowHost = this.resolveFusionSubWindowHost();
     if (this.fusionUsesSubWindow()) {
       this.startFusionSubWindow(id, data);
-      return;
+      return Promise.resolve();
     }
-    if (this.pendingStarts.has(id)) {
+    if (this.pendingStarts.has(id) || this.windows.has(id) || this.abilityContexts.has(id)) {
       hilog.warn(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: already in flight, skip', id);
-      return;
+      return Promise.resolve();
     }
     this.pendingStarts.add(id);
     hilog.info(DOMAIN, TAG, '[MW] startWineWindowAbility #%{public}d: pendingStarts now %{public}d',
@@ -1107,12 +1382,6 @@ export class WineWindowManager {
     hilog.info(DOMAIN, TAG, '[MW]  startAbility(WineWindowAbility) #%{public}d title="%{public}s"',
       id, title);
 
-    if (!this.uiAbilityContext) {
-      hilog.error(DOMAIN, TAG, '[MW] FATAL: no uiAbilityContext, cannot start ability');
-      this.pendingStarts.delete(id);
-      return;
-    }
-
     const want: Want = {
       bundleName: 'com.vintage.pomelopro',
       abilityName: 'WineWindowAbility',
@@ -1122,10 +1391,13 @@ export class WineWindowManager {
     hilog.info(DOMAIN, TAG, '[MW] startAbility want: bundle=%{public}s ability=%{public}s params=%{public}s',
       want.bundleName ?? '', want.abilityName ?? '', JSON.stringify(want.parameters));
 
-    this.uiAbilityContext.startAbility(want).then(() => {
+    return this.startHostAbility(want).then(() => {
       hilog.info(DOMAIN, TAG, '[MW] OK startAbility #%{public}d resolved (AMS accepted)', id);
-      this.pendingStarts.delete(id);
+      // AMS acknowledgement precedes onWindowStageCreate. Keep the reservation
+      // until registerWindow/destroy so native ownership polling cannot launch
+      // a duplicate Ability and close the live surface on its rejected request.
     }).catch((err: Error) => {
+      if (this.destroyed.has(id)) return;
       hilog.error(DOMAIN, TAG, '[MW] ERR startAbility #%{public}d REJECTED: %{public}s',
         id, JSON.stringify(err));
       this.pendingStarts.delete(id);
@@ -1170,7 +1442,8 @@ export class WineWindowManager {
       this.registerWindow(winId, subWin);
       try { testNapi.registerHostWindow(subWin.getWindowProperties().id); } catch (_) { /* ignore */ }
       try {
-        subWin.on('windowRectChange', () => {
+        subWin.on('windowRectChange', (change: window.RectChangeOptions) => {
+            this.onHostWindowRectChange(winId, change);
           PopupWindowManager.getInstance().repositionPopups(winId, subWin, this.getEffectiveScale());
         });
       } catch (_) { /* ignore */ }
@@ -1225,10 +1498,11 @@ export class WineWindowManager {
       this.desktopAbilityRunning = false;
       this.desktopAbilityForeground = false;
       this.desktopAbilityRootId = 0;
+      this.desktopAbilityRequest = null;
       return;
     }
     // Desktop 模式: 非 root toplevel 销毁, C++ 自动停止合成
-    if (this.isDesktopMode) {
+    if (this.desktopOwns(id)) {
       this.unregisterAbility(id);
       return;
     }
@@ -1243,6 +1517,7 @@ export class WineWindowManager {
       this.unregisterAbility(id);
       return;
     }
+
 
     // Managed-window compatibility path
     if (!this.abilityContexts.has(id) && !this.pendingStarts.has(id)) {
@@ -1264,70 +1539,73 @@ export class WineWindowManager {
   }
 
   // Desktop 模式: 打开 DesktopAbility
+  setStartupForegroundGuard(guard: (() => boolean) | null): void { this.startupForegroundGuard = guard; }
+
   private startDesktopAbility(rootId: number): void {
-    // 浮窗模式 (平板/手机): 桌面由 Index 页面承载 (DesktopLayer floating 切换),
-    // 不启动 DesktopAbility — 放大/缩小都在当前画面 (Index) 内完成, 不切窗口。
-    if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
-      hilog.info(DOMAIN, TAG, '[MW] floating mode: desktop hosted by Index, skip DesktopAbility #%{public}d', rootId);
-      return;
-    }
-    // PC/2in1 融合模式 (FUSION, isDesktopMode=false): 每程序独立窗口, 不启动
-    // 桌面合成器 → suppress desktop root Ability。
-    // PC/2in1 虚拟桌面模式 (VIRTUAL, isDesktopMode=true): 用 DesktopAbility
-    // 独立浮动窗口承载 Wine 桌面 (DesktopAbility 内按 PC 分支浮动 + 保留标题栏)。
-    if (AppSettingsStore.getInstance().usesManagedWineWindows() && !this.isDesktopMode) {
-      hilog.warn(DOMAIN, TAG, '[MW] suppress DesktopAbility #%{public}d on managed-window host', rootId);
-      return;
-    }
-    // 同一个 explorer root 可能同时收到 created/promote 两次事件。只让
-    // 第一个事件唤起 Ability，避免 PC 上每次启动都弹出重复桌面窗口。
-    if (this.desktopAbilityRunning && this.desktopAbilityRootId === rootId) {
-      hilog.info(DOMAIN, TAG, '[MW] DesktopAbility already running for root #%{public}d, skip', rootId);
-      return;
-    }
-    this.desktopAbilityRunning = true;
-    this.desktopAbilityForeground = false;
-    this.desktopAbilityRootId = rootId;
-    // 浮窗模式: 桌面窗口打开 → Index 小浮窗隐藏 (AppStorage 驱动 @StorageProp)
-    AppStorage.setOrCreate('desktopWindowActive', true);
-    try {
-      const want: Want = {
-        bundleName: 'com.vintage.pomelopro',
-        abilityName: 'DesktopAbility',
-        parameters: {
-          toplevelId: rootId,
-          // Capture the setting at session creation. DesktopAbility applies it
-          // before loadContent so Wine never starts against a stale portrait
-          // output rectangle.
-          desktopOrientation: AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
-            ?? ScreenOrientationSetting.SENSOR_LANDSCAPE
-        }
-      };
-      this.uiAbilityContext!.startAbility(want).catch((err: Error) => {
-        hilog.error(DOMAIN, TAG, '[MW] startAbility(DesktopAbility) failed: %{public}s',
-          JSON.stringify(err));
-        if (this.desktopAbilityRootId === rootId) this.desktopAbilityRunning = false;
-      });
-      hilog.info(DOMAIN, TAG, '[MW] startAbility(DesktopAbility) #%{public}d OK', rootId);
-    } catch (e) {
-      hilog.error(DOMAIN, TAG, '[MW] startDesktopAbility error: %{public}s', JSON.stringify(e));
-      if (this.desktopAbilityRootId === rootId) this.desktopAbilityRunning = false;
-    }
+    this.requestDesktopAbility(rootId, false).catch((err: Error) => {
+      hilog.error(DOMAIN, TAG, '[MW] startAbility(DesktopAbility) failed: %{public}s', JSON.stringify(err));
+    });
   }
 
-  /**
-   * 浮窗模式: 重新拉起桌面窗口 (Index 小浮窗点击放大)。平板/手机浮窗模式下
-   * 用户缩小/关窗后 root 保留 (DesktopAbility.onDestroy 不杀 root), 引擎会话
-   * 后台继续; 点击小浮窗经此重新 startAbility(DesktopAbility) 全屏呈现。
-   * 复用 startDesktopAbility 的防重 (desktopAbilityRunning) — 窗口已打开时跳过。
-   */
-  openDesktopWindow(): void {
-    const rootId = this.desktopRootId;
-    if (rootId <= 0) {
-      hilog.warn(DOMAIN, TAG, '[MW] openDesktopWindow: no desktop root, skip');
-      return;
+  private requestDesktopAbility(rootId: number, restore: boolean): Promise<void> {
+    if (!this.isDesktopMode || rootId <= 0 || rootId !== this.desktopRootId || this.usesEmbeddedDesktopHost()) {
+      return Promise.resolve();
     }
-    this.startDesktopAbility(rootId);
+    if (this.desktopAbilityRootId === rootId) {
+      // PC windows can all remain FOREGROUND while another window covers the
+      // carrier. An explicit card click must still raise the singleton host.
+      if (!restore && this.desktopAbilityRunning) return Promise.resolve();
+      if (this.desktopAbilityRequest) return this.desktopAbilityRequest;
+    }
+    // A root event creates the carrier once. Explicit restore also raises a
+    // covered carrier; concurrent root/game/card requests share one call.
+    this.desktopAbilityRunning = true;
+    if (this.desktopAbilityRootId !== rootId) this.desktopAbilityForeground = false;
+    this.desktopAbilityRootId = rootId;
+    AppStorage.setOrCreate('desktopWindowActive', true);
+    const want: Want = {
+      bundleName: 'com.vintage.pomelopro',
+      abilityName: 'DesktopAbility',
+      parameters: {
+        toplevelId: rootId,
+        desktopOrientation: AppSettingsStore.getInstance().getGlobalSettings().desktopOrientation
+          ?? ScreenOrientationSetting.SENSOR_LANDSCAPE
+      }
+    };
+    let started: Promise<void>;
+    try {
+      started = this.startHostAbility(want);
+    } catch (e) {
+      started = Promise.reject(e);
+    }
+    const request: Promise<void> = started.catch((err: Error): void => {
+      if (this.desktopAbilityRequest === request && this.desktopAbilityRootId === rootId &&
+        !this.desktopAbilityForeground) {
+        this.desktopAbilityRunning = false;
+        AppStorage.setOrCreate('desktopWindowActive', false);
+      }
+      throw err;
+    }).finally((): void => {
+      if (this.desktopAbilityRequest === request) this.desktopAbilityRequest = null;
+    });
+    this.desktopAbilityRequest = request;
+    return request;
+  }
+
+  /** Restore the pinned carrier, preserving the existing Wine root/processes. */
+  resumeDesktopHost(): Promise<void> {
+    const rootId = this.desktopRootId;
+    if (!this.isDesktopMode || rootId <= 0) return Promise.resolve();
+    if (this.usesEmbeddedDesktopHost()) {
+      AppStorage.setOrCreate('desktopEnterFullscreen', true);
+      return Promise.resolve();
+    }
+    return this.requestDesktopAbility(rootId, true);
+  }
+
+  openDesktopWindow(): void {
+    // Ensure the initial carrier only; foreground restoration uses resumeDesktopHost().
+    this.startDesktopAbility(this.desktopRootId);
   }
 
   /**
@@ -1371,7 +1649,9 @@ export class WineWindowManager {
     try {
       const win = await window.getLastWindow(this.desktopAbilityCtx);
       if (win) {
-        await this.exitImmersiveFullscreen(win, true, 0);
+        AppStorage.setOrCreate('vdRestoring', true);
+        try { await this.exitImmersiveFullscreen(win, true, 0); }
+        finally { AppStorage.setOrCreate('vdRestoring', false); }
         AppStorage.setOrCreate('vdImmersive', false);
         hilog.info(DOMAIN, TAG, '[MW] recoverDesktopWindow OK');
       }
@@ -1416,6 +1696,9 @@ export class WineWindowManager {
     this.desktopAbilityRootId = rootId;
     this.desktopAbilityRunning = true;
     this.desktopAbilityForeground = true;
+    // Lifecycle confirmation supersedes an OS request still awaiting completion.
+    this.desktopAbilityRequest = null;
+    HostWindowTasks.getInstance().markDesktopForeground();
     hilog.info(DOMAIN, TAG, '[MW] DesktopAbility foreground for root #%{public}d', rootId);
     // 完整桌面窗口前台: 若 wine 已相对模式, 从悬浮禁止隐藏重算为允许隐藏
     this.applyPointerVisibility();
@@ -1433,6 +1716,7 @@ export class WineWindowManager {
     if (this.desktopAbilityRootId !== rootId) return;
     this.desktopAbilityRunning = false;
     this.desktopAbilityForeground = false;
+    this.desktopAbilityRequest = null;
     // 浮窗模式: 桌面窗口关闭/缩小 → Index 小浮窗重现 (AppStorage 驱动 @StorageProp)
     AppStorage.setOrCreate('desktopWindowActive', false);
     hilog.info(DOMAIN, TAG, '[MW] DesktopAbility stopped for root #%{public}d', rootId);
@@ -1477,14 +1761,13 @@ export class WineWindowManager {
   //   完整桌面下 fromToplevel == desktopRootId → 桌面 shell 自身藏
   //   光标 (启动瞬时) → 禁止; 子窗口 (真实游戏/程序) → 允许。
   private canHideCursor(fromToplevel: number): boolean {
-    if (!this.isDesktopMode) return true;
-    if (DeviceCapabilityPolicy.usesManagedWineWindows()) {
+    if (!this.desktopOwns(fromToplevel)) return this.foregroundAbilities.has(fromToplevel);
+    if (this.desktopAbilityRunning || DeviceCapabilityPolicy.usesManagedWineWindows()) {
       if (!this.desktopAbilityForeground) return false;
     } else {
       if (this.desktopLauncherVisible) return false;
-      if (this.desktopAbilityRunning && !this.desktopAbilityForeground) return false;
     }
-    return fromToplevel !== this.desktopRootId;
+    return fromToplevel > 0 && fromToplevel !== this.desktopRootId;
   }
 
   // 关窗/锁定失败时清相对模式锁: 与 native ReleaseLockForToplevel 配对,

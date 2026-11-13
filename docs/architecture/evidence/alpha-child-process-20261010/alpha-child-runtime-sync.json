@@ -1,0 +1,31 @@
+{
+  "hap": "alpha-child-path-fixed-20261010-unsigned.hap",
+  "hapSha256": "aa4335a8a081de3826067c5581e3693b344dd1237929d20de8eb48a6c02304d8",
+  "changedAssets": [
+    {
+      "path": "entry/libs/arm64-v8a/ntdll.so",
+      "before": "f12c3aec35db5d406ebaab2367de163f8baafc3df7844f6f89033fee332d677d",
+      "after": "9c2ef6bce25bdcf702ed60064bc782b41dcb89d3d2e1be4d7a7a4ad6ac1ed4d3",
+      "size": 3407008
+    },
+    {
+      "path": "entry/src/main/resources/rawfile/wine-data.zip",
+      "before": "0131ca9feeb51fb348740d9257f599caf249f2ffbb966b233738232216912872",
+      "after": "d4f846b155d588d239abd05a9eb1dbf536115df6ae2cc226f8f856071a2456ad",
+      "size": 222663516
+    },
+    {
+      "path": "entry/src/main/resources/rawfile/wine_runtime.version",
+      "before": "aa17c28c6fb0a90dd6052eecbe43cc7fe649c4e0e4718e5b455b0a97a1e4dcbd",
+      "after": "d788fe97cd927d4d3bdf02d7af8bef79105d230119d138e5f5d9b4e5d60f4dcb",
+      "size": 85
+    },
+    {
+      "path": "entry/src/main/resources/rawfile/wine-runtime-manifest.json",
+      "before": "244ede8fc7b473794709af0a13ebfd9817782207273a540da714053d23d18c54",
+      "after": "3ecbe646a29ab6ee9ed01f90790edf7fa9245ad8230e420b2089042407c7421e",
+      "size": 190
+    }
+  ],
+  "policy": "Explicit allowlist and byte identity; other native/graphics assets untouched."
+}

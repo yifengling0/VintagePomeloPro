@@ -1,0 +1,146 @@
+{
+  "captures": {
+    "quiet-off-cold": [
+      {
+        "character": "money",
+        "windowSeconds": 11.464339017868042,
+        "completeBatches": 4,
+        "completeBatchFPS": 57.97101469306329,
+        "batchFPSMin": 56.46,
+        "lowRenderSamples": [
+          48.64
+        ],
+        "cpuTicksDelta": 1872
+      },
+      {
+        "character": "flower",
+        "windowSeconds": 11.324409484863281,
+        "completeBatches": 4,
+        "completeBatchFPS": 57.75478206244318,
+        "batchFPSMin": 56.68,
+        "lowRenderSamples": [
+          58.05
+        ],
+        "cpuTicksDelta": 1771
+      },
+      {
+        "character": "green",
+        "windowSeconds": 11.334495306015015,
+        "completeBatches": 3,
+        "completeBatchFPS": 57.50798730805733,
+        "batchFPSMin": 56.82,
+        "lowRenderSamples": [
+          48.29
+        ],
+        "cpuTicksDelta": 1810
+      }
+    ],
+    "quiet-off-warm": [
+      {
+        "character": "money",
+        "windowSeconds": 11.395323991775513,
+        "completeBatches": 4,
+        "completeBatchFPS": 57.87316194695707,
+        "batchFPSMin": 56.21,
+        "lowRenderSamples": [
+          56.91
+        ],
+        "cpuTicksDelta": 1791
+      },
+      {
+        "character": "flower",
+        "windowSeconds": 11.376359224319458,
+        "completeBatches": 5,
+        "completeBatchFPS": 57.565001259228914,
+        "batchFPSMin": 55.98,
+        "lowRenderSamples": [
+          57.43,
+          57.32
+        ],
+        "cpuTicksDelta": 1836
+      },
+      {
+        "character": "green",
+        "windowSeconds": 11.32055950164795,
+        "completeBatches": 5,
+        "completeBatchFPS": 56.953014588546786,
+        "batchFPSMin": 56.0,
+        "lowRenderSamples": [
+          57.11
+        ],
+        "cpuTicksDelta": 1795
+      }
+    ],
+    "quiet-on-cold": [
+      {
+        "character": "money",
+        "windowSeconds": 11.308642148971558,
+        "completeBatches": 3,
+        "completeBatchFPS": 58.17711734135696,
+        "batchFPSMin": 56.87,
+        "lowRenderSamples": [
+          45.64
+        ],
+        "cpuTicksDelta": 1873
+      },
+      {
+        "character": "flower",
+        "windowSeconds": 11.297205209732056,
+        "completeBatches": 4,
+        "completeBatchFPS": 57.880139996813995,
+        "batchFPSMin": 56.15,
+        "lowRenderSamples": [
+          50.16
+        ],
+        "cpuTicksDelta": 1813
+      },
+      {
+        "character": "green",
+        "windowSeconds": 11.318867683410645,
+        "completeBatches": 4,
+        "completeBatchFPS": 50.62223226878087,
+        "batchFPSMin": 36.25,
+        "lowRenderSamples": [
+          50.63
+        ],
+        "cpuTicksDelta": 1779
+      }
+    ],
+    "quiet-on-warm": [
+      {
+        "character": "money",
+        "windowSeconds": 11.352501153945923,
+        "completeBatches": 5,
+        "completeBatchFPS": 58.49093313307227,
+        "batchFPSMin": 57.48,
+        "lowRenderSamples": [
+          57.16
+        ],
+        "cpuTicksDelta": 1746
+      },
+      {
+        "character": "flower",
+        "windowSeconds": 11.331153631210327,
+        "completeBatches": 5,
+        "completeBatchFPS": 58.33738405375422,
+        "batchFPSMin": 57.28,
+        "lowRenderSamples": [
+          58.39
+        ],
+        "cpuTicksDelta": 1767
+      },
+      {
+        "character": "green",
+        "windowSeconds": 11.377074003219604,
+        "completeBatches": 5,
+        "completeBatchFPS": 58.48523347916553,
+        "batchFPSMin": 57.33,
+        "lowRenderSamples": [
+          57.71
+        ],
+        "cpuTicksDelta": 1740
+      }
+    ]
+  },
+  "limitations": "One OFF then ON session; no thermal match or reverse order. Host presented-frame batches only; the batch crossing each click can be omitted. No per-input latency or steady-map FPS conclusion. CPU tick deltas include all game threads."
+}

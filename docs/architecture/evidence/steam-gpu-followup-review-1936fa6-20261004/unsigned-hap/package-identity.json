@@ -1,0 +1,29 @@
+{
+  "commit": "1936fa68864dbb0ecda8ed6d571c167e14991842",
+  "version": "1.4.5-proton.26-alpha",
+  "versionCode": 1004035,
+  "abi": "arm64-v8a",
+  "buildType": "Debug",
+  "unsigned": true,
+  "file": "VintagePomeloPro-proton26-1936fa6-arm64-debug-unsigned.hap",
+  "bytes": 356363292,
+  "sha256": "5caeb4f947ea83061fe4d36337d706cd3f7f692f7db3a934167f0c40960f46f7",
+  "nativeLibraries": {
+    "libentry.so": "2325e43db4929d86d4781583c5e317648652660911eb0d88bfbd106da13e2921",
+    "libvirgl_child.so": "3a1d78fae6b965b437f6599483f23b8e933b3c4f97941d1f10537a3800fd1046",
+    "win32u.so": "7daed12ee1f4106028fa3948c88f3848905cb281175e283ef0c5e8fb36506f68",
+    "winewayland.so": "a504e999714f86211aeffa2d44bf66ed8742b02d6e127822f4c9c616c1146a3f",
+    "winevulkan.so": "18a701371539fed012f50f852d3fda2941ad24bbacae31f514a6bce05882993a",
+    "ntdll.so": "4b20461fe0b38cd84e2126809250f1d2d998a2384df78a598c20aeec1b926e57",
+    "libwineserver.so": "7b7b942407e1f8c43e175bfbfaab0e94a10bb699f21ec7a7819228776f5cf4ac"
+  },
+  "checks": [
+    "Wine cached identity PASS",
+    "HAP build success",
+    "runtime closure PASS",
+    "SDK verifier confirms absent signing block",
+    "ZIP CRC PASS",
+    "7 native libraries match tested build and current stripped outputs",
+    "WSL source and Windows delivery hashes match"
+  ]
+}

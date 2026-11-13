@@ -1,7 +1,7 @@
-#include "compositor/toplevel/desktop_root_manager.h"
-#include "compositor/toplevel/desktop_session_state.h"
-#include "compositor/toplevel/toplevel_manager.h"
-#include "compositor/frame/compositor_constants.h"
+#include "desktop_root_manager.h"
+#include "desktop_session_state.h"
+#include "toplevel_manager.h"
+#include "compositor_constants.h"
 #include "compositor/frame/surface_data.h"
 #include <hilog/log.h>
 
@@ -75,10 +75,10 @@ void DesktopRootManager::MarkRootDirtyLocked()
 }
 
 DesktopRootManager::CheckRootResult
-DesktopRootManager::CheckRootLocked(SurfaceData* sd, bool isFirstCommit)
+DesktopRootManager::CheckRootLocked(SurfaceData* sd, bool recognitionOpportunity)
 {
     CheckRootResult result;
-    if (!isFirstCommit) return result;
+    if (!recognitionOpportunity) return result;
 
     if (sd->appId != compositor_consts::kAppIdExplorerDesktopShell) return result;
 

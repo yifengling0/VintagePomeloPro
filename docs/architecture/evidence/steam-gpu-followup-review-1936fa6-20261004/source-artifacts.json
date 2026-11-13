@@ -1,0 +1,117 @@
+{
+  "focused-tests.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/focused-tests.log",
+    "raw_sha256": "09823612276268a9e9269ae23f7e0fb6313c0637653ec607851e3ac8c8f493c0"
+  },
+  "host-test-result.json": {
+    "source": "gpu-followup-review-1936fa6-20261004/host-test-result.json",
+    "raw_sha256": "56ef02f9942a1a850eab4a57061053a909986997a2949e4f965d91dec1ded8cb"
+  },
+  "wine-build-identity.json": {
+    "source": "gpu-followup-review-1936fa6-20261004/wine-build-identity.json",
+    "raw_sha256": "5d11a72082d5742f627bbfb0b7e4bd90da0cd607600f60ff815718f0f08352b7"
+  },
+  "old-cache-rejection.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/old-cache-rejection.log",
+    "raw_sha256": "3734f9ba72a77cb7db82637058260293253283f8e43a6b9ff2d162a3e128a46d"
+  },
+  "old-cache-preservation.json": {
+    "source": "gpu-followup-review-1936fa6-20261004/old-cache-preservation.json",
+    "raw_sha256": "cd2c59d60d28fea56b04a4814edf355c55017f5e3928c541b0e38f61ec508f94"
+  },
+  "pre-assemble-identity.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/pre-assemble-identity.log",
+    "raw_sha256": "4ee2aa8446ddaac5fbf8cd6aee872ca6f84d60b9bed1301aebf074ec1ae3fcf9"
+  },
+  "build-fresh.sh": {
+    "source": "gpu-followup-review-1936fa6-20261004/build-fresh.sh",
+    "raw_sha256": "3d6c1c760e555f3da5a784e2419c277ac622de15f50cb273c7060119b22236ba"
+  },
+  "assemble.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/assemble.log",
+    "raw_sha256": "8a4e3271c8cd04d438f8fc4b8fe8900dabd4a56c369fa8e506f89e820b5945ea"
+  },
+  "hap-build.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/hap-build.log",
+    "raw_sha256": "0fe49e17a0af1128b656d43b8edcd49eec925f6aac8fe550ff45ce3c9b76cbd9"
+  },
+  "sign.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/sign.log",
+    "raw_sha256": "91e88dbae6c35015fe4128c35c759a2b9df1ad7d901243898bcb54fd70f713a9"
+  },
+  "runtime-component-check.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/runtime-component-check.log",
+    "raw_sha256": "974683dfcfce4689ea496297373a130e0006987f08c824c090c8963d91832fca"
+  },
+  "package-identity.json": {
+    "source": "gpu-followup-review-1936fa6-20261004/package-identity.json",
+    "raw_sha256": "9fa4fcca89ab09b404243a18dd09a98252ae74f61e704a74524e7223a837211a"
+  },
+  "wine-runtime-manifest.json": {
+    "source": "gpu-followup-review-1936fa6-20261004/wine-runtime-manifest.json",
+    "raw_sha256": "9bc5ac6b987754a2bc398a8349d821e574c3b6c3aebce9ec2225a31c37aea641"
+  },
+  "full-host-tests.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/full-host-tests-final.log",
+    "raw_sha256": "922f4cacf3a09209b027fcbdec074a2c35cd88415a3e597c1be8ef386162c82a"
+  },
+  "baselines/gpu_owner_contract.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/gpu_owner_contract-baseline.log",
+    "raw_sha256": "3916fc6d973e766d2586837b8c476be96b06048a63290dbad92349f3e7033ea1"
+  },
+  "baselines/gpu_scene_input.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/gpu_scene_input-baseline.log",
+    "raw_sha256": "463a9c3a18a79e74b19d52b1e1593781a5d16f4e7443cec1c3d08acb75b61aa2"
+  },
+  "baselines/steam_gpu_contract.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/steam_gpu_contract-baseline.log",
+    "raw_sha256": "4ed3da93f887e17e992a8faba2b18c23d5469dbd08baf7bf82d5d0dc3512ebf1"
+  },
+  "device-install/install-result.txt": {
+    "source": "gpu-followup-review-1936fa6-20261004/install-result.txt",
+    "raw_sha256": "213ae36ba48fb13726de8d4bb203bbea27ed67c1a964a12175e825064cad2d5c"
+  },
+  "device-install/locked-launch-result.txt": {
+    "source": "gpu-followup-review-1936fa6-20261004/launch-result.txt",
+    "raw_sha256": "eeeb3726a8e17d1ebaf153565142147b39abe0d395bc4e846b2711d94206741c"
+  },
+  "device-install/device-commands.json": {
+    "source": "gpu-followup-review-1936fa6-20261004/device-commands.json",
+    "raw_sha256": "c7b996aa7069b5604df09e6c7f9eb0dc78cf086056f36c0bb61256fa417eefb6"
+  },
+  "device-install/installed-version-excerpts.txt": {
+    "source": "gpu-followup-review-1936fa6-20261004/followup-launch/installed-bundle.txt",
+    "raw_sha256": "b02033c05926410667cf9674dafc96f94d0d729bf80187b617ef7750d606d4c9",
+    "selection": "all bundleName/versionName/versionCode fields with original line numbers"
+  },
+  "wine-build-excerpts.log": {
+    "source": "gpu-followup-review-1936fa6-20261004/wine-fresh-build.log",
+    "raw_sha256": "e23c6740415ff2137450fdc86e2077d346d3121a2314f7445b0b4e7f3cacb301",
+    "source_lines": 154214,
+    "excerpt_lines": 105
+  },
+  "unsigned-hap/package-identity.json": {
+    "source": "proton26-1936fa6-unsigned-20261004/package-identity.json",
+    "raw_sha256": "08f5c29e8208ac74353dd6724a032ce6deebcc9adcfd9faec46f5abbb3273c4d"
+  },
+  "unsigned-hap/hap-build.log": {
+    "source": "proton26-1936fa6-unsigned-20261004/hap-build.log",
+    "raw_sha256": "f5257645bf94d38c49e13694a640fe19d27a8c9709f9c032bc394a4f44412409"
+  },
+  "unsigned-hap/runtime-component-check.log": {
+    "source": "proton26-1936fa6-unsigned-20261004/runtime-component-check.log",
+    "raw_sha256": "974683dfcfce4689ea496297373a130e0006987f08c824c090c8963d91832fca"
+  },
+  "unsigned-hap/unsigned-signature-check.log": {
+    "source": "proton26-1936fa6-unsigned-20261004/unsigned-signature-check.log",
+    "raw_sha256": "8f19533116bb4b03a01cfc31772f18c4aa030e7187e02eb2373d35a64cce8134"
+  },
+  "unsigned-hap/wine-identity-check.log": {
+    "source": "proton26-1936fa6-unsigned-20261004/wine-identity-check.log",
+    "raw_sha256": "4ee2aa8446ddaac5fbf8cd6aee872ca6f84d60b9bed1301aebf074ec1ae3fcf9"
+  },
+  "unsigned-hap/HAP.sha256": {
+    "source": "proton26-1936fa6-unsigned-20261004/VintagePomeloPro-proton26-1936fa6-arm64-debug-unsigned.hap.sha256",
+    "raw_sha256": "5a9f541fa8470536183579d502229342f2d4286bb0c744a0c570cc1447a00df0"
+  }
+}

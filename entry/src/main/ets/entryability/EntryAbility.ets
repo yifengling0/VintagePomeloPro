@@ -1,7 +1,12 @@
+import { preserveReinstallSaves } from '../service/ReinstallSaveSnapshot';
+import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
+import { ValueAddedService } from '../service/valueadded/ValueAddedService';
+import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { AppLog } from '../service/LogService';
-import { display, window } from '@kit.ArkUI';
+import { display, window, router } from '@kit.ArkUI';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { AppCatalogService, GamesDirectoryStatus } from '../service/AppCatalogService';
@@ -33,10 +38,45 @@ export default class EntryAbility extends UIAbility {
   private lastTitleButtonInsetVp: number = 0;
   private pendingAutomationWant: Want | null = null;
   private automationLaunchStarted: boolean = false;
+  private membershipDelivery: string | null = null;
+  private membershipRouteTimer: number = -1;
+  private membershipRouteAttempts: number = 0;
+  private rememberMembershipWant(want: Want): void {
+    if (want.action !== 'com.vintagepomelo.action.MEMBERSHIP') return;
+    const delivery = want.parameters?.deliveryId;
+    this.membershipDelivery = typeof delivery === 'string' && /^[a-f0-9]{64}$/.test(delivery) ? delivery : '';
+    this.membershipRouteAttempts = 0;
+  }
+  private openMembershipWant(): void {
+    if (this.membershipDelivery === null || !this.mainWindow) return;
+    if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
+    // loadContent can finish before the first page mounts its router. Defer
+    // navigation until the next UI turn and retain the request on failure.
+    this.membershipRouteTimer = setTimeout((): void => {
+      this.membershipRouteTimer = -1;
+      this.routeMembershipWant();
+    }, 100);
+  }
+  private routeMembershipWant(): void {
+    if (this.membershipDelivery === null || !this.mainWindow) return;
+    const delivery = this.membershipDelivery; this.membershipDelivery = null;
+    this.membershipRouteAttempts++;
+    // Push launches can arrive before the global router has an active scope.
+    // Route through the Ability's own window, including a cold application start.
+    void this.mainWindow.getUIContext().getRouter().pushUrl({ url: 'pages/SystemSettings',
+      params: { section: 'sync', membership: 'expanded', deliveryId: delivery } })
+      .catch((): void => {
+        if (this.membershipDelivery === null) this.membershipDelivery = delivery;
+        if (this.membershipRouteAttempts < 5) this.openMembershipWant();
+        else hilog.warn(DOMAIN, 'EntryAbility', 'Membership notification route unavailable');
+      });
+  }
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
     AppLog.init();
+    DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
+    SmokeRunner.getInstance().initialize(this.context);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
     testNapi.setPhoneMode(useForkNcp);
@@ -45,6 +85,7 @@ export default class EntryAbility extends UIAbility {
     this.ensureDownloadGamesDirectory('onCreate');
     this.applyWineHuaWantParams(want);
     this.rememberAutomationWant(want);
+    this.rememberMembershipWant(want);
   }
 
   private ensureDownloadGamesDirectory(trigger: string): void {
@@ -56,10 +97,15 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
+    if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
+    this.membershipRouteTimer = -1;
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
   }
 
   onNewWant(want: Want): void {
+    this.rememberMembershipWant(want);
+    if (this.mainWindow) this.openMembershipWant();
     // A singleton Ability may receive the next launch without another
     // onCreate. Re-check the app-owned Download directory on every handoff.
     this.ensureDownloadGamesDirectory('onNewWant');
@@ -85,6 +131,14 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
+    void UserConfigurationRepository.getInstance().initialize(this.context).then((): void => {
+      this.createConfiguredWindowStage(windowStage);
+    }).catch((error: Error): void => {
+      hilog.error(DOMAIN, 'EntryAbility', 'Configuration bootstrap failed, preserving backups');
+      this.createConfiguredWindowStage(windowStage);
+    });
+  }
+  private createConfiguredWindowStage(windowStage: window.WindowStage): void {
     // Main window is created, set main page for this ability
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
     this.ensureDownloadGamesDirectory('onWindowStageCreate');
@@ -101,6 +155,8 @@ export default class EntryAbility extends UIAbility {
       let mainWin = windowStage.getMainWindowSync();
       if (mainWin) {
         this.mainWindow = mainWin;
+        WineImeCoordinator.getInstance().observeWindow(0, mainWin);
+        WineImeCoordinator.getInstance().foreground(0, mainWin);
         DeviceCapabilityPolicy.enableSensorRotation(mainWin, 'EntryAbility');
         mainWin.setWindowDecorVisible(false);
         if (DeviceCapabilityPolicy.isPhoneDevice()) {
@@ -140,6 +196,7 @@ export default class EntryAbility extends UIAbility {
         }
       }
       hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+      this.openMembershipWant();
       this.scheduleWantAutomation();
       this.scheduleAutomationLaunch();
     });
@@ -151,6 +208,11 @@ export default class EntryAbility extends UIAbility {
       if (!parameters || parameters[key] === undefined || parameters[key] === null) return fallback;
       return `${parameters[key]}`;
     };
+    // Explicit host diagnostics, independent of Wine child environment.
+    // Ordinary launches retain the default off state; onNewWant can stop it.
+    if (parameters && parameters['winehua.frameDiagnostics'] !== undefined) {
+      testNapi.setFrameLoopDiagnostics(value('winehua.frameDiagnostics', '0') === '1');
+    }
     // Pad 多窗口承载调试键: winehua.fusionHost (subwindow|ability) 跨设备强制
     const explicitFusionHost = !!parameters && parameters['winehua.fusionHost'] !== undefined &&
       parameters['winehua.fusionHost'] !== null;
@@ -240,7 +302,7 @@ export default class EntryAbility extends UIAbility {
 
   private rememberAutomationWant(want: Want): void {
     const mode = String(want.parameters?.['winehua.mode'] ?? '');
-    if (mode !== 'game' && mode !== 'smoke') return;
+    if (mode !== 'game' && mode !== 'smoke' && mode !== 'preserve-reinstall-saves') return;
     this.pendingAutomationWant = want;
     hilog.info(DOMAIN, 'EntryAbility', 'automation Want accepted mode=%{public}s', mode);
   }
@@ -254,7 +316,7 @@ export default class EntryAbility extends UIAbility {
       this.runAutomationLaunch(want).then((): void => {
         this.finishAutomationLaunch();
       }).catch((error: Error): void => {
-        hilog.error(DOMAIN, 'EntryAbility', 'automation launch failed: %{public}s', JSON.stringify(error));
+        hilog.error(DOMAIN, 'EntryAbility', 'automation launch failed: %{public}s', error.message + ' ' + JSON.stringify(error));
         this.finishAutomationLaunch();
       });
     }, 800);
@@ -311,11 +373,15 @@ export default class EntryAbility extends UIAbility {
 
   private async runAutomationLaunch(want: Want): Promise<void> {
     const parameters = want.parameters ?? {};
+    if (String(parameters['winehua.mode'] ?? '') === 'preserve-reinstall-saves') {
+      await preserveReinstallSaves(this.context);
+      return;
+    }
     if (String(parameters['winehua.mode'] ?? '') === 'smoke') {
       await this.runSmokeLaunch(want);
       return;
     }
-    const executable = String(parameters['winehua.game_path'] ?? '');
+    const executable = this.decodeAutomationPayload(String(parameters['winehua.game_path'] ?? ''));
     if (!executable) throw new Error('winehua.game_path is empty');
 
     const backend = String(parameters['winehua.d3d_backend'] ?? 'dxvk_legacy');
@@ -380,9 +446,13 @@ export default class EntryAbility extends UIAbility {
       longSeconds: Number.isFinite(requestedSeconds) && requestedSeconds > 0 ? requestedSeconds : 3600,
       source: 'want'
     };
-    const ready = await engine.ensureSmokeReady(settings.defaultDisplayMode,
-      WinePresentationMode.DESKTOP, homeDirectory, request.prefix || 'reuse');
-    if (!ready) throw new Error('Wine engine did not become ready for smoke');
+    // This isolated driver diagnostic does not need a Wine prefix, compositor,
+    // or receiver. Avoid starting them and perturbing the memory measurement.
+    if (request.suite !== 'native-buffer-memory') {
+      const ready = await engine.ensureSmokeReady(settings.defaultDisplayMode,
+        WinePresentationMode.DESKTOP, homeDirectory, request.prefix || 'reuse');
+      if (!ready) throw new Error('Wine engine did not become ready for smoke');
+    }
     SmokeRunner.getInstance().start(request);
     hilog.info(DOMAIN, 'EntryAbility',
       'smoke runner accepted suite=%{public}s runId=%{public}s prefix=%{public}s',
@@ -410,6 +480,7 @@ export default class EntryAbility extends UIAbility {
     }
     this.titleButtonRectCallback = null;
     this.windowRectCallback = null;
+    WineImeCoordinator.getInstance().unobserveWindow(this.mainWindow);
     this.mainWindow = null;
     AppStorage.setOrCreate('libraryTitleButtonInsetVp', 0);
   }
@@ -452,12 +523,19 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow);
+    DeviceCapabilityPolicy.refreshPcMode(this.context);
+    AccountAutomaticSyncService.getInstance().setForeground(true);
+    ValueAddedService.getInstance().onForeground();
     // Ability has brought to foreground
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
     this.ensureDownloadGamesDirectory('onForeground');
   }
 
   onBackground(): void {
+    WineImeCoordinator.getInstance().background(this.mainWindow);
+    AccountAutomaticSyncService.getInstance().setForeground(false);
+    ValueAddedService.getInstance().onBackground();
     // Ability has back to background
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
   }

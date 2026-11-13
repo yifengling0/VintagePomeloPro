@@ -2,7 +2,6 @@
 #include <cstdint>
 #include <functional>
 #include <string>
-#include <cstdio>
 
 // ============================================================================
 // ToplevelEventBus — toplevel 事件总线 (重构第 5D 步, 行为平价)
@@ -37,24 +36,20 @@
 // 实现的无锁语义等价 (sink_ 在 wl 线程读, 装配一次性注入)。
 // ============================================================================
 
-// 25 种 toplevel 事件 (PLAN §2.3 清单 + 产品 Raise + 最小化 Restored; 命名与旧字符串一一对应, 每个事件
+// toplevel 事件 (PLAN §2.3 清单; 命名与旧字符串一一对应, 每个事件
 // 的 JSON 模板见对应 Json* 函数)。ArkTS 侧按 ToplevelEventName 字符串
 // 消费 — 事件名逐字不变 (红线)。
 enum class ToplevelEventType : uint32_t {
     // 生命周期
     Created,       // "created"        PC 首帧 ({\"w\":\"h\"}) / 桌面 get_toplevel ({\"w\":640,\"h\":480})
-    ArgbCreated,   // "argb_created"   PC 首帧 ARGB 异型窗口
     Destroyed,     // "destroyed"
-    Raise,         // product managed-window focus request
     // popup (PC 模式菜单)
     PopupHide,     // "popup_hide"
     PopupMove,     // "popup_move"
     PopupShow,     // "popup_show"
     PopupResize,   // "popup_resize"
-    // ARGB 异型窗口
-    ArgbMove,      // "argb_move"
+    // ARGB 窗口格式
     Argb,          // "argb"           shm format 切换 (首帧必发)
-    MaskDirty,     // "mask_dirty"     0/1 剪影掩码更新
     // 尺寸/格式
     Resize,        // "resize"
     Surface,       // "surface"        renderer surface 物理像素尺寸
@@ -73,6 +68,7 @@ enum class ToplevelEventType : uint32_t {
     // WineHua modal 关系 (winehua_toplevel.set_modal 上报)
     Modal,         // "modal"          1=置为模态 (modal/owner 报关系), 0=解除
     // 会话
+    Geometry,      // "geometry"       X11 CSD interactive resize (host coordinates)
     DesktopRoot,   // "desktop_root"   桌面 root 出现 (识别/PromotePending 两路径)
 };
 
@@ -80,16 +76,12 @@ enum class ToplevelEventType : uint32_t {
 inline const char* ToplevelEventName(ToplevelEventType evt) {
     switch (evt) {
         case ToplevelEventType::Created:       return "created";
-        case ToplevelEventType::ArgbCreated:   return "argb_created";
         case ToplevelEventType::Destroyed:     return "destroyed";
-        case ToplevelEventType::Raise:         return "raise";
         case ToplevelEventType::PopupHide:     return "popup_hide";
         case ToplevelEventType::PopupMove:     return "popup_move";
         case ToplevelEventType::PopupShow:     return "popup_show";
         case ToplevelEventType::PopupResize:   return "popup_resize";
-        case ToplevelEventType::ArgbMove:      return "argb_move";
         case ToplevelEventType::Argb:          return "argb";
-        case ToplevelEventType::MaskDirty:     return "mask_dirty";
         case ToplevelEventType::Resize:        return "resize";
         case ToplevelEventType::Surface:       return "surface";
         case ToplevelEventType::Title:         return "title";
@@ -103,6 +95,7 @@ inline const char* ToplevelEventName(ToplevelEventType evt) {
         case ToplevelEventType::MoveStart:     return "move_start";
         case ToplevelEventType::MoveEnd:       return "move_end";
         case ToplevelEventType::Modal:         return "modal";
+        case ToplevelEventType::Geometry:      return "geometry";
         case ToplevelEventType::DesktopRoot:   return "desktop_root";
     }
     return "unknown";  // 防御: 枚举越界永不发生 (仅编译器告警消噪)
@@ -118,7 +111,7 @@ public:
     void SetEventSink(EventSink sink) { sink_ = std::move(sink); }
 
     // 首启 wineboot 窗口创建事件抑制 (wine_launch.cpp SetToplevelEventSuppressed
-    // 转发): 抑制 created/argb_created, 有 [MW] suppress 日志
+    // 转发): 抑制 created, 有 [MW] suppress 日志
     void SetSuppressed(bool on) { suppressed_ = on; }
     bool Suppressed() const { return suppressed_; }
 
@@ -130,7 +123,7 @@ public:
     void Post(uint32_t id, ToplevelEventType evt, const std::string& json = "{}");
 
     // ---- JSON 构造单点: 模板与旧各调用点 snprintf 逐字 (键名/值/顺序) ----
-    // 无参数事件 (Destroyed/MaskDirty/DesktopRoot/Maximized/Unmaximized/
+    // 无参数事件 (Destroyed/DesktopRoot/Maximized/Unmaximized/
     // Fullscreen/Unfullscreen/Minimized/MoveStart/MoveEnd) 用默认 "{}" —
     // 与旧调用点传 "{}" 或省略 jsonData 参数等价。
 
@@ -138,28 +131,22 @@ public:
     //   JsonCreated:      PC 模式首帧 (wl_core.cpp surface_commit, 值 = 内容尺寸)
     //   JsonCreatedDefault: 桌面模式 xdg_get_toplevel (xdg_shell.cpp, 硬编码 640x480,
     //                    ArkTS 据此预留首窗尺寸 — 首帧后走 resize 修正)
-    static std::string JsonCreated(int32_t w, int32_t h) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d}", w, h);
+    static std::string JsonCreated(int32_t w, int32_t h, uint32_t clientPid = 0) {
+        char buf[128];
+        if (clientPid) snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d,\"clientPid\":%u}", w, h, clientPid);
+        else snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d}", w, h);
         return buf;
     }
-    static std::string JsonCreatedDefault() { return "{\"w\":640,\"h\":480}"; }
-
-    // Product session association must survive event-bus extraction.
-    static std::string JsonCreatedForSession(int32_t w, int32_t h,
-                                            const std::string& sessionId, uint32_t clientPid) {
-        char buf[192];
-        snprintf(buf, sizeof(buf),
-                 "{\"w\":%d,\"h\":%d,\"sessionId\":\"%s\",\"clientPid\":%u}",
-                 w, h, sessionId.c_str(), clientPid);
-        return buf;
-    }
-
-    static std::string JsonArgbCreated(int32_t x, int32_t y, int32_t w, int32_t h) {
+    // D52: 带 guest 坐标的 created (x11 多窗) —— OHOS 承载窗按 guest 位置
+    // 摆放 (双窗并排用例的承载窗重叠根因)。x/y 缺省 0 = 不定位 (wayland
+    // created 走 JsonCreated 无此键, ArkTS 侧 0,0 不定位, incumbent 不变)。
+    static std::string JsonCreatedAt(int32_t w, int32_t h, int32_t x, int32_t y, uint32_t pid = 0) {
         char buf[160];
-        snprintf(buf, sizeof(buf), "{\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}", x, y, w, h);
+        snprintf(buf, sizeof(buf), "{\"w\":%d,\"h\":%d,\"x\":%d,\"y\":%d,\"clientPid\":%u}", w, h, x, y, pid);
         return buf;
     }
+    static std::string JsonCreatedDefault(uint32_t clientPid = 0) { return JsonCreated(640, 480, clientPid); }
+
 
     static std::string JsonPopupHide(uint32_t popupId) {
         char buf[64];
@@ -173,16 +160,16 @@ public:
         return buf;
     }
 
-    static std::string JsonArgbMove(int32_t x, int32_t y) {
-        char buf[96];
-        snprintf(buf, sizeof(buf), "{\"x\":%d,\"y\":%d}", x, y);
-        return buf;
-    }
-
     // argb01: 1=ARGB8888 (shmFormat==0), 0=XRGB8888 — 调用点传 0/1
     static std::string JsonArgb(int32_t argb01) {
         char buf[32];
         snprintf(buf, sizeof(buf), "{\"argb\":%d}", argb01);
+        return buf;
+    }
+
+    static std::string JsonGeometry(int32_t x, int32_t y, int32_t w, int32_t h) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "{\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}", x, y, w, h);
         return buf;
     }
 

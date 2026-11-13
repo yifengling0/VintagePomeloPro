@@ -1,0 +1,130 @@
+[32m[BUILD][0m Wow64 exception dispatch frame guard quarantined (not applied)
+[32m[BUILD][0m Wow32 stack top pad experiment quarantined (not applied)
+[32m[BUILD][0m External-font registration repair already applied
+[32m[BUILD][0m Signal-safe diagnostic stack reader already applied
+[32m[BUILD][0m App-managed desktop lifetime already applied
+[32m[BUILD][0m Client-only window state refresh already applied
+[32m[BUILD][0m Surface region update without USER lock inversion already applied
+[32m[BUILD][0m Direct OHOS WSI and running-window resize smoke already applied
+[32m[BUILD][0m Owner-attached decoration float not managed already applied
+[32m[BUILD][0m Durable wineboot prefix completion handshake already applied
+[32m[BUILD][0m Prefix migration under wineserver session lock already applied
+[32m[BUILD][0m RPGXP forensic diagnostics already applied
+[32m[BUILD][0m Per-process GDI font antialiasing override already applied
+[32m[BUILD][0m Exec-section EOF-tolerant read already applied
+[32m[BUILD][0m PE large-address-aware default already applied
+[32m[BUILD][0m Wayland configure window lifetime already applied
+[32m[BUILD][0m Private Vulkan presentation validation already applied
+[32m[BUILD][0m Broker argument metadata logging already applied
+[32m[BUILD][0m Broker v2 complete startup contract already applied
+[32m[BUILD][0m SHM geometry and viewport last-sent state cache already applied
+[32m[BUILD][0m Private Vulkan signal-only acquire applied
+[32m[BUILD][0m === 构建 Wine ===
+[32m[BUILD][0m --- Native 构建 (winegcc 等 host 工具) ---
+Makefile:466993: warning: overriding recipe for target 'programs/winehua_audio_smoke/x86_64-windows/main.o'
+Makefile:463231: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/x86_64-windows/main.o'
+Makefile:467116: warning: overriding recipe for target 'programs/winehua_audio_smoke/x86_64-windows/winehua_audio_smoke.exe'
+Makefile:463354: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/x86_64-windows/winehua_audio_smoke.exe'
+Makefile:467127: warning: overriding recipe for target 'programs/winehua_dinput_probe/x86_64-windows/main.o'
+Makefile:463365: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/x86_64-windows/main.o'
+Makefile:467244: warning: overriding recipe for target 'programs/winehua_dinput_probe/x86_64-windows/winehua_dinput_probe.exe'
+Makefile:463482: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/x86_64-windows/winehua_dinput_probe.exe'
+Makefile:467256: warning: overriding recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/main.o'
+Makefile:463494: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/main.o'
+Makefile:467374: warning: overriding recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/winehua_graphics_smoke.exe'
+Makefile:463612: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/x86_64-windows/winehua_graphics_smoke.exe'
+Makefile:467385: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/main.o'
+Makefile:463623: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/main.o'
+Makefile:467509: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/winehua_d3d11_smoke.exe'
+Makefile:463747: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/x86_64-windows/winehua_d3d11_smoke.exe'
+Makefile:467521: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/main.o'
+Makefile:463892: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/main.o'
+Makefile:467640: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/winehua_vulkan_smoke.exe'
+Makefile:464011: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/x86_64-windows/winehua_vulkan_smoke.exe'
+Makefile:467651: warning: overriding recipe for target 'programs/winehua_keep/x86_64-windows/main.o'
+Makefile:464022: warning: ignoring old recipe for target 'programs/winehua_keep/x86_64-windows/main.o'
+Makefile:467761: warning: overriding recipe for target 'programs/winehua_keep/x86_64-windows/winehua_keep.exe'
+Makefile:464132: warning: ignoring old recipe for target 'programs/winehua_keep/x86_64-windows/winehua_keep.exe'
+Makefile:467770: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:340957: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:467782: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:340969: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:467887: warning: overriding recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:341074: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:467995: warning: overriding recipe for target 'dlls/wineohos.drv/x86_64-windows/wineohos.drv'
+Makefile:341182: warning: ignoring old recipe for target 'dlls/wineohos.drv/x86_64-windows/wineohos.drv'
+Makefile:468000: warning: overriding recipe for target 'dlls/wineohos.drv/wineohos.so'
+Makefile:341187: warning: ignoring old recipe for target 'dlls/wineohos.drv/wineohos.so'
+make: 'tools/winegcc/winegcc' is up to date.
+make: 'tools/winebuild/winebuild' is up to date.
+make: 'tools/wrc/wrc' is up to date.
+make: 'tools/widl/widl' is up to date.
+make: 'tools/wine/wine' is up to date.
+make: 'tools/makedep' is up to date.
+make: 'tools/make_xftmpl' is up to date.
+make: 'tools/wmc/wmc' is up to date.
+make: 'tools/sfnt2fon/sfnt2fon' is up to date.
+[32m[BUILD][0m --- OHOS 交叉编译 (Unix .so, WINE_ARCH=aarch64) ---
+Makefile:617498: warning: overriding recipe for target 'programs/winehua_audio_smoke/aarch64-windows/main.o'
+Makefile:612769: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/aarch64-windows/main.o'
+Makefile:617509: warning: overriding recipe for target 'programs/winehua_audio_smoke/i386-windows/main.o'
+Makefile:612780: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/i386-windows/main.o'
+Makefile:617634: warning: overriding recipe for target 'programs/winehua_audio_smoke/aarch64-windows/winehua_audio_smoke.exe'
+Makefile:612905: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/aarch64-windows/winehua_audio_smoke.exe'
+Makefile:617648: warning: overriding recipe for target 'programs/winehua_audio_smoke/i386-windows/winehua_audio_smoke.exe'
+Makefile:612919: warning: ignoring old recipe for target 'programs/winehua_audio_smoke/i386-windows/winehua_audio_smoke.exe'
+Makefile:617663: warning: overriding recipe for target 'programs/winehua_dinput_probe/aarch64-windows/main.o'
+Makefile:612934: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/aarch64-windows/main.o'
+Makefile:617674: warning: overriding recipe for target 'programs/winehua_dinput_probe/i386-windows/main.o'
+Makefile:612945: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/i386-windows/main.o'
+Makefile:617794: warning: overriding recipe for target 'programs/winehua_dinput_probe/aarch64-windows/winehua_dinput_probe.exe'
+Makefile:613065: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/aarch64-windows/winehua_dinput_probe.exe'
+Makefile:617810: warning: overriding recipe for target 'programs/winehua_dinput_probe/i386-windows/winehua_dinput_probe.exe'
+Makefile:613081: warning: ignoring old recipe for target 'programs/winehua_dinput_probe/i386-windows/winehua_dinput_probe.exe'
+Makefile:617826: warning: overriding recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/main.o'
+Makefile:613097: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/main.o'
+Makefile:617837: warning: overriding recipe for target 'programs/winehua_graphics_smoke/i386-windows/main.o'
+Makefile:613108: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/i386-windows/main.o'
+Makefile:617958: warning: overriding recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/winehua_graphics_smoke.exe'
+Makefile:613229: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/aarch64-windows/winehua_graphics_smoke.exe'
+Makefile:617973: warning: overriding recipe for target 'programs/winehua_graphics_smoke/i386-windows/winehua_graphics_smoke.exe'
+Makefile:613244: warning: ignoring old recipe for target 'programs/winehua_graphics_smoke/i386-windows/winehua_graphics_smoke.exe'
+Makefile:617989: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/main.o'
+Makefile:613260: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/main.o'
+Makefile:618000: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/i386-windows/main.o'
+Makefile:613271: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/i386-windows/main.o'
+Makefile:618126: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/winehua_d3d11_smoke.exe'
+Makefile:613397: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/aarch64-windows/winehua_d3d11_smoke.exe'
+Makefile:618143: warning: overriding recipe for target 'programs/winehua_d3d11_smoke/i386-windows/winehua_d3d11_smoke.exe'
+Makefile:613414: warning: ignoring old recipe for target 'programs/winehua_d3d11_smoke/i386-windows/winehua_d3d11_smoke.exe'
+Makefile:618160: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/main.o'
+Makefile:613595: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/main.o'
+Makefile:618171: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/i386-windows/main.o'
+Makefile:613606: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/i386-windows/main.o'
+Makefile:618293: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/winehua_vulkan_smoke.exe'
+Makefile:613728: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/aarch64-windows/winehua_vulkan_smoke.exe'
+Makefile:618307: warning: overriding recipe for target 'programs/winehua_vulkan_smoke/i386-windows/winehua_vulkan_smoke.exe'
+Makefile:613742: warning: ignoring old recipe for target 'programs/winehua_vulkan_smoke/i386-windows/winehua_vulkan_smoke.exe'
+Makefile:618323: warning: overriding recipe for target 'programs/winehua_keep/aarch64-windows/main.o'
+Makefile:613758: warning: ignoring old recipe for target 'programs/winehua_keep/aarch64-windows/main.o'
+Makefile:618333: warning: overriding recipe for target 'programs/winehua_keep/i386-windows/main.o'
+Makefile:613768: warning: ignoring old recipe for target 'programs/winehua_keep/i386-windows/main.o'
+Makefile:618445: warning: overriding recipe for target 'programs/winehua_keep/aarch64-windows/winehua_keep.exe'
+Makefile:613880: warning: ignoring old recipe for target 'programs/winehua_keep/aarch64-windows/winehua_keep.exe'
+Makefile:618458: warning: overriding recipe for target 'programs/winehua_keep/i386-windows/winehua_keep.exe'
+Makefile:613893: warning: ignoring old recipe for target 'programs/winehua_keep/i386-windows/winehua_keep.exe'
+Makefile:618471: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:452399: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_audio_client.o'
+Makefile:618482: warning: overriding recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:452410: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos_midi.o'
+Makefile:618586: warning: overriding recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:452514: warning: ignoring old recipe for target 'dlls/wineohos.drv/ohos.o'
+Makefile:618695: warning: overriding recipe for target 'dlls/wineohos.drv/aarch64-windows/wineohos.drv'
+Makefile:452623: warning: ignoring old recipe for target 'dlls/wineohos.drv/aarch64-windows/wineohos.drv'
+Makefile:618706: warning: overriding recipe for target 'dlls/wineohos.drv/i386-windows/wineohos.drv'
+Makefile:452634: warning: ignoring old recipe for target 'dlls/wineohos.drv/i386-windows/wineohos.drv'
+Makefile:618713: warning: overriding recipe for target 'dlls/wineohos.drv/wineohos.so'
+Makefile:452641: warning: ignoring old recipe for target 'dlls/wineohos.drv/wineohos.so'
+Wine build complete.
+[32m[BUILD][0m --- 编译 wineserver (含 OHOS 修复) ---
+[32m[BUILD][0m Wine 构建完成

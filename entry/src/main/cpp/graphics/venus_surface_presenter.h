@@ -1,6 +1,6 @@
 #pragma once
 
-#include "graphics/present_target.h"
+#include "present_target.h"
 
 #include <native_window/external_window.h>
 
@@ -26,6 +26,7 @@ public:
     int Detach(uint64_t surfaceKey) override;
     int SetFramePeriod(uint64_t framePeriodNs) override;
     bool HasVulkanDevice() override;
+    bool SetQueueRetirementFd(int fd) override;
     bool PrepareDeviceRelease(uint32_t contextId, uintptr_t device) override;
     bool FinishDeviceRelease(uint32_t contextId, uintptr_t device,
                              int32_t waitResult) override;

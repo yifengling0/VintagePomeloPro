@@ -1,0 +1,22 @@
+{
+  "baseSha256": "d0c785c055518955c6d0e81a6045b110bf25449e5c7255910643ccbd10a0f649",
+  "galliumSha256": "fe528b3c75f10ccc966aa967febdf12742cd8f83e234011ea7308548d6bae0e2",
+  "libentrySha256": "179cfcdbaff6c40aa0202584399c301b5b4bf69d7f1845eec6accd9b9dfb5635",
+  "payloadSha256": "fefb2bedc378c44b39bf67ec00409b15cc9e7b455e22f5db19631ab4db179323",
+  "hapSha256": "115522044f40452be048bc24966b25f9af8996cfc05fb36a7bac9b3d2ed87fb5",
+  "build": {
+    "schemaVersion": 1,
+    "arch": "aarch64",
+    "galliumDrivers": [
+      "virgl",
+      "softpipe"
+    ],
+    "platforms": [
+      "wayland"
+    ],
+    "opengl": true,
+    "libraries": {
+      "lib/libgallium-25.0.1.so": "fe528b3c75f10ccc966aa967febdf12742cd8f83e234011ea7308548d6bae0e2"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "deviceEpoch": "1791297413.997131105",
+  "newRows": 79,
+  "latestConsistent": [
+    {
+      "pid": 452,
+      "final": false,
+      "consistent": true,
+      "f32": {
+        "attempt": 341086642,
+        "hit": 103878691,
+        "fallback": 237207951
+      },
+      "f64": {
+        "attempt": 7826374,
+        "hit": 7821938,
+        "fallback": 4436
+      }
+    }
+  ]
+}

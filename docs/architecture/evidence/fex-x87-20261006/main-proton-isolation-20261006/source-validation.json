@@ -1,0 +1,11 @@
+{
+  "changed": [
+    "FEXCore/Source/Interface/Context/Context.h",
+    "FEXCore/Source/Interface/Core/Core.cpp",
+    "FEXCore/Source/Interface/Core/Interpreter/Fallbacks/F80Fallbacks.h",
+    "FEXCore/include/FEXCore/Debug/InternalThreadState.h",
+    "FEXCore/include/FEXCore/Utils/FloatDiagnostics.h"
+  ],
+  "filesVerified": 20623,
+  "exactBaselineAfterReverse": true
+}

@@ -1,0 +1,2 @@
+8aba586e7988b01cd1d24685bef778ed71f64da9dc3bf525bd720ef6596f0cfc  /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/aarch64-windows/libarm64ecfex.dll
+002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa  /data/app/el2/100/base/com.vintage.pomelopro/files/wine/bin/aarch64-windows/libwow64fex.dll

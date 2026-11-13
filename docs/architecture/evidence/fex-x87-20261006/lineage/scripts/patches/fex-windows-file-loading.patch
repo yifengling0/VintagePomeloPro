@@ -1,0 +1,225 @@
+--- a/FEXCore/Source/Utils/FileLoading.cpp
++++ b/FEXCore/Source/Utils/FileLoading.cpp
+@@ -9,7 +9,12 @@
+ #include <span>
+ #include <unistd.h>
+ #ifdef _WIN32
+-#include <fstream>
++#include <algorithm>
++#include <cstdint>
++#include <limits>
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#undef ERROR
+ #endif
+ 
+ namespace FEXCore::FileLoading {
+@@ -87,22 +92,70 @@
+ }
+ 
+ #else
++// Configuration loading precedes logging/JIT initialization. Use checked
++// native file operations rather than the partial freestanding CRT stream API.
++class WindowsReadFile {
++public:
++  explicit WindowsReadFile(const char* Path)
++    : Handle {CreateFileA(Path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
++                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr)} {
++    if (Handle != INVALID_HANDLE_VALUE) {
++      FILE_STANDARD_INFO Info {};
++      IsFile = GetFileInformationByHandleEx(Handle, FileStandardInfo, &Info, sizeof(Info)) && !Info.Directory;
++    }
++  }
++  ~WindowsReadFile() { if (Handle != INVALID_HANDLE_VALUE) CloseHandle(Handle); }
++  WindowsReadFile(const WindowsReadFile&) = delete;
++  WindowsReadFile& operator=(const WindowsReadFile&) = delete;
++  bool Valid() const { return IsFile; }
++  bool Size(size_t& Out) {
++    LARGE_INTEGER End {};
++    if (!SetFilePointerEx(Handle, LARGE_INTEGER {}, &End, FILE_END) || End.QuadPart < 0 ||
++        static_cast<uint64_t>(End.QuadPart) > std::numeric_limits<size_t>::max()) return false;
++    if (!SetFilePointerEx(Handle, LARGE_INTEGER {}, nullptr, FILE_BEGIN)) return false;
++    Out = static_cast<size_t>(End.QuadPart);
++    return true;
++  }
++  ssize_t Read(char* Data, size_t Size) {
++    DWORD Read {};
++    const auto Chunk = static_cast<DWORD>(std::min(Size, static_cast<size_t>(std::numeric_limits<DWORD>::max())));
++    if (!ReadFile(Handle, Data, Chunk, &Read, nullptr)) {
++      // The local WinAPI shim returns failure for NT STATUS_END_OF_FILE.
++      return GetLastError() == ERROR_HANDLE_EOF ? 0 : -1;
++    }
++    return Read <= Chunk ? static_cast<ssize_t>(Read) : -1;
++  }
++private:
++  HANDLE Handle;
++  bool IsFile {};
++};
++
+ template<typename T>
+ static bool LoadFileImpl(T& Data, const fextl::string& Filepath, size_t FixedSize) {
+-  std::ifstream f(Filepath.c_str(), std::ios::binary | std::ios::ate);
+-  if (f.fail()) {
+-    return false;
++  if (Filepath.empty()) return false;
++  WindowsReadFile File(Filepath.c_str());
++  if (!File.Valid()) return false;
++  size_t Size = FixedSize;
++  if ((!Size && !File.Size(Size)) || Size > Data.max_size()) return false;
++  Data.resize(Size);
++  size_t Offset {};
++  while (Offset < Size) {
++    const auto Count = File.Read(Data.data() + Offset, Size - Offset);
++    if (Count <= 0) {
++      Data.clear();
++      return false;
++    }
++    Offset += static_cast<size_t>(Count);
+   }
+-  auto Size = f.tellg();
+-  f.seekg(0, std::ios::beg);
+-  Data.resize(Size);
+-  f.read(Data.data(), Size);
+-  return !f.fail();
++  return true;
+ }
+ 
+ ssize_t LoadFileToBuffer(const fextl::string& Filepath, std::span<char> Buffer) {
+-  std::ifstream f(Filepath.c_str(), std::ios::binary | std::ios::ate);
+-  return f.readsome(Buffer.data(), Buffer.size());
++  if (Filepath.empty()) return -1;
++  WindowsReadFile File(Filepath.c_str());
++  if (!File.Valid()) return -1;
++  if (Buffer.empty()) return 0;
++  return File.Read(Buffer.data(), Buffer.size());
+ }
+ 
+ #endif
+--- a/Source/Common/Config.cpp
++++ b/Source/Common/Config.cpp
+@@ -20,6 +20,10 @@
+ #include <linux/limits.h>
+ #include <pwd.h>
+ #endif
++#ifdef _WIN32
++// Common is built without the Windows frontend private include directory.
++extern "C" int __cdecl __wine_dbg_output(const char*);
++#endif
+ #include <optional>
+ #include <utility>
+ #include <tiny-json.h>
+@@ -40,6 +44,13 @@
+     const json_t* json = FEX::JSON::CreateJSON(Data, Pool);
+ 
+     if (!json) {
++#ifdef _WIN32
++      // Configuration is loaded before the normal log handler is installed.
++      auto Message = fextl::string {"[FEX-CONFIG-ERROR] invalid_json path="};
++      Message += Config;
++      Message += "\n";
++      __wine_dbg_output(Message.c_str());
++#endif
+       ERROR_AND_DIE_FMT("Failed to parse JSON from file '{}' - invalid JSON format", Config);
+     }
+ 
+--- a/Source/Windows/WOW64/Module.cpp
++++ b/Source/Windows/WOW64/Module.cpp
+@@ -124,6 +124,7 @@
+ } // namespace BridgeInstrs
+ 
+ fextl::unique_ptr<FEXCore::Context::Context> CTX;
++std::atomic<bool> CPUProcessReady {};
+ fextl::unique_ptr<FEX::DummyHandlers::DummySignalDelegator> SignalDelegator;
+ fextl::unique_ptr<WowSyscallHandler> SyscallHandler;
+ fextl::unique_ptr<FEX::Windows::StatAlloc> StatAllocHandler;
+@@ -514,6 +515,8 @@
+ };
+ 
+ void BTCpuProcessInit() {
++  CPUProcessReady.store(false, std::memory_order_relaxed);
++  GetTLS().ThreadState() = nullptr;
+   FEX::Windows::InitCRTProcess();
+   const auto ExecutableName = FEX::Windows::BaseName(FEX::Windows::GetExecutableFilePath());
+   FEX::Config::LoadConfig(fextl::string {ExecutableName}, _environ, FEX::ReadPortabilityInformation());
+@@ -626,6 +629,7 @@
+     LogMan::Msg::IFmt("[{}][{}] Sleeping for {} seconds", GetCurrentProcessId(), ExecutableName, StartupSleep());
+     std::this_thread::sleep_for(std::chrono::seconds(StartupSleep()));
+   }
++  CPUProcessReady.store(true, std::memory_order_release);
+ }
+ 
+ void BTCpuProcessTerm(HANDLE Handle, BOOL After, ULONG Status) {}
+@@ -633,6 +637,8 @@
+ void BTCpuThreadInit() {
+   static constexpr size_t DefaultWow64CS {4};
+   std::scoped_lock Lock(ThreadCreationMutex);
++  const auto TLS = GetTLS();
++  TLS.ThreadState() = nullptr;
+   FEX::Windows::InitCRTThread();
+   auto* Thread = CTX->CreateThread(0, 0);
+ 
+@@ -656,7 +662,6 @@
+ 
+   FEX::Windows::CallRetStack::InitializeThread(Thread);
+ 
+-  const auto TLS = GetTLS();
+   TLS.ThreadState() = Thread;
+   TLS.ControlWord().fetch_or(ControlBits::WOW_CPU_AREA_DIRTY, std::memory_order::relaxed);
+ 
+@@ -707,6 +712,7 @@
+     }
+   }
+   auto ThreadState = TLS.ThreadState();
++  TLS.ThreadState() = nullptr;
+ 
+   delete GetFrontendThreadData(ThreadState);
+ 
+@@ -903,10 +909,14 @@
+ 
+ // Returns true if exception dispatch should be halted and the execution context restored to Ptrs->Context
+ bool BTCpuResetToConsistentStateImpl(EXCEPTION_POINTERS* Ptrs) {
++  // Native initialization faults must remain native Wine exceptions.
++  // Reserved WOW64 TLS slots do not yet contain an FEX thread.
++  if (!CPUProcessReady.load(std::memory_order_acquire)) return false;
+   auto* Context = Ptrs->ContextRecord;
+   auto* Exception = Ptrs->ExceptionRecord;
+   auto TLS = GetTLS();
+   auto Thread = TLS.ThreadState();
++  if (!Thread) return false;
+   FEXCORE_PROFILE_ACCUMULATION(Thread, AccumulatedSignalTime);
+ 
+   if (Exception->ExceptionCode == EXCEPTION_ACCESS_VIOLATION) {
+--- a/FEXCore/Source/Interface/Config/Config.cpp
++++ b/FEXCore/Source/Interface/Config/Config.cpp
+@@ -96,7 +96,10 @@
+   if (!Global && !FHU::Filesystem::Exists(ConfigFile) && !FHU::Filesystem::CreateDirectories(ConfigFile)) {
+     LogMan::Msg::DFmt("Couldn't create config directory: '{}'", ConfigFile);
+     // Let's go local in this case
+-    return fextl::fmt::format("./{}.json", Program);
++    fextl::string Filename {"./"};
++    Filename.append(Program.data(), Program.size());
++    Filename += ".json";
++    return Filename;
+   }
+ 
+   ConfigFile += "AppConfig/";
+@@ -104,10 +107,15 @@
+   // Attempt to create the local folder if it doesn't exist
+   if (!Global && !FHU::Filesystem::Exists(ConfigFile) && !FHU::Filesystem::CreateDirectories(ConfigFile)) {
+     // Let's go local in this case
+-    return fextl::fmt::format("./{}.json", Program);
+-  }
+-
+-  return fextl::fmt::format("{}{}.json", ConfigFile, Program);
++    fextl::string Filename {"./"};
++    Filename.append(Program.data(), Program.size());
++    Filename += ".json";
++    return Filename;
++  }
++
++  ConfigFile.append(Program.data(), Program.size());
++  ConfigFile += ".json";
++  return ConfigFile;
+ }
+ 
+ static fextl::map<FEXCore::Config::LayerType, fextl::unique_ptr<FEXCore::Config::Layer>> ConfigLayers;

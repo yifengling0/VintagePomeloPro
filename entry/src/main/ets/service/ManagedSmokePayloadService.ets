@@ -65,16 +65,51 @@ export function writeSmokeText(path: string, text: string): void {
 }
 
 function prefixRoot(prefixMode: string): string {
-  return prefixMode === 'clean' ? `${FILES_BASE}/.wine-smoke` : `${FILES_BASE}/.wine`;
+  return prefixMode === 'clean' ? `${FILES_BASE}/containers/clean/prefix` : `${FILES_BASE}/.wine`;
 }
 
 export function smokeDriveC(prefixMode: string): string {
   return `${prefixRoot(prefixMode)}/drive_c`;
 }
 
-export function syncManagedSmoke(prefixMode: string): boolean {
-  const source = `${WINE_ROOT}/smoke`;
+
+/* 整目录装载 smoke-payload (app 自身 uid, 绕开 hdc shell 的 SELinux 限制)。 */
+function syncPayloadSmokeTree(source: string, target: string, prefixMode: string): boolean {
+  try {
+    if (!readSmokeText(`${source}/suites.json`)) {
+      hilog.error(DOMAIN, 'ManagedSmokePayload', 'payload smoke suites.json missing: %{public}s', source);
+      return false;
+    }
+    if (readSmokeText(`${target}/manifest.json`) !== readSmokeText(`${source}/manifest.json`) ||
+        !smokePathExists(`${target}/suites.json`)) {
+      ensureSmokeDirectory(target);
+      // A diagnostic refresh may replace programs, never previous results.
+      for (const entry of fs.listFileSync(target)) {
+        if (entry !== 'results') removeRecursive(`${target}/${entry}`);
+      }
+      for (const entry of ['manifest.json', 'suites.json', 'x64', 'x86', 'x64-fex', 'assets']) {
+        if (smokePathExists(`${source}/${entry}`)) copyRecursive(`${source}/${entry}`, `${target}/${entry}`);
+      }
+    }
+    ensureSmokeDirectory(`${target}/results`);
+    hilog.info(DOMAIN, 'ManagedSmokePayload', 'payload smoke tree synchronized prefix=%{public}s', prefixMode);
+    return true;
+  } catch (error) {
+    hilog.error(DOMAIN, 'ManagedSmokePayload', 'payload smoke tree sync failed: %{public}s', JSON.stringify(error));
+    return false;
+  }
+}
+
+export function syncManagedSmoke(prefixMode: string, sourceMode: 'runtime' | 'diagnostic' = 'runtime'): boolean {
   const target = `${prefixRoot(prefixMode)}/drive_c/smoke`;
+  // Normal catalog launches always use the bundled runtime. A diagnostic
+  // payload may contain only one test; its manifest cannot certify built-ins.
+  // SmokeRunner opts into that payload explicitly when running its suites.
+  const payloadRoot = `${FILES_BASE}/smoke-payload`;
+  if (sourceMode === 'diagnostic' && readSmokeText(`${payloadRoot}/manifest.json`)) {
+    return syncPayloadSmokeTree(payloadRoot, target, prefixMode);
+  }
+  const source = `${WINE_ROOT}/smoke`;
   const sourceManifest = readSmokeText(`${source}/manifest.json`);
   if (!sourceManifest) {
     hilog.error(DOMAIN, 'ManagedSmokePayload', 'managed smoke manifest missing: %{public}s', source);
@@ -86,23 +121,25 @@ export function syncManagedSmoke(prefixMode: string): boolean {
    * "d3d11.dll not found" while the x86 slot happens to exist. */
   const required = [
     'suites.json',
-    'x64/winehua_audio_smoke.exe', 'x64/winehua_graphics_smoke.exe',
-    'x64/winehua_vulkan_smoke.exe', 'x64/winehua_d3d11_smoke.exe',
-    'x64/winehua_d3d8_smoke.exe', 'x64/winehua_d3d_switch_cube.exe',
-    'x64/winehua_media_smoke.exe',
-    'x64/winehua_gpu_diagnostics.exe', 'x64/winehua_dxvk26_requirements.exe',
+    'x64/winehua_audio_smoke.exe',
+    'x64/winehua_graphics_smoke.exe',
+    'x64/winehua_vulkan_smoke.exe',
+    'x64/winehua_d3d11_smoke.exe',
+    'x64/winehua_d3d8_smoke.exe',
+    'x64/winehua_d3d_switch_cube.exe',
+    'x64/winehua_gpu_diagnostics.exe',
+    'x64/winehua_dxvk26_requirements.exe',
     'x64/winehua_d3d12_smoke.exe',
     'x64/winehua_win32_driver.exe',
-    'x64/winehua_network_probe.exe',
-    'x86/winehua_audio_smoke.exe', 'x86/winehua_graphics_smoke.exe',
-    'x86/winehua_vulkan_smoke.exe', 'x86/winehua_d3d11_smoke.exe',
-    'x86/winehua_d3d8_smoke.exe', 'x86/winehua_d3d_switch_cube.exe',
-    'x86/winehua_media_smoke.exe',
-    'x86/winehua_gpu_diagnostics.exe', 'x86/winehua_dxvk26_requirements.exe',
-    'x86/winehua_win32_driver.exe',
-    'assets/venus_storage_write.spv', 'assets/venus_storage_read.spv',
-    'assets/venus_image_fetch.spv', 'assets/venus_combined_sample.spv',
-    'assets/venus_separated_sample.spv',
+    'x86/winehua_audio_smoke.exe',
+    'x86/winehua_graphics_smoke.exe',
+    'x86/winehua_vulkan_smoke.exe',
+    'x86/winehua_d3d11_smoke.exe',
+    'x86/winehua_d3d8_smoke.exe',
+    'x86/winehua_d3d_switch_cube.exe',
+    'x86/winehua_gpu_diagnostics.exe',
+    'x86/winehua_dxvk26_requirements.exe',
+    'x86/winehua_win32_driver.exe'
   ];
   /* VKD3D D3D12 demos are packaged with wine-data when vkd3d-proton built.
    * Keep them optional so an older payload without these files still syncs. */
@@ -143,7 +180,8 @@ export function syncManagedSmoke(prefixMode: string): boolean {
   if (complete) return true;
 
   try {
-    removeRecursive(target);
+    // Repair only runtime-owned files. Keep diagnostic programs and results;
+    // a later explicit diagnostic suite can select its own payload again.
     ensureSmokeDirectory(target);
     /* Keep the runtime-owned dxvk/ directory out of the prefix. */
     copyRecursive(`${source}/manifest.json`, `${target}/manifest.json`);

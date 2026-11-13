@@ -1,7 +1,8 @@
+import { exportLogZipInBackground } from './LogExportTask';
 import { hilog as hilogReal } from '@kit.PerformanceAnalysisKit';
 import { bundleManager } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
-import { zlib } from '@kit.BasicServicesKit';
+import { taskpool } from '@kit.ArkTS';
 import testNapi from 'libentry.so';
 
 /**
@@ -77,10 +78,15 @@ export class AppLog {
   private static seq: number = 0;
   private static bytes: number = 0;
   private static inited: boolean = false;
+  private static nextInitRetryAt: number = 0;
+  private static exporting: Promise<string> | null = null;
 
-  static init(): void {
+  static init(forceRetry: boolean = false): void {
     if (AppLog.inited) return;
-    AppLog.inited = true;
+    // Download permission can become available after the first Ability callback.
+    // Retry from later log writes, with a bound on filesystem/error-log churn.
+    if (!forceRetry && Date.now() < AppLog.nextInitRetryAt) return;
+    AppLog.nextInitRetryAt = Date.now() + 5000;
     try {
       const bundleInfo = bundleManager.getBundleInfoForSelfSync(
         bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
@@ -94,9 +100,12 @@ export class AppLog {
       if (!AppLog.ensureDir(AppLog.logDir)) {
         throw new Error('cannot create logs dir: ' + AppLog.logDir);
       }
-      testNapi.initAppLog(AppLog.logDir);
       AppLog.cleanupOld();
       AppLog.ensureFd();
+      if (AppLog.fd < 0) throw new Error('cannot open application log');
+      testNapi.initAppLog(AppLog.logDir);
+      AppLog.inited = true;
+      AppLog.nextInitRetryAt = 0;
       if (AppLog.fd >= 0) {
         const marker = localStamp() + ' [I] [LogSvc] === AppLog init OK dir=' +
           AppLog.logDir + ' ===\n';
@@ -111,6 +120,11 @@ export class AppLog {
       hilogReal.info(0x0000, 'LogSvc', 'AppLog ready dir=%{public}s fd=%{public}d',
         AppLog.logDir, AppLog.fd);
     } catch (e) {
+      if (AppLog.fd >= 0) {
+        try { fs.closeSync(AppLog.fd); } catch (_) {}
+        AppLog.fd = -1;
+      }
+      AppLog.inited = false;
       AppLog.logDir = '';
       hilogReal.error(0x0000, 'LogSvc', 'AppLog.init failed: %{public}s', JSON.stringify(e));
     }
@@ -179,10 +193,12 @@ export class AppLog {
           const spec = format.substring(i + 2, close);
           if (spec.startsWith('private')) {
             out += '<private>';
+            idx++;
           } else {
             out += idx < n ? AppLog.stringifyArg(args[idx++]) : '<missing>';
           }
-          i = close;
+          // Consume the type as well as the visibility marker, e.g. %{public}s.
+          i = close + 1;
           continue;
         }
       }
@@ -251,6 +267,7 @@ export class AppLog {
   }
 
   static write(level: string, tag: string, format: string, args: (Object | undefined)[]): void {
+    if (!AppLog.inited) AppLog.init();
     if (!AppLog.inited || !AppLog.logDir) return;
     try {
       const msg = AppLog.formatLine(tag, format, args);
@@ -297,7 +314,14 @@ export class AppLog {
    * 不污染 logs 目录，随后交给系统分享面板。返回可分享的 file URI。
    */
   static async exportLogsZip(): Promise<string> {
-    AppLog.init();
+    if (AppLog.exporting) return AppLog.exporting;
+    const operation = AppLog.createExportZip();
+    AppLog.exporting = operation;
+    try { return await operation; } finally { if (AppLog.exporting === operation) AppLog.exporting = null; }
+  }
+
+  private static async createExportZip(): Promise<string> {
+    AppLog.init(true);
     if (!AppLog.logDir) {
       throw new Error('log directory unavailable');
     }
@@ -308,25 +332,17 @@ export class AppLog {
     }
     const zipName = 'logs-' + localStampCompact() + '.zip';
     const zipPath = zipDir + '/' + zipName;
-    const files: string[] = [];
+    const snapshotDir = zipDir + '/log-export';
+    if (!AppLog.ensureDir(snapshotDir)) throw new Error('cannot create log snapshot directory');
+    let identity = '';
     try {
-      const names = fs.listFileSync(AppLog.logDir);
-      for (const name of names) {
-        if ((name.startsWith('app-') || name.startsWith('native-')) &&
-          name.endsWith('.log')) {
-          files.push(AppLog.logDir + '/' + name);
-        }
-      }
-    } catch (e) {
-    }
-    if (files.length === 0) {
-      throw new Error('no log files to share');
-    }
-    const compressOpt: zlib.Options = {};
-    await zlib.compressFiles(files, zipPath, compressOpt);
+      const bundle = bundleManager.getBundleInfoForSelfSync(0);
+      identity = `Application=${bundle.name} version=${bundle.versionName} code=${bundle.versionCode}\n`;
+    } catch (_) {}
+    const downloadRoot = AppLog.logDir.substring(0, AppLog.logDir.lastIndexOf('/'));
+    await taskpool.execute(exportLogZipInBackground, AppLog.logDir, snapshotDir, downloadRoot, identity, zipPath);
     AppLog.cleanupOldZips(zipDir);
-    hilogReal.info(0x0000, 'LogSvc', 'exportLogsZip OK files=%{public}d zip=%{public}s',
-      files.length, zipPath);
+    hilogReal.info(0x0000, 'LogSvc', 'exportLogsZip OK zip=%{public}s', zipPath);
     return fileUri.getUriFromPath(zipPath);
   }
 

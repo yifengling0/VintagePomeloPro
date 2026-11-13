@@ -85,7 +85,7 @@ export struct GameDetailSheet {
               .maxLines(2)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-            Text(this.app.source === AppSource.BUILTIN ? '内建应用' : 'Windows 程序')
+            Text(this.app.steam ? (this.app.steam.appId ? (this.app.available ? 'Steam 游戏' : 'Steam · 安装中') : 'Steam 客户端') : this.app.source === AppSource.BUILTIN ? '内建应用' : 'Windows 程序')
               .fontSize(15)
               .fontColor('#B0FFFFFF')
 

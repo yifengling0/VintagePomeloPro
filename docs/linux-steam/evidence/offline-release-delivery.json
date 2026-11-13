@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-04",
+  "sourceBaseline": "c1971a322e00eb043b036e5e2d1fd8c3f829eb64",
+  "workingTreeChanges": true,
+  "offlinePackages": {
+    "schemaVersion": 1,
+    "status": "PASS",
+    "architecture": "ARM64",
+    "steamRelease": "dc772ead83374e2bfe30eef6971f42dd640e94a3a06dacf395e2b34f92fd4fbd",
+    "archiveSetId": "6500df4aa47c5d93bb639f03be53329bc237d6ca6368a7043896b6d3690e7de2",
+    "protonRuntimeId": "c80a53b178da191c5fde0388df1dfe8b83de50f7fdc29b336e8f153714ecac6c",
+    "packages": [
+      {
+        "kind": "Steam Linux",
+        "fileName": "SteamLinux-ARM64-1792110651-native-sdk-offline.zip",
+        "bytes": 385092710,
+        "sha256": "8f246251a1badb60c32b16ee173b0a00c2e07a97a54daf8b00c1ad6895e7d9e5"
+      },
+      {
+        "kind": "GNU Proton",
+        "fileName": "GNU-Proton-GE11-11-ARM64-offline.zip",
+        "bytes": 116676942,
+        "sha256": "3af1fd2e8ef02ca44e52def036e8401dd5075426abb2be6da9c72928ff9160c4"
+      }
+    ],
+    "checkedPackages": [
+      "entry/build/proRelease/outputs/default/entry-default-unsigned.hap"
+    ],
+    "applicationArtifacts": [
+      {
+        "path": "entry/build/proRelease/outputs/default/entry-default-unsigned.hap",
+        "bytes": 663950665,
+        "sha256": "43b09d19c6af56a1c69860655f7d34da88c76503a3354e136960e602aef967c0"
+      }
+    ]
+  },
+  "hostTests": {
+    "releaseOffline": 10,
+    "offlineCompatibility": 1,
+    "runtimeComponents": 18,
+    "actualArkTSInstaller": "PASS",
+    "workflowYamlAndShell": "PASS",
+    "actualArkTSProtonRuntime": "PASS: wrong local input rejected before active/inactive reuse; fresh local import uses no network; rollback and saves retained"
+  },
+  "device": {
+    "kind": "ordinary tablet",
+    "systemDocumentPicker": true,
+    "completeSteamOfflineImport": "PASS",
+    "components": 13,
+    "files": 5830,
+    "phase": "ready",
+    "automaticCompanions": {
+      "steamohos_gnu_desktop_hap": true,
+      "libsteamohos_posix_hap.so": true,
+      "libsteamohos_native_vulkan.so": true
+    },
+    "steamLibrary": "PASS",
+    "nativeSpire2MainMenuTouchKeyboardAndExit": "PASS",
+    "battlePerformanceImprovementProven": false,
+    "protonOfflineImport": "PASS: system picker, correct local URI, existing-runtime validation, full ZIP reinstall and activation",
+    "candidateBuild": "PASS: incremental Hvigor assembleHap",
+    "candidateSigned": {
+      "name": "VintagePomeloPro-1.5.5-spire2-focus-debug-signed.hap",
+      "bytes": 666824870,
+      "sha256": "c34a87343104edaf9bdbdbd97e9ea57738e82419440bd691e7db39dd6b2331d2",
+      "signatureVerified": true,
+      "tabletAuthorized": true,
+      "payloadUnchanged": true,
+      "sourceUnsignedSha256": "43b09d19c6af56a1c69860655f7d34da88c76503a3354e136960e602aef967c0"
+    },
+    "candidateInstalled": true,
+    "protonRuntimeFilesVerified": 897,
+    "protonActiveSource": "local",
+    "wrongLocalPackageRejectedBeforeReuse": true,
+    "protonStagingEmptyAfterInstall": true,
+    "afterProtonImport": {
+      "steamLibraryAfterRestart": true,
+      "firstRunNativeSteamSigsegvObserved": true,
+      "gameLaunchVerification": "NOT PASSED: app 695630 rejected by Steam with no license before game process launch",
+      "saveAndSettingsFilesUnchangedImmediatelyAfterImport": 22,
+      "saveAndSettingsFilesUnchangedAfterSteamRun": 21,
+      "steamAutocloudMetadataUpdatedAfterSteamRun": 1,
+      "gameplayNotTested": true,
+      "steamExited": true
+    }
+  },
+  "remoteCiRun": false,
+  "sourceCommitPublished": false,
+  "protonIdentityFix": {
+    "exportSource": "runtime-catalog.json releases[0].archive",
+    "adapterZipMayDiffer": true,
+    "withdrawnArchiveSha256": "97327f3a9e8155a11050dcf4960543d61841db44e22afc9531cd066b224085be",
+    "runtimeArchiveSha256": "3af1fd2e8ef02ca44e52def036e8401dd5075426abb2be6da9c72928ff9160c4",
+    "adapterOnlyUpdateReusesRuntimeArchive": true
+  },
+  "scope": "Offline package correctness and release delivery only; performance comparison deferred",
+  "storage": {
+    "withdrawnRebuildableDuplicateBytesRemoved": 116677154,
+    "maintenanceActions": 0,
+    "maintenanceIssues": 0,
+    "matchingArchivesReused": true,
+    "signedDebugPackagesRetained": 2,
+    "testZipBytesRemovedFromDevice": 116676990
+  }
+}

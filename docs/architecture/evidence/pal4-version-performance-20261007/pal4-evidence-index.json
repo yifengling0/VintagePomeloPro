@@ -1,0 +1,108 @@
+{
+  "artifacts": [
+    {
+      "name": "classify_pal4_callers.py",
+      "bytes": 5468,
+      "sha256": "c139b7a1974e90b7aebc7def0ddc1d2b8e44778f64566950349945b9cc6b4830",
+      "repositoryCopy": true
+    },
+    {
+      "name": "resolve_pal4_fex.py",
+      "bytes": 2075,
+      "sha256": "4bf9f4623bbb0a299964cc57fe7afe9e6d8ba8c55b1f1cbde9f5f4e0f5925a50",
+      "repositoryCopy": true
+    },
+    {
+      "name": "capture_pal4_profile.py",
+      "bytes": 1005,
+      "sha256": "23b140fd8f31d31f5b5e0a46de163c3ac26ea2850ff58bd5a20402046099e9ba",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-145-fex-load-identity.json",
+      "bytes": 440,
+      "sha256": "7f582bcacb9669ae0ee12ba9f85e1b75a6371e1c05568b7054688a0ebc0113c0",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-145-fex-load.summary.json",
+      "bytes": 7933,
+      "sha256": "0707b83eb99e141f34cd9093b8bdb89a6dda6ab32f3260426ec9a8c1afe6b280",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-145-fex-load.callers.json",
+      "bytes": 94596,
+      "sha256": "c746a8519816720c13047f65b912fae8d5668919dbb73c542d3311f854434ab4",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-fex-symbol-scene-identity.json",
+      "bytes": 456,
+      "sha256": "db49893ac5b4cf59c991a18e9e05d7fcccc2dcf84b4ca6dbd4ba51c9113144a7",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-fex-symbol-scene.callers.json",
+      "bytes": 84559,
+      "sha256": "102dc9764beda9e9fc951998f57a00c38d8dcb52574ca4a94807a9f9dba1311a",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-fex-symbol-attribution.json",
+      "bytes": 8714,
+      "sha256": "bbe692be401aed6b3441485fe85f41fb5cc8f6fc7b1dd4d34948f96dfe511ac1",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-fex-final-restoration.json",
+      "bytes": 631,
+      "sha256": "416e9e57825cf73a1de0915817d2d782f2fbf9149dd3e3f47e73c3bf99b18218",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-fex-final-runtime.txt",
+      "bytes": 159,
+      "sha256": "9db47a8a794a2a30d657336a8d4ac7f5313ea48f049e3707f4a02a701c2d8f35",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-version-performance-20261007.md",
+      "bytes": 9862,
+      "sha256": "016c00a963b4c34aa4c1f15aba99d0e7b4f660c95a8f36f4685d6debe8027a6b",
+      "repositoryCopy": true
+    },
+    {
+      "name": "pal4-145-fex-load.data",
+      "bytes": 8273219,
+      "sha256": "d1ee4549aafa033c7891e6889c74da95f6ded98ad82f98dba0e4e98fb1e608cc",
+      "repositoryCopy": false
+    },
+    {
+      "name": "pal4-fex-symbol-scene.data",
+      "bytes": 6729138,
+      "sha256": "ea16e662bca31b5818cecb267df09e590e912883a69b349b53a571837e971864",
+      "repositoryCopy": false
+    },
+    {
+      "name": "pal4-fex-final-jitmap.map",
+      "bytes": 36121618,
+      "sha256": "5f82428faec4a6cd9c5a9fb44656fe4631bb17ea461d6bb0c459e58073ca23cc",
+      "repositoryCopy": false
+    },
+    {
+      "name": "pal4-fex-fault-maps.txt",
+      "bytes": 196023,
+      "sha256": "c201d5aac498c3bb931bd43c12b2a5ddfb4dd3071cbe0b69b61d51a69c952bcc",
+      "repositoryCopy": false
+    },
+    {
+      "name": "pal4-fex-symbol-maps.txt",
+      "bytes": 195600,
+      "sha256": "61c3f74d993c624daa4e251ffbf94f0d42205652782e380c767ceb707712b7c7",
+      "repositoryCopy": false
+    }
+  ],
+  "localRawEvidenceDirectory": "F:\\VintagePomelo-Workspace\\workspace_temp\\fex-perf-followup-20261006",
+  "publication": "No commit or push performed. Large raw captures, screenshots, HAPs and signing material stay local."
+}

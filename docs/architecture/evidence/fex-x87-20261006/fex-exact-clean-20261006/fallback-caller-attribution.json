@@ -1,0 +1,1239 @@
+{
+  "limitation": "Historical PID 4062 only, matching same-process maps. Visible stack association, not hidden leaf cost or wall time. Cold/warm first avatar was invalid in these old captures; no whole-pass FPS conclusion. Missing callers remain unknown.",
+  "captures": {
+    "cold": {
+      "inputSha256": "d41bbd810e1668ce4dcc56b1dd3c505b85acd9c5ca33034258baed0bd529a8ad",
+      "symbolSha256": "bb6295363c92bdbaac6148b76fffc9dae96da51bd15b9ae1954e5fc0af727e37",
+      "groups": [
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 800,
+          "sampledCycles": 5736297664,
+          "example": [
+            [
+              "0x7ffffe1758",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5ec800c",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 657,
+          "sampledCycles": 4549459099,
+          "example": [
+            [
+              "0x7ffffe1790",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ffffe1774",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 704,
+          "sampledCycles": 3619059661,
+          "example": [
+            [
+              "0x7ffffe1750",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5e7161c",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 507,
+          "sampledCycles": 3611558934,
+          "example": [
+            [
+              "0x7ffffe179c",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ffffe1774",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 332,
+          "sampledCycles": 2278265620,
+          "example": [
+            [
+              "0x7ffffe108c",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ae5308",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 218,
+          "sampledCycles": 2118087595,
+          "example": [
+            [
+              "0x7ffffe10d0",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe10bc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 222,
+          "sampledCycles": 1682907499,
+          "example": [
+            [
+              "0x7ffffe0e60",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5ae49e0",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 196,
+          "sampledCycles": 1429709751,
+          "example": [
+            [
+              "0x7ffffe1080",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ebebc0",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 174,
+          "sampledCycles": 1252606357,
+          "example": [
+            [
+              "0x7ffffe0e60",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5ec4184",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 123,
+          "sampledCycles": 547504101,
+          "example": [
+            [
+              "0x7ffffe175c",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5ec9268",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4112,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 218,
+          "sampledCycles": 516106441,
+          "example": [
+            [
+              "0x7ffffe10a4",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5c6dc70",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4105,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 201,
+          "sampledCycles": 471860347,
+          "example": [
+            [
+              "0x7ffffe10fc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5c6dc70",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 64,
+          "sampledCycles": 459330258,
+          "example": [
+            [
+              "0x7ffffe10d4",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe10bc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 35,
+          "sampledCycles": 146720978,
+          "example": [
+            [
+              "0x6ffc761f78",
+              null
+            ],
+            [
+              "0x7ffffe15f4",
+              "FEX_ABI_I64_I16_F80_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4112,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 53,
+          "sampledCycles": 133608919,
+          "example": [
+            [
+              "0x6ffc7db150",
+              null
+            ],
+            [
+              "0x6ffc761a9c",
+              null
+            ],
+            [
+              "0x7ffffe117c",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 17,
+          "sampledCycles": 124491122,
+          "example": [
+            [
+              "0x7ffffe1488",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe1474",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 27,
+          "sampledCycles": 119510770,
+          "example": [
+            [
+              "0x7ffffe16b8",
+              "FEX_ABI_F80_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 25,
+          "sampledCycles": 112997694,
+          "example": [
+            [
+              "0x7ffffe0ef0",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5ec8bd0",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 26,
+          "sampledCycles": 111390374,
+          "example": [
+            [
+              "0x7ffffe15dc",
+              "FEX_ABI_I64_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5f5e5c0",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 26,
+          "sampledCycles": 107914642,
+          "example": [
+            [
+              "0x7ffffe1070",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec4e40",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4105,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 44,
+          "sampledCycles": 100182294,
+          "example": [
+            [
+              "0x6ffc761aa0",
+              null
+            ],
+            [
+              "0x7ffffe117c",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 13,
+          "sampledCycles": 91509041,
+          "example": [
+            [
+              "0x7ffffe145c",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec93ac",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 22,
+          "sampledCycles": 82709127,
+          "example": [
+            [
+              "0x7ffffe1454",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5f614c8",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 14,
+          "sampledCycles": 58108413,
+          "example": [
+            [
+              "0x7ffffe1574",
+              "FEX_ABI_I64_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5d8d818",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4105,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 11,
+          "sampledCycles": 30719823,
+          "example": [
+            [
+              "0x7ffffe0e60",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5c78860",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 4,
+          "sampledCycles": 25611526,
+          "example": [
+            [
+              "0x7ffffe1490",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe1474",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4112,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 11,
+          "sampledCycles": 25463674,
+          "example": [
+            [
+              "0x7ffffe0e60",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5c78860",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 4,
+          "sampledCycles": 18865585,
+          "example": [
+            [
+              "0x7ffffe1544",
+              "FEX_ABI_I64_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe1534",
+              "FEX_ABI_I64_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 4,
+          "sampledCycles": 18125416,
+          "example": [
+            [
+              "0x7ffffe1678",
+              "FEX_ABI_F80_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ae25a8",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 1,
+          "sampledCycles": 7408967,
+          "example": [
+            [
+              "0x7ffffe1160",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5c096b8",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 1,
+          "sampledCycles": 6212617,
+          "example": [
+            [
+              "0x7ffffe14c4",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec8668",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        }
+      ]
+    },
+    "warm": {
+      "inputSha256": "b6748c1af2f4f05ea219aec9ee4fbcc621d0baae47fd82888d4fe0ea816d7ba6",
+      "symbolSha256": "bb6295363c92bdbaac6148b76fffc9dae96da51bd15b9ae1954e5fc0af727e37",
+      "groups": [
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 720,
+          "sampledCycles": 5268468255,
+          "example": [
+            [
+              "0x7ffffe1748",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5ec9d78",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 690,
+          "sampledCycles": 3814848740,
+          "example": [
+            [
+              "0x7ffffe178c",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ffffe1774",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 459,
+          "sampledCycles": 3453014321,
+          "example": [
+            [
+              "0x7ffffe1784",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ffffe1774",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 724,
+          "sampledCycles": 3258468966,
+          "example": [
+            [
+              "0x7ffffe17a0",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5f5e750",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 294,
+          "sampledCycles": 1396234369,
+          "example": [
+            [
+              "0x7ffffe10a0",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5f5ed78",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 166,
+          "sampledCycles": 1243782928,
+          "example": [
+            [
+              "0x7ffffe1098",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec2160",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 232,
+          "sampledCycles": 1207221238,
+          "example": [
+            [
+              "0x7ffffe0e40",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5ee9010",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 159,
+          "sampledCycles": 1193712536,
+          "example": [
+            [
+              "0x7ffffe0ef0",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5ec90c0",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 190,
+          "sampledCycles": 1189091734,
+          "example": [
+            [
+              "0x7ffffe10cc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe10bc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 133,
+          "sampledCycles": 576810075,
+          "example": [
+            [
+              "0x7ffffe1748",
+              "FEX_ABI_F80_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5ec9d98",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 67,
+          "sampledCycles": 497382368,
+          "example": [
+            [
+              "0x7ffffe10d8",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe10bc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4112,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 193,
+          "sampledCycles": 462085500,
+          "example": [
+            [
+              "0x7ffffe10c8",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe10bc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4105,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 191,
+          "sampledCycles": 452811066,
+          "example": [
+            [
+              "0x7ffffe10d4",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe10bc",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 51,
+          "sampledCycles": 215812808,
+          "example": [
+            [
+              "0x6ffc7d901c",
+              null
+            ],
+            [
+              "0x6ffc7d8ff4",
+              null
+            ],
+            [
+              "0x7ffffe16b4",
+              "FEX_ABI_F80_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 41,
+          "sampledCycles": 181022438,
+          "example": [
+            [
+              "0x7ffffe1590",
+              "FEX_ABI_I64_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ff5f5d65c",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 38,
+          "sampledCycles": 168058404,
+          "example": [
+            [
+              "0x7ffffe0e84",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5ec91c4",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 37,
+          "sampledCycles": 164800043,
+          "example": [
+            [
+              "0x7ffffe1600",
+              "FEX_ABI_I64_I16_F80_F80_PTR"
+            ],
+            [
+              "0x7ffffe15f4",
+              "FEX_ABI_I64_I16_F80_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4105,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 46,
+          "sampledCycles": 118036328,
+          "example": [
+            [
+              "0x6ffc7db284",
+              null
+            ],
+            [
+              "0x6ffc761a9c",
+              null
+            ],
+            [
+              "0x7ffffe117c",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 15,
+          "sampledCycles": 114916683,
+          "example": [
+            [
+              "0x7ffffe145c",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec93ac",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4112,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 47,
+          "sampledCycles": 114644424,
+          "example": [
+            [
+              "0x7ffffe1150",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5c6df8c",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 23,
+          "sampledCycles": 101567480,
+          "example": [
+            [
+              "0x7ffffe10a0",
+              "FEX_ABI_F32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec6438",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 19,
+          "sampledCycles": 82494936,
+          "example": [
+            [
+              "0x7ffffe14a0",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5f6133c",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 11,
+          "sampledCycles": 64746132,
+          "example": [
+            [
+              "0x6ffc7d3630",
+              null
+            ],
+            [
+              "0x6ffc761bd4",
+              null
+            ],
+            [
+              "0x7ffffe1474",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 8,
+          "sampledCycles": 57100444,
+          "example": [
+            [
+              "0x7ffffe1488",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe1474",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4112,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 14,
+          "sampledCycles": 30847366,
+          "example": [
+            [
+              "0x7ffffe0e60",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5c78860",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 9,
+          "sampledCycles": 29575334,
+          "example": [
+            [
+              "0x7ffffe152c",
+              "FEX_ABI_I64_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5d8d818",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe",
+          "samples": 4,
+          "sampledCycles": 17823165,
+          "example": [
+            [
+              "0x7ffffe16f4",
+              "FEX_ABI_F80_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ae25a8",
+              "\\??\\z:\\games\\richman 8\\richman 8\\strat game.exe"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 4,
+          "sampledCycles": 16535668,
+          "example": [
+            [
+              "0x7ffffe1540",
+              "FEX_ABI_I64_I16_F80_PTR"
+            ],
+            [
+              "0x7ffffe1534",
+              "FEX_ABI_I64_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4105,
+          "thread": "wine_dsound_mix",
+          "abi": "FEX_ABI_F80_I16_F32_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 9,
+          "sampledCycles": 15587781,
+          "example": [
+            [
+              "0x7ffffe0e60",
+              "FEX_ABI_F80_I16_F32_PTR"
+            ],
+            [
+              "0x7ff5c78860",
+              "<FEX-JIT-unassigned-module>"
+            ],
+            [
+              "0x6ffc623a30",
+              null
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_I32_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 2,
+          "sampledCycles": 8961868,
+          "example": [
+            [
+              "0x7ffffe144c",
+              "FEX_ABI_I32_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5ec8668",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F80_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 1,
+          "sampledCycles": 8141877,
+          "example": [
+            [
+              "0x6ffc762040",
+              null
+            ],
+            [
+              "0x7ffffe16b4",
+              "FEX_ABI_F80_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi",
+          "samples": 1,
+          "sampledCycles": 8058326,
+          "example": [
+            [
+              "0x7ffffe1120",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ],
+            [
+              "0x7ff5c08b1c",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mssd\\mssmp3.asi"
+            ]
+          ]
+        },
+        {
+          "tid": 4106,
+          "thread": "MSS Timer",
+          "abi": "FEX_ABI_F64_I16_F80_PTR",
+          "nearestGuestCaller": "<guest-caller-not-visible>",
+          "samples": 1,
+          "sampledCycles": 7045082,
+          "example": [
+            [
+              "0x6ffc761a40",
+              null
+            ],
+            [
+              "0x7ffffe117c",
+              "FEX_ABI_F64_I16_F80_PTR"
+            ]
+          ]
+        },
+        {
+          "tid": 4062,
+          "thread": "com.vintage.pomelopro:Native_libwine_child26",
+          "abi": "FEX_ABI_F80_I16_I32_PTR",
+          "nearestGuestCaller": "\\??\\z:\\games\\richman 8\\richman 8\\mss32.dll",
+          "samples": 1,
+          "sampledCycles": 3889360,
+          "example": [
+            [
+              "0x7ffffe1008",
+              "FEX_ABI_F80_I16_I32_PTR"
+            ],
+            [
+              "0x7ff5eaeec4",
+              "\\??\\z:\\games\\richman 8\\richman 8\\mss32.dll"
+            ]
+          ]
+        }
+      ]
+    }
+  }
+}

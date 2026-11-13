@@ -2,11 +2,11 @@
 #include <cstdint>
 #include <vector>
 #include <wayland-server-core.h>
-#include "compositor/frame/compositor_constants.h"
-#include "compositor/toplevel/toplevel_manager.h"
+#include "compositor_constants.h"
+#include "toplevel_manager.h"
 // 像素合成原语 (BlitScaled / BlitClipAlpha / PixelBlend) 在
 // compositor_blit.h — 纯函数独立文件, 宿主机单元测试直接编译真实实现。
-#include "compositor/frame/compositor_blit.h"
+#include "compositor_blit.h"
 
 // 保比例适配 (letterbox) 几何已迁至 geometry.h (FitRect / ComputeFitRect)。
 

@@ -73,7 +73,7 @@ static void Drain(wl_display* display) {
 
 int main() {
     try {
-        auto* manager = TextInputManager::GetInstance();
+        auto* manager = TextInput::GetInstance();
         const size_t initialFds = OpenFds();
         unsigned activated = 0, deactivated = 0;
         manager->SetActivateCallback([&](bool active, int, int, int, int) {
@@ -98,10 +98,10 @@ int main() {
                   "client socketpair failed");
             wl_client* client = wl_client_create(display, sockets[0]);
             Check(client != nullptr, "client creation failed");
-            TextInputManager::manager_bind(client, manager, 1, 2);
+            TextInput::manager_bind(client, manager, 1, 2);
             wl_resource* binding = wl_client_get_object(client, 2);
             wl_resource* surface = wl_resource_create(client, &wl_surface_interface, 1, 3);
-            TextInputManager::manager_get_text_input(client, binding, 4, nullptr);
+            TextInput::manager_get_text_input(client, binding, 4, nullptr);
             wl_resource* input = wl_client_get_object(client, 4);
             Check(input && surface, "protocol resources missing");
             manager->OnKeyboardEnter(1, surface);
@@ -109,9 +109,9 @@ int main() {
             manager->SetArmed(true);
             Drain(display);
             Check(events.enters == 1, "new client did not receive text-input enter");
-            TextInputManager::ti_enable(client, input);
-            TextInputManager::ti_set_cursor_rectangle(client, input, 2, 3, 4, 5);
-            TextInputManager::ti_commit(client, input);
+            TextInput::ti_enable(client, input);
+            TextInput::ti_set_cursor_rectangle(client, input, 2, 3, 4, 5);
+            TextInput::ti_commit(client, input);
             Check(manager->IsEnabled(), "text input did not enable");
             Check(manager->SendPreedit("中文预编辑", 0, 5), "preedit enqueue failed");
             Check(manager->SendCommit("重启后中文"), "commit enqueue failed");
@@ -119,13 +119,20 @@ int main() {
             Drain(display);
             Check(events.commits == std::vector<std::string>{"重启后中文"}, "Chinese commit not sent");
             Check(events.preedits == std::vector<std::string>{"中文预编辑"}, "preedit not sent");
-            Check(events.done == 2 && events.deletes == 1, "input transaction incomplete");
+            Check(events.done == 3 && events.deletes == 1, "input transaction incomplete");
 
+            Check(manager->SendCommit("old-focus"), "focus switch enqueue failed");
+            manager->ResetKeyboardFocus();
+            manager->OnKeyboardEnter(1, surface);
+            TextInput::ti_enable(client, input);
+            Drain(display);
+            Check(events.commits.size() == 1, "queued text crossed focus lifetime");
+            TextInput::ti_set_cursor_rectangle(client, input, 2, 3, 4, 5);
             Check(manager->SendCommit("retired-resource"), "old resource enqueue failed");
             wl_resource_destroy(input);
-            TextInputManager::manager_get_text_input(client, binding, 5, nullptr);
+            TextInput::manager_get_text_input(client, binding, 5, nullptr);
             input = wl_client_get_object(client, 5);
-            TextInputManager::ti_enable(client, input);
+            TextInput::ti_enable(client, input);
             Drain(display);
             Check(events.commits.size() == 1, "retired resource delivered queued text");
 
@@ -134,8 +141,33 @@ int main() {
             Check(!manager->IsEnabled() && !manager->SendCommit("dead-focus"), "dead surface retained focus");
             surface = wl_resource_create(client, &wl_surface_interface, 1, 6);
             manager->OnKeyboardEnter(2, surface);
-            TextInputManager::ti_enable(client, input);
-            TextInputManager::ti_set_cursor_rectangle(client, input, 2, 3, 4, 5);
+            TextInput::ti_enable(client, input);
+            TextInput::ti_set_cursor_rectangle(client, input, 2, 3, 4, 5);
+            const auto beforeThread = events.commits.size();
+            bool queued = false;
+            std::thread napi([&] { queued = manager->SendCommit("from-napi-thread"); });
+            napi.join();
+            Check(queued && events.commits.size() == beforeThread, "NAPI thread sent Wayland events directly");
+            Drain(display);
+            Check(events.commits.size() == beforeThread + 1, "Wayland thread did not flush NAPI request");
+            const auto oldCommits = events.commits.size();
+            Check(manager->SendCommit("duplicate-arm-safe"), "same-arm test enqueue");
+            manager->SetArmed(true);
+            Drain(display);
+            Check(events.commits.size() == oldCommits + 1, "duplicate arm discarded accepted text");
+            unsigned accepted = 0;
+            while (manager->SendCommit("full-queue")) ++accepted;
+            Check(accepted == 128, "input queue must be bounded by complete transactions");
+            const auto beforeDisarm = deactivated;
+            manager->SetArmed(false);
+            Drain(display);
+            Check(!manager->IsEnabled() && deactivated == beforeDisarm + 1,
+                  "full text queue dropped disarm or activation cleanup");
+            Check(events.commits.size() == oldCommits + 1, "disarm delivered cancelled text");
+            manager->SetArmed(true);
+            Drain(display);
+            TextInput::ti_enable(client, input);
+            TextInput::ti_set_cursor_rectangle(client, input, 2, 3, 4, 5);
             Check(manager->SendCommit("retired-session"), "pending stop input missing");
 
             // NAPI is allowed to submit while the (already joined) Wayland
@@ -152,14 +184,14 @@ int main() {
             Check(wl_client_get_object(client, 5) == nullptr, "text-input resource not destroyed");
             manager->Shutdown();
             manager->SetArmed(true); // A late old-UI request must not arm the next display.
-            Check(events.commits.size() == 1, "shutdown flushed old text");
+            Check(events.commits.size() == 3, "shutdown flushed old text");
             wl_display_destroy_clients(display);
             wl_protocol_logger_destroy(logger);
             wl_display_destroy(display);
             close(sockets[1]);
             Check(OpenFds() == initialFds, "display restart leaked descriptors");
         }
-        Check(activated == 6 && deactivated == 3, "activation teardown callback missing or repeated");
+        Check(activated == 12 && deactivated == 12, "activation teardown callback missing or repeated");
         manager->SetActivateCallback(nullptr);
         // Roll back each partial registration instead of publishing a manager
         // that accepts input without an event source. A later retry must work.

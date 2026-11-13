@@ -22,7 +22,7 @@ const TAG = 'FusionWM';
 //
 // 生命周期: created → ensure() (subWindow 创建+show) → 事件 (resize/position/
 // fullscreen/raise...) → destroyed → destroy()。子窗口内容复用 pages/WineWindow
-// (setPendingToplevel + XComponent 状态机与 UIAbility 承载完全相同)。
+// (LocalStorage identity + XComponent lifecycle match the Ability carrier).
 class FusionEntry {
   tl: number = 0;
   subWin: window.Window | null = null;
@@ -100,8 +100,7 @@ export class FusionWindowManager {
     entry.creating = true;
     this.entries.set(tl, entry);
 
-    // 与 WineWindow/ModalWindow 相同: aboutToAppear 同步读 pending toplevelId
-    testNapi.setPendingToplevel(tl);
+    // Pass identity with this scene; asynchronous creation may finish out of order.
 
     this.hostStage.createSubWindowWithOptions(`wine_fusion_${tl}`, {
       title: '',
@@ -113,7 +112,9 @@ export class FusionWindowManager {
       // raiseWindowGroup 整组提升解决 (原白屏 bug 根因; 客户区合入主窗帧后
       // 该调用保护的是菜单/浮层, 见 WineWindowManager.raiseWindowGroup)。
       try {
-        await subWin.loadContent('pages/WineWindow');
+        const storage = new LocalStorage();
+        storage.setOrCreate('wineToplevelId', tl);
+        await subWin.loadContent('pages/WineWindow', storage);
       } catch (e) {
         hilog.error(DOMAIN, TAG, '[FWM] #%{public}d loadContent FAILED: %{public}s',
           tl, JSON.stringify(e));
@@ -147,9 +148,6 @@ export class FusionWindowManager {
       // 创建期间收到 destroyed → 立即销毁
       if (entry.destroyPending) {
         hilog.info(DOMAIN, TAG, '[FWM] #%{public}d destroy requested while creating', tl);
-        // destroy-while-creating: 页面可能未执行 aboutToAppear → 清 pending 残坑
-        // (不删会使后续页面出队拿到死 id, 渲染器挂错 toplevel 黑屏)
-        testNapi.cancelPendingToplevel(tl);
         this.destroy(tl);
         return;
       }
@@ -170,7 +168,6 @@ export class FusionWindowManager {
       this.updateImmersive();  // ≥1 窗口可见 → 沉浸窗口模式 (隐藏任务栏)
     }).catch((e: Error) => {
       hilog.error(DOMAIN, TAG, '[FWM] #%{public}d createSubWindow FAILED: %{public}s', tl, JSON.stringify(e));
-      testNapi.cancelPendingToplevel(tl);  // 创建失败 → 同样清残坑
       this.finishFailed(tl);
       onFail?.();
     });

@@ -1,0 +1,50 @@
+[
+  {
+    "label": "gl31-v2-regression-conditional32",
+    "architecture": 32,
+    "expectedChecks": 26,
+    "complete": true,
+    "elapsedSeconds": 14.91,
+    "time": "2026-10-09T20:58:16.663104+08:00"
+  },
+  {
+    "label": "gl31-v2-regression-ubo32",
+    "architecture": 32,
+    "expectedChecks": 9,
+    "complete": true,
+    "elapsedSeconds": 14.95,
+    "time": "2026-10-09T20:58:32.260657+08:00"
+  },
+  {
+    "label": "gl31-v2-regression-srgb32",
+    "architecture": 32,
+    "expectedChecks": 10,
+    "complete": true,
+    "elapsedSeconds": 14.91,
+    "time": "2026-10-09T20:58:47.776118+08:00"
+  },
+  {
+    "label": "gl31-v2-regression-conditional64",
+    "architecture": 64,
+    "expectedChecks": 26,
+    "complete": true,
+    "elapsedSeconds": 12.77,
+    "time": "2026-10-09T20:59:01.188557+08:00"
+  },
+  {
+    "label": "gl31-v2-regression-ubo64",
+    "architecture": 64,
+    "expectedChecks": 9,
+    "complete": true,
+    "elapsedSeconds": 12.83,
+    "time": "2026-10-09T20:59:14.705279+08:00"
+  },
+  {
+    "label": "gl31-v2-regression-srgb64",
+    "architecture": 64,
+    "expectedChecks": 10,
+    "complete": true,
+    "elapsedSeconds": 12.83,
+    "time": "2026-10-09T20:59:28.196351+08:00"
+  }
+]

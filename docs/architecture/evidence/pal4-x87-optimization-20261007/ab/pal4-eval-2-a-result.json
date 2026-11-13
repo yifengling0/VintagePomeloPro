@@ -1,0 +1,289 @@
+{
+  "tag": "pal4-eval-2-a",
+  "variant": "A",
+  "loadReadyIntervalSeconds": [
+    29.85899999999674,
+    33.01499999999942
+  ],
+  "loadDefinition": "confirm input to first captured wooden-house scene with portrait; interactivity not timed",
+  "fpsMean": 32.653285714285715,
+  "fpsMedian": 32.713,
+  "fpsMin": 27.948,
+  "fpsMax": 40.911,
+  "samples": 35,
+  "windowSeconds": 41.28100000000268,
+  "rows": [
+    {
+      "sequence": 29,
+      "fps": 32.214,
+      "tl": 1,
+      "deviceUs": 270200214181,
+      "hostElapsedSeconds": 0.21799999999348074
+    },
+    {
+      "sequence": 30,
+      "fps": 35.593,
+      "tl": 1,
+      "deviceUs": 270201225630,
+      "hostElapsedSeconds": 1.3279999999940628
+    },
+    {
+      "sequence": 31,
+      "fps": 33.344,
+      "tl": 1,
+      "deviceUs": 270202275302,
+      "hostElapsedSeconds": 2.437000000005355
+    },
+    {
+      "sequence": 33,
+      "fps": 33.664,
+      "tl": 1,
+      "deviceUs": 270204286194,
+      "hostElapsedSeconds": 3.5460000000020955
+    },
+    {
+      "sequence": 34,
+      "fps": 32.977,
+      "tl": 1,
+      "deviceUs": 270205286898,
+      "hostElapsedSeconds": 4.6560000000026776
+    },
+    {
+      "sequence": 35,
+      "fps": 31.184,
+      "tl": 1,
+      "deviceUs": 270206313072,
+      "hostElapsedSeconds": 5.75
+    },
+    {
+      "sequence": 36,
+      "fps": 31.203,
+      "tl": 1,
+      "deviceUs": 270207338606,
+      "hostElapsedSeconds": 6.85899999999674
+    },
+    {
+      "sequence": 37,
+      "fps": 33.924,
+      "tl": 1,
+      "deviceUs": 270208340852,
+      "hostElapsedSeconds": 7.967999999993481
+    },
+    {
+      "sequence": 38,
+      "fps": 28.97,
+      "tl": 1,
+      "deviceUs": 270209341877,
+      "hostElapsedSeconds": 9.077999999994063
+    },
+    {
+      "sequence": 39,
+      "fps": 29.024,
+      "tl": 1,
+      "deviceUs": 270210375501,
+      "hostElapsedSeconds": 10.187000000005355
+    },
+    {
+      "sequence": 40,
+      "fps": 29.272,
+      "tl": 1,
+      "deviceUs": 270211468685,
+      "hostElapsedSeconds": 11.281000000002678
+    },
+    {
+      "sequence": 41,
+      "fps": 31.991,
+      "tl": 1,
+      "deviceUs": 270212468973,
+      "hostElapsedSeconds": 12.389999999999418
+    },
+    {
+      "sequence": 42,
+      "fps": 37.693,
+      "tl": 1,
+      "deviceUs": 270213503650,
+      "hostElapsedSeconds": 13.514999999999418
+    },
+    {
+      "sequence": 43,
+      "fps": 33.756,
+      "tl": 1,
+      "deviceUs": 270214510892,
+      "hostElapsedSeconds": 14.625
+    },
+    {
+      "sequence": 44,
+      "fps": 38.56,
+      "tl": 1,
+      "deviceUs": 270215522290,
+      "hostElapsedSeconds": 15.73399999999674
+    },
+    {
+      "sequence": 46,
+      "fps": 33.418,
+      "tl": 1,
+      "deviceUs": 270217556265,
+      "hostElapsedSeconds": 16.85899999999674
+    },
+    {
+      "sequence": 47,
+      "fps": 34.965,
+      "tl": 1,
+      "deviceUs": 270218557263,
+      "hostElapsedSeconds": 17.96799999999348
+    },
+    {
+      "sequence": 48,
+      "fps": 30.974,
+      "tl": 1,
+      "deviceUs": 270219558094,
+      "hostElapsedSeconds": 19.077999999994063
+    },
+    {
+      "sequence": 49,
+      "fps": 29.005,
+      "tl": 1,
+      "deviceUs": 270220592400,
+      "hostElapsedSeconds": 20.187000000005355
+    },
+    {
+      "sequence": 50,
+      "fps": 32.676,
+      "tl": 1,
+      "deviceUs": 270221694129,
+      "hostElapsedSeconds": 21.296000000002095
+    },
+    {
+      "sequence": 51,
+      "fps": 27.948,
+      "tl": 1,
+      "deviceUs": 270222695978,
+      "hostElapsedSeconds": 22.406000000002678
+    },
+    {
+      "sequence": 52,
+      "fps": 29.53,
+      "tl": 1,
+      "deviceUs": 270223711897,
+      "hostElapsedSeconds": 23.514999999999418
+    },
+    {
+      "sequence": 53,
+      "fps": 28.301,
+      "tl": 1,
+      "deviceUs": 270224771938,
+      "hostElapsedSeconds": 24.639999999999418
+    },
+    {
+      "sequence": 54,
+      "fps": 28.528,
+      "tl": 1,
+      "deviceUs": 270225823536,
+      "hostElapsedSeconds": 25.75
+    },
+    {
+      "sequence": 55,
+      "fps": 36.72,
+      "tl": 1,
+      "deviceUs": 270226831167,
+      "hostElapsedSeconds": 26.84299999999348
+    },
+    {
+      "sequence": 56,
+      "fps": 31.853,
+      "tl": 1,
+      "deviceUs": 270227898577,
+      "hostElapsedSeconds": 27.952999999994063
+    },
+    {
+      "sequence": 57,
+      "fps": 34.342,
+      "tl": 1,
+      "deviceUs": 270228917723,
+      "hostElapsedSeconds": 29.062000000005355
+    },
+    {
+      "sequence": 58,
+      "fps": 32.98,
+      "tl": 1,
+      "deviceUs": 270229918319,
+      "hostElapsedSeconds": 30.171000000002095
+    },
+    {
+      "sequence": 60,
+      "fps": 37.328,
+      "tl": 1,
+      "deviceUs": 270231986486,
+      "hostElapsedSeconds": 31.296000000002095
+    },
+    {
+      "sequence": 61,
+      "fps": 30.699,
+      "tl": 1,
+      "deviceUs": 270233028862,
+      "hostElapsedSeconds": 32.40600000000268
+    },
+    {
+      "sequence": 62,
+      "fps": 29.714,
+      "tl": 1,
+      "deviceUs": 270234038499,
+      "hostElapsedSeconds": 33.51499999999942
+    },
+    {
+      "sequence": 63,
+      "fps": 36.971,
+      "tl": 1,
+      "deviceUs": 270235039291,
+      "hostElapsedSeconds": 34.60899999999674
+    },
+    {
+      "sequence": 64,
+      "fps": 32.713,
+      "tl": 1,
+      "deviceUs": 270236048071,
+      "hostElapsedSeconds": 35.70299999999406
+    },
+    {
+      "sequence": 65,
+      "fps": 28.974,
+      "tl": 1,
+      "deviceUs": 270237048968,
+      "hostElapsedSeconds": 36.82799999999406
+    },
+    {
+      "sequence": 66,
+      "fps": 33.16,
+      "tl": 1,
+      "deviceUs": 270238074304,
+      "hostElapsedSeconds": 37.921000000002095
+    },
+    {
+      "sequence": 67,
+      "fps": 40.911,
+      "tl": 1,
+      "deviceUs": 270239100913,
+      "hostElapsedSeconds": 39.046000000002095
+    }
+  ],
+  "fpsDefinition": "host new-arriving-frame publisher, about 1 second bins; not guest Present intervals",
+  "cacheState": "shared prefix/filesystem/shader/JIT caches reused; process fully restarted; warm ordered pairs",
+  "runtimeDLL": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+  "env": {
+    "WINEHUA_WINEDEBUG": "-all,+err",
+    "WINE_D3D_CONFIG": "csmt=0x1,shader_backend=glsl",
+    "WINE_LARGE_ADDRESS_AWARE": "0",
+    "WINEHUA_WOW64_ENGINE": "fex",
+    "FEX_EXACTSTORE": "0",
+    "FEX_EXACTSTORE_STATS": "0",
+    "FEX_SILENTLOG": "1",
+    "WINEHUA_VIRGL_LOW_MAP": "0",
+    "WINEHUA_DYNAMIC_BUFFER_SYSMEM": "0",
+    "FEX_JITPERF": "0",
+    "FEX_BLOCKJITNAMING": "0",
+    "FEX_LIBRARYJITNAMING": "0",
+    "FEX_GLOBALJITNAMING": "0",
+    "FEX_X87PROFILE": "0"
+  },
+  "logStart": "21977267 /data/app/el2/100/base/com.vintage.pomelopro/temp/wine_stderr_20261007.log"
+}

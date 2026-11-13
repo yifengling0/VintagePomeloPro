@@ -15,11 +15,6 @@
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
-// Device screenshots take longer than a displayed frame.  Advance the
-// byte-sized visual marker once per several frames so a snapshot interval
-// cannot wrap more than half of its 256-value range at normal VirGL rates.
-#define FRAME_MARKER_STEP_FRAMES 8u
-
 typedef enum RendererKind {
     RENDERER_D3D9 = 0,
     RENDERER_D3D11 = 1
@@ -33,11 +28,6 @@ typedef struct D3D9Vertex {
     float x, y, z;
     DWORD color;
 } D3D9Vertex;
-
-typedef struct D3D9OverlayVertex {
-    float x, y, z, rhw;
-    DWORD color;
-} D3D9OverlayVertex;
 
 typedef struct D3D11Vertex {
     float x, y, z;
@@ -99,8 +89,11 @@ typedef struct AppState {
     double last_render_angle;
     int renderer_ready;
     int automation;
+    int static_title; /* isolate X/GDI decoration updates from GPU presentation */
+    unsigned title_interval_ms; /* optional bounded decoration stress; default 500 */
     DWORD duration_ms;
     ULONGLONG run_start_ms;
+    D3D_FEATURE_LEVEL report_feature_level; /* survives resource teardown */
     HRESULT init_result;
     HRESULT present_result;
     char run_id[96];
@@ -110,6 +103,61 @@ typedef struct AppState {
 } AppState;
 
 static AppState g_app;
+
+/* Optional, memory-only frame pacing diagnostics. No per-frame logging or
+ * pixel readback; the first 120 frames are warm-up. Present-return timing is
+ * deliberately not described as physical screen presentation timing. */
+typedef struct FramePacingStats {
+    int enabled, previous_title;
+    double previous_start, max_interval_ms, max_render_ms, max_title_ms;
+    double sum_interval_ms, sum_render_ms, sum_title_ms;
+    unsigned samples, title_samples, slow_16ms, slow_25ms, slow_50ms;
+    unsigned slow_after_title, intervals[257], renders[257];
+} FramePacingStats;
+static FramePacingStats g_pacing;
+
+static unsigned pacing_bucket(double milliseconds)
+{
+    if (milliseconds <= 0.0) return 0;
+    if (milliseconds >= 64.0) return 256;
+    return (unsigned)(milliseconds * 4.0);
+}
+
+static double pacing_percentile(const unsigned *histogram, unsigned samples, unsigned percent)
+{
+    unsigned total = 0, target = (samples / 100) * percent +
+        ((samples % 100) * percent + 99) / 100;
+    if (!samples) return 0;
+    for (unsigned i = 0; i <= 256; ++i) {
+        total += histogram[i];
+        if (total >= target) return i == 256 ? 64.0 : (i + 1) * 0.25;
+    }
+    return 0;
+}
+
+static void write_frame_pacing(FILE *fp)
+{
+    if (!g_pacing.enabled) return;
+    fprintf(fp, ",\n  \"framePacing\": {\n"
+        "    \"scope\": \"CPU frame starts and render/Present return; not display timestamps\",\n"
+        "    \"warmupFrames\": 120, \"samples\": %u, \"titleSamples\": %u,\n"
+        "    \"intervalMeanMs\": %.6f, \"intervalP95MsUpper\": %.3f, \"intervalP99MsUpper\": %.3f, \"intervalMaxMs\": %.6f,\n"
+        "    \"renderMeanMs\": %.6f, \"renderP99MsUpper\": %.3f, \"renderMaxMs\": %.6f,\n"
+        "    \"titleMeanMs\": %.6f, \"titleMaxMs\": %.6f,\n"
+        "    \"over16_67Ms\": %u, \"over25Ms\": %u, \"over50Ms\": %u, \"over16_67MsAfterTitle\": %u,\n"
+        "    \"histogramBucketMs\": 0.25, \"histogramOverflowMs\": 64, \"intervalHistogram\": [",
+        g_pacing.samples, g_pacing.title_samples,
+        g_pacing.samples ? g_pacing.sum_interval_ms / g_pacing.samples : 0.0,
+        pacing_percentile(g_pacing.intervals, g_pacing.samples, 95),
+        pacing_percentile(g_pacing.intervals, g_pacing.samples, 99), g_pacing.max_interval_ms,
+        g_pacing.samples ? g_pacing.sum_render_ms / g_pacing.samples : 0.0,
+        pacing_percentile(g_pacing.renders, g_pacing.samples, 99), g_pacing.max_render_ms,
+        g_pacing.title_samples ? g_pacing.sum_title_ms / g_pacing.title_samples : 0.0,
+        g_pacing.max_title_ms, g_pacing.slow_16ms, g_pacing.slow_25ms, g_pacing.slow_50ms,
+        g_pacing.slow_after_title);
+    for (unsigned i = 0; i <= 256; ++i) fprintf(fp, "%s%u", i ? "," : "", g_pacing.intervals[i]);
+    fputs("]\n  }", fp);
+}
 
 static const char *feature_level_name(D3D_FEATURE_LEVEL level);
 
@@ -285,12 +333,21 @@ static void parse_command_line(RendererKind *initial_renderer)
     *initial_renderer = RENDERER_D3D11;
     if (!argv) return;
     for (i = 1; i < argc; ++i) {
-        if (!wcscmp(argv[i], L"--d3d9")) {
+        if (!wcscmp(argv[i], L"--frame-pacing")) {
+            g_pacing.enabled = 1;
+        } else if (!wcscmp(argv[i], L"--d3d9")) {
             *initial_renderer = RENDERER_D3D9;
         } else if (!wcscmp(argv[i], L"--d3d11")) {
             *initial_renderer = RENDERER_D3D11;
         } else if (!wcscmp(argv[i], L"--automation")) {
             g_app.automation = 1;
+        } else if (!wcscmp(argv[i], L"--static-title")) {
+            g_app.static_title = 1;
+        } else if (!wcscmp(argv[i], L"--title-interval-ms") && i + 1 < argc) {
+            unsigned long interval = wcstoul(argv[++i], NULL, 10);
+            if (interval < 16) interval = 16;
+            if (interval > 5000) interval = 5000;
+            g_app.title_interval_ms = (unsigned)interval;
         } else if (!wcscmp(argv[i], L"--seconds") && i + 1 < argc) {
             unsigned long seconds = wcstoul(argv[++i], NULL, 10);
             if (seconds > 3600) seconds = 3600;
@@ -368,8 +425,7 @@ static void write_automation_result(const char *status_override, const char *mes
             "  \"angleRegressions\": %u,\n"
             "  \"lastAngle\": %.9f,\n"
             "  \"d3d11Dll\": \"%s\",\n"
-            "  \"dxgiDll\": \"%s\"\n"
-            "}\n",
+            "  \"dxgiDll\": \"%s\"",
             g_app.run_id, g_app.test_id, status,
             g_app.renderer_ready ? "present" : "initialization",
             message,
@@ -380,12 +436,14 @@ static void write_automation_result(const char *status_override, const char *mes
             "x86",
 #endif
             g_app.renderer == RENDERER_D3D11
-                ? feature_level_name(g_app.d3d11.feature_level) : "d3d9",
+                ? feature_level_name(g_app.report_feature_level) : "d3d9",
             (unsigned long)g_app.init_result,
             (unsigned long)g_app.present_result,
             g_app.total_frame_count, g_app.render_sequence,
             g_app.angle_regression_count, g_app.last_render_angle,
             d3d11_path, dxgi_path);
+    write_frame_pacing(fp);
+    fputs("\n}\n", fp);
     fclose(fp);
     MoveFileExA(temporary, g_app.result_path,
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
@@ -409,7 +467,9 @@ static void update_title(double now, int force)
 {
     char title[384];
     double dt = now - g_app.last_title_time;
-    if (!force && dt < 0.5) {
+    const double title_interval = g_app.title_interval_ms ?
+        g_app.title_interval_ms / 1000.0 : 0.5;
+    if (!force && (g_app.static_title || dt < title_interval)) {
         return;
     }
     if (dt <= 0.0) {
@@ -515,15 +575,6 @@ static HRESULT init_d3d9(void)
 static void render_d3d9(float angle)
 {
     D3D9State *s = &g_app.d3d9;
-    const unsigned int marker = (g_app.render_sequence / FRAME_MARKER_STEP_FRAMES) & 0xffu;
-    const DWORD marker_color = D3DCOLOR_ARGB(
-        255, ((marker >> 4) & 0xfu) * 8u + 4u, (marker & 0xfu) * 8u + 4u, 255);
-    const D3D9OverlayVertex marker_vertices[4] = {
-        {24.0f,  32.0f, 0.0f, 1.0f, marker_color},
-        {240.0f, 32.0f, 0.0f, 1.0f, marker_color},
-        {24.0f,  146.0f, 0.0f, 1.0f, marker_color},
-        {240.0f, 146.0f, 0.0f, 1.0f, marker_color}
-    };
     D3DVIEWPORT9 viewport;
     Mat4 world = mat4_mul(mat4_rotation_x(angle * 0.67f), mat4_rotation_y(angle));
     Mat4 view = mat4_translation(0.0f, 0.0f, 5.0f);
@@ -551,15 +602,6 @@ static void render_d3d9(float angle)
         IDirect3DDevice9_DrawIndexedPrimitive(s->device, D3DPT_TRIANGLELIST,
                                               0, 0, (UINT)ARRAY_SIZE(g_d3d9_vertices),
                                               0, (UINT)ARRAY_SIZE(g_indices) / 3);
-        // The same fixed-position blue marker as the D3D11 variant lets the
-        // device frame-order harness validate WineD3D/VirGL without treating
-        // a correctly rendered D3D9 frame as an infrastructure failure.
-        IDirect3DDevice9_SetRenderState(s->device, D3DRS_ZENABLE, FALSE);
-        IDirect3DDevice9_SetFVF(s->device, D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
-        IDirect3DDevice9_DrawPrimitiveUP(s->device, D3DPT_TRIANGLESTRIP, 2,
-                                         marker_vertices, sizeof(marker_vertices[0]));
-        IDirect3DDevice9_SetRenderState(s->device, D3DRS_ZENABLE, TRUE);
-        IDirect3DDevice9_SetFVF(s->device, D3DFVF_XYZ | D3DFVF_DIFFUSE);
         IDirect3DDevice9_EndScene(s->device);
     }
     g_app.present_result = IDirect3DDevice9_Present(s->device, NULL, NULL, NULL, NULL);
@@ -568,21 +610,81 @@ static void render_d3d9(float angle)
 static void release_d3d11(void)
 {
     D3D11State *s = &g_app.d3d11;
-    if (s->context) ID3D11DeviceContext_ClearState(s->context);
-    if (s->raster_state) ID3D11RasterizerState_Release(s->raster_state);
-    if (s->depth_state) ID3D11DepthStencilState_Release(s->depth_state);
-    if (s->ps) ID3D11PixelShader_Release(s->ps);
-    if (s->vs) ID3D11VertexShader_Release(s->vs);
-    if (s->layout) ID3D11InputLayout_Release(s->layout);
-    if (s->cb) ID3D11Buffer_Release(s->cb);
-    if (s->ib) ID3D11Buffer_Release(s->ib);
-    if (s->vb) ID3D11Buffer_Release(s->vb);
-    if (s->dsv) ID3D11DepthStencilView_Release(s->dsv);
-    if (s->depth_texture) ID3D11Texture2D_Release(s->depth_texture);
-    if (s->rtv) ID3D11RenderTargetView_Release(s->rtv);
-    if (s->swap_chain) IDXGISwapChain_Release(s->swap_chain);
-    if (s->context) ID3D11DeviceContext_Release(s->context);
-    if (s->device) ID3D11Device_Release(s->device);
+    if (s->context) {
+        app_log("release D3D11 context begin");
+        ID3D11DeviceContext_ClearState(s->context);
+        app_log("release D3D11 context end");
+    }
+    if (s->raster_state) {
+        app_log("release D3D11 raster_state begin");
+        ID3D11RasterizerState_Release(s->raster_state);
+        app_log("release D3D11 raster_state end");
+    }
+    if (s->depth_state) {
+        app_log("release D3D11 depth_state begin");
+        ID3D11DepthStencilState_Release(s->depth_state);
+        app_log("release D3D11 depth_state end");
+    }
+    if (s->ps) {
+        app_log("release D3D11 ps begin");
+        ID3D11PixelShader_Release(s->ps);
+        app_log("release D3D11 ps end");
+    }
+    if (s->vs) {
+        app_log("release D3D11 vs begin");
+        ID3D11VertexShader_Release(s->vs);
+        app_log("release D3D11 vs end");
+    }
+    if (s->layout) {
+        app_log("release D3D11 layout begin");
+        ID3D11InputLayout_Release(s->layout);
+        app_log("release D3D11 layout end");
+    }
+    if (s->cb) {
+        app_log("release D3D11 cb begin");
+        ID3D11Buffer_Release(s->cb);
+        app_log("release D3D11 cb end");
+    }
+    if (s->ib) {
+        app_log("release D3D11 ib begin");
+        ID3D11Buffer_Release(s->ib);
+        app_log("release D3D11 ib end");
+    }
+    if (s->vb) {
+        app_log("release D3D11 vb begin");
+        ID3D11Buffer_Release(s->vb);
+        app_log("release D3D11 vb end");
+    }
+    if (s->dsv) {
+        app_log("release D3D11 dsv begin");
+        ID3D11DepthStencilView_Release(s->dsv);
+        app_log("release D3D11 dsv end");
+    }
+    if (s->depth_texture) {
+        app_log("release D3D11 depth_texture begin");
+        ID3D11Texture2D_Release(s->depth_texture);
+        app_log("release D3D11 depth_texture end");
+    }
+    if (s->rtv) {
+        app_log("release D3D11 rtv begin");
+        ID3D11RenderTargetView_Release(s->rtv);
+        app_log("release D3D11 rtv end");
+    }
+    if (s->swap_chain) {
+        app_log("release D3D11 swap_chain begin");
+        IDXGISwapChain_Release(s->swap_chain);
+        app_log("release D3D11 swap_chain end");
+    }
+    if (s->context) {
+        app_log("release D3D11 context begin");
+        ID3D11DeviceContext_Release(s->context);
+        app_log("release D3D11 context end");
+    }
+    if (s->device) {
+        app_log("release D3D11 device begin");
+        ID3D11Device_Release(s->device);
+        app_log("release D3D11 device end");
+    }
     if (s->d3dcompiler) FreeLibrary(s->d3dcompiler);
     memset(s, 0, sizeof(*s));
 }
@@ -773,6 +875,7 @@ static HRESULT init_d3d11(void)
         set_d3d11_stage_hr("CreateDeviceAndSwapChain", hr);
         return hr;
     }
+    g_app.report_feature_level = s->feature_level;
     app_log("D3D11CreateDeviceAndSwapChain ok: feature level %s",
             feature_level_name(s->feature_level));
 
@@ -894,7 +997,7 @@ static void render_d3d11(float angle, unsigned int frame_sequence)
 
     transform_to_ndc(g_d3d11_vertices, transformed, ARRAY_SIZE(g_d3d11_vertices), mvp);
     {
-        const unsigned int marker = (frame_sequence / FRAME_MARKER_STEP_FRAMES) & 0xffu;
+        const unsigned int marker = frame_sequence & 0xffu;
         const float marker_r = (float)(((marker >> 4) & 0xfu) * 8u + 4u) / 255.0f;
         const float marker_g = (float)((marker & 0xfu) * 8u + 4u) / 255.0f;
         const D3D11Vertex marker_vertices[4] = {
@@ -969,6 +1072,8 @@ static void switch_renderer(RendererKind renderer)
 static void render_frame(void)
 {
     const double now = app_time_seconds();
+    const int sample = g_pacing.enabled && g_app.total_frame_count > 120 && g_pacing.previous_start > 0;
+    const double title_before = g_app.last_title_time;
     float angle = g_app.paused ? 0.0f : (float)now;
     if (g_app.paused) {
         angle = 0.75f;
@@ -987,11 +1092,34 @@ static void render_frame(void)
     } else {
         if (g_app.d3d9.device) render_d3d9(angle);
     }
+    const double rendered = g_pacing.enabled ? app_time_seconds() : now;
+    if (sample) {
+        const double interval = (now - g_pacing.previous_start) * 1000.0;
+        const double render = (rendered - now) * 1000.0;
+        ++g_pacing.samples;
+        ++g_pacing.intervals[pacing_bucket(interval)];
+        ++g_pacing.renders[pacing_bucket(render)];
+        g_pacing.sum_interval_ms += interval; g_pacing.sum_render_ms += render;
+        if (interval > g_pacing.max_interval_ms) g_pacing.max_interval_ms = interval;
+        if (render > g_pacing.max_render_ms) g_pacing.max_render_ms = render;
+        if (interval > 16.666667) { ++g_pacing.slow_16ms; if (g_pacing.previous_title) ++g_pacing.slow_after_title; }
+        if (interval > 25.0) ++g_pacing.slow_25ms;
+        if (interval > 50.0) ++g_pacing.slow_50ms;
+    }
     ++g_app.frame_count;
     if (g_app.renderer_ready) ++g_app.total_frame_count;
     if (g_app.automation && g_app.total_frame_count == 60)
         write_automation_result("started", "fixed-frame");
     update_title(now, 0);
+    if (g_pacing.enabled) {
+        g_pacing.previous_title = g_app.last_title_time != title_before;
+        g_pacing.previous_start = now;
+        if (sample && g_pacing.previous_title) {
+            const double title = (app_time_seconds() - rendered) * 1000.0;
+            ++g_pacing.title_samples; g_pacing.sum_title_ms += title;
+            if (title > g_pacing.max_title_ms) g_pacing.max_title_ms = title;
+        }
+    }
 }
 
 static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -1022,15 +1150,8 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
         }
         return 0;
     case WM_CLOSE:
-        /* The Harmony automation surface can send a close while the window is
-         * still being configured. Keep the bounded smoke alive long enough
-         * to publish and capture its fixed frame. */
-        if (g_app.automation && (!g_app.duration_ms ||
-            GetTickCount64() - g_app.run_start_ms < g_app.duration_ms))
-            return 0;
-        /* 交互启动 (非 automation): 必须销毁 HWND 让 WM_DESTROY/WM_QUIT
-         * 正常退出 — master 误改成 break 导致 cube 无法关闭。 */
-        DestroyWindow(hwnd);
+        g_app.running = 0;
+        PostQuitMessage(0);
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -1121,8 +1242,9 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev_instance, LPSTR cmd_line, 
         Sleep(1);
     }
 
-    write_automation_result(NULL, NULL);
+    /* A render PASS is only final after device/worker teardown returns. */
     release_renderer();
+    write_automation_result(NULL, NULL);
     return g_app.renderer_ready && SUCCEEDED(g_app.present_result) &&
         g_app.total_frame_count >= (g_app.automation ? 60u : 1u) ? 0 : 1;
 }

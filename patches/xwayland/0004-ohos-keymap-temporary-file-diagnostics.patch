@@ -1,0 +1,26 @@
+--- a/xkb/ddxLoad.c
++++ b/xkb/ddxLoad.c
+@@ -125,10 +125,13 @@
+         snprintf(output, sizeof(output), "%s%s.xkm", directory, keymap) >= sizeof(output))
+         return NULL;
+     int fd = mkstemp(input);
+-    if (fd < 0)
+-        return NULL;
++    if (fd < 0) {
++        LogMessage(X_ERROR, "Native xkbcomp stage=temp_create errno=%d\n", errno);
++        return NULL;
++    }
+     FILE *file = fdopen(fd, "w");
+     if (!file) {
++        LogMessage(X_ERROR, "Native xkbcomp stage=stream_open errno=%d\n", errno);
+         close(fd);
+         unlink(input);
+         return NULL;
+@@ -137,6 +140,7 @@
+     int failed = ferror(file);
+     if (fclose(file)) failed = 1;
+     if (failed) {
++        LogMessage(X_ERROR, "Native xkbcomp stage=temp_write errno=%d\n", errno);
+         unlink(input);
+         return NULL;
+     }

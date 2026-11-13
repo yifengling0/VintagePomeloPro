@@ -1,7 +1,7 @@
-#include "compositor/input/input_resolver.h"
-#include "compositor/toplevel/toplevel_manager.h"
-#include "compositor/toplevel/desktop_compositor.h"
-#include "compositor/frame/geometry.h"
+#include "input_resolver.h"
+#include "toplevel_manager.h"
+#include "desktop_compositor.h"
+#include "geometry.h"
 #include "compositor/frame/surface_data.h"
 #include <algorithm>
 #include <hilog/log.h>
@@ -22,6 +22,11 @@ InputResolver::InputResolver(ToplevelManager& tmgr, DesktopCompositor& composito
 {
 }
 
+bool InputResolver::IsToplevelIsolated(uint32_t id) const
+{
+    return compositor_.IsToplevelIsolated(id);
+}
+
 void InputResolver::ResolveRootSize(int& rootW, int& rootH) const
 {
     const auto* rootSt = tmgr_.FindToplevelLocked(desktopRootToplevelId_);
@@ -38,8 +43,21 @@ uint32_t InputResolver::FindToplevelAt(int x, int y)
 
 bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTarget& out)
 {
-    out = {};
     auto lk = tmgr_.Lock();
+    int rootW, rootH;
+    ResolveRootSize(rootW, rootH);
+    const auto layers = compositor_.BuildLayerListLocked(rootW, rootH);
+    const uint32_t fullscreenId = compositor_.PickFullscreenLayerLocked(layers);
+    return FindInputTargetInLayersLocked(logicalX, logicalY, out, layers,
+                                         rootW, rootH, fullscreenId, true);
+}
+
+bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logicalY, InputTarget& out,
+                                                 const std::vector<CompositorLayer>& layers,
+                                                 int rootW, int rootH, uint32_t fullscreenId,
+                                                 bool logSelection)
+{
+    out = {};
     uint32_t rootId = desktopRootToplevelId_;
 
     // 命中判定用取整桌面坐标 (与旧调用方 lround 后传 int 逐点一致);
@@ -52,7 +70,8 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
     // 收内): 各命中分支在 origin/scale/content 就位后调用, 一次性把
     // localX/localY 算完, 调用方只做注入。
     // contentW/H = 内容区钳制上界 (fit src 尺寸, 0=不钳), 是 ComputeLocalPoint
-    // 的管道参数；同时交给产品的相对指针基线检查。
+    // 的管道参数 — 无外部消费者, 不进 InputTarget (4C2 顺手项, 见
+    // input_resolver.h 头部注释)
     int contentW = 0, contentH = 0;
     auto finalize = [&]() {
         out.contentW = contentW;
@@ -66,37 +85,26 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
     // 全屏窗口作为普通层参与 Z 序, 命中几何用 fit (与渲染 blitToplevel/
     // blitSubsurface 同一变换); "盖在游戏之上的层优先命中"由逆序天然
     // 保证, 不再有独立的前置命中循环。
-    int rootW, rootH;
-    ResolveRootSize(rootW, rootH);
-    const auto layers = compositor_.BuildLayerListLocked(rootW, rootH);
-
-    // 全屏目标选取 + fit 几何 — 与渲染侧 (TakeToplevelFrame) 共用单一实现:
-    // PickFullscreenToplevelLocked: 可见全屏窗口中取 fsPriority 最大者 (多窗口
-    // 可同时 fullscreen, 显示模式切换时 Wine 会连带标记旧窗口 — 2026-07 实测
-    // notepad 被连带标记并压在游戏上), 规则原因/局限见 ToplevelState::fsPriority
-    // 注释; ComputeFullscreenFitLocked uses current committed window geometry
-    // for both SHM and GPU presentation, never a pre-fullscreen snapshot.
-    const uint32_t fullscreenId = compositor_.PickFullscreenToplevelLocked();
     const ToplevelManager::ToplevelState* zst =
         fullscreenId ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
     FitRect transform;
     const bool fsOk = zst &&
         compositor_.ComputeFullscreenFitLocked(fullscreenId, rootW, rootH, transform);
     if (fsOk) {
-        // 诊断: 全屏输入目标选取 (仅目标/几何变化时输出 — 多窗口同时全屏时
+        // 诊断: 全屏输入目标选取 (仅目标变化时输出 — 多窗口同时全屏时
         // 选错窗口的点击路由问题靠它定位, 例如旧窗口被连带标记压在游戏上)
         static uint32_t sLastPicked = 0;
-        static FitRect sLastFit;
-        if (fullscreenId != sLastPicked || !SameFitRect(transform, sLastFit)) {
+        if (logSelection && fullscreenId != sLastPicked) {
             sLastPicked = fullscreenId;
-            sLastFit = transform;
+            int layerW = 0, layerH = 0;
+            const bool hasZC = compositor_.GetZeroCopyContentSizeLocked(fullscreenId, layerW, layerH);
             OH_LOG_INFO(LOG_APP,
                 "[Input] fs-pick tl=#%{public}u pri=%{public}llu zc=%{public}d"
-                " buf=%{public}dx%{public}d → content=%{public}dx%{public}d fit=%{public}d,%{public}d+%{public}dx%{public}d",
+                " layer=%{public}dx%{public}d buf=%{public}dx%{public}d → content=%{public}dx%{public}d",
                 fullscreenId, static_cast<unsigned long long>(zst->FsPriority()),
-                compositor_.HasZeroCopyLayerForToplevelLocked(fullscreenId) ? 1 : 0,
-                zst->Width(), zst->Height(), transform.srcW, transform.srcH,
-                transform.offX, transform.offY, transform.dstW, transform.dstH);
+                hasZC ? 1 : 0,
+                layerW, layerH, zst->Width(), zst->Height(),
+                transform.srcW, transform.srcH);
         }
     }
     const int fsWinX = zst ? zst->X() : 0;
@@ -135,6 +143,12 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
         if (DesktopCompositor::ShouldSkipFullscreenCascade(layer, fullscreenId, fsOk, tmgr_)) continue;
 
         if (layer.type == CompositorLayer::Type::Subsurface) {
+            // Wine's GPU client surfaces explicitly delegate pointer events to
+            // their parent. Direct queue registration must not turn these
+            // input-transparent drawables into independent input targets.
+            auto* data = layer.sub->surface
+                ? static_cast<SurfaceData*>(wl_resource_get_user_data(layer.sub->surface)) : nullptr;
+            if (data && data->inputRegionEmpty) continue;
             // 内部菜单: enter 层自己的 wl_surface, 坐标以层原点为基。层可伸出
             // 父窗口边界 — 若改走父窗口 surface, 伸出部分产生越界的窗口相对
             // 坐标, 会被 winewayland 的 motion clamp (wayland_pointer.c
@@ -143,17 +157,6 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
             // 是 Wine 虚拟屏幕坐标 → 走 root, Wine explorer 内部处理点击分发
             if (layer.w <= 0 || layer.h <= 0) continue;
             const auto& sl = *layer.sub;
-            // Wine 的 OpenGL/Vulkan/软解码客户区 surface 是仅用于呈现的
-            // subsurface，并显式设置 empty input region（winewayland:
-            // "Let parent handle all pointer events"）。若仍按子 surface 命中，
-            // compositor 会先减一次客户区/标题栏偏移，而 Wine 收到 enter 后
-            // 又以该 HWND 的父 wayland_surface 坐标解释，鼠标就稳定偏上。
-            // 空输入区域必须穿透到下面的父 toplevel；真正的菜单 subsurface
-            // 没有该标记，仍保持独立 surface 命中与局部坐标。
-            auto* subData = sl.surface
-                ? static_cast<SurfaceData*>(wl_resource_get_user_data(sl.surface))
-                : nullptr;
-            if (subData && subData->inputRegionEmpty) continue;
             if (fsOk && layer.toplevelId == fullscreenId) {
                 // 主全屏窗口的 subsurface 绘制在窗口内容之上, 先命中 (同一
                 // fit 变换, 与渲染 blitSubsurface 全屏分支同几何)
@@ -170,7 +173,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                     out.originX = layerScrX;
                     out.originY = layerScrY;
                     out.scale = transform.scale;
-                    out.blockedModalId = tmgr_.FirstVisibleModalLocked(layer.toplevelId, desktopRootToplevelId_);
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(layer.toplevelId);
                     finalize();
                     return out.surface != nullptr;
                 }
@@ -187,13 +190,28 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                     out.originX = layer.x;
                     out.originY = layer.y;
                     // WineHua: 命中 owner 暴露区 (菜单层归属 owner) → 拦
-                    out.blockedModalId = tmgr_.FirstVisibleModalLocked(layer.toplevelId, desktopRootToplevelId_);
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(layer.toplevelId);
                 }
                 // scale 保持默认 1 (恒等变换), content 保持默认 0 (不钳制)
                 finalize();
                 return out.surface != nullptr;
             }
         } else if (layer.type == CompositorLayer::Type::Toplevel) {
+            if (layer.externalHostId) {
+                const auto* source = tmgr_.FindToplevelLocked(layer.toplevelId);
+                if (source && layer.w > 0 && layer.h > 0 &&
+                    x >= layer.x && y >= layer.y && x < layer.x + layer.w && y < layer.y + layer.h) {
+                    out.toplevelId = layer.externalHostId;
+                    out.surface = tmgr_.GetSurfaceForToplevel(layer.toplevelId);
+                    out.originX = layer.x; out.originY = layer.y;
+                    out.scale = static_cast<double>(layer.w) / source->Width();
+                    contentW = source->Width(); contentH = source->Height();
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(layer.externalHostId);
+                    finalize();
+                    return out.surface != nullptr;
+                }
+                continue;
+            }
             if (fsOk && layer.toplevelId == fullscreenId) {
                 // 主全屏窗口: 内容区 (fit 矩形) 命中
                 if (x >= transform.offX && x < transform.offX + transform.dstW &&
@@ -205,7 +223,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                     out.scale = transform.scale;
                     contentW = transform.srcW;
                     contentH = transform.srcH;
-                    out.blockedModalId = tmgr_.FirstVisibleModalLocked(fullscreenId, desktopRootToplevelId_);
+                    out.blockedModalId = compositor_.FirstVisibleContentModalLocked(fullscreenId);
                     finalize();
                     return out.surface != nullptr;
                 }
@@ -235,7 +253,7 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
                 out.scale = 1.0;
                 // WineHua: 命中被模态禁用的 owner → 拦截 (吞点击+焦点切 modal)
                 out.blockedModalId = layer.toplevelId != rootId
-                    ? tmgr_.FirstVisibleModalLocked(layer.toplevelId, desktopRootToplevelId_)
+                    ? compositor_.FirstVisibleContentModalLocked(layer.toplevelId)
                     : 0;
                 finalize();
                 return out.surface != nullptr;
@@ -252,11 +270,49 @@ bool InputResolver::FindInputTargetAt(double logicalX, double logicalY, InputTar
     return out.surface != nullptr;
 }
 
+wl_resource* InputResolver::ResolveKeyboardFocusSurface(uint32_t toplevelId,
+                                                       wl_resource* hitSurface)
+{
+    auto* owner = tmgr_.GetSurfaceForToplevel(toplevelId);
+    auto lock = tmgr_.Lock();
+    if (!tmgr_.FindRegisteredSurfaceDataLocked(owner)) return nullptr;
+    // The host HWND owns activation, while its explicitly bound foreign
+    // Wayland client receives keyboard/IME. Never infer this from a title.
+    const auto foreign = compositor_.ExternalSourceLocked(toplevelId);
+    if (foreign && (hitSurface == owner || hitSurface == tmgr_.GetSurfaceForToplevel(foreign)))
+        return tmgr_.GetSurfaceForToplevel(foreign);
+    // Hold one lock over the entire ancestry walk, including the data reads.
+    auto* current = hitSurface;
+    for (unsigned depth = 0; current && depth < 32; ++depth) {
+        auto* data = tmgr_.FindRegisteredSurfaceDataLocked(current);
+        if (!data || tmgr_.FindSurfaceResource(data->surfaceKey) != current) return nullptr;
+        if (current == owner) return owner;
+        if (!data->isSubsurface || !data->parentSurface) return nullptr;
+        current = data->parentSurface;
+    }
+    return nullptr;
+}
+
 bool InputResolver::IsSurfaceAlive(wl_resource* surface)
 {
     if (!surface) return false;
     auto lk = tmgr_.Lock();
     return tmgr_.ContainsSurfaceResource(surface);
+}
+
+bool InputResolver::IsExternallyHostedSurface(wl_resource* surface)
+{
+    const auto id = tmgr_.FindToplevelBySurface(surface);
+    auto lock = tmgr_.Lock();
+    return id && compositor_.ExternalHostLocked(id) != 0;
+}
+
+bool InputResolver::CanMoveExternalHost(uint32_t source, uint32_t host)
+{
+    auto lock = tmgr_.Lock();
+    const auto* window = tmgr_.FindToplevelLocked(host);
+    return source && host && compositor_.ExternalHostLocked(source) == host && window &&
+        !window->IsMinimized() && !window->IsFullscreen();
 }
 
 bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly,
@@ -267,13 +323,24 @@ bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, doubl
     auto lk = tmgr_.Lock();
     const auto* st = tmgr_.FindToplevelLocked(tl);
     if (!st) return false;
+    if (compositor_.ExternalHostLocked(tl)) {
+        int rw, rh; ResolveRootSize(rw, rh);
+        for (const auto& layer : compositor_.BuildLayerListLocked(rw, rh))
+            if (layer.externalHostId && layer.toplevelId == tl && layer.visible) {
+                dx = layer.x + lx * layer.w / st->Width();
+                dy = layer.y + ly * layer.h / st->Height();
+                return true;
+            }
+        return false;
+    }
     // Do not warp through a cascaded fullscreen window that is not displayed.
     if (st->IsFullscreen()) {
-        if (compositor_.PickFullscreenToplevelLocked() != tl) return false;
         // 与 FindInputTargetAt 全屏分支同一几何 (ComputeFullscreenFitLocked),
         // 保证 warp 锚点与输入逆映射互为正反变换
         int rootW, rootH;
         ResolveRootSize(rootW, rootH);
+        const auto layers = compositor_.BuildLayerListLocked(rootW, rootH);
+        if (compositor_.PickFullscreenLayerLocked(layers) != tl) return false;
         FitRect transform;
         if (!compositor_.ComputeFullscreenFitLocked(tl, rootW, rootH, transform)) return false;
         dx = transform.offX + lx * transform.scale;

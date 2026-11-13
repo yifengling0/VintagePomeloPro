@@ -1,0 +1,11 @@
+{
+  "base": "/home/liufeng/src/vpp-proton/workspace_temp/fex-softfloat-lto-20261006/source",
+  "candidate": "/home/liufeng/src/vpp-proton/workspace_temp/fex-exact-clean-20261006/source",
+  "changedFiles": [
+    "FEXCore/Source/Interface/Context/Context.h",
+    "FEXCore/Source/Interface/Core/Core.cpp",
+    "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"
+  ],
+  "floatDiagnosticCodeIncluded": false,
+  "defaultEnabled": false
+}

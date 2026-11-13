@@ -22,6 +22,15 @@ class WineLauncherAdapter implements LauncherAdapter {
   }
 }
 
+class SteamLauncherAdapter implements LauncherAdapter {
+  supports(kind: LaunchKind): boolean {
+    return kind === LaunchKind.STEAM_CLIENT || kind === LaunchKind.STEAM_GAME;
+  }
+  launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
+    return AppSessionService.getInstance().launch(app, settings, homeDirectory);
+  }
+}
+
 class HarmonyAbilityAdapter implements LauncherAdapter {
   private context: common.UIAbilityContext | null = null;
 
@@ -49,6 +58,7 @@ export class LauncherAdapterRegistry {
   private harmonyAdapter: HarmonyAbilityAdapter = new HarmonyAbilityAdapter();
 
   private constructor() {
+    this.adapters.push(new SteamLauncherAdapter());
     this.adapters.push(new WineLauncherAdapter());
     this.adapters.push(this.harmonyAdapter);
   }

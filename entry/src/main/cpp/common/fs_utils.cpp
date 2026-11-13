@@ -1,4 +1,4 @@
-#include "common/fs_utils.h"
+#include "fs_utils.h"
 
 #include <dirent.h>
 #include <sys/stat.h>

@@ -1,0 +1,40 @@
+{
+  "source": "/data/src/winehua/workspace_temp/wine-desktop-input-source-20261007",
+  "freshBuild": "/data/src/winehua/build-desktop-input-20261007",
+  "copiedWineTargetObjects": false,
+  "configureArguments": [
+    "--srcdir=/data/src/winehua/workspace_temp/wine-desktop-input-source-20261007",
+    "--host=aarch64-unknown-linux-ohos",
+    "--enable-archs=arm64ec,aarch64,i386",
+    "--prefix=/opt/winehua",
+    "--libdir=${prefix}",
+    "--with-wine-tools=/data/src/winehua/build-desktop-input-20261007/wine-native",
+    "--with-mingw=/data/src/winehua/.temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64/bin/clang",
+    "--disable-tests",
+    "--without-x",
+    "--without-alsa",
+    "--with-opengl",
+    "--with-vulkan",
+    "host_alias=aarch64-unknown-linux-ohos",
+    "CC=/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot",
+    "CFLAGS=-g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include -I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include/freetype2",
+    "LDFLAGS=-fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/lib/aarch64-linux-ohos",
+    "CXX=/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++ --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot",
+    "WAYLAND_CLIENT_CFLAGS=-I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include",
+    "WAYLAND_CLIENT_LIBS=-L/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/lib/aarch64-linux-ohos -lwayland-client",
+    "XKBCOMMON_CFLAGS=-I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include",
+    "XKBCOMMON_LIBS=-L/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/lib/aarch64-linux-ohos -lxkbcommon",
+    "XKBREGISTRY_CFLAGS=-I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include",
+    "XKBREGISTRY_LIBS=-L/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/lib/aarch64-linux-ohos -lxkbregistry",
+    "GNUTLS_CFLAGS=-I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include",
+    "GNUTLS_LIBS=-L/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/lib/aarch64-linux-ohos -lgnutls",
+    "FREETYPE_CFLAGS=-I/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/include/freetype2",
+    "FREETYPE_LIBS=-L/data/src/winehua/build-controller-followup-20261006/sysroot-ext/usr/lib/aarch64-linux-ohos -lfreetype"
+  ],
+  "targets": [
+    "dlls/winewayland.drv/winewayland.so"
+  ],
+  "patchSHA256": "d9ea72cdf327b702a0ff3d6b2db712c159508e31a253b5bae982df0e7f1ee249",
+  "winewaylandSHA256": "2f289ae86a19866de40ccb5d97d84f9ee84079c5ecb58323159b14e240731723",
+  "hostTools": "Built from the isolated source in fresh wine-native"
+}

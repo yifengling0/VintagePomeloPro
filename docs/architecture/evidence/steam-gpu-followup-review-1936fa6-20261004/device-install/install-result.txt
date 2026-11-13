@@ -1,0 +1,2 @@
+[Info]App install path:F:\VintagePomelo-Workspace\workspace_temp\gpu-followup-review-1936fa6-20261004\VintagePomeloPro-proton26-followup-1936fa6-debug-signed.hap msg:install bundle successfully.
+AppMod finish

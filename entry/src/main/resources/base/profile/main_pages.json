@@ -11,6 +11,10 @@
     "pages/DesktopWindow",
     "pages/WinePopup",
     "pages/SteamAccount",
-    "pages/SteamGameDetail"
+    "pages/SteamGameDetail",
+    "pages/AccountCloud",
+    "pages/MembershipLegal",
+    "pages/SteamComponents",
+    "pages/LinuxSteam"
   ]
 }

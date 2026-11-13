@@ -3,11 +3,11 @@
 #include <cstdint>
 #include <vector>
 
-#include "compositor/frame/blit_clip.h"
-#include "compositor/toplevel/desktop_compositor.h"
-#include "compositor/frame/geometry.h"
-#include "compositor/frame/presented_frame.h"
-#include "compositor/toplevel/toplevel_manager.h"
+#include "blit_clip.h"
+#include "desktop_compositor.h"
+#include "geometry.h"
+#include "presented_frame.h"
+#include "toplevel_manager.h"
 
 // 帧合成管线 (重构第 2A 步: TakeToplevelFrame 纯结构拆分, 行为平价)。
 // 桌面合成按"锁内规划 / 锁外绘制"分两阶段:
@@ -51,6 +51,9 @@ struct FramePlan {
     std::vector<CompositorLayer> layers;  // 层列表 (锁内构建)
     std::vector<BlitSource> srcs;         // 与 layers 等长 (锁内快照)
     int rootW = 0, rootH = 0;
+    // A mapped desktop shell may have no SHM buffer while its child windows
+    // already have pixels. Its logical output still defines the scene bounds.
+    bool rootHasPixels = false;
     uint32_t fullscreenId = 0;
     bool hasFullscreen = false;
     // ZC 游戏 (画面在 zero-copy GL 层): 全屏独占输出, 见 Blitter 填黑分支

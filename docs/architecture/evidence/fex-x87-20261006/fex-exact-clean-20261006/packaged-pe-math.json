@@ -1,0 +1,127 @@
+{
+  "wined3d.dll": {
+    "sha256": "a8ee568e21501210100263fd12cca2c9cc1bd55f2ae854ab08a22876bc11c707",
+    "x87StaticInstructions": {
+      "fstpl": 77,
+      "fildll": 60,
+      "fstps": 63,
+      "fldz": 1,
+      "flds": 2,
+      "fnstcw": 2,
+      "fldcw": 4,
+      "fistpll": 2
+    },
+    "nearestLabelsByStaticX87Count": [
+      [
+        "wined3d_texture_acquire_identity_srv",
+        94
+      ],
+      [
+        "vkd3d_shader_convert_root_signature",
+        31
+      ],
+      [
+        "wined3d_streaming_buffer_upload",
+        18
+      ],
+      [
+        "wined3d_device_process_vertices",
+        15
+      ],
+      [
+        ".text",
+        12
+      ],
+      [
+        "wined3d_device_create",
+        12
+      ],
+      [
+        "wined3d_query_get_type",
+        5
+      ],
+      [
+        "vkd3d_queue_signal_on_cpu",
+        5
+      ],
+      [
+        "wined3d_device_context_set_rendertarget_views",
+        4
+      ],
+      [
+        "wined3d_command_list_incref",
+        2
+      ],
+      [
+        "wined3d_device_get_video_decode_profile",
+        2
+      ],
+      [
+        "wined3d_sampler_get_parent",
+        2
+      ]
+    ],
+    "limitation": "Static opcode counts, not runtime cost. Stripped PE labels can span multiple actual functions; labels are not exact function attribution."
+  },
+  "d3d9.dll": {
+    "sha256": "66e09a190cebd94cabcbe6e8d8fcb55ee07c9c7002868db2e428bf42a2e17a72",
+    "x87StaticInstructions": {
+      "fnstcw": 1,
+      "fldcw": 1,
+      "fildll": 6,
+      "fstps": 6,
+      "fstpt": 1,
+      "fldt": 1
+    },
+    "nearestLabelsByStaticX87Count": [
+      [
+        "D3DPERF_SetRegion",
+        16
+      ]
+    ],
+    "limitation": "Static opcode counts, not runtime cost. Stripped PE labels can span multiple actual functions; labels are not exact function attribution."
+  },
+  "dsound.dll": {
+    "sha256": "1caee4344915c3159d225e129306ee405db4e966d935772ebdf180810aeb174b",
+    "x87StaticInstructions": {
+      "flds": 6,
+      "fildll": 19,
+      "fstps": 21,
+      "fstpl": 21
+    },
+    "nearestLabelsByStaticX87Count": [
+      [
+        "DirectSoundFullDuplexCreate",
+        52
+      ],
+      [
+        "DirectSoundCreate8",
+        15
+      ]
+    ],
+    "limitation": "Static opcode counts, not runtime cost. Stripped PE labels can span multiple actual functions; labels are not exact function attribution."
+  },
+  "winmm.dll": {
+    "sha256": "7dab9f6457788eec2a5e9b3a46597ee9757ed8860f9f8ecfc4a4f0f03b89eddd",
+    "x87StaticInstructions": {
+      "fildll": 6,
+      "fstps": 1,
+      "fstpl": 5
+    },
+    "nearestLabelsByStaticX87Count": [
+      [
+        "midiStreamOpen",
+        6
+      ],
+      [
+        "midiStreamPosition",
+        4
+      ],
+      [
+        "mixerMessage",
+        2
+      ]
+    ],
+    "limitation": "Static opcode counts, not runtime cost. Stripped PE labels can span multiple actual functions; labels are not exact function attribution."
+  }
+}

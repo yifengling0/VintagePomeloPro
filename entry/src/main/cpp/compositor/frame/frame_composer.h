@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "compositor/frame/presented_frame.h"
+#include "presented_frame.h"
 
 class DesktopCompositor;
 

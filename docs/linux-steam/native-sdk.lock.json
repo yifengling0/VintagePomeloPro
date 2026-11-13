@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Valve Linux x86 Steamworks client libraries for ARM64 Steam native games",
+  "archive": {
+    "id": "steam-native-sdk",
+    "name": "Linux 游戏 Steam 接口（32／64 位）",
+    "url": "https://client-update.steamstatic.com/bins_sdk_linuxarm64.zip.d95d3d94b73855a16840659dffefc7ed6f26c25b",
+    "bytes": 37294533,
+    "sha1": "d95d3d94b73855a16840659dffefc7ed6f26c25b",
+    "sha256": "c23f87048d79f2c05821e6ce203ff89816b350bf0211d864bd15b32bc20b321b",
+    "unpackedBytes": 106787364
+  },
+  "files": [
+    {"source":"linux32/crashhandler.so","path":"sdk/sdk32/crashhandler.so","machine":3,"bytes":1046708,"sha256":"ff4b0fd2ec28c28b680ef1cec50183ec030fe1fbe4ce79054e93babbaf8e8edb"},
+    {"source":"linux32/steamclient.so","path":"sdk/sdk32/steamclient.so","machine":3,"bytes":53449016,"sha256":"e50a75a4b744957ed806037a67c4c53f5b120fabc7e5b7625b933e88fbcb98d7"},
+    {"source":"linux32/steamerrorreporter","path":"sdk/sdk32/steamerrorreporter","machine":3,"bytes":271704,"sha256":"3c2bd2514d52db222cf82444feb8bfb844bf5f3cba62867f334c8351676a4fd3"},
+    {"source":"linux64/crashhandler.so","path":"sdk/sdk64/crashhandler.so","machine":62,"bytes":1002544,"sha256":"8e39a286364eb6ea9eeb2cb8d419e1778ddb0818d50f197c0e819f570c5d47aa"},
+    {"source":"linux64/steamclient.so","path":"sdk/sdk64/steamclient.so","machine":62,"bytes":51017392,"sha256":"6998dceeecf27a32cac3591516c9e20b5c8e9491de7adb7f897f0ef78fb8011c"}
+  ]
+}

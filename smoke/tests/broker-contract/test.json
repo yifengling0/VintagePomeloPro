@@ -1,0 +1,19 @@
+{
+  "id": "broker-contract",
+  "title": "Broker v2 real-device startup contract",
+  "exe": "broker_contract.exe",
+  "arch": [
+    "x64",
+    "x86"
+  ],
+  "build": {
+    "sources": [
+      "smoke/programs/proc/broker_contract.c"
+    ],
+    "cflags": [
+      "-O2",
+      "-Ithirdparty/wine-valve/programs"
+    ],
+    "libs": []
+  }
+}

@@ -1,0 +1,1 @@
+checked=2400000 hit=292942 rejected=2107058 native_x87=0 failures=0 complete=1

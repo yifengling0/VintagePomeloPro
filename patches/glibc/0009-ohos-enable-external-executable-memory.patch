@@ -1,0 +1,40 @@
+--- a/elf/dl-ohos-native-memory.h
++++ b/elf/dl-ohos-native-memory.h
+@@ -34,4 +34,16 @@
+   return strncmp (name, root, length) == 0 && name[length] == '/';
+ }
+ 
++/* Match Wine's per-thread OHOS executable anonymous-memory policy. A native
++   GNU fork or a previously successful unrelated mapping is not a substitute
++   for enabling it at the actual RX transition. Never used for normal ELF
++   file mappings, privileged mode, or outside the verified external root. */
++static __always_inline void
++_dl_ohos_prepare_execute (void)
++{
++#if defined (__aarch64__)
++  INTERNAL_SYSCALL_CALL (prctl, 0x6a6974, 0UL, 0UL, 0UL, 0UL);
+ #endif
++}
++
++#endif
+--- a/elf/dl-map-segments.h
++++ b/elf/dl-map-segments.h
+@@ -50,6 +50,8 @@
+     }
+   if (protection & PROT_EXEC)
+     __builtin___clear_cache ((char *) memory, (char *) memory + length);
++  if (protection & PROT_EXEC)
++    _dl_ohos_prepare_execute ();
+   if (__mprotect (memory, length, protection) < 0)
+     { int error = errno; _dl_debug_printf ("STEAMOHOS_NATIVE_MAP protect_error=%d address=%p length=%zu protection=%x page=%zu\n", error, memory, length, protection, GLRO(dl_pagesize)); __munmap (memory, length); __set_errno (error); return MAP_FAILED; }
+   return memory;
+--- a/sysdeps/aarch64/dl-bti.c
++++ b/sysdeps/aarch64/dl-bti.c
+@@ -59,6 +59,7 @@
+                pages. A MAP_FIXED file remap can discard them before OHOS
+                rejects executable file mapping. Enable real BTI in place;
+                preserve the existing error path if protection is refused. */
++            if (native_memory) _dl_ohos_prepare_execute ();
+             int result = __mprotect (start, len, prot);
+             if (fd != -1)
+               map->l_mach.bti_fail = result < 0;

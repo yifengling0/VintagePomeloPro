@@ -1,0 +1,13 @@
+{
+  "method": "replace only rebuilt native Venus and its matching raw runtime data in verified unsigned baseline; sign anew",
+  "unchangedText": {
+    "libentry.so": "44d1d08f29a84255382c397a91cb181e8eb139e73f756881209e43d0655db252",
+    "ntdll.so": "9a61718d496ad0b2f89a2e8c583829e07da22b7f106221e99d0cdd31b8a52651",
+    "win32u.so": "5392e1cf74a337740124c096c9622c81a38807c5b73991cab09ec398fd39fa11",
+    "winevulkan.so": "380a0d9f37396a6da9a304c091a997808c06d43464d0a57c64a393f96e501a5f"
+  },
+  "venusText": "d68a94996a465fabf74d4d5e9faa4c8881dbdc462b35e396581aad239799789d",
+  "unsignedSha256": "cc9e22188f201e8cf6ab449d079bb8d4fc2789c14f33813ea95636f4e4f2d75a",
+  "signedSha256": "15efc9dc2738930816335a24dc14378a7e232c01752404bd0c4ad7867c523b17",
+  "runtimeVersion": "content=bee36a048201da89;wine-valve=cd547f7a0e;fex=86ff33bbe2;arch=arm64-v8a:aarch64"
+}

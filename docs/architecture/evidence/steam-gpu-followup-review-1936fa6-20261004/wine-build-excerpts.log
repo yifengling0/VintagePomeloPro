@@ -1,0 +1,106 @@
+Excerpts from wine-fresh-build.log; original line numbers; full raw log retained locally.
+1: Fresh Wine directory: /data/src/winehua/build-gpu-followup-1936fa6-20261004
+2: Wine build identity: clean build directory; source cd547f7a0ee9d3d59b3ec47317a7852dedf0443b
+3: [BUILD] Wow64 exception dispatch frame guard quarantined (not applied)
+4: [BUILD] Wow32 stack top pad experiment quarantined (not applied)
+5: [BUILD] External-font registration repair already applied
+6: [BUILD] Signal-safe diagnostic stack reader already applied
+7: [BUILD] App-managed desktop lifetime already applied
+8: [BUILD] Client-only window state refresh already applied
+9: [BUILD] Surface region update without USER lock inversion already applied
+10: [BUILD] Direct OHOS WSI and running-window resize smoke already applied
+11: [BUILD] Owner-attached decoration float not managed already applied
+12: [BUILD] Durable wineboot prefix completion handshake already applied
+13: [BUILD] Prefix migration under wineserver session lock already applied
+14: [BUILD] RPGXP forensic diagnostics already applied
+15: [BUILD] Per-process GDI font antialiasing override already applied
+16: [BUILD] Exec-section EOF-tolerant read already applied
+17: [BUILD] PE large-address-aware default already applied
+18: [BUILD] Wayland configure window lifetime already applied
+19: [BUILD] Private Vulkan presentation validation already applied
+20: [BUILD] Broker argument metadata logging already applied
+21: [BUILD] Broker v2 complete startup contract already applied
+22: [BUILD] SHM geometry and viewport last-sent state cache already applied
+23: [BUILD] Private Vulkan signal-only acquire already applied
+24: [BUILD] === 构建 Wine ===
+25: [BUILD] --- 重新生成 configure (autoconf) ---
+26: Wine effective-source manifest: /data/src/winehua/build-gpu-followup-1936fa6-20261004/wine-build-identity.json
+27: [BUILD] --- Native 构建 (winegcc 等 host 工具) ---
+28: checking build system type... x86_64-pc-linux-gnu
+29: checking host system type... x86_64-pc-linux-gnu
+30: checking for gcc... gcc
+31: checking whether the C compiler works... yes
+32: checking for C compiler default output file name... a.out
+865:   tools/widl/ppy.tab.o
+866: [BUILD] --- OHOS 交叉编译 (Unix .so, WINE_ARCH=aarch64) ---
+867: checking build system type... x86_64-pc-linux-gnu
+868: checking host system type... aarch64-unknown-linux-ohos
+869: checking for aarch64-unknown-linux-ohos-gcc... /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot
+870: checking whether the C compiler works... yes
+82194:   -fasynchronous-unwind-tables -g -O2 -D__MUSL__ -D_GNU_SOURCE -D__ANDROID__ -D__OHOS__ -DWINE_UNIX_LIB     -D_NTSYSTEM_ -D__WINESRC__ -DFAR= -D_ACRTIMP= -DWINBASEAPI= -DZ_SOLO     -fPIC -fasynchronous-unwind-tables     -I/data/src/winehua/build-gpu-followup-1936fa6-20261004/sysroot-ext/usr/include/libdrm -I/data/src/winehua/build-gpu-followup-1936fa6-20261004/sysroot-ext/usr/include -I/data/src/winehua/build-gpu-followup-1936fa6-20261004/sysroot-ext/usr/include/freetype2
+82195: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -c -o dlls/win32u/vulkan.o /data/src/winehua/thirdparty/wine-valve/dlls/win32u/vulkan.c -Idlls/win32u \
+82196:   -I/data/src/winehua/thirdparty/wine-valve/dlls/win32u -Iinclude \
+82197:   -I/data/src/winehua/thirdparty/wine-valve/include -D__WINESRC__ -D_WIN32U_ -DWINE_UNIX_LIB \
+82198:   -I/data/src/winehua/build-gpu-followup-1936fa6-20261004/sysroot-ext/usr/include/freetype2 -Wall \
+82199:   -pipe -fcf-protection=none -fvisibility=hidden -fno-stack-protector -fno-strict-aliasing \
+139787:   dlls/ntdll/aarch64-windows/libntdll.a --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+139788: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/ntdll/ntdll.so -shared -Wl,-Bsymbolic -Wl,-soname,ntdll.so -Wl,-z,defs dlls/ntdll/unix/cdrom.o \
+139789:   dlls/ntdll/unix/debug.o dlls/ntdll/unix/env.o dlls/ntdll/unix/file.o dlls/ntdll/unix/fsync.o \
+139790:   dlls/ntdll/unix/loader.o dlls/ntdll/unix/loadorder.o dlls/ntdll/unix/ohos_broker.o \
+139791:   dlls/ntdll/unix/ohos_file.o dlls/ntdll/unix/ohos_virtual.o dlls/ntdll/unix/process.o \
+139792:   dlls/ntdll/unix/registry.o dlls/ntdll/unix/security.o dlls/ntdll/unix/serial.o \
+146874:   dlls/ntdll/aarch64-windows/libntdll.a --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+146875: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/win32u/win32u.so -shared -Wl,-Bsymbolic -Wl,-soname,win32u.so -Wl,-z,defs dlls/win32u/bitblt.o \
+146876:   dlls/win32u/bitmap.o dlls/win32u/brush.o dlls/win32u/class.o dlls/win32u/clipboard.o \
+146877:   dlls/win32u/clipping.o dlls/win32u/cursoricon.o dlls/win32u/d3dkmt.o dlls/win32u/dc.o \
+146878:   dlls/win32u/dce.o dlls/win32u/defwnd.o dlls/win32u/dib.o dlls/win32u/dibdrv/bitblt.o \
+146879:   dlls/win32u/dibdrv/dc.o dlls/win32u/dibdrv/graphics.o dlls/win32u/dibdrv/objects.o \
+150169:   dlls/ntdll/aarch64-windows/libntdll.a -Wl,-delayload,winspool.drv --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+150170: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winevulkan/winevulkan.so -shared -Wl,-Bsymbolic -Wl,-soname,winevulkan.so -Wl,-z,defs dlls/winevulkan/vulkan.o \
+150171:   dlls/winevulkan/vulkan_thunks.o dlls/ntdll/ntdll.so dlls/win32u/win32u.so -fuse-ld=lld --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot --target=aarch64-linux-ohos -L/data/src/winehua/build-gpu-followup-1936fa6-20261004/sysroot-ext/usr/lib/aarch64-linux-ohos
+150172: /data/src/winehua/build-gpu-followup-1936fa6-20261004/wine-native/tools/winegcc/winegcc -o dlls/winevulkan/aarch64-windows/winevulkan.dll \
+150173:   --wine-objdir . --winebuild \
+150174:   /data/src/winehua/build-gpu-followup-1936fa6-20261004/wine-native/tools/winebuild/winebuild -b \
+150182:   dlls/ntdll/aarch64-windows/libntdll.a --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+150183: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang --target=aarch64-linux-ohos --sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot -o dlls/winewayland.drv/winewayland.so -shared -Wl,-Bsymbolic -Wl,-soname,winewayland.so -Wl,-z,defs \
+150184:   dlls/winewayland.drv/display.o dlls/winewayland.drv/opengl.o dlls/winewayland.drv/opengl_diag.o \
+150185:   dlls/winewayland.drv/opengl_readback.o dlls/winewayland.drv/vulkan.o \
+150186:   dlls/winewayland.drv/wayland.o dlls/winewayland.drv/wayland_data_device.o \
+150187:   dlls/winewayland.drv/wayland_keyboard.o dlls/winewayland.drv/wayland_output.o \
+154171:   --no-default-config -Wl,-debug:dwarf -Wl,--build-id
+154172: Wine build complete.
+154173: [BUILD] --- 编译 wineserver (含 OHOS 修复) ---
+154174: /data/src/winehua/thirdparty/wine-valve/server/fsync.c:48:10: warning: the current #pragma pack alignment value is modified in the included file [-Wpragma-pack]
+154175: #include "pshpack4.h"
+154176:          ^
+154177: /data/src/winehua/thirdparty/wine-valve/include/pshpack4.h:23:9: note: previous '#pragma pack' directive that modifies alignment is here
+154185: /data/src/winehua/thirdparty/wine-valve/server/inproc_sync.c:121:32: warning: implicit conversion from enumeration type 'enum fsync_type' to different enumeration type 'enum inproc_sync_type' [-Wenum-conversion]
+154186:         event->type = manual ? FSYNC_MANUAL_SERVER : FSYNC_AUTO_SERVER;
+154187:                     ~          ^~~~~~~~~~~~~~~~~~~
+154188: /data/src/winehua/thirdparty/wine-valve/server/inproc_sync.c:121:54: warning: implicit conversion from enumeration type 'enum fsync_type' to different enumeration type 'enum inproc_sync_type' [-Wenum-conversion]
+154189:         event->type = manual ? FSYNC_MANUAL_SERVER : FSYNC_AUTO_SERVER;
+154190:                     ~                                ^~~~~~~~~~~~~~~~~
+154191: /data/src/winehua/thirdparty/wine-valve/server/inproc_sync.c:148:32: warning: implicit conversion from enumeration type 'enum fsync_type' to different enumeration type 'enum inproc_sync_type' [-Wenum-conversion]
+154192:         event->type = manual ? FSYNC_MANUAL_EVENT : FSYNC_AUTO_EVENT;
+154193:                     ~          ^~~~~~~~~~~~~~~~~~
+154194: /data/src/winehua/thirdparty/wine-valve/server/inproc_sync.c:148:53: warning: implicit conversion from enumeration type 'enum fsync_type' to different enumeration type 'enum inproc_sync_type' [-Wenum-conversion]
+154195:         event->type = manual ? FSYNC_MANUAL_EVENT : FSYNC_AUTO_EVENT;
+154196:                     ~                               ^~~~~~~~~~~~~~~~
+154197: /data/src/winehua/thirdparty/wine-valve/server/inproc_sync.c:175:23: warning: implicit conversion from enumeration type 'enum fsync_type' to different enumeration type 'enum inproc_sync_type' [-Wenum-conversion]
+154198:         mutex->type = FSYNC_MUTEX;
+154199:                     ~ ^~~~~~~~~~~
+154200: /data/src/winehua/thirdparty/wine-valve/server/inproc_sync.c:203:21: warning: implicit conversion from enumeration type 'enum fsync_type' to different enumeration type 'enum inproc_sync_type' [-Wenum-conversion]
+154201:         sem->type = FSYNC_SEMAPHORE;
+154202:                   ~ ^~~~~~~~~~~~~~~
+154203: 6 warnings generated.
+154204: /data/src/winehua/thirdparty/wine-valve/server/musl_compat.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+154205: #define _GNU_SOURCE
+154206:         ^
+154207: <command line>:4:9: note: previous definition is here
+154208: #define _GNU_SOURCE 1
+154209:         ^
+154210: 1 warning generated.
+154211: [BUILD]   wineserver → libwineserver.so (aarch64-linux-ohos)
+154212: [BUILD]   → /data/src/winehua/entry/libs/arm64-v8a/libwineserver.so
+154213: [BUILD] Wine 构建完成
+154214: Wine build identity verified: /data/src/winehua/thirdparty/wine-valve cd547f7a0ee9d3d59b3ec47317a7852dedf0443b

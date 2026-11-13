@@ -1,0 +1,18 @@
+g++ -std=c++17 -Wall -Wextra -Werror -no-pie -I/home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/wine_image_policy_test /home/liufeng/src/vpp-proton/host_tests/wine_image_policy_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/wine_image_policy_test
+PASS: preferred PE32 base, mapped ranges, ASLR/x64, path resolution and malformed headers
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_broker_argv_test.py
+PASS: relative/alternate argv0, Unicode, empty command line, Steam paths and arguments; previous failure reproduced
+python3 /home/liufeng/src/vpp-proton/host_tests/wined3d_legacy_alpha_test.py
+PASS: enable/disable, NEVER/ALWAYS, all comparisons, changed ref, blit restore and core guard; previous failure reproduced
+python3 /home/liufeng/src/vpp-proton/host_tests/virgl_ubo_sysval_test.py
+PASS: production UBO stage/combined limits, helper emission, typed upload, cookie and compute tests
+python3 /home/liufeng/src/vpp-proton/host_tests/virgl_conditional_render_test.py
+PASS: production WAIT/NO_WAIT, inverted, region, unresolved, reset, context and native paths; GPU operation gates
+python3 /home/liufeng/src/vpp-proton/host_tests/virgl_socket_transaction_test.py
+PASS submits=240 presents=61 replies=40 transfers=30 submits_during_pacing=23
+python3 /home/liufeng/src/vpp-proton/host_tests/virgl_explicit_present_test.py
+PASS: current drawable, driver gating, CPU queue order, one export and failure propagation
+python3 /home/liufeng/src/vpp-proton/host_tests/pbuffer_front_storage_test.py
+PASS: native flip copies, preserving pbuffer does not copy, presentation retained, callback lifetime and fallback

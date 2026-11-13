@@ -318,9 +318,20 @@ bool InstallTsfn(napi_env env, napi_callback_info info, const char* name,
 
 } // namespace
 
+namespace winehua {
+namespace controller {
+
+int EnsurePhysicalGamepadInitialized()
+{
+    return InitializeNative();
+}
+
+}  // namespace controller
+}  // namespace winehua
+
 napi_value InitGameController(napi_env env, napi_callback_info) {
     napi_value result;
-    napi_create_int32(env, InitializeNative(), &result);
+    napi_create_int32(env, winehua::controller::EnsurePhysicalGamepadInitialized(), &result);
     return result;
 }
 

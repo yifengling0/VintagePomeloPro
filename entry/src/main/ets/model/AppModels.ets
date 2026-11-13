@@ -6,6 +6,8 @@ export enum AppSource {
 }
 
 export enum LaunchKind {
+  STEAM_CLIENT = 'steam-client',
+  STEAM_GAME = 'steam-game',
   WINE_EXE = 'wine-exe',
   WINE_SYSTEM = 'wine-system',
   WINE_DESKTOP = 'wine-desktop',
@@ -51,7 +53,8 @@ export enum ViewMode {
 /** Launcher skin is independent of the existing light/dark preference. */
 export enum UiSkin {
   CLASSIC = 'classic',
-  CONSOLE = 'console'
+  CONSOLE = 'console',
+  DECK = 'deck'
 }
 
 export enum ConsoleCardLayout {
@@ -152,7 +155,45 @@ export enum D3DRendererPreference {
   VIRGL = 'virgl'
 }
 
-/** Box64 兼容性预设：默认档不注入任何覆盖（沿用系统当前已验证的配置）。 */
+/** Original OHOS Wine WoW64 backend selection. */
+export enum WineTranslationEngine {
+  FEX = 'fex',
+  BOX64 = 'box64'
+}
+
+export function normalizeWineTranslationEngine(value: string): WineTranslationEngine {
+  return value === WineTranslationEngine.BOX64 ? WineTranslationEngine.BOX64 : WineTranslationEngine.FEX;
+}
+
+/** Per-game inheritance is explicit; old settings retain the global choice. */
+export const WINE_TRANSLATION_ENGINE_DEFAULT = 'default';
+export const APP_WINE_TRANSLATION_ENGINES: string[] = [
+  WINE_TRANSLATION_ENGINE_DEFAULT, WineTranslationEngine.FEX, WineTranslationEngine.BOX64
+];
+
+export function normalizeAppWineTranslationEngine(value: string | undefined): string {
+  return value === WineTranslationEngine.FEX || value === WineTranslationEngine.BOX64 ?
+    value : WINE_TRANSLATION_ENGINE_DEFAULT;
+}
+
+export function resolveAppWineTranslationEngine(globalEngine: string, appEngine: string | undefined): WineTranslationEngine {
+  const selected = normalizeAppWineTranslationEngine(appEngine);
+  return normalizeWineTranslationEngine(selected === WINE_TRANSLATION_ENGINE_DEFAULT ? globalEngine : selected);
+}
+
+export function appWineTranslationEngineLabel(value: string): string {
+  return value === WineTranslationEngine.FEX ? 'FEX' :
+    value === WineTranslationEngine.BOX64 ? 'Box64' : '跟随全局';
+}
+
+/** OHOS Wine WoW64 CPU translation policy. */
+export function resolveWineCpuEnvironment(engine: string, preset: string): string[] {
+  if (normalizeWineTranslationEngine(engine) === WineTranslationEngine.BOX64) {
+    return ['WINEHUA_WOW64_ENGINE=box'].concat(resolveBox64PresetEnv(preset));
+  }
+  return ['WINEHUA_WOW64_ENGINE=fex'];
+}
+
 export const BOX64_PRESET_DEFAULT = 'default';
 export const BOX64_PRESET_STABILITY = 'stability';
 export const BOX64_PRESET_CONSERVATIVE = 'conservative';
@@ -315,15 +356,18 @@ export function isUnityCompatPreset(presetId: string): boolean {
 export const GRAPHICS_LAUNCH_PRESET_DEFAULT = 'default';
 export const GRAPHICS_LAUNCH_PRESET_DX11 = 'dx11';
 export const GRAPHICS_LAUNCH_PRESET_OPENGL = 'opengl';
+export const GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2 = 'godot3-gles2';
 
 export const GRAPHICS_LAUNCH_PRESET_IDS: string[] = [
   GRAPHICS_LAUNCH_PRESET_DEFAULT,
   GRAPHICS_LAUNCH_PRESET_DX11,
-  GRAPHICS_LAUNCH_PRESET_OPENGL
+  GRAPHICS_LAUNCH_PRESET_OPENGL,
+  GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2
 ];
 
 export function normalizeGraphicsLaunchPreset(value: string): string {
-  if (value === GRAPHICS_LAUNCH_PRESET_DX11 || value === GRAPHICS_LAUNCH_PRESET_OPENGL) {
+  if (value === GRAPHICS_LAUNCH_PRESET_DX11 || value === GRAPHICS_LAUNCH_PRESET_OPENGL ||
+    value === GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2) {
     return value;
   }
   return GRAPHICS_LAUNCH_PRESET_DEFAULT;
@@ -335,6 +379,8 @@ export function graphicsLaunchPresetLabel(presetId: string): string {
       return 'DX11';
     case GRAPHICS_LAUNCH_PRESET_OPENGL:
       return 'OpenGL';
+    case GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2:
+      return 'Godot 3 · GLES2';
     default:
       return '默认';
   }
@@ -346,6 +392,8 @@ export function graphicsLaunchPresetDescription(presetId: string): string {
       return '追加 -dx11 -force-d3d11，覆盖 Unreal/通用与 Unity Direct3D 11。';
     case GRAPHICS_LAUNCH_PRESET_OPENGL:
       return '追加 -opengl -force-glcore，覆盖 Unreal/旧版与 Unity CoreGL。';
+    case GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2:
+      return '使用 Godot 3 自带的 GLES2 兼容渲染，保留 GPU 加速；部分特效可能不同。不适用于 Godot 4。请在游戏主程序上选择；Steam 游戏请在 Steam 内的该游戏启动选项填写 --video-driver GLES2。';
     default:
       return '不追加图形参数，使用游戏自己的渲染器。';
   }
@@ -357,6 +405,8 @@ export function graphicsLaunchPresetArgs(presetId: string): string[] {
       return ['-dx11', '-force-d3d11'];
     case GRAPHICS_LAUNCH_PRESET_OPENGL:
       return ['-opengl', '-force-glcore'];
+    case GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2:
+      return ['--video-driver', 'GLES2'];
     default:
       return [];
   }
@@ -397,6 +447,37 @@ export function mergeLaunchArguments(base: string[], extras: string[]): string[]
   return result;
 }
 
+function withoutGodotVideoDriver(args: string[]): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    // Godot passes everything after -- to the project; do not rewrite it.
+    if (arg === '--') {
+      return result.concat(args.slice(index));
+    }
+    if (arg === '--video-driver') {
+      if (index + 1 < args.length && !args[index + 1].startsWith('-')) {
+        index++;
+      }
+      continue;
+    }
+    if (!arg.startsWith('--video-driver=')) {
+      result.push(arg);
+    }
+  }
+  return result;
+}
+
+export function resolveGraphicsLaunchArguments(presetId: string, base: string[], extras: string[]): string[] {
+  if (normalizeGraphicsLaunchPreset(presetId) === GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2) {
+    // Keep the option/value pair together. Token-level de-duplication can leave
+    // a previous GLES3 value behind or eat a GLES2 value belonging to another option.
+    return graphicsLaunchPresetArgs(presetId).concat(mergeLaunchArguments(
+      withoutGodotVideoDriver(base), withoutGodotVideoDriver(extras)));
+  }
+  return mergeLaunchArguments(graphicsLaunchPresetArgs(presetId), mergeLaunchArguments(base, extras));
+}
+
 export interface VirtualMouseConfig {
   mouseSensitivity: number;
   doubleClickInterval: number;
@@ -426,6 +507,8 @@ export interface LaunchTarget {
 }
 
 export interface AppDescriptor {
+  /** Stable Steam identity; absent for existing ordinary catalog cards. */
+  steam?: SteamLocalIdentity;
   id: string;
   title: string;
   source: AppSource;
@@ -438,6 +521,13 @@ export interface AppDescriptor {
   displayModeOverride: DisplayMode | null;
 }
 
+export interface SteamLocalIdentity {
+  clientId: string;
+  appId: string;
+  state: string;
+  clientAction?: string;
+}
+
 export interface AppSettings {
   appId: string;
   customTitle: string;
@@ -446,10 +536,16 @@ export interface AppSettings {
   manualBackgroundPath: string;
   /** Kept separately from catalog discovery so a moved game can stay starred. */
   favorite: boolean;
+  /** 原 OHOS Wine 的每游戏 32 位 CPU 后端；default 跟随全局。 */
+  wineTranslationEngine: string;
   /** Box64 兼容性预设；'default' 表示跟随全局设置。 */
   box64Preset: string;
-  /** 图形启动预设：default / dx11 / opengl。只改 argv。 */
+  /** 每游戏图形启动预设，只改 argv；默认不注入参数。 */
   graphicsLaunchPreset: string;
+  /** 每游戏 DXVK 浮点控制；关闭时向该游戏注入 d3d11.floatControls=False。默认开启。 */
+  dxvkFloatControls: boolean;
+  /** FEX 严格 x87 精度；仅影响此应用，默认保留性能策略。 */
+  fexStrictPrecision: boolean;
   /** 禁用 MF DXGI Device Manager；默认关。 */
   disableMfDxgiDeviceManager: boolean;
   /** 优先 Wine MPEG4 ByteStream Handler，失败仍回 GStreamer；默认关。 */
@@ -470,8 +566,11 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     backgroundMode: value.backgroundMode,
     manualBackgroundPath: value.manualBackgroundPath,
     favorite: value.favorite,
+    wineTranslationEngine: normalizeAppWineTranslationEngine(value.wineTranslationEngine),
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
+    dxvkFloatControls: value.dxvkFloatControls !== false,
+    fexStrictPrecision: value.fexStrictPrecision === true,
     disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager === true,
     preferMfMpeg4Handler: value.preferMfMpeg4Handler === true,
     executable: value.executable,
@@ -484,6 +583,9 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
 }
 
 export interface GlobalSettings {
+  /** Original OHOS Wine 32-bit WoW64 backend; ARM64EC remains unchanged. */
+  wineTranslationEngine: WineTranslationEngine;
+  wineDisplayRoute?: string;
   defaultDisplayMode: DisplayMode;
   /** Windows/Wine system language. Existing installs migrate to Chinese. */
   wineLanguage: WineLanguage;
@@ -536,6 +638,8 @@ export interface RuntimeSession {
   state: SessionState;
   toplevelId: number;
   startedAt: number;
+  // Session owners decide when to reveal their window.
+  automaticForeground?: boolean;
 }
 
 /** ArkTS 覆盖层所使用的 Wine 会话视图，不等同于 Wine/NCP 子进程。 */
@@ -737,8 +841,13 @@ export const DEFAULT_GAMEPAD_MAPPINGS: GamepadButtonMapping[] = [
   { id: 'home', label: 'Home', buttonCode: 2315, evdevCode: 63 }
 ];
 
+let controlElementSequence: number = 0;
 export function generateControlElementId(prefix: string = 'el'): string {
-  return prefix + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 0x10000).toString(36);
+  // A template creates many elements within one millisecond. The sequence prevents
+  // duplicate IDs even when the random suffix collides; existing saved IDs stay intact.
+  controlElementSequence++;
+  return prefix + '-' + Date.now().toString(36) + '-' + controlElementSequence.toString(36) + '-' +
+    Math.floor(Math.random() * 0x100000000).toString(36);
 }
 
 function clamp01(value: number): number {
@@ -853,6 +962,10 @@ export interface InputTemplate {
 
 export const INPUT_TEMPLATES: InputTemplate[] = [
   {
+    id: 'steam-navigation', name: 'Steam 导航', description: '方向、确认、返回和触摸板',
+    builtInProfileId: 'builtin-steam-navigation', profileName: 'Steam 导航', revision: 1
+  },
+  {
     id: 'default', name: '通用', description: '方向键、鼠标和常用功能键',
     builtInProfileId: 'default', profileName: '默认输入方案', revision: 4
   },
@@ -903,6 +1016,17 @@ function defaultTemplateElements(): ControlElement[] {
     createControlElement(ControlElementType.BUTTON, 0.06, 0.16, 'Esc', [keyBinding(1)], ControlElementShape.ROUND_RECT, 0.72),
     createControlElement(ControlElementType.BUTTON, 0.14, 0.16, 'Shift', [keyBinding(42)], ControlElementShape.ROUND_RECT, 0.72, true),
     createControlElement(ControlElementType.BUTTON, 0.22, 0.16, 'Ctrl', [keyBinding(29)], ControlElementShape.ROUND_RECT, 0.72, true)
+  ];
+}
+
+function steamNavigationElements(): ControlElement[] {
+  return [
+    createControlElement(ControlElementType.D_PAD, 0.12, 0.70, '', arrowBindings()),
+    createControlElement(ControlElementType.TRACKPAD, 0.65, 0.76, '鼠标', []),
+    createControlElement(ControlElementType.BUTTON, 0.88, 0.64, '确认', [keyBinding(28)]),
+    createControlElement(ControlElementType.BUTTON, 0.94, 0.82, '返回', [keyBinding(1)]),
+    createControlElement(ControlElementType.BUTTON, 0.06, 0.16, 'Tab', [keyBinding(15)], ControlElementShape.ROUND_RECT),
+    createControlElement(ControlElementType.BUTTON, 0.16, 0.16, 'Esc', [keyBinding(1)], ControlElementShape.ROUND_RECT)
   ];
 }
 
@@ -1075,6 +1199,7 @@ function actionTemplateElements(): ControlElement[] {
 }
 
 function templateElements(templateId: string): ControlElement[] {
+  if (templateId === 'steam-navigation') return steamNavigationElements();
   if (templateId === 'full-keyboard') return fullKeyboardTemplateElements();
   if (templateId === 'rpg') return rpgTemplateElements();
   if (templateId === 'fps' || templateId === 'shooter') return fpsTemplateElements();
@@ -1105,12 +1230,20 @@ export function createBuiltInInputProfiles(): InputProfile[] {
       template.profileName,
       template.id);
     profile.builtInRevision = template.revision;
+    if (template.id === 'steam-navigation') {
+      profile.gamepadMappings.forEach((mapping: GamepadButtonMapping): void => {
+        if (mapping.buttonCode === 2301) mapping.evdevCode = 28;
+        if (mapping.buttonCode === 2302) mapping.evdevCode = 1;
+      });
+    }
     return profile;
   });
 }
 
 export function createDefaultGlobalSettings(): GlobalSettings {
   return {
+    wineTranslationEngine: WineTranslationEngine.FEX,
+    wineDisplayRoute: 'wayland',
     defaultDisplayMode: DisplayMode.DESKTOP,
     wineLanguage: WineLanguage.CHINESE,
     desktopOrientation: ScreenOrientationSetting.SENSOR_LANDSCAPE,
@@ -1159,8 +1292,11 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     backgroundMode: GameBackgroundMode.AUTO,
     manualBackgroundPath: '',
     favorite: false,
+    wineTranslationEngine: WINE_TRANSLATION_ENGINE_DEFAULT,
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
+    dxvkFloatControls: true,
+    fexStrictPrecision: false,
     disableMfDxgiDeviceManager: false,
     preferMfMpeg4Handler: false,
     executable: '',
@@ -1173,7 +1309,12 @@ export function createDefaultAppSettings(appId: string): AppSettings {
 }
 
 export const MF_DXGI_DEVICE_MANAGER_DISABLE_ENV = 'WINE_DO_NOT_CREATE_DXGI_DEVICE_MANAGER=1';
-export const MF_PREFER_MPEG4_HANDLER_ENV = 'WINE_MF_PREFER_MPEG4_HANDLER=1';
+
+/** OHOS Wine only. Keep the alternative Box64 CPU policy independent. */
+export function resolveFexCompatEnv(engine: string, settings: AppSettings): string[] {
+  return normalizeWineTranslationEngine(engine) === WineTranslationEngine.FEX &&
+    settings.fexStrictPrecision === true ? ['FEX_X87REDUCEDPRECISION=0'] : [];
+}
 
 /** Per-game Media Foundation compat env; default settings emit nothing. */
 export function resolveMfCompatEnv(settings: AppSettings): string[] {
@@ -1181,9 +1322,8 @@ export function resolveMfCompatEnv(settings: AppSettings): string[] {
   if (settings.disableMfDxgiDeviceManager) {
     env.push(MF_DXGI_DEVICE_MANAGER_DISABLE_ENV);
   }
-  if (settings.preferMfMpeg4Handler) {
-    env.push(MF_PREFER_MPEG4_HANDLER_ENV);
-  }
+  // Persist the legacy field for older settings files. Valve Wine already
+  // selects MPEG4 as its default handler; the old override has no consumer.
   return env;
 }
 

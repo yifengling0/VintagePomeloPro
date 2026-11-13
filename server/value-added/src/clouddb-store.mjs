@@ -1,0 +1,131 @@
+import { readFile } from 'node:fs/promises';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+import { requireThat, ServiceError } from './errors.mjs';
+
+export const SDK_VERSION = '1.0.7';
+export const LOCK_KEY = 'internal:transaction-lock';
+/** Match this object type in AGC. All client roles must have no access; server SDK only. */
+export class ValueAddedRecord {
+  constructor(key = '', scope = '', json = '') { this.key = key; this.scope = scope; this.json = json; }
+  getClassName() { return 'ValueAddedRecord'; }
+  getPrimaryKeyList() { return ['key']; }
+  getFieldTypeMap() { return new Map([['key','String'], ['scope','String'], ['json','Text']]); }
+  getIndexList() { return new Map([['scopeIndex', ['scope']], ['scopeKeyIndex', ['scope', 'key']]]); }
+  getEncryptedFieldList() { return []; }
+}
+const bounded = promise => Promise.race([promise, new Promise((_, reject) => {
+  const timer = setTimeout(() => reject(new ServiceError('STORAGE_TIMEOUT', 503)), 30000); timer.unref();
+})]);
+export class CloudDbStore {
+  constructor(zone, Query, fingerprint) { this.zone = zone; this.Query = Query; this.fingerprint = fingerprint; this.ready = false; }
+  query(key) { return this.Query.where(ValueAddedRecord).equalTo('key', key); }
+  async get(key) {
+    const result = await bounded(this.zone.executeQuery(this.query(key)));
+    const rows = result.getSnapshotObjects();
+    requireThat(rows.length <= 1, 'STORAGE_INVARIANT', 503);
+    return rows.length ? JSON.parse(rows[0].json) : null;
+  }
+  async list(scope) {
+    const result = await bounded(this.zone.executeQuery(this.Query.where(ValueAddedRecord).equalTo('scope', scope).limit(257)));
+    const rows = result.getSnapshotObjects();
+    requireThat(rows.length <= 256, 'PROFILE_LIMIT', 409);
+    return rows.map(row => JSON.parse(row.json));
+  }
+  async page(scope, cursor = '', limit = 25) {
+    requireThat(Number.isInteger(limit) && limit > 0 && limit <= 100, 'INVALID_PAGE');
+    let query = this.Query.where(ValueAddedRecord).equalTo('scope', scope);
+    if (cursor) query = query.greaterThan('key', cursor);
+    const result = await bounded(this.zone.executeQuery(query.orderByAsc('key').limit(limit)));
+    return result.getSnapshotObjects().map(row => ({ key: row.key, value: JSON.parse(row.json) }));
+  }
+  async transaction(action) {
+    let result;
+    const committed = await bounded(this.zone.runTransaction({ apply: async raw => {
+      // Empty query results do not carry a CloudDB version. Every transaction must read AND
+      // update this pre-existing row so first insert/owner binding is also conflict protected.
+      const locks = await raw.executeQuery(this.query(LOCK_KEY));
+      requireThat(locks.length === 1, 'CLOUDDB_LOCK_MISSING', 503);
+      const lock = JSON.parse(locks[0].json);
+      requireThat(Number.isSafeInteger(lock.revision) && lock.revision < Number.MAX_SAFE_INTEGER, 'STORAGE_INVARIANT', 503);
+      const writes = new Map();
+      const deletes = new Map();
+      result = await action({
+        get: async key => {
+          requireThat(key !== LOCK_KEY, 'RESERVED_KEY');
+          if (deletes.has(key)) return null;
+          if (writes.has(key)) return JSON.parse(writes.get(key).json);
+          const rows = await raw.executeQuery(this.query(key));
+          requireThat(rows.length <= 1, 'STORAGE_INVARIANT', 503);
+          return rows.length ? JSON.parse(rows[0].json) : null;
+        },
+        put: (key, value, scope) => {
+          requireThat(key !== LOCK_KEY && key.length <= 200 && scope.length <= 200, 'INVALID_STORAGE_KEY');
+          const json = JSON.stringify(value);
+          requireThat(Buffer.byteLength(json) <= 524288, 'STORAGE_QUOTA');
+          writes.set(key, new ValueAddedRecord(key, scope, json));
+          deletes.delete(key);
+        },
+        delete: key => {
+          requireThat(key !== LOCK_KEY && typeof key === 'string' && key.startsWith('config-') && key.length <= 200, 'INVALID_STORAGE_KEY');
+          writes.delete(key);deletes.set(key,new ValueAddedRecord(key));
+        }
+      });
+      // SDK requires all reads before all writes. Callback has no external side effects and may rerun.
+      raw.executeUpsert([new ValueAddedRecord(LOCK_KEY, 'internal', JSON.stringify({ revision: lock.revision + 1 })),
+        ...writes.values()]);
+      if(deletes.size)raw.executeDelete([...deletes.values()]);
+      return true;
+    } }));
+    requireThat(committed === true, 'STORAGE_CONFLICT_RETRY', 503);
+    return result;
+  }
+  async loadVerification(file) {
+    const evidence = JSON.parse(await readFile(file, 'utf8'));
+    requireThat(evidence.fingerprint === this.fingerprint && evidence.sdkVersion === SDK_VERSION &&
+      evidence.sameBaseConflict === true && evidence.duplicateOrder === true && evidence.callbackAbort === true && evidence.serverRollback === true &&
+      evidence.ownerImmutable === true && evidence.disconnectedFailsClosed === true, 'CLOUDDB_NOT_VERIFIED', 503);
+    requireThat(await this.get(LOCK_KEY), 'CLOUDDB_LOCK_MISSING', 503);
+    this.ready = true;
+  }
+}
+export async function connectCloudDb({ credentialFile, credentialJson, zoneName }) {
+  const { AGCClient, CredentialParser } = require('@agconnect/common-server');
+  const { AGConnectCloudDB, CloudDBZoneConfig, CloudDBZoneQuery } = require('@agconnect/database-server');
+  requireThat((credentialFile || credentialJson) && /^[a-zA-Z0-9_-]{1,64}$/.test(zoneName), 'NOT_CONFIGURED', 503);
+  let directory, credential;
+  try {
+    if (credentialJson) {
+      requireThat(typeof credentialJson === 'string' && Buffer.byteLength(credentialJson) <= 16384,
+        'INVALID_CREDENTIAL_CONFIGURATION', 503);
+      const data = JSON.parse(credentialJson);
+      requireThat(data.type === 'project_client_id' && data.project_id && data.region && data.client_id && data.client_secret,
+        'INVALID_CREDENTIAL_CONFIGURATION', 503);
+      // The pinned CJS SDK accepts a file. Cloud functions supply protected environment
+      // values instead; use a private, short-lived file and remove it after parsing.
+      directory = mkdtempSync(join(tmpdir(), 'vp-agc-credential-'));
+      credentialFile = join(directory, 'credential.json');
+      writeFileSync(credentialFile, credentialJson, { mode: 0o600, flag: 'wx' });
+    }
+    credential = CredentialParser.toCredential(credentialFile);
+  } finally { if (directory) rmSync(directory, { recursive: true, force: true }); }
+  // A failed service initialization may retry in the same warm cloud process.
+  // The SDK keeps its default client even when our service Promise is reset.
+  const previous = AGCClient.INSTANCES.get(AGCClient.DEFAULT_INSTANCE_NAME);
+  if (previous) {
+    const active = previous.getCredential();
+    requireThat(['getProjectId','getRegion','getClientId','getClientSecret'].every(field =>
+      active[field]() === credential[field]()), 'CLOUDDB_CLIENT_CONFLICT', 503);
+  } else AGCClient.initialize(credential);
+  const client = AGCClient.getInstance();
+  AGConnectCloudDB.initialize(client);
+  const zone = AGConnectCloudDB.getInstance(client).openCloudDBZone(new CloudDBZoneConfig(zoneName));
+  const lockDigest = createHash('sha256').update(await readFile(new URL('../package-lock.json', import.meta.url))).digest('hex');
+  const fingerprint = createHash('sha256').update(credential.getProjectId() + '\n' + credential.getRegion() +
+    '\n' + zoneName + '\n' + SDK_VERSION + '\n' + lockDigest).digest('hex');
+  return new CloudDbStore(zone, CloudDBZoneQuery, fingerprint);
+}

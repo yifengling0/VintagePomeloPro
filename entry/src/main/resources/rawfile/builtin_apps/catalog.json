@@ -23,13 +23,6 @@
       "cover": ""
     },
     {
-      "id": "builtin-iexplore",
-      "title": "Internet Explorer",
-      "launchKind": "wine-system",
-      "launchParams": { "executable": "C:\\windows\\system32\\iexplore.exe", "arguments": [], "workingDirectory": "" },
-      "cover": ""
-    },
-    {
       "id": "builtin-control",
       "title": "控制面板",
       "launchKind": "wine-system",
@@ -68,11 +61,12 @@
       "id": "builtin-graphics-smoke",
       "title": "图形测试",
       "launchKind": "wine-system",
-      "launchParams": { "executable": "winehua_graphics_smoke.exe", "arguments": [], "workingDirectory": "" },
+      "launchParams": { "executable": "C:\\smoke\\x64\\winehua_graphics_smoke.exe", "arguments": [], "workingDirectory": "C:\\smoke\\x64" },
       "cover": ""
     },
     {
       "id": "builtin-dxvk-cube",
+      "renderModes": ["dxvk_1_10", "dxvk_2_6"],
       "title": "DXVK 立方体测试",
       "launchKind": "wine-system",
       "launchParams": {
@@ -86,11 +80,17 @@
       "id": "builtin-audio-smoke",
       "title": "音频测试",
       "launchKind": "wine-system",
-      "launchParams": { "executable": "winehua_audio_smoke.exe", "arguments": [], "workingDirectory": "" },
+      "launchParams": {
+        "executable": "C:\\smoke\\x64\\winehua_audio_smoke.exe",
+        "arguments": ["--automation", "--seconds", "3", "--test-id", "builtin-audio-smoke",
+          "--result", "C:\\smoke\\results\\builtin-audio-smoke.json"],
+        "workingDirectory": "C:\\smoke\\x64"
+      },
       "cover": ""
     },
     {
       "id": "builtin-vkd3d-triangle",
+      "enabled": false,
       "title": "VKD3D 方块测试",
       "launchKind": "wine-system",
       "launchParams": {
@@ -102,6 +102,7 @@
     },
     {
       "id": "builtin-vkd3d-gears",
+      "enabled": false,
       "title": "VKD3D 齿轮测试",
       "launchKind": "wine-system",
       "launchParams": {

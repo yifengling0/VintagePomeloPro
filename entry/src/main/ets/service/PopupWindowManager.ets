@@ -151,8 +151,7 @@ export class PopupWindowManager {
     entry.fullscreenPopup = fullscreenPopup;
     this.creating.add(popupId);
 
-    // 让 pages/WinePopup 的 aboutToAppear 同步取到 popupId (FIFO, 与 WineWindow 同模式)
-    testNapi.setPendingToplevel(popupId);
+    // The popup scene receives its own identity with loadContent below.
 
     stage.createSubWindowWithOptions(`wine_popup_${popupId}`, {
       title: '',
@@ -166,7 +165,9 @@ export class PopupWindowManager {
           popupId, JSON.stringify(e));
       }
       try {
-        await subWin.loadContent('pages/WinePopup');
+        const storage = new LocalStorage();
+        storage.setOrCreate('wineToplevelId', popupId);
+        await subWin.loadContent('pages/WinePopup', storage);
       } catch (e) {
         hilog.error(DOMAIN, TAG, '[POPUP] #%{public}d loadContent FAILED: %{public}s',
           popupId, JSON.stringify(e));
@@ -226,7 +227,6 @@ export class PopupWindowManager {
       }
     }).catch((e: Error) => {
       this.creating.delete(popupId);
-      testNapi.cancelPendingToplevel(popupId);  // 创建失败 → 同样清残坑
       hilog.error(DOMAIN, TAG, '[POPUP] #%{public}d createSubWindow FAILED: %{public}s',
         popupId, JSON.stringify(e));
     });
@@ -266,11 +266,7 @@ export class PopupWindowManager {
   private hide(popupId: number): void {
     if (this.creating.has(popupId)) {
       this.pendingDestroy.add(popupId);
-      // 窗口关闭于创建中 (destroy-while-creating): 页面可能未执行 aboutToAppear,
-      // pending 队列里的 id 无人消费 (残坑) — 立即清除, 否则后续每个 popup
-      // 出队拿到这个死 id → 渲染器挂错 toplevel 黑屏。页面已出队
-      // 时队列无此 id, cancel 是 no-op。
-      testNapi.cancelPendingToplevel(popupId);
+      // The creation continuation destroys its own scene before showing it.
       return;
     }
     const entry = this.popups.get(popupId);

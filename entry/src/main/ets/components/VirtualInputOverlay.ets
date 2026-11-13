@@ -12,16 +12,18 @@ import {
   resolveVirtualJoystickDirection
 } from '../model/AppModels';
 import { GlobalSettings, UiSkin } from '../model/AppModels';
+import { HostWindowTasks } from '../service/HostWindowTasks';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
 import { consoleColors } from '../service/SkinColors';
 import { InputDispatcher } from '../service/InputDispatcher';
+import { InputEventGate } from '../service/InputEventGate';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { mapMouseButton } from '../common/MouseMap';
 import { display } from '@kit.ArkUI';
 import testNapi from 'libentry.so';
 
-type ToolbarAction = 'toolbar' | 'editor' | 'mapping' | 'controls' | 'mouse' | 'keyboard' | 'home' | 'wake';
+type ToolbarAction = 'toolbar' | 'editor' | 'mapping' | 'controls' | 'mouse' | 'keyboard' | 'home' | 'launcher' | 'wake';
 
 interface KeyboardShieldRect {
   left: number;
@@ -174,6 +176,10 @@ export struct VirtualInputOverlay {
   private scrHPx: number = 0;
   @State private cursorVpX: number = -100;  // 箭头尖 vp 坐标 (屏外=隐藏)
   @State private cursorVpY: number = -100;
+  // The touchpad indicator belongs to virtual pointing input. A physical
+  // mouse uses the host/game cursor and must not leave this arrow behind.
+  @State private virtualCursorActive: boolean = false;
+  private pointerEventGate: InputEventGate = new InputEventGate();
   // 双指轻点=右键: 两指快速落下又抬起且中点几乎不动
   private tpTwoFingerStartAt: number = 0;
   private tpTwoFingerStartMidX: number = 0;
@@ -1134,6 +1140,7 @@ export struct VirtualInputOverlay {
 
   /** Windows 式：已在边缘且增量朝外则丢弃该轴，出界位移不累加。 */
   private applyCursorDelta(dxPx: number, dyPx: number): void {
+    this.virtualCursorActive = true;
     this.ensureScreenPx();
     let dx = dxPx;
     let dy = dyPx;
@@ -1151,29 +1158,33 @@ export struct VirtualInputOverlay {
     return InputOverlayWindowCoordinator.getInstance().getSnapshot().session.toplevelId;
   }
 
-  // 性能: 光标移动时缓存目标 toplevel, 避免每次 move 都 native 查询
-  // (findToplevelAt 跨 JSI/NAPI 开销大)。仅当光标明显跨窗口时才重查。
+  // Only coalesce nearby moves briefly. A window can appear beneath a stationary
+  // cursor; presses must query before raising, or the cached background wins.
   private cachedMoveTl: number = -1;
   private cachedMoveTlX: number = -1e9;
   private cachedMoveTlY: number = -1e9;
+  private cachedMoveTlAt: number = 0;
 
-  private tlAtCursor(): number {
+  private tlAtCursor(forceRefresh: boolean = false): number {
     const x = Math.round(this.vcX);
     const y = Math.round(this.vcY);
-    if (this.cachedMoveTl >= 0 &&
+    const now = Date.now();
+    if (!forceRefresh && this.cachedMoveTl >= 0 &&
+      now >= this.cachedMoveTlAt && now - this.cachedMoveTlAt < 32 &&
       Math.abs(x - this.cachedMoveTlX) < 4 && Math.abs(y - this.cachedMoveTlY) < 4) {
       return this.cachedMoveTl;
     }
-    const found = (testNapi.findToplevelAt(x, y) as number) ?? 0;
+    const found = (testNapi.findToplevelAt(x, y, this.fallbackToplevelId()) as number) ?? 0;
     const tl = found > 0 ? found : this.fallbackToplevelId();
     this.cachedMoveTl = tl;
     this.cachedMoveTlX = x;
     this.cachedMoveTlY = y;
+    this.cachedMoveTlAt = now;
     return tl;
   }
 
   private clickAtCursor(btn: number): void {
-    let tl = this.tlAtCursor();
+    let tl = this.tlAtCursor(true);
     if (tl <= 0) tl = this.fallbackToplevelId();
     if (tl <= 0) return;
     testNapi.raiseToplevel(tl);
@@ -1200,6 +1211,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleTouchpad(ev: TouchEvent): void {
+    this.virtualCursorActive = true;
     this.ensureScreenPx();
     // 虚拟光标初始位置: 屏幕中心 (首次进入触摸板模式)
     if (!this.vcInit) {
@@ -1305,7 +1317,7 @@ export struct VirtualInputOverlay {
       if (this.tpDragArmed && !this.tpDragging && this.tpMoved) {
         // 拖拽开始: 在光标处按下左键 (拖动窗口/元素)
         this.tpDragging = true;
-        this.tpDragTl = this.tlAtCursor();
+        this.tpDragTl = this.tlAtCursor(true);
         if (this.tpDragTl > 0) {
           testNapi.raiseToplevel(this.tpDragTl);
           testNapi.sendPointerEvent(this.tpDragTl, MouseAction.Press,
@@ -1346,6 +1358,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayTouch(event: TouchEvent): void {
+    if (!this.pointerEventGate.shouldHandleTouch(event.source, event.sourceTool)) return;
     if (event.changedTouches.length === 0) return;
     if (!this.hideToolbar && this.handleToolbarOverlayTouch(event)) return;
     if (this.editMode) {
@@ -1482,6 +1495,8 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayMouse(event: MouseEvent): void {
+    if (!this.pointerEventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
+    this.virtualCursorActive = false;
     if (!this.hideToolbar && this.handleToolbarOverlayMouse(event)) return;
     if (this.editMode) {
       event.stopPropagation();
@@ -1979,7 +1994,7 @@ export struct VirtualInputOverlay {
     if (this.resolveToolbarVertical()) return 52;
     // 展开宽度按实际按钮数动态计算 (toggle 28 + 各 36 按钮 + spacing + padding),
     // 否则加 home 按钮后固定 220 会溢出屏幕边缘。
-    const expandedButtons = this.desktopFloatingFullscreen ? 5 : 4;
+    const expandedButtons = 5;
     return 44 * (expandedButtons + 1);
   }
 
@@ -1987,7 +2002,7 @@ export struct VirtualInputOverlay {
     if (!this.toolbarExpanded) return 44;
     if (!this.resolveToolbarVertical()) return 52;
     // 垂直展开高度按实际按钮数动态计算 (toggle 28 + 各 36 按钮 + spacing + padding)
-    const expandedButtons = this.desktopFloatingFullscreen ? 5 : 4;
+    const expandedButtons = 5;
     return 52 * (expandedButtons + 1);
   }
 
@@ -2043,19 +2058,19 @@ export struct VirtualInputOverlay {
     }
     if (this.resolveToolbarVertical()) {
       if (this.rectContains(x, y, originX, originY, 44, 40)) return 'toolbar';
-      if (this.desktopFloatingFullscreen && this.rectContains(x, y, originX, originY + 40, 44, 44)) return 'home';
-      if (this.rectContains(x, y, originX, originY + (this.desktopFloatingFullscreen ? 84 : 40), 44, 44)) return 'editor';
-      if (this.rectContains(x, y, originX, originY + (this.desktopFloatingFullscreen ? 128 : 84), 44, 44)) return 'controls';
-      if (this.rectContains(x, y, originX, originY + (this.desktopFloatingFullscreen ? 172 : 128), 44, 44)) return 'mouse';
-      if (this.rectContains(x, y, originX, originY + (this.desktopFloatingFullscreen ? 216 : 172), 44, 44)) return 'keyboard';
+      if (this.rectContains(x, y, originX, originY + 40, 44, 44)) return this.desktopFloatingFullscreen ? 'home' : 'launcher';
+      if (this.rectContains(x, y, originX, originY + 84, 44, 44)) return 'editor';
+      if (this.rectContains(x, y, originX, originY + 128, 44, 44)) return 'controls';
+      if (this.rectContains(x, y, originX, originY + 172, 44, 44)) return 'mouse';
+      if (this.rectContains(x, y, originX, originY + 216, 44, 44)) return 'keyboard';
       return null;
     }
     if (this.rectContains(x, y, originX, originY, 44, 52)) return 'toolbar';
-    if (this.desktopFloatingFullscreen && this.rectContains(x, y, originX + 44, originY, 44, 52)) return 'home';
-    if (this.rectContains(x, y, originX + (this.desktopFloatingFullscreen ? 88 : 44), originY, 44, 52)) return 'editor';
-    if (this.rectContains(x, y, originX + (this.desktopFloatingFullscreen ? 132 : 88), originY, 44, 52)) return 'controls';
-    if (this.rectContains(x, y, originX + (this.desktopFloatingFullscreen ? 176 : 132), originY, 44, 52)) return 'mouse';
-    if (this.rectContains(x, y, originX + (this.desktopFloatingFullscreen ? 220 : 176), originY, 44, 52)) return 'keyboard';
+    if (this.rectContains(x, y, originX + 44, originY, 44, 52)) return this.desktopFloatingFullscreen ? 'home' : 'launcher';
+    if (this.rectContains(x, y, originX + 88, originY, 44, 52)) return 'editor';
+    if (this.rectContains(x, y, originX + 132, originY, 44, 52)) return 'controls';
+    if (this.rectContains(x, y, originX + 176, originY, 44, 52)) return 'mouse';
+    if (this.rectContains(x, y, originX + 220, originY, 44, 52)) return 'keyboard';
     return null;
   }
 
@@ -2086,6 +2101,12 @@ export struct VirtualInputOverlay {
       this.onToggleHostKeyboard();
       return;
     }
+    if (action === 'launcher') {
+      this.releaseAllElementTouches();
+      InputDispatcher.getInstance().releaseAll('return-to-launcher');
+      void HostWindowTasks.getInstance().showLauncher();
+      return;
+    }
     if (action === 'home') {
       // 浮窗模式全屏态: 缩回 Index 悬浮窗
       AppStorage.setOrCreate('desktopLauncherVisible', true);
@@ -2101,6 +2122,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleToolbarButtonTouch(event: TouchEvent, action: () => void): void {
+    if (!this.pointerEventGate.shouldHandleTouch(event.source, event.sourceTool)) return;
     event.stopPropagation();
     this.toolbarAutoHidden = false;
     this.startToolbarAutoHide();
@@ -2109,6 +2131,8 @@ export struct VirtualInputOverlay {
   }
 
   private handleToolbarButtonMouse(event: MouseEvent, action: () => void): void {
+    if (!this.pointerEventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
+    this.virtualCursorActive = false;
     event.stopPropagation();
     this.toolbarAutoHidden = false;
     this.startToolbarAutoHide();
@@ -2326,6 +2350,12 @@ export struct VirtualInputOverlay {
           AppStorage.setOrCreate('desktopLauncherVisible', true);
         })
     }
+    if (!this.desktopFloatingFullscreen) {
+      this.ControlBarButton($r('sys.symbol.house'), 'wine-input-launcher', false,
+        '#FFFFFFFF', '#44FFFFFF', false, (): void => {
+          this.runToolbarAction('launcher');
+        })
+    }
     this.ControlBarButton($r('sys.symbol.gearshape'), 'wine-input-layout-editor', false,
       '#FFFFFFFF', '#44FFFFFF', false, (): void => this.runToolbarAction('editor'))
     this.ControlsVisibilityButton()
@@ -2396,11 +2426,17 @@ export struct VirtualInputOverlay {
     }
   }
 
+  private shouldShowVirtualCursor(): boolean {
+    return this.touchpadModeVisual && this.showCursor && this.virtualCursorActive &&
+      this.cursorVpX >= 0 && this.cursorVpY >= 0;
+  }
+
   build() {
     Stack() {
       Text(this.renderRevision.toString()).width(0).height(0).opacity(0).hitTestBehavior(HitTestMode.None)
-      if (this.touchpadModeVisual && this.showCursor && this.cursorVpX >= 0 && this.cursorVpY >= 0) {
+      if (this.shouldShowVirtualCursor()) {
         Image($r('app.media.virtual_mouse_arrow'))
+          .id('wine-virtual-mouse-indicator')
           .width(this.cursorSizeVp())
           .height(this.cursorSizeVp())
           .objectFit(ImageFit.Contain)

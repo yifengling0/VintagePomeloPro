@@ -1,0 +1,80 @@
+create_begin	70,70
+create_device	00000000
+create_begin	600,70
+create_device	00000000
+loop	0	pump
+loop	0	present
+frame	0	0	clear
+frame	0	0	present
+frame	1	0	clear
+frame	1	0	present
+first_present	1
+loop	1	sleep
+loop	1	pump
+loop	1	present
+frame	0	1	clear
+frame	0	1	present
+frame	1	1	clear
+frame	1	1	present
+loop	2	sleep
+loop	2	pump
+loop	2	present
+frame	0	2	clear
+frame	0	2	present
+frame	1	2	clear
+frame	1	2	present
+loop	3	sleep
+loop	3	pump
+loop	3	present
+frame	0	3	clear
+frame	0	3	present
+frame	1	3	clear
+frame	1	3	present
+loop	4	sleep
+loop	4	pump
+loop	4	present
+frame	0	4	clear
+frame	0	4	present
+frame	1	4	clear
+frame	1	4	present
+loop	5	sleep
+loop	5	pump
+loop	5	present
+frame	0	5	clear
+frame	0	5	present
+frame	1	5	clear
+frame	1	5	present
+loop	6	sleep
+loop	6	pump
+loop	6	present
+frame	0	6	clear
+frame	0	6	present
+frame	1	6	clear
+frame	1	6	present
+loop	7	sleep
+loop	7	pump
+loop	7	present
+frame	0	7	clear
+frame	0	7	present
+frame	1	7	clear
+frame	1	7	present
+loop	8	sleep
+loop	8	pump
+loop	8	present
+frame	0	8	clear
+frame	0	8	present
+frame	1	8	clear
+frame	1	8	present
+loop	9	sleep
+loop	9	pump
+loop	9	present
+frame	0	9	clear
+frame	0	9	present
+frame	1	9	clear
+frame	1	9	present
+loop	10	sleep
+resize	00000000
+create_begin	600,70
+create_device	00000000
+recreate	1
+summary	errors=0	frames_a=1124	frames_b=1124	resized=1	recreated=1

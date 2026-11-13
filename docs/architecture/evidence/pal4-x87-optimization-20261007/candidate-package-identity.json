@@ -1,0 +1,69 @@
+{
+  "mainSHA": "62ca61faa87351307daa18b59c7d6fd26cbc0db6",
+  "fexPin": "86ff33bbe299cd8959a6610198c169b67ec419db",
+  "mode": "P2 strict mul24 only; no profiler; original ABI",
+  "baselineHapSha256": "d6f2340843b1f6c76ea18833b6782697c727a68c2a80f8bf3ded8705d6193b27",
+  "sourceDir": "/data/src/winehua/workspace_temp/pal4-x87-20261007/source-mul24",
+  "buildDir": "/data/src/winehua/build-pal4-x87-20261007/mul24",
+  "changedHapEntries": [
+    "resources/rawfile/wine-data.zip",
+    "resources/rawfile/wine_runtime.version",
+    "resources/rawfile/wine-runtime-manifest.json"
+  ],
+  "changedPayloadEntries": [
+    "bin/aarch64-windows/libwow64fex.dll"
+  ],
+  "fexNewSha256": "d49c9e645c82137d5824c05a6d5d8ee493d407bfffa3d8b502f217cb9404706d",
+  "compilerOutputSha256": "768088fac47e02218b4454adefc0068f041de97b640144a42b75fa3c7645fcfb",
+  "loadedSections": {
+    ".text": {
+      "size": 1835088,
+      "rva": 4096,
+      "flags": 1610612768,
+      "sha256": "c825f957f0da6bc30bc20c79f82cf175b28bcbd4763c117fcc85850f18c09059"
+    },
+    ".rdata": {
+      "size": 1665272,
+      "rva": 1843200,
+      "flags": 1073741888,
+      "sha256": "1bdf8322914026e16bc5f0f0062ab6fde06151563d75c4487edb71573dbd3ac8"
+    },
+    ".buildid": {
+      "size": 53,
+      "rva": 3510272,
+      "flags": 1073741888,
+      "sha256": "9c6240e3050d84c0da3d04798b21a692dc847301ee11ed9b931aae7ed26b04f4"
+    },
+    ".data": {
+      "size": 13256,
+      "rva": 3514368,
+      "flags": 3221225536,
+      "sha256": "4ee31836f4f0bfce8ae4647fe337d7c4eac38053d16e6db631ae7986dda9dfa0"
+    },
+    ".pdata": {
+      "size": 31344,
+      "rva": 3530752,
+      "flags": 1073741888,
+      "sha256": "69ad031a6008b413f0a193e272a197b65862cdc022870fa0d255a77c6dd74b17"
+    },
+    ".tls": {
+      "size": 16,
+      "rva": 3563520,
+      "flags": 3221225536,
+      "sha256": "374708fff7719dd5979ec875d56cd2286f6d3cf7ec317a3b25632aab28ec37bb"
+    }
+  },
+  "payloadSha256": "0ce5702f48f2c6bdcd46e0828bb7b085edbc142d0fadc625dd6e961a86717a9f",
+  "compileCommandsSHA256": "953a2707aadf32a395f378061c3555d935e381e95a6990c2f14b0fada7d998fc",
+  "unsignedHap": {
+    "filename": "entry-x87-mul24-unsigned.hap",
+    "sha256": "02a797e0886f0bada490190061965c726ef1acc1339f88199ccb9193bec662e1",
+    "bytes": 357095287
+  },
+  "hap": {
+    "filename": "entry-x87-mul24-debug-signed.hap",
+    "sha256": "960b0b3f411fe59fc12b9403f95b7eef01a111ba4ae7fb411dd9b98dff6bc244",
+    "bytes": 358924595
+  },
+  "signatureValidation": "Official hap-sign-tool verify-app succeeded; all existing archive content unchanged; only .pages.info added"
+}

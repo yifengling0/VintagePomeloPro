@@ -1,0 +1,56 @@
+{
+  "source_sha256": "6fef7f410bdfcb0df852dd72e46aaa17b8d370caacd0f044f655e1febebc2153",
+  "output_sha256": "3b56355c7dc025f8e5303ecf9c2ae449379dbb5a51189e4c3e3b8fb85630313f",
+  "modified": [
+    {
+      "name": "steamclient.dll",
+      "source_sha256": "95a7e01a64e20f0726b63cfb63b5240e51c7b15940b52d03e8da4c412ca54669",
+      "patched_sha256": "9c45de0b9a5fcc67e6bbfb28f54288da0b19f60332a750944dfc58e6aebddecd",
+      "decoder_rva": "0xa1cb00",
+      "thunk_rva": "0xd9f064",
+      "helper": "vpsteamzstd32.dll",
+      "section": "RW data; existing RX code",
+      "original_signature": "invalidated by the requested binary modification"
+    },
+    {
+      "name": "steamclient64.dll",
+      "source_sha256": "a2ad498763c4822fd4555c2cba4d4475a2ba450e403a774c1366826ad9451dd1",
+      "patched_sha256": "bb7878cf75b3878d3c365572e0985b69d5850b39dd00e2d3e27e0157246324f9",
+      "decoder_rva": "0xb9a1d0",
+      "thunk_rva": "0xf4cb50",
+      "helper": "vpsteamzstd64.dll",
+      "section": "RW data; existing RX code",
+      "original_signature": "invalidated by the requested binary modification"
+    }
+  ],
+  "private_user_state_removed": {
+    "config": 7,
+    "userdata": 11,
+    "logs": 32,
+    "appcache": 912,
+    "dumps": 7,
+    "ssfn": 0
+  },
+  "added": [
+    {
+      "path": "Steam/vpsteamzstd32.dll",
+      "bytes": 290856,
+      "sha256": "57c1b0503d131853aa899a896d3a0077b9f62a44ec5545dd6ce58e0b798e0faf"
+    },
+    {
+      "path": "Steam/vpsteamzstd64.dll",
+      "bytes": 269552,
+      "sha256": "9d561b3033904e240c89e7eab1d2a9585fa6b4ee3cdaf649bd387d01319b8c84"
+    },
+    {
+      "path": "Steam/VPP-ZSTD-README.txt",
+      "bytes": 3134,
+      "sha256": "75d34728bcd5e7b85603367f88caf5fb20ddc97bea741f56e3c8ef776a95b16f"
+    },
+    {
+      "path": "Steam/VPP-ZSTD-LICENSE.txt",
+      "bytes": 1549,
+      "sha256": "7055266497633c9025b777c78eb7235af13922117480ed5c674677adc381c9d8"
+    }
+  ]
+}

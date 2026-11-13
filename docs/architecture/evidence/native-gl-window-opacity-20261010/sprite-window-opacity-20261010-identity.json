@@ -1,0 +1,9 @@
+{
+  "base": "alpha-child-path-fixed-20261010-unsigned.hap",
+  "unsignedSha256": "6051d4fe6e1bf8ec2f8a577999b68b7d6897076cb7ffba0af5f7a7f3d6260e61",
+  "signedSha256": "843771b887d019ff711e238f5b36a2b5870912a93cbbdf17a3de1c1b3172fbbc",
+  "changedEntries": [
+    "libs/arm64-v8a/libentry.so"
+  ],
+  "libentrySha256": "37238c80875747c5fa33c38999b19ccc7d18ad864bfc8d6eed0b571f3aff1904"
+}

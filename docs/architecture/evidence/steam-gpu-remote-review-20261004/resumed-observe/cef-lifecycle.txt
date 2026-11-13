@@ -1,0 +1,4 @@
+=== CEF-UTILITY probe session start brokerPid=30320 t=1791093132949 ===
+CEF-UTILITY-CREATE brokerPid=30320 childHostPid=31385 parentHostPid=31253 key=browser type=browser subtype=- cefDir=cef.win7x64 sandbox=- HODLL=libwow64fex.dll HODLL64=libarm64ecfex.dll mojo=- t=1791093132949 image="Z:\games\Steam-legacy\Steam\bin\cef\cef.win7x64\steamwebhelper.exe"
+CEF-RENDER-REQUEST childHostPid=31385 parentHostPid=31253 type=browser cefDir=cef.win7x64 switches=--in-process-gpu --single-process
+CEF-UTILITY-EXIT childHostPid=31385 parentHostPid=31253 key=browser type=browser subtype=- cefDir=cef.win7x64 lifetimeMs=572642 signal=9(0x9=Killed) createMs=1791093132949 exitMs=1791093705591

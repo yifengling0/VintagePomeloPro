@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "file": "旧柚Pro-2.0.0-2000000-AppGallery.app",
+    "bytes": 386437673,
+    "sha256": "a0ed9cc9f708c8d252551c68d4929bb8a88298123373d2719f14900ddf828430",
+    "product": "VintagePomeloPro",
+    "versionName": "2.0.0",
+    "versionCode": 2000000,
+    "bundleName": "com.vintage.pomelopro",
+    "abi": "arm64-v8a",
+    "api": 23
+  },
+  "source": {
+    "branch": "feature/v2-ohos-wine-winsteam",
+    "commit": "2323a027658baa0b39bc896247f34de92cd90d9a",
+    "mode": "local-effective-source",
+    "effectiveSourceReceipt": {
+      "file": "ci-source.json",
+      "bytes": 2897842,
+      "sha256": "d9fb2190718905a2666670f77164ef788021ce65694a093891d32282f52830aa",
+      "storage": "Local build evidence; contains captured vendor overlays, not committed vendor changes"
+    },
+    "historicalTag": {
+      "name": "rc-1.5.8-final",
+      "commit": "67ea17f72d0b8a4d25eedcd75d3a7b837cd3ffbf"
+    }
+  },
+  "build": {
+    "mode": "release",
+    "entry": "project assembleApp",
+    "assembled": true,
+    "generatedUTC": "2026-11-12T15:02:45.452518+00:00"
+  },
+  "signature": {
+    "signatureVerified": true,
+    "profileVerified": true,
+    "profileCertificateAndKeystoreMatch": true,
+    "type": "release",
+    "distribution": "app_gallery",
+    "bundleName": "com.vintage.pomelopro",
+    "certificatePublicKeySha256": "2ac6c0e13d55d85c1911c89863f0b6d223a0236d23fef86e493eb38eca6ba792",
+    "profileSha256": "104a4e244c3447c48098b39bd764761077aa6c0573cc569c32464f50cc4e006a",
+    "validUntilUTC": "2028-12-07T05:10:46+00:00"
+  },
+  "packageVerification": {
+    "archiveCRC": "PASS",
+    "embeddedHap": {
+      "name": "entry-default.hap",
+      "bytes": 488089092,
+      "sha256": "4fab8d29a63b300821e2a2f4ee7850c72a0b47b41ea9bd7673ec0a6922fb5bdd",
+      "payloadMembers": 324,
+      "payloadMatchesUnsignedHap": true,
+      "containerDifferences": [
+        "pack.info"
+      ],
+      "packInfoJsonEquivalent": true,
+      "inspectedFromFinalApp": true,
+      "embeddedHapSigned": false,
+      "embeddedHapSigning": "Standard unsigned embedded HAP in signed App container"
+    },
+    "unsignedHapSha256": "b34369573ea82e8f6304fa79a0c6a452bad033d02afc3c6503cd0acf0e646e1d",
+    "appPayloadPreservedDuringSigning": true
+  },
+  "validation": {
+    "localPreflightChecks": 252,
+    "cleanCloneValidated": false,
+    "onlineCIValidated": false,
+    "storeUploaded": false,
+    "remainingDevelopmentTreeFailures": [
+      "shared-present-dispatch",
+      "text-input-focus",
+      "wine-language-launch",
+      "opengl-present-storage",
+      "virgl-gl31-contracts",
+      "winhttp-wininet-connect",
+      "dnsapi-musl-transport",
+      "text-input-lifecycle"
+    ],
+    "limits": [
+      "Release packaging/signature verification does not replace runtime acceptance",
+      "Eight broad development-tree regression targets remain failing; see functional validation",
+      "Steam UI CPU improvement not established; game testing deferred by user"
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+Subject: [PATCH] linux: query opted-in app socket owners when proc is restricted
+
+The paired GNU preload duplicates live descriptors with SCM_RIGHTS after
+checking Unix peer credentials and the kernel inode. Keep lsof's process
+scan, address/state filters and field output; only descriptor metadata and
+TCP endpoints use the app-private backend. Other processes retain the normal
+proc implementation. The tool is explicitly marked as an adapted build.
+
+--- a/dialects/linux/dproc.c
++++ b/dialects/linux/dproc.c
+@@ -35,6 +35,7 @@
+ #endif
+ 
+ #include "lsof.h"
++#include "lsof_socket_backend.h"
+ 
+ 
+ /*
+@@ -1270,6 +1271,9 @@
+ 			enls = errno;
+ 			ss = stat(path, &sb) ? 0 : SB_ALL;
+ 			enss = errno;
++		    }
++		    if (!ss && steamohos_lsof_stat(Lp->pid, fd, path, &sb)) {
++			ss = SB_ALL; enss = 0;
+ 		    }
+ 		    if (!ls && !Fwarn) {
+ 			(void) snpf(nmabuf, sizeof(nmabuf), "lstat: %s)",
+--- a/dialects/linux/dsock.c
++++ b/dialects/linux/dsock.c
+@@ -36,6 +36,7 @@
+ 
+ 
+ #include "lsof.h"
++#include "lsof_socket_backend.h"
+ #include <sys/xattr.h>
+ 
+ 
+@@ -3957,6 +3958,8 @@
+ 	struct tcp_udp6 *tp6;
+ #endif	/* defined(HASIPv6) */
+ 
++	if (!Fxopt && steamohos_lsof_socket(s, ss)) return;
++
+ /*
+  * Enter offset, if possible.
+  */

@@ -1,0 +1,8 @@
+[
+  {
+    "sha": "2edc80b96e96dd231df3be996b269aec10144f01",
+    "date": "2025-05-09T19:00:10Z",
+    "message": "Add support for zstd compressed depot chunks",
+    "url": "https://github.com/SteamRE/SteamKit/commit/2edc80b96e96dd231df3be996b269aec10144f01"
+  }
+]

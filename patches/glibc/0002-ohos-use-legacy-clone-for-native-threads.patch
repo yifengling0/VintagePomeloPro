@@ -1,0 +1,27 @@
+--- a/sysdeps/unix/sysv/linux/clone-internal.c
++++ b/sysdeps/unix/sysv/linux/clone-internal.c
+@@ -80,21 +80,9 @@
+ __clone3_internal (struct clone_args *cl_args, int (*func) (void *args),
+ 		   void *arg)
+ {
+-#ifdef HAVE_CLONE3_WRAPPER
+-# if __ASSUME_CLONE3
+-  return __clone3 (cl_args, sizeof (*cl_args), func, arg);
+-# else
+-  static int clone3_supported = 1;
+-  if (atomic_load_relaxed (&clone3_supported) == 1)
+-    {
+-      int ret = __clone3 (cl_args, sizeof (*cl_args), func, arg);
+-      if (ret != -1 || errno != ENOSYS)
+-	return ret;
+-
+-      atomic_store_relaxed (&clone3_supported, 0);
+-    }
+-# endif
+-#endif
++  /* OHOS application sandboxes reject clone3. Keep the existing glibc
++     ENOSYS contract so internal callers use __clone_internal_fallback,
++     which supplies real clone/TLS/parent_tid/child_tid semantics. */
+   __set_errno (ENOSYS);
+   return -1;
+ }

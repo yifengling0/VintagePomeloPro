@@ -1,0 +1,138 @@
+{
+  "pin": "86ff33bbe299cd8959a6610198c169b67ec419db",
+  "changed": [
+    {
+      "path": "FEXCore/Source/Common/JitSymbols.cpp",
+      "upstreamSha256": "7dd2097f306a5db9d65ff3fff3033c2459e2586ee2b869fc625de818fd0abccb",
+      "baselineSha256": "9fdb7f98f9935b1bdaea084976150087c538ec62816eb424b231d71159e4e446"
+    },
+    {
+      "path": "FEXCore/Source/Common/StringConv.h",
+      "upstreamSha256": "02068e8c3e9c3517bf1acbaf9b48cc814f35dcf5fbba681e129ff435fec286d2",
+      "baselineSha256": "3dd16c7eb2900902c15fc4a717dda58274a7942ea49763026f69e8b2ddd37773"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Config/Config.cpp",
+      "upstreamSha256": "cf1c96838c5d8b1900e382478057b70e96ceadc47e58ab6f67951cf91ce2ba02",
+      "baselineSha256": "f4cf86012ea6fd8a30a436fbdde6d1cb783e5b9e0c0798a9af23d6751c2fc613"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Context/Context.h",
+      "upstreamSha256": "0a414d78a9a52c1a5beaf06c13a3e43b70599e49434a55993d0c06b1c5e5caaa",
+      "baselineSha256": "21b7d1342ba6737a3258fbeb56f7161e1a94c4c29d5c3fcdb9c9f712f7aa42ca"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Core/Core.cpp",
+      "upstreamSha256": "2ea511f4bab6b205881a4bc9acf6706b576e61da1007347a030734912ac5b0de",
+      "baselineSha256": "948975bce2859f266633e992cdcced2f50c2ea90a61413492092440e9357fffa"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+      "upstreamSha256": "2c634fdbcda3499f7611b7ccfd85750b65b0cc892c2f914dc45e38f9f0d7dffb",
+      "baselineSha256": "d7515c21657e93fc2c5ba3f96b60135c339e230a8a65ef58582326398a4a163b"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Core/JIT/BranchOps.cpp",
+      "upstreamSha256": "32e0ff8f1bf78b6dd1a8d44e8a92174c9a36e1b4e7d994ff8ceb814facb962d0",
+      "baselineSha256": "943ed4b5a37bb741d8d7b87c1f0a6a32bef86bbf0bbda1eaceae9d7b4e5b5be9"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Core/JIT/MiscOps.cpp",
+      "upstreamSha256": "3d675316fb8b1fea073570f8b132a13aaa5ef0f1614f0b7215774bb875a9a7a4",
+      "baselineSha256": "1d66686a0098348f0acbece49c300807b3af5cc7fc84a3de2493e7cad103ad76"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Core/LookupCache.cpp",
+      "upstreamSha256": "cb1740d4af0a72e2d95f2da4b86d228daeacf3b1b37c92b1a19f8861251139d6",
+      "baselineSha256": "cae17aa874bd4327e0cb06ffa24dad7c63e2c513b3be3d82971d85b63d342588"
+    },
+    {
+      "path": "FEXCore/Source/Interface/Core/LookupCache.h",
+      "upstreamSha256": "86b76d4209e776ee82b03f87bf99ef76958984648d8a73b5d5d3c5fbfbc4bba9",
+      "baselineSha256": "2cf91c2655a2da2525288511f27f659a1eef40778c92009a9577539e0a72b7e0"
+    },
+    {
+      "path": "FEXCore/Source/Utils/FileLoading.cpp",
+      "upstreamSha256": "b48d58a6c285a7b80e14e09f7849691ec0630870fdd07eb7003fabeef4740966",
+      "baselineSha256": "aed6b3e5c66ec2568dc275f2ae2176c2d4bd519f51c5b588c3581bdd41716b1a"
+    },
+    {
+      "path": "FEXCore/include/FEXCore/Debug/InternalThreadState.h",
+      "upstreamSha256": "6064b831aff911b2b1c98c1f363bbb6806fd9b361324c6be28e56ee1bb148225",
+      "baselineSha256": "f1408fa44921e0fc0c9ce5d5af466d9def4057205eaade50168fb586beda8959"
+    },
+    {
+      "path": "FEXCore/include/FEXCore/Utils/JITCompileDiagnostics.h",
+      "upstreamSha256": null,
+      "baselineSha256": "8f1c953b2fde2c51571010284b5bcde3d8f5275789b8960f8b4d334ecc56535d"
+    },
+    {
+      "path": "Source/Common/Config.cpp",
+      "upstreamSha256": "0db24a45ae26c651e2416022875e80e6a8531c46be87342e04a3913f885b9788",
+      "baselineSha256": "9aafe92721b596fb10a3d6c0a36351555fe51c7cae7b194c507ac8da35e819c0"
+    },
+    {
+      "path": "Source/Windows/ARM64EC/Module.cpp",
+      "upstreamSha256": "127f3870fc06e397cd787674188c490aba3f320d9ada1c815e6e089b9ddbee7e",
+      "baselineSha256": "1d2c6b77ab90e744a85de1e539df0d673d445966fb771b1e8f59e29419b764aa"
+    },
+    {
+      "path": "Source/Windows/Common/CMakeLists.txt",
+      "upstreamSha256": "b369800c0b41afdf1845f8f7cdd7f52468de6540b457c963cdc56cd66c94e63d",
+      "baselineSha256": "d5e322318a539bc403c005deab2b73415cc1a806909be56fbf82e0337730cf59"
+    },
+    {
+      "path": "Source/Windows/Common/CRT/Alloc.cpp",
+      "upstreamSha256": "e4cd32beac55a18e67b21f69c0de7ef443e09397fd83084f995e5a1b4afd1680",
+      "baselineSha256": "7c0bc604ce2df812b7895c81bf1f17febc9791f687829b0a21315c42062645e2"
+    },
+    {
+      "path": "Source/Windows/Common/CRT/IO.cpp",
+      "upstreamSha256": "16372c6d46ae75092a8d9097b657afabad3cbbf6e2640252ccfceb015f785f2e",
+      "baselineSha256": "6c775360d00bba920157fb6b61044b80aa5adbe7f2c85ab5ea2a05721342257b"
+    },
+    {
+      "path": "Source/Windows/Common/CallRetStack.h",
+      "upstreamSha256": "80c34965be28af456a89e13cec2b194e588f3c28be12bbe3c427a52aa182a8e0",
+      "baselineSha256": "f8e1149633010efe488fd0559e3bc68d15ada47933e052fde25fa09a5e2386e6"
+    },
+    {
+      "path": "Source/Windows/Common/WinAPI/Misc.cpp",
+      "upstreamSha256": "96b1b9c76cbd1af62cf7ed857d34937d4ebbd41ab4d5f63a78812eb0cdc22139",
+      "baselineSha256": "5efce9d5fc26ea8d0bb28490e02c0ab869c778a52b08d5c016e876f7bca9019f"
+    },
+    {
+      "path": "Source/Windows/WOW64/CMakeLists.txt",
+      "upstreamSha256": "7ded9799dbe6e8b7e45cc02f31d35135fe04c8e5e29e5b01013034472a5076fc",
+      "baselineSha256": "c6472bcc09a604d959228d4aae4bdb830d7e3e60a8a3bac1bd1f17cc3913c109"
+    },
+    {
+      "path": "Source/Windows/WOW64/Module.cpp",
+      "upstreamSha256": "9d912b4ed334d2de0727ca8c4efdc59bd44b4cd85d1207746b0b287ac244d48a",
+      "baselineSha256": "8955b4efcdc6332c60d85884080ef5afc6e1f5677b5ace6eb79e8eeb08284185"
+    }
+  ],
+  "excludedGitSubmoduleTrees": [
+    "External/Catch2",
+    "External/Vulkan-Headers",
+    "External/drm-headers",
+    "External/fex-gcc-target-tests-bins",
+    "External/fex-gvisor-tests-bins",
+    "External/fex-posixtest-bins",
+    "External/fmt",
+    "External/jemalloc_glibc",
+    "External/range-v3",
+    "External/rpmalloc",
+    "External/tracy",
+    "External/unordered_dense",
+    "External/vixl",
+    "External/xxhash",
+    "External/zydis",
+    "Source/Common/cpp-optparse"
+  ],
+  "excludedPatchBackups": [
+    "*.orig",
+    "*.rej"
+  ],
+  "note": "Aggregate FEX-owned source delta of the saved ThinLTO baseline versus the existing pinned FEX source. External Git submodules are dependencies, not included or independently content-verified here. Initialize them at the pinned upstream commits. Apply instead of individual prerequisite patches, never on top of them."
+}

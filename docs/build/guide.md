@@ -1,0 +1,295 @@
+# Wine for HarmonyOS — 构建指南
+
+> 最后核实: 2026-09-24
+
+## 环境
+
+构建环境搭建详见 [env.md](env.md)。
+
+快速检查：
+
+```bash
+# 必备工具
+make cmake ninja meson bison flex autoconf libtoolize gcc-mingw-w64-x86-64 i686-w64-mingw32-gcc java
+glslangValidator               # guest Vulkan 栈构建依赖 (build_ohos_guest_vulkan.sh)
+# OHOS SDK: /apps/harmony/sdk/default/openharmony/
+# wayland-scanner: 无需预装，构建时自动编译到 build/host-tools/bin/
+```
+
+---
+
+## 平台
+
+三种构建方案（`NATIVE_ARCH` = 设备架构，`WINE_ARCH` = Wine/模拟层架构）：
+
+| 方案 | Makefile 命令 | `NATIVE_ARCH` | `WINE_ARCH` | Wine | 转译 |
+|------|-------------|---------------|-------------|------|------|
+| ① x86_64 原生 | `make NATIVE_ARCH=x86_64` | `x86_64` | `x86_64` | Wine .so → libs/ | 无 |
+| ② box64+wine | `make NATIVE_ARCH=arm64-v8a WINE_ARCH=x86_64` | `arm64-v8a` | `x86_64` | x86_64 ELF → rawfile zip | box64.so (NCP dlopen) |
+| ③ arm64 原生 | `make NATIVE_ARCH=arm64-v8a` | `arm64-v8a` | `aarch64` | Wine aarch64 .so → libs/ | FEX (`libarm64ecfex.dll`/`libwow64fex.dll`) + Box64 wow64 (`wowbox64.dll`, HODLL 默认) |
+
+默认值：`NATIVE_ARCH=x86_64`（注意 `scripts/env.sh` 直接运行脚本时默认 `arm64-v8a`）；`WINE_ARCH` 默认由 `NATIVE_ARCH` 推导（arm64→aarch64 方案③，x86_64→x86_64 方案①）。
+
+> `NATIVE_ARCH=all` 双架构 HAP 已移除：单一 `WINE_ARCH` 无法同时满足方案②/③ 的 arm64 assemble。需要多个 HAP 时分别执行各方案的完整构建。
+
+> Wine 和 wineserver 通过 NCP（`OH_Ability_StartNativeChildProcess`）创建子进程。方案② 下 Box64 编译为 box64.so 由 NCP 子进程 dlopen 加载。
+
+---
+
+## 新 clone / 他人编译（与 CI 一致的流程）
+
+### 两步
+
+```bash
+# 1) 取主仓库 + 全部 submodule（含构建实际使用的 Wine 源码 thirdparty/wine-valve）
+git clone https://github.com/winehua/WineHua.git && cd WineHua
+git submodule update --init --recursive
+
+# 2) 构建（arm64 原生：FEX + wow64 box64）
+make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64
+```
+
+- `thirdparty/wine-valve`（2026-09-22 起）是正式 submodule：`winehua/wine.git` 的
+  `ohos-port-steam-win64` 分支，`WINE_SRC`（`scripts/env.sh` / `Makefile`）指向它。
+- 历史遗留：早期它不是 submodule，而是 `thirdparty/wine` 的 git worktree；
+  `scripts/prepare-wine-valve.sh` 保留给那些旧 clone（目录已存在时直接返回，不会破坏 submodule 布局）。
+- 分支名可用 `WINE_VALVE_REF=<branch>` 覆盖（仅旧流程需要），CI 与 submodule 都以 `ohos-port-steam-win64` 为准。
+- 私有 submodule（`wine` / `box64` / `mesa-ohos`）需要访问权限；CI 用
+  `url."https://x-access-token:<TOKEN>@github.com/".insteadOf "git@github.com:"` 改成 HTTPS 取。
+- 签名用仓库私有 `sign.py`（口令在本地配置里，不进仓库）；公开/CI 产物是 **unsigned HAP**。
+
+### 干净源码的 FEX 补丁预检
+
+CI 在长时间编译前执行 `python3 host_tests/fex_overlay_replay_test.py`：
+从 FEX 的固定 gitlink 提取补丁涉及的小型文件集，实际执行
+`build_fex.sh` 的 `FEX_PATCH_CHECK_ONLY=1` 路径两次，核对首次应用和增量
+重放的结果一致，再编译运行真实 VM tracker 的行为测试。预检不修改源码子模块。
+
+`fex-windows-vm-contract.patch` 是完整生产补丁序列之后的增量，必须最后应用；
+它不再重复携带 unaligned diagnostics、synthetic return、JIT 诊断和文件加载修复。
+历史 Steam 诊断补丁仍默认关闭。补丁预检通过只证明可重放，完整 HAP 仍须编译验证。
+
+### 构建输入各自来自哪里（改代码前必看）
+
+| 输入 | 来源 | 说明 |
+|------|------|------|
+| Wine (`WINE_SRC`) | submodule `thirdparty/wine-valve` → `winehua/wine.git` 的 **`ohos-port-steam-win64` 分支** | **Wine 侧改动必须推到这条分支**，再更新主仓库 gitlink |
+| box64（含 `wowbox64.dll`） | 主仓库 gitlink pin，submodule `thirdparty/box64` | 按 SHA 取（当前 `e970ee6f2`，在分支 `ohos-wow64-smc-fs` 上） |
+| FEX（`libarm64ecfex.dll` / `libwow64fex.dll`） | `thirdparty/fex` submodule + `scripts/patches/fex-*.patch` | 由 `make fex` / `scripts/build_fex.sh` 应用补丁后构建 |
+| dxvk | submodule `thirdparty/dxvk` → fork 分支 **`feature/arm64-legacy`** | 含 WineHua present 观测(`DXVK_WINEHUA_PERF_DIAGNOSIS` / `WineHuaPresentImage` 时间线) |
+| mesa / virglrenderer / dxvk-modern / libepoxy / vkd3d-proton | 各自 fork 的 gitlink pin | 与上游 fork 分支对应，见 [SUBMODULE_MAINTAINABILITY.md](SUBMODULE_MAINTAINABILITY.md) |
+| guest gfx / guest vulkan / host vulkan | `make deps`（源码在 submodule 内） | |
+
+> **最常踩的坑**：改了 Wine 源码但只提交在本地分支（历史上本地 `ohos-port` 与远端 `ohos-port`
+> 历史无共同祖先，直接 push 会被拒）。正确做法是在 `ohos-port-steam-win64` 上提交并快进推送，
+> 然后 `git add thirdparty/wine-valve` 更新主仓库 gitlink——否则别人 clone 到的还是旧内容。
+
+### WSL 下拉取/推送
+
+- 全局 `git config http.proxy = http://127.0.0.1:8080` 在 WSL 内不生效（代理在 Windows 侧），
+  用网关地址：`git -c http.proxy=http://172.17.80.1:8080 <cmd>`。
+- 直连 GitHub 取 ref 可以，但大 pack 上传会超时；推送统一走上面的网关代理。
+- 本机若配置了 `url.https://github.com/.insteadOf git@github.com:`，SSH 地址会被改写成 HTTPS。
+
+### 本地专属问题（不影响别人 clone）
+
+- 本地某些 submodule 未初始化（`wayland` / `freetype` / `libdrm` / `gmp` / `gnutls` / `fex` 等）：
+  依赖走预编译 `build/` 缓存，别人按上面第 1 步初始化即可。
+- `thirdparty/dxvk` 曾经因为 `.git/modules/thirdparty/dxvk` 丢失而报
+  `fatal: not a git repository`（2026-09-22 已重新初始化修复）。若再遇到：备份该目录 →
+  删掉目录 → `git submodule update --init thirdparty/dxvk`。
+- `thirdparty/wine-proton`、`build/` 下若干目录是历史遗留产物，不参与当前构建。
+
+---
+
+## Makefile 构建
+
+### 完整构建
+
+```bash
+# 默认: x86_64 (方案①)
+make
+
+# arm64 原生 wine (方案③)
+make NATIVE_ARCH=arm64-v8a
+
+# box64+wine (方案②)
+make NATIVE_ARCH=arm64-v8a WINE_ARCH=x86_64
+```
+
+### 单阶段构建
+
+```bash
+make deps                          # 交叉编译依赖 → build/sysroot-ext/（含 guest_gfx + guest_vulkan）
+make wine                          # Wine + wineserver
+make fex                           # FEX 转译 DLL (方案③, WINE_ARCH=aarch64)
+make box64                         # Box64 box64.so (方案②, NATIVE_ARCH=arm64-v8a + WINE_ARCH=x86_64)
+make box64-wow64                   # Box64 wowbox64.dll (方案③, 32 位应用 HODLL 引擎)
+make native                        # 各架构原生 compositor 依赖
+make dxvk                          # DXVK Legacy fork (x64 + x86 DLL)
+make dxvk-modern                   # DXVK 2.6.2 fork
+make vkd3d-proton                  # VKD3D-Proton (D3D12)
+make host-vulkan                   # Host Vulkan exact replay 诊断模块
+make assemble                      # 组装布局 (wine-data.zip)
+make hap                           # HAP 打包 + 签名
+```
+
+> `assemble` 的依赖不少：`deps`、`wine`、`native`、`host-vulkan`、两套 DXVK（`dxvk` / `dxvk-modern`）和 `vkd3d-proton` 的产物、以及 smoke 载荷（`smoke-payload`）——缺任何一个都会在这里失败。改了对应源码就重跑那一阶段，再 `make hap`。
+
+### 增量构建
+
+增量判断基于 `build/.stamps/` 下的 stamp 文件 + `find -newer` 源码变更检测，日常命令见 `.claude/rules/build-and-log.md`：
+
+```bash
+# 只改 ArkTS / entry/src/main/cpp/ → 只需重打 HAP
+make NATIVE_ARCH=arm64-v8a hap
+
+# 改了 Wine C 源码 (thirdparty/wine/) → 必须完整构建 (assemble 需重新打包 wine-data.zip)
+make NATIVE_ARCH=arm64-v8a
+
+# 改了 native compositor 依赖 (thirdparty/virglrenderer 等)
+make NATIVE_ARCH=arm64-v8a native && make NATIVE_ARCH=arm64-v8a hap
+
+# 完全清理
+make clean
+```
+
+### Stamp 文件
+
+```
+build/.stamps/
+├── deps
+├── dxvk-legacy                    # DXVK 1.10.3
+├── dxvk-modern-2.6                # DXVK 2.6.2
+├── vkd3d-proton-limited-500k      # VKD3D-Proton
+├── wine-arm64-v8a
+├── wine-x86_64
+├── box64-arm64-v8a
+├── arm64-v8a/
+│   ├── native
+│   ├── host-vulkan
+│   └── assemble
+└── x86_64/
+    ├── native
+    ├── host-vulkan
+    └── assemble
+```
+
+删除对应 stamp 文件即可强制重跑该阶段。
+
+---
+
+## 环境变量
+
+构建时关键变量（由 `Makefile` / `scripts/env.sh` 设置）：
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `NATIVE_ARCH` | `x86_64` (Makefile) | `arm64-v8a` 或 `x86_64` 或 `all` |
+| `GUEST_ARCH` | `x86_64` | guest 侧架构 |
+| `OHOS_SDK` | `/apps/harmony/sdk/default/openharmony` | HarmonyOS SDK 路径 |
+| `BUILD_GUEST_GFX` | `1` (Makefile) / `0` (脚本直跑) | 构建 guest Mesa (VirGL) |
+| `BUILD_GUEST_VULKAN` | `1` (Makefile) | 构建 guest Vulkan 栈 (Loader + Venus ICD) |
+| `BUILD_WINE_MONO` | `0` | 设为 `1` 构建实验性的 Wine Mono (.NET 运行时) 包 |
+| `TARGET_SDK_VERSION` | `6.1.0(23)` | HAP SDK 版本 |
+
+运行时变量（注入 Wine 子进程，见 `graphics_broker.cpp` / `wine_env.cpp` / `wine_child.cpp`）：
+
+| 变量 | 作用 |
+|------|------|
+| `BOX64_LD_LIBRARY_PATH` | Box64 搜索 x86_64 .so 的路径 |
+| `BOX64_DYNAREC_SAFEFLAGS` | Box64 兼容默认 `1`（steam_api64 等自修改代码必需） |
+| `GALLIUM_DRIVER` | Mesa Gallium 驱动 (`virpipe` 启用 VirGL) |
+| `LIBGL_DRIVERS_PATH` | Mesa DRI 驱动路径 |
+| `VTEST_SOCKET_NAME` | VirGL socket 路径 |
+| `WINEDEBUG` | Wine 调试频道 (`-all` 关闭) |
+| `XKB_CONFIG_ROOT` | XKB 键盘布局数据路径 |
+| `WINEHUA_VULKAN_PRESENT` | 选择 DXVK/Venus Vulkan present 路径 |
+| `WINEHUA_VTEST_PRESENT_PERF_SUMMARY` | 默认 `0`，关闭周期性 present 日志 |
+| `DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT` | 默认 `auto`，RGBA8 SNORM 兼容（Tomb Raider） |
+| `WINEHUA_ZERO_COPY_READY_DIR` | VirGL zero-copy 握手目录 |
+| `WINEHUA_RESOURCE_TRACE` | `1` 时启用资源身份跟踪 (capture profile) |
+
+---
+
+## 产物说明
+
+### libs/（arm64-v8a，原生 .so）
+
+```
+entry/libs/arm64-v8a/
+├── box64.so                       # Box64, in-process dlopen
+├── libwineserver.so               # wineserver NCP 入口
+├── libwinehua_vtest_server.so     # VirGL vtest server 入口
+├── libvirglrenderer.so.1, libepoxy.so.0   # compositor 依赖
+├── libwayland-{client,server,egl}.so.0    # wayland 库
+├── libfreetype.so.6, libxkbcommon.so.0, libxkbregistry.so.0, libxml2.so.2
+├── libffi.so.8
+└── virgl_test_server              # VirGL host server (独立二进制)
+```
+
+### resources/rawfile/wine-data.zip（运行时解压）
+
+```
+wine-data.zip
+├── bin/
+│   ├── wine, wineserver, *.exe    # x86_64 ELF / exe stubs
+│   ├── x86_64-windows/            # 64-bit PE DLL
+│   ├── x86_64-unix/               # Unix .so（含 winevulkan）
+│   ├── i386-windows/              # 32-bit PE DLL (WoW64)
+│   ├── guest_gfx/                 # guest Mesa (VirGL) 库
+│   ├── guest_vulkan/              # guest Vulkan Loader + Venus ICD (manifest.json)
+│   └── host_vulkan/               # Host Vulkan exact replay (manifest.json)
+├── dxvk/
+│   ├── legacy/{x64,x86}/          # DXVK 1.10.3（d3d10 链 + d3d11 + dxgi）
+│   ├── modern-2.6/{x64,x86}/      # DXVK 2.6.2（只有 d3d11 + dxgi，2.x 没有 d3d10 链）
+│   └── manifest.json
+├── vkd3d/
+│   ├── limited-500k/              # VKD3D-Proton（D3D12）
+│   └── manifest.json
+├── smoke/
+│   ├── x64/, x86/                 # winehua_*_smoke.exe 等受管测试
+│   ├── assets/                    # SPIR-V 采样 shader
+│   ├── suites.json                # 套件定义（跑哪些用例、声明什么档位）
+│   └── manifest.json
+├── audio/winehua-gm.sf2           # MIDI SoundFont
+└── share/
+    ├── wine/ (nls/, fonts/, wine.inf, mono/)
+    └── X11/xkb/
+```
+
+rawfile 侧另有 `wine-runtime-manifest.json`（payloadSha256），CI 用它校验 HAP 内嵌运行时与 submodule commit 一致。
+
+---
+
+## 构建前集中检查
+
+`python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json` 一次收集依赖声明与锁文件、GNU 依赖源码清单、全部构建脚本语法和运行时契约回归的问题，不在第一个问题处停止。CI 在 GNU 依赖任务中执行；完整原生编译前再用 `--sdk <OHOS SDK> --skip-tests` 配置全部 CMake 目标，并检查目标源文件已提交。最终仍执行真实的完整 HAP 构建及产物校验。
+
+
+## 协议生成文件与干净构建
+
+`build_native.sh` 将 Wayland 协议及头文件写入 `build/native_<NATIVE_ARCH>/protocols/`，不会改写跟踪的源码快照。CMake 优先使用这一组生成文件；仅使用预编译依赖的 DevEco 构建仍可回退到仓库快照。自定义 `BUILD_DIR` 时，可用 CMake 参数 `-DVPP_NATIVE_GENERATED_ROOT=<BUILD_DIR>/native_<NATIVE_ARCH>` 指定相同位置。
+
+`python3 host_tests/native_protocol_build_test.py` 使用真实 scanner 和 CMake 编译检查首次生成、重复生成、缺失头文件重建及头文件搜索顺序。CI 在生成主机工具后运行它。来源校验仍拒绝已暂存或未暂存的跟踪文件变更，并列出路径；`ohpm install --all` 后也立即检查，避免编译结束才发现锁文件漂移。
+
+
+## 相关文档
+
+- [env.md](env.md) — 从零搭建构建环境
+- [CURRENT_STATUS.md](../archive/CURRENT_STATUS.md) — 当前功能状态
+- [wine-internals.md](../architecture/wine-internals.md) — 项目架构概览
+- [.claude/rules/build-and-log.md](../../.claude/rules/build-and-log.md) — 构建命令、stamp 机制与调试日志
+- [.claude/rules/submodule-workflow.md](../../.claude/rules/submodule-workflow.md) — Submodule 管理方案
+
+### Hvigor 原生模块与首次组装
+
+源码候选首次组装时，全部 10 个应用 CMake 共享库延后到 Hvigor 编译后登记，
+包括 Steam 解压和 GNU 子进程模块；其他外部运行库仍必须在组装时存在。
+预检读取实际 CMake File API 目标清单，与候选清单双向核对，新增或遗漏模块
+都会在长编译前失败。首轮 HAP 提供实际 ELF 身份，登记后再次打包；最终
+检查要求全部模块存在、架构正确且可加载内容匹配，不接受待生成条目。
+组装依赖源码候选清单和图形锁文件，增量编译也不能复用其他提交的旧清单。
+
+Steam PE 候选清单直接复用会话桥的完整模块定义，同时记录两种架构的
+`kernelbase.dll` 与 `lsteamclient.dll`，避免各验证器各自维护不一致的清单。

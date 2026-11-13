@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-28",
+  "scope": "Linux ARM64 Steam client startup on tablet; Release build, debug signature",
+  "sourceBase": "58d2a9b56e4f721fecda655258cfaa925bf2787a",
+  "sourceDirty": true,
+  "socketQuery": {
+    "schemaVersion": 1,
+    "baseline": {
+      "result": "FAIL",
+      "blockedQueryMs": 1001,
+      "errno": 110
+    },
+    "current": {
+      "result": "PASS",
+      "sanitizers": [
+        "ASan",
+        "UBSan"
+      ],
+      "output": "SOCKET_METADATA independent_latency_ms=0 stalled8_latency_ms=0\nSOCKET_METADATA lifecycle verified=1 queries=512 fragmented_query=1 fd_leaks=0 bounded_abandoned=1 independent_queries=1 closed_rejected=1 reused_rejected=1 wrong_peer_rejected=1 exit_cleanup=1"
+    },
+    "sourceSha256": "27e73f4615eabb6da178fd0f897be3ce6aa64e27efe6e1def9e4190307e93061"
+  },
+  "hostTests": {
+    "socketSingletonCef": {
+      "run": 6,
+      "passed": 5,
+      "skipped": 1,
+      "skipReason": "Pinned lsof source archive absent for full restricted-proc build"
+    },
+    "arktsDeckSessions": "PASS including clean native exit, early/rejected/timeout shutdown",
+    "sourceAndHapAudit": "PASS; two pinned runtime components and three HAP companions"
+  },
+  "candidate": {
+    "sha256": "28e09511a1029dc3c367cde33b2c373e3519e326cb6b3332aaf34b94c5c18112",
+    "bytes": 642613782,
+    "signatureVerified": true,
+    "posixSha256": "c4de38432e23623835dd8cb9f361ba9a00174a70baa5c59a09bb5d2760b1a9c5"
+  },
+  "device": {
+    "launches": [
+      {
+        "cycle": 1,
+        "loginSuccessUtc": "2026-10-28 13:38:09",
+        "visiblePage": "login_loading",
+        "exitState": "stopped",
+        "screenshotChecked": true
+      },
+      {
+        "cycle": 2,
+        "loginSuccessUtc": "2026-10-28 13:43:20",
+        "visiblePage": "library",
+        "exitState": "stopped",
+        "modeRoundTrip": [
+          "desktop",
+          "bigPicture",
+          "desktop",
+          "library"
+        ],
+        "generationPreserved": true,
+        "screenshotChecked": true
+      },
+      {
+        "cycle": 3,
+        "loginSuccessUtc": "2026-10-28 13:48:41",
+        "visiblePage": "library",
+        "screenshotChecked": true
+      }
+    ],
+    "finalLoadedPosixMatches": true,
+    "finalVisiblePage": "library",
+    "latestCycleTransportErrorMarkers": 0,
+    "normalQueryErrorsObserved": [
+      {
+        "errno": 97,
+        "meaning": "Non-INET descriptor rejected; expected while enumerating descriptors"
+      }
+    ]
+  },
+  "limits": [
+    "Three launches do not establish the rate of a rare failure.",
+    "A visible native window is not proof of completed login; login success here is independently confirmed from official log.",
+    "No automatic restart or bypass of connection identity checks.",
+    "Historical phone OOM is a separate confirmed failure class; not reproduced or retested here.",
+    "Banana native Unity startup remains separate and unresolved."
+  ]
+}

@@ -1,0 +1,76 @@
+From: HSL contributors
+Subject: [PATCH] venus: validate aggregate BC capability against renderer formats
+
+MIT; based on Mesa 25.0.1 557fa3e781ea6e78fcff3ee759c25f60c3055064.
+Do not raise any capability or change individual format support. The core
+aggregate is lowered only on a real, independently queried contradiction,
+regardless of application, engine, architecture or device identity.
+
+--- a/src/virtio/vulkan/vn_physical_device.c
++++ b/src/virtio/vulkan/vn_physical_device.c
+@@ -84,6 +84,55 @@
+       if (ext_cond)                                                          \
+          VN_SET_VK_PROPS(vk_props, vk_struct);                               \
+    } while (0)
++
++/* textureCompressionBC promises every BC1--BC7 format. Some renderers
++ * return VK_TRUE for an engine profile while their format/image queries still
++ * reject BC4--BC7. Never propagate that contradictory promise to consumers.
++ * This runs once per physical-device initialization, not on the render path.
++ * Individual supported BC formats remain available when the aggregate is off.
++ */
++static void
++vn_physical_device_check_bc_features(struct vn_instance *instance,
++                                    struct vn_ring *ring,
++                                    VkPhysicalDevice handle,
++                                    VkPhysicalDeviceFeatures *features)
++{
++   if (!features->textureCompressionBC)
++      return;
++
++   const VkFormatFeatureFlags required = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
++      VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
++      VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
++   for (VkFormat format = VK_FORMAT_BC1_RGB_UNORM_BLOCK;
++        format <= VK_FORMAT_BC7_SRGB_BLOCK; format++) {
++      VkFormatProperties2 props = {
++         .sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
++      };
++      vn_call_vkGetPhysicalDeviceFormatProperties2(ring, handle, format, &props);
++      const VkPhysicalDeviceImageFormatInfo2 info = {
++         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
++         .format = format,
++         .type = VK_IMAGE_TYPE_2D,
++         .tiling = VK_IMAGE_TILING_OPTIMAL,
++         .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
++                  VK_IMAGE_USAGE_TRANSFER_DST_BIT,
++      };
++      VkImageFormatProperties2 image = {
++         .sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2,
++      };
++      const VkResult result = vn_call_vkGetPhysicalDeviceImageFormatProperties2(
++         ring, handle, &info, &image);
++      if ((props.formatProperties.optimalTilingFeatures & required) != required ||
++          result != VK_SUCCESS ||
++          !(image.imageFormatProperties.sampleCounts & VK_SAMPLE_COUNT_1_BIT)) {
++         features->textureCompressionBC = VK_FALSE;
++         vn_log(instance, "BC capability mismatch: renderer_bc=1 format=%u "
++                "optimal=0x%x image_result=%d; aggregate disabled", format,
++                props.formatProperties.optimalTilingFeatures, result);
++         return;
++      }
++   }
++}
+ 
+ static void
+ vn_physical_device_init_features(struct vn_physical_device *physical_dev)
+@@ -304,6 +353,9 @@
+ 
+    vn_call_vkGetPhysicalDeviceFeatures2(
+       ring, vn_physical_device_to_handle(physical_dev), &feats2);
++
++   vn_physical_device_check_bc_features(physical_dev->instance, ring,
++      vn_physical_device_to_handle(physical_dev), &feats2.features);
+ 
+    struct vk_features *feats = &physical_dev->base.base.supported_features;
+    vk_set_physical_device_features(feats, &feats2);

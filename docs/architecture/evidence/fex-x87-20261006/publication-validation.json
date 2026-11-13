@@ -1,0 +1,31 @@
+{
+  "kind": "Publication-only offline checks; no build, installation or device retest",
+  "baselineDeltaReplayFiles": 22,
+  "cleanCandidateReplayFiles": 3,
+  "offlineAnalyses": [
+    {
+      "script": "main-proton-isolation-20261006/summarize-float.py",
+      "reproduced": "main-proton-isolation-20261006/float-summary.json"
+    },
+    {
+      "script": "main-proton-isolation-20261006/summarize.py",
+      "reproduced": "main-proton-isolation-20261006/comparison.json"
+    },
+    {
+      "script": "fex-exact-store-20261006/summarize.py",
+      "reproduced": "fex-exact-store-20261006/comparison.json"
+    },
+    {
+      "script": "fex-exact-clean-20261006/validate-probe.py",
+      "reproduced": "fex-exact-clean-20261006/probe-validation.json"
+    },
+    {
+      "script": "fex-exact-clean-20261006/summarize.py",
+      "reproduced": "fex-exact-clean-20261006/comparison.json"
+    },
+    {
+      "script": "fex-exact-clean-20261006/summarize-gl.py",
+      "reproduced": "fex-exact-clean-20261006/gl-summary.json"
+    }
+  ]
+}

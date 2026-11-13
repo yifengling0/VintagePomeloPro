@@ -1,0 +1,362 @@
+[32m[BUILD][0m libdrm already available in sysroot-ext
+[32m[BUILD][0m wayland-protocols 1.39 already satisfies Mesa's Wayland requirements
+[32m[BUILD][0m === Build OHOS guest_gfx receiver (arm64-v8a) ===
+[32m[BUILD][0m platform: wayland
+[32m[BUILD][0m mode: virpipe
+[32m[BUILD][0m vulkan-only: 0
+[32m[BUILD][0m source: /data/src/winehua/thirdparty/mesa
+[32m[BUILD][0m build: /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe
+[32m[BUILD][0m install: /data/src/winehua/build/guest_gfx_install/aarch64
+[32m[BUILD][0m sdk: /apps/harmony/sdk/default/openharmony
+[32m[BUILD][0m cross: /data/src/winehua/build/guest-gfx-aarch64-cross.txt
+Cleaning... 0 files.
+The Meson build system
+Version: 1.10.1
+Source dir: /data/src/winehua/thirdparty/mesa
+Build dir: /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe
+Build type: cross build
+Project name: mesa
+Project version: 25.0.1
+C compiler for the host machine: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang (clang 15.0.4 "OHOS (dev) clang version 15.0.4 (llvm-project 99548401bd80576251755b185ab95945e5fe7884)")
+C linker for the host machine: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang ld.lld 15.0.4
+C++ compiler for the host machine: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++ (clang 15.0.4 "OHOS (dev) clang version 15.0.4 (llvm-project 99548401bd80576251755b185ab95945e5fe7884)")
+C++ linker for the host machine: /apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++ ld.lld 15.0.4
+C compiler for the build machine: cc (gcc 15.2.0 "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0")
+C linker for the build machine: cc ld.bfd 2.46
+C++ compiler for the build machine: c++ (gcc 15.2.0 "c++ (Ubuntu 15.2.0-16ubuntu1) 15.2.0")
+C++ linker for the build machine: c++ ld.bfd 2.46
+Build machine cpu family: x86_64
+Build machine cpu: x86_64
+Host machine cpu family: aarch64
+Host machine cpu: aarch64
+Target machine cpu family: aarch64
+Target machine cpu: aarch64
+Checking for size of "void*" : 8 
+thirdparty/mesa/meson.build:535: WARNING: cannot auto-detect -mtls-dialect when cross-compiling, using compiler default
+Dependency libglvnd skipped: feature glvnd disabled
+Dependency vdpau skipped: feature gallium-vdpau disabled
+Program glslangValidator found: YES (/usr/bin/glslangValidator)
+Found pkg-config: YES (/usr/bin/pkg-config) 2.5.1
+Found CMake: NO
+Run-time dependency libva found: NO (tried pkgconfig and cmake)
+Program python3 found: YES 3.14.4 3.14.4 (/usr/bin/python3)
+Fetching value of define "ETIME" : 62 (cached)
+Compiler for C supports arguments -gsplit-dwarf: YES (cached)
+Compiler for C supports link arguments -Wl,--gdb-index: YES (cached)
+Checking for function "bswap32" : YES (cached)
+Checking for function "bswap64" : YES (cached)
+Checking for function "clz" : YES (cached)
+Checking for function "clzll" : YES (cached)
+Checking for function "ctz" : YES (cached)
+Checking for function "expect" : YES (cached)
+Checking for function "ffs" : YES (cached)
+Checking for function "ffsll" : YES (cached)
+Checking for function "popcount" : YES (cached)
+Checking for function "popcountll" : YES (cached)
+Checking for function "unreachable" : YES (cached)
+Checking for function "types_compatible_p" : YES (cached)
+Compiler for C supports function attribute const: YES (cached)
+Compiler for C supports function attribute flatten: YES (cached)
+Compiler for C supports function attribute malloc: YES (cached)
+Compiler for C supports function attribute pure: YES (cached)
+Compiler for C supports function attribute unused: YES (cached)
+Compiler for C supports function attribute warn_unused_result: YES (cached)
+Compiler for C supports function attribute weak: YES (cached)
+Compiler for C supports function attribute format: YES (cached)
+Compiler for C supports function attribute packed: YES (cached)
+Compiler for C supports function attribute returns_nonnull: YES (cached)
+Compiler for C supports function attribute alias: YES (cached)
+Compiler for C supports function attribute noreturn: YES (cached)
+Compiler for C supports function attribute optimize: NO (cached)
+Compiler for C supports function attribute visibility:hidden: YES (cached)
+Checking if "__uint128_t" compiles: YES (cached)
+Checking for function "reallocarray" : NO (cached)
+Checking for function "fmemopen" : YES (cached)
+Checking if "gc-sections" links: YES (cached)
+Compiler for C supports arguments -Werror=implicit-function-declaration: YES (cached)
+Compiler for C supports arguments -Werror=missing-prototypes: YES (cached)
+Compiler for C supports arguments -Werror=return-type: YES (cached)
+Compiler for C supports arguments -Werror=empty-body: YES (cached)
+Compiler for C supports arguments -Werror=incompatible-pointer-types: YES (cached)
+Compiler for C supports arguments -Werror=int-conversion: YES (cached)
+Compiler for C supports arguments -Wimplicit-fallthrough: YES (cached)
+Compiler for C supports arguments -Wmisleading-indentation: YES (cached)
+Compiler for C supports arguments -Wno-missing-field-initializers: YES (cached)
+Compiler for C supports arguments -Wno-format-truncation: NO (cached)
+Compiler for C supports arguments -Wno-nonnull-compare: NO (cached)
+Compiler for C supports arguments -fno-math-errno: YES (cached)
+Compiler for C supports arguments -fno-trapping-math: YES (cached)
+Compiler for C supports arguments -Qunused-arguments: YES (cached)
+Compiler for C supports arguments -fno-common: YES (cached)
+Compiler for C supports arguments -Wno-unknown-pragmas: YES (cached)
+Compiler for C supports arguments -Wno-microsoft-enum-value: YES (cached)
+Compiler for C supports arguments -Wno-unused-function: YES (cached)
+Compiler for C supports arguments -Werror=format: YES (cached)
+Compiler for C supports arguments -Wformat-security: YES (cached)
+Compiler for C supports arguments -Werror=thread-safety: YES (cached)
+Compiler for C supports arguments -ffunction-sections: YES (cached)
+Compiler for C supports arguments -fdata-sections: YES (cached)
+Compiler for C supports arguments -Wno-unused-variable: YES (cached)
+Compiler for C supports arguments -Wno-unused-but-set-variable: YES (cached)
+Compiler for C supports arguments /wd4189: NO (cached)
+Compiler for C++ supports arguments -Werror=return-type: YES (cached)
+Compiler for C++ supports arguments -Werror=empty-body: YES (cached)
+Compiler for C++ supports arguments -Wmisleading-indentation: YES (cached)
+Compiler for C++ supports arguments -Wno-non-virtual-dtor: YES (cached)
+Compiler for C++ supports arguments -Wno-missing-field-initializers: YES (cached)
+Compiler for C++ supports arguments -Wno-format-truncation: NO (cached)
+Compiler for C++ supports arguments -fno-math-errno: YES (cached)
+Compiler for C++ supports arguments -fno-trapping-math: YES (cached)
+Compiler for C++ supports arguments -Qunused-arguments: YES (cached)
+Compiler for C++ supports arguments -flifetime-dse=1: NO (cached)
+Compiler for C++ supports arguments -Wno-unknown-pragmas: YES (cached)
+Compiler for C++ supports arguments -Wno-microsoft-enum-value: YES (cached)
+Compiler for C++ supports arguments -Werror=format: YES (cached)
+Compiler for C++ supports arguments -Wformat-security: YES (cached)
+Compiler for C++ supports arguments -ffunction-sections: YES (cached)
+Compiler for C++ supports arguments -fdata-sections: YES (cached)
+Compiler for C++ supports arguments -Wno-unused-variable: YES (cached)
+Compiler for C++ supports arguments -Wno-unused-but-set-variable: YES (cached)
+Compiler for C++ supports arguments /wd4189: NO (cached)
+Compiler for C supports arguments -Wno-override-init: YES (cached)
+Compiler for C supports arguments -Wno-initializer-overrides: YES (cached)
+Compiler for C supports arguments -Werror=pointer-arith: YES (cached)
+Compiler for C supports arguments -Werror=vla: YES (cached)
+Compiler for C supports arguments -Werror=gnu-empty-initializer: YES (cached)
+Compiler for C++ supports arguments -Werror=pointer-arith: YES (cached)
+Compiler for C++ supports arguments -Werror=vla: YES (cached)
+Compiler for C++ supports arguments -Werror=gnu-empty-initializer: YES (cached)
+Checking for function "__builtin_ia32_clflushopt" : NO (cached)
+Checking if "GCC atomic builtins" compiles: YES (cached)
+Checking if "GCC atomic builtins required -latomic" links: YES (cached)
+Checking if "GCC 64bit atomics" with dependency  links: YES (cached)
+Library ws2_32 found: NO
+Header "sys/sysmacros.h" has symbol "major" : YES (cached)
+Header "sys/sysmacros.h" has symbol "minor" : YES (cached)
+Header "sys/sysmacros.h" has symbol "makedev" : YES (cached)
+Header "sys/mkdev.h" has symbol "major" : NO (cached)
+Check usable header "sched.h" : YES (cached)
+Checking for function "sched_getaffinity" : YES (cached)
+Check usable header "xlocale.h" : NO (cached)
+Check usable header "linux/futex.h" : YES (cached)
+Check usable header "endian.h" : YES (cached)
+Check usable header "dlfcn.h" : YES (cached)
+Check usable header "sys/shm.h" : YES (cached)
+Check usable header "cet.h" : YES (cached)
+Check usable header "pthread_np.h" : NO (cached)
+Check usable header "sys/inotify.h" : YES (cached)
+Check usable header "linux/udmabuf.h" : YES (cached)
+Checking for function "strtof" : YES (cached)
+Checking for function "mkostemp" : YES (cached)
+Checking for function "memfd_create" : YES (cached)
+Checking for function "random_r" : NO (cached)
+Checking for function "flock" : YES (cached)
+Checking for function "strtok_r" : YES (cached)
+Checking for function "getrandom" : YES (cached)
+Checking for function "qsort_s" : NO (cached)
+Checking for function "posix_fallocate" : YES (cached)
+Checking for function "secure_getenv" : NO (cached)
+Checking if "GNU qsort_r" links: NO (cached)
+Checking if "BSD qsort_r" links: NO (cached)
+Header "time.h" has symbol "struct timespec" : YES (cached)
+Checking for function "thrd_create" : YES (cached)
+Header "errno.h" has symbol "program_invocation_name" : NO (cached)
+Header "math.h" has symbol "issignaling" : NO (cached)
+Checking for function "posix_memalign" : YES (cached)
+Checking whether type "struct dirent" has member "d_type" : YES (cached)
+Checking if "strtod has locale support" links: YES (cached)
+Checking if "Bsymbolic" links: YES (cached)
+Checking if "version-script" links: YES (cached)
+Checking if "dynamic-list" links: YES (cached)
+Compiler for C supports link arguments -Wl,--build-id=sha1: YES (cached)
+Checking for function "dlopen" : YES (cached)
+Checking for function "dladdr" with dependency : YES (cached)
+Checking for function "dl_iterate_phdr" : YES (cached)
+Checking for function "clock_gettime" : YES (cached)
+Dependency zlib found: YES 1.2.11 (cached)
+Run-time dependency libzstd found: NO (tried pkgconfig and cmake)
+Dependency threads found: YES unknown (cached)
+Checking for function "pthread_setaffinity_np" with dependency threads: NO (cached)
+Dependency expat skipped: feature expat disabled
+Library m found: YES
+Dependency libdrm found: YES 2.4.120 (cached)
+Run-time dependency libudev found: NO (tried pkgconfig and cmake)
+Run-time dependency spirv-tools found: NO (tried pkgconfig and cmake)
+Run-time dependency lua54 found: NO (tried pkgconfig and cmake)
+Run-time dependency lua5.4 found: NO (tried pkgconfig and cmake)
+Run-time dependency lua-5.4 found: NO (tried pkgconfig and cmake)
+Run-time dependency lua53 found: NO (tried pkgconfig and cmake)
+Run-time dependency lua5.3 found: NO (tried pkgconfig and cmake)
+Run-time dependency lua-5.3 found: NO (tried pkgconfig and cmake)
+Run-time dependency lua found: NO (tried pkgconfig and cmake)
+Run-time dependency libelf found: NO (tried pkgconfig and cmake)
+Library elf found: NO
+Run-time dependency valgrind found: NO (tried pkgconfig)
+Program bison found: YES (/usr/bin/bison)
+Program bison found: YES 3.8.2 3.8.2 (/usr/bin/bison)
+Program flex found: YES (/usr/bin/flex)
+Run-time dependency libunwind found: NO (tried pkgconfig and cmake)
+Dependency wayland-scanner found: YES 1.22.0 (cached)
+Program /data/src/winehua/build/host-tools/bin/wayland-scanner found: YES (/data/src/winehua/build/host-tools/bin/wayland-scanner)
+Dependency wayland-protocols found: YES 1.39 (cached)
+Dependency wayland-client found: YES 1.22.0 (cached)
+Dependency wayland-server found: YES 1.22.0 (cached)
+Dependency wayland-egl-backend found: YES 3 (cached)
+Checking for function "wl_display_dispatch_queue_timeout" with dependency wayland-client: NO (cached)
+Checking for function "wl_display_create_queue_with_name" with dependency wayland-client: NO (cached)
+Library sensors found: NO
+Program nm found: YES (/usr/bin/nm)
+Program symbols-check.py found: YES (/usr/bin/python3 /data/src/winehua/thirdparty/mesa/bin/symbols-check.py)
+Program install_megadrivers.py found: YES (/usr/bin/python3 /data/src/winehua/thirdparty/mesa/bin/install_megadrivers.py)
+Program decode.py found: YES (/data/src/winehua/thirdparty/mesa/src/compiler/isaspec/decode.py)
+Program encode.py found: YES (/data/src/winehua/thirdparty/mesa/src/compiler/isaspec/encode.py)
+Found pkg-config: YES (/usr/bin/pkg-config) 2.5.1
+Compiler for C supports link arguments -Wl,--default-symver: NO (cached)
+Configuring dri.sym using configuration
+Checking for function "mincore" : YES (cached)
+Program sphinx-build skipped: feature html-docs disabled
+Build targets in project: 142
+
+mesa 25.0.1
+
+  Directories
+    prefix                       : /data/src/winehua/build/guest_gfx_install/aarch64
+    libdir                       : lib
+    includedir                   : include
+
+  Common C and C++ arguments
+    c_cpp_args                   :
+
+  OpenGL
+    OpenGL                       : YES
+    ES1                          : YES
+    ES2                          : YES
+    Shared glapi                 : YES
+    GLVND                        : NO
+
+  DRI
+    Platform                     : drm
+    Driver dir                   : /data/src/winehua/build/guest_gfx_install/aarch64/lib/dri
+
+  GLX
+    Enabled                      : NO
+    Provider                     : None
+
+  EGL
+    Enabled                      : YES
+    Drivers                      : builtin:egl_dri2 builtin:egl_dri3
+    Platforms                    : wayland surfaceless
+
+  GBM
+    Enabled                      : NO
+
+  Vulkan
+    Drivers                      : NO
+
+  Video
+    Codecs                       : av1dec av1enc vp9dec
+    APIs                         : NO
+
+  LLVM
+    Enabled                      : NO
+
+  Gallium
+    Enabled                      : YES
+    Drivers                      : virgl softpipe
+    Platforms                    : wayland surfaceless
+    Frontends                    : mesa
+    Off-screen rendering (OSMesa): NO
+    HUD lm-sensors               : NO
+
+  Perfetto
+    Enabled                      : NO
+
+  Teflon (TensorFlow Lite delegate)
+    Enabled                      : NO
+
+  User defined options
+    Cross files                  : /data/src/winehua/build/guest-gfx-aarch64-cross.txt
+    buildtype                    : release
+    draw-use-llvm                : false
+    egl                          : enabled
+    egl-native-platform          : wayland
+    expat                        : disabled
+    gallium-drivers              : virgl,softpipe
+    gbm                          : disabled
+    gles1                        : enabled
+    gles2                        : enabled
+    glvnd                        : disabled
+    glx                          : disabled
+    libdir                       : lib
+    llvm                         : disabled
+    opengl                       : true
+    platforms                    : wayland
+    prefix                       : /data/src/winehua/build/guest_gfx_install/aarch64
+    shader-cache                 : disabled
+    shared-glapi                 : enabled
+    tools                        : 
+    vulkan-drivers               : 
+    xmlconfig                    : disabled
+
+Found ninja-1.13.2 at /usr/bin/ninja
+ninja: Entering directory `/data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe'
+[1/17] Generating src/git_sha1.h with a custom command
+[2/9] Compiling C object src/gallium/drivers/virgl/libvirgl.a.p/virgl_resource.c.o
+[3/9] Compiling C object src/gallium/drivers/virgl/libvirgl.a.p/virgl_context.c.o
+In file included from ../../../../thirdparty/mesa/src/gallium/drivers/virgl/virgl_context.c:26:
+In file included from /data/src/winehua/build/sysroot-ext/usr/include/libsync.h:36:
+/apps/harmony/sdk/default/openharmony/native/sysroot/usr/include/sys/poll.h:1:2: warning: redirecting incorrect #include <sys/poll.h> to <poll.h> [-W#warnings]
+#warning redirecting incorrect #include <sys/poll.h> to <poll.h>
+ ^
+1 warning generated.
+[4/9] Linking static target src/gallium/drivers/virgl/libvirgl.a
+[5/9] Linking target src/gallium/targets/dri/libgallium-25.0.1.so
+[6/9] Generating symbol file src/gallium/targets/dri/libgallium-25.0.1.so.p/libgallium-25.0.1.so.symbols
+[7/9] Linking target src/mapi/es1api/libGLESv1_CM.so.1.1.0
+[8/9] Linking target src/mapi/es2api/libGLESv2.so.2.0.0
+[9/9] Linking target src/egl/libEGL.so
+INFO: autodetecting backend as ninja
+INFO: calculating backend command to run: /usr/bin/ninja -C /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe
+ninja: Entering directory `/data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe'
+[1/14] Generating src/git_sha1.h with a custom command
+Installing src/gallium/targets/dri/libgallium-25.0.1.so to /data/src/winehua/build/guest_gfx_install/aarch64/lib
+Installing src/mapi/es1api/libGLESv1_CM.so.1.1.0 to /data/src/winehua/build/guest_gfx_install/aarch64/lib
+Installing src/mapi/es2api/libGLESv2.so.2.0.0 to /data/src/winehua/build/guest_gfx_install/aarch64/lib
+Installing src/egl/libEGL.so to /data/src/winehua/build/guest_gfx_install/aarch64/lib
+Installing /data/src/winehua/thirdparty/mesa/include/KHR/khrplatform.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/KHR
+Installing /data/src/winehua/thirdparty/mesa/include/GLES/egl.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES
+Installing /data/src/winehua/thirdparty/mesa/include/GLES/gl.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES
+Installing /data/src/winehua/thirdparty/mesa/include/GLES/glext.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES
+Installing /data/src/winehua/thirdparty/mesa/include/GLES/glplatform.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES
+Installing /data/src/winehua/thirdparty/mesa/include/GLES2/gl2.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES2
+Installing /data/src/winehua/thirdparty/mesa/include/GLES2/gl2ext.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES2
+Installing /data/src/winehua/thirdparty/mesa/include/GLES2/gl2platform.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES2
+Installing /data/src/winehua/thirdparty/mesa/include/GLES3/gl3.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES3
+Installing /data/src/winehua/thirdparty/mesa/include/GLES3/gl31.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES3
+Installing /data/src/winehua/thirdparty/mesa/include/GLES3/gl32.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES3
+Installing /data/src/winehua/thirdparty/mesa/include/GLES3/gl3ext.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES3
+Installing /data/src/winehua/thirdparty/mesa/include/GLES3/gl3platform.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GLES3
+Installing /data/src/winehua/thirdparty/mesa/include/GL/gl.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GL
+Installing /data/src/winehua/thirdparty/mesa/include/GL/glcorearb.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GL
+Installing /data/src/winehua/thirdparty/mesa/include/GL/glext.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GL
+Installing /data/src/winehua/thirdparty/mesa/include/EGL/egl.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/EGL
+Installing /data/src/winehua/thirdparty/mesa/include/EGL/eglext.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/EGL
+Installing /data/src/winehua/thirdparty/mesa/include/EGL/eglplatform.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/EGL
+Installing /data/src/winehua/thirdparty/mesa/include/EGL/eglext_angle.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/EGL
+Installing /data/src/winehua/thirdparty/mesa/include/EGL/eglmesaext.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/EGL
+Installing /data/src/winehua/thirdparty/mesa/include/GL/internal/dri_interface.h to /data/src/winehua/build/guest_gfx_install/aarch64/include/GL/internal
+Installing /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe/meson-private/dri.pc to /data/src/winehua/build/guest_gfx_install/aarch64/lib/pkgconfig
+Installing /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe/meson-private/glesv1_cm.pc to /data/src/winehua/build/guest_gfx_install/aarch64/lib/pkgconfig
+Installing /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe/meson-private/glesv2.pc to /data/src/winehua/build/guest_gfx_install/aarch64/lib/pkgconfig
+Installing /data/src/winehua/build/guest_gfx_build/aarch64/wayland-virpipe/meson-private/egl.pc to /data/src/winehua/build/guest_gfx_install/aarch64/lib/pkgconfig
+Installing symlink pointing to libGLESv1_CM.so.1.1.0 to /data/src/winehua/build/guest_gfx_install/aarch64/lib/libGLESv1_CM.so.1
+Installing symlink pointing to libGLESv1_CM.so.1 to /data/src/winehua/build/guest_gfx_install/aarch64/lib/libGLESv1_CM.so
+Installing symlink pointing to libGLESv2.so.2.0.0 to /data/src/winehua/build/guest_gfx_install/aarch64/lib/libGLESv2.so.2
+Installing symlink pointing to libGLESv2.so.2 to /data/src/winehua/build/guest_gfx_install/aarch64/lib/libGLESv2.so
+[32m[BUILD][0m === Package guest_gfx bundle (arm64-v8a) ===
+[32m[BUILD][0m install root: /data/src/winehua/build/guest_gfx_install/aarch64
+[32m[BUILD][0m runtime lib dir: /data/src/winehua/build/guest_gfx_install/aarch64/lib
+[32m[BUILD][0m mode: virpipe
+[32m[BUILD][0m output: /data/src/winehua/build/guest_gfx/aarch64
+[32m[BUILD][0m guest_gfx bundle ready: /data/src/winehua/build/guest_gfx/aarch64
+[32m[BUILD][0m guest_gfx Mesa build complete

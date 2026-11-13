@@ -1,0 +1,7 @@
+{
+  "sourceProject": "steam-ohos-lab",
+  "snapshotDate": "2026-10-18",
+  "source": "native_tests/graphics_host_main.cpp",
+  "snapshot": "linux_steam_registry_test.cpp",
+  "sha256": "11fe57376f8f3b2c2dd5ac31eb151f88571423df2716e8a6a3d1fc034f4dde57"
+}

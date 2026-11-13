@@ -1,0 +1,22 @@
+[
+  {
+    "name": "steamclient.dll",
+    "source_sha256": "95a7e01a64e20f0726b63cfb63b5240e51c7b15940b52d03e8da4c412ca54669",
+    "patched_sha256": "9c45de0b9a5fcc67e6bbfb28f54288da0b19f60332a750944dfc58e6aebddecd",
+    "decoder_rva": "0xa1cb00",
+    "thunk_rva": "0xd9f064",
+    "helper": "vpsteamzstd32.dll",
+    "section": "RW data; existing RX code",
+    "original_signature": "invalidated by the requested binary modification"
+  },
+  {
+    "name": "steamclient64.dll",
+    "source_sha256": "a2ad498763c4822fd4555c2cba4d4475a2ba450e403a774c1366826ad9451dd1",
+    "patched_sha256": "bb7878cf75b3878d3c365572e0985b69d5850b39dd00e2d3e27e0157246324f9",
+    "decoder_rva": "0xb9a1d0",
+    "thunk_rva": "0xf4cb50",
+    "helper": "vpsteamzstd64.dll",
+    "section": "RW data; existing RX code",
+    "original_signature": "invalidated by the requested binary modification"
+  }
+]

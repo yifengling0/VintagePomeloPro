@@ -1,0 +1,156 @@
+{
+  "rows": [
+    {
+      "tag": "pal4-eval-1-b",
+      "variant": "B",
+      "fpsMean": 34.396742857142854,
+      "fpsMedian": 33.956,
+      "fpsMin": 27.569,
+      "fpsMax": 41.59,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.671000000002095,
+        32.921000000002095
+      ]
+    },
+    {
+      "tag": "pal4-eval-2-a",
+      "variant": "A",
+      "fpsMean": 32.653285714285715,
+      "fpsMedian": 32.713,
+      "fpsMin": 27.948,
+      "fpsMax": 40.911,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.85899999999674,
+        33.01499999999942
+      ]
+    },
+    {
+      "tag": "pal4-eval-3-a",
+      "variant": "A",
+      "fpsMean": 33.37768571428571,
+      "fpsMedian": 32.842,
+      "fpsMin": 23.375,
+      "fpsMax": 41.237,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.437999999994645,
+        32.60899999999674
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-4-b",
+      "variant": "B",
+      "fpsMean": 33.27977142857143,
+      "fpsMedian": 33.455,
+      "fpsMin": 26.906,
+      "fpsMax": 39.928,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.65700000000652,
+        32.90700000000652
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-5-b",
+      "variant": "B",
+      "fpsMean": 33.39731428571429,
+      "fpsMedian": 33.044,
+      "fpsMin": 23.767,
+      "fpsMax": 40.626,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.421000000002095,
+        32.625
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-6-a",
+      "variant": "A",
+      "fpsMean": 34.0116,
+      "fpsMedian": 33.577,
+      "fpsMin": 25.984,
+      "fpsMax": 40.601,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.656000000002678,
+        32.85900000001129
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-7-a",
+      "variant": "A",
+      "fpsMean": 32.90697142857143,
+      "fpsMedian": 32.995,
+      "fpsMin": 26.976,
+      "fpsMax": 38.972,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        27.875,
+        31.063000000009197
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-8-b",
+      "variant": "B",
+      "fpsMean": 32.902742857142854,
+      "fpsMedian": 32.884,
+      "fpsMin": 27.535,
+      "fpsMax": 38.879,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.561999999990803,
+        32.8119999999908
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-9-b",
+      "variant": "B",
+      "fpsMean": 32.802257142857144,
+      "fpsMedian": 32.782,
+      "fpsMin": 27.061,
+      "fpsMax": 39.279,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        29.531999999991967,
+        32.75
+      ]
+    },
+    {
+      "tag": "pal4-eval-retry-10-a",
+      "variant": "A",
+      "fpsMean": 34.25817142857143,
+      "fpsMedian": 34.912,
+      "fpsMin": 28.306,
+      "fpsMax": 40.979,
+      "samples": 35,
+      "loadReadyIntervalSeconds": [
+        27.812000000005355,
+        31.047000000005937
+      ]
+    }
+  ],
+  "equalWeightRunMeans": {
+    "A": 33.441542857142856,
+    "B": 33.35576571428572
+  },
+  "pairedPercentChanges": [
+    5.339300792307045,
+    -0.2933525306470619,
+    -1.806106488038528,
+    -0.012850077795079073,
+    -4.249830697326851
+  ],
+  "pairedMeanPercentChange": -0.20456780030009503,
+  "descriptiveT95IntervalPercent": [
+    -4.581683995674835,
+    4.172548395074644
+  ],
+  "limitations": [
+    "host new-frame FPS bins, not guest Present frame intervals",
+    "shared warm prefix and uncontrolled filesystem/shader/JIT caches",
+    "temperature, clock and supply state unavailable",
+    "no D0 code in FPS candidate; existing baseline optional diagnostics retained with switches off"
+  ]
+}

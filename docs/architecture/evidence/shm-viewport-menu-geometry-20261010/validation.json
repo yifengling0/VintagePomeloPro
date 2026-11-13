@@ -1,0 +1,44 @@
+{
+  "baseCommit": "f47090663537b1e70ad1ebe2f76bd2c34cfbb6af",
+  "branch": "feature/main_proton",
+  "workingTree": "uncommitted, includes earlier graphics fixes",
+  "installedHap": "menu-viewport-20261010-signed.hap",
+  "identity": {
+    "base": "sprite-window-opacity-20261010-unsigned.hap",
+    "unsignedSha256": "c10ae0f6f87b9dc6778677d69a567a2ab186b5e8ee80527cd2d4f6e2346b5343",
+    "signedSha256": "9bd303e616e1fea50e5a45924960c4ae9680df85cc1e70a4cec2318abe2627ce",
+    "changedEntries": [
+      "libs/arm64-v8a/libentry.so"
+    ],
+    "libentrySha256": "1d77555cec71e78f2363e530bd950eef130205fc0ba373bbd259684864ab4586"
+  },
+  "nativeBuild": "success, archived build log and matched libentry SHA256",
+  "hostTests": {
+    "gpu_scene_input_test.py": "cases 0-12 passed in the preceding stage of this task",
+    "gpu_scene_input_test.py --viewport-baseline": "prior production compositor failed the padded menu sampling assertion"
+  },
+  "deviceResults": {
+    "VulkanDesktop": "Start, Programs submenu, Run dialog and click targeting verified",
+    "EglDesktop": "same checks with two live GL NativeBuffer producers; screenshots and aligned logs archived",
+    "glVersion": "3.1 Mesa 25.0.1 (git-330124bf18)",
+    "glRenderer": "virgl (Maleoon 910)",
+    "productRestored": "cold-started without lab graphics experiment, DirectVkDesktop observed",
+    "Steam": "not relaunched; no post-fix Steam performance conclusion"
+  },
+  "limits": [
+    "EGL test used the tablet, not a physical phone",
+    "Native ELF on the device cannot be read by shell; hash is verified in the local package/build",
+    "Legacy CPU FrameBlitter arbitrary viewport transforms were not rewritten",
+    "Host presents per second is not game simulation FPS"
+  ],
+  "sourceSha256": {
+    "entry/src/main/cpp/compositor/frame/compositor_layer.h": "ba8d11ff4634d7dfedda1d61bc29532a74819fa86c9b442e38c64aab9f879556",
+    "entry/src/main/cpp/compositor/frame/gpu_desktop_scene.h": "463e4d4925fcd4fec78b510452eceb06a80f8fec2be374e9edd06d9e551327fd",
+    "entry/src/main/cpp/compositor/toplevel/desktop_compositor.cpp": "17ea26961a55a0eef2e951b6c115edb9bfb682639067a3e0f706f4e50bb72494",
+    "entry/src/main/cpp/compositor/wl_core.cpp": "95b44325888a6fdaf9f724bcea1078f7e9cc8e4d68c18a4734b0267e97c1556d",
+    "entry/src/main/cpp/graphics/egl_renderer.cpp": "7a6e59f28ad0baeff16bd0a77207b5de8b6f8e26ea01eb94c7aec8a40a491c98",
+    "entry/src/main/cpp/graphics/shader_utils.cpp": "6011af20fd35224e479d30df5ea3d0b7c1902f21eadb40d2abc8d12f24c56e68",
+    "host_tests/gpu_scene_input_test.cpp": "42d3542bcd239237783c4d7d377e1b09d5a0a1524f484d101146bd6c6c45432b",
+    "host_tests/gpu_scene_input_test.py": "d7ba6b9dae9a72634dfb64106d6d686b5335532f96a9534d8f33b4a1b16f186b"
+  }
+}

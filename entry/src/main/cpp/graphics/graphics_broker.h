@@ -1,15 +1,17 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <native_window/external_window.h>
 
-#include "graphics/virgl_host_config.h"
+#include "virgl_host_config.h"
 
 struct OHIPCRemoteProxy;
 
@@ -67,10 +69,15 @@ public:
     GraphicsBackendState GetState() const;
 
     void AppendWineEnv(std::vector<std::string>& env) const;
-    // Surface classification belongs to the producer; do not derive it from the
-    // session-wide Vulkan present mode.
+    /* vulkan: 该面的呈现通道类型 (QueryZeroCopySurfaces 报的 surface.vulkan,
+     * 即 guest 注册面时声明的通道 —— venus=Vulkan / virgl=GL)。NCP presenter
+     * 按它选 VenusSurfaceQueueTarget / GL SurfaceQueueTarget, 选错则对面的
+     * present 全部收 kPresentInvalid。不得用 IsVulkanPresentMode() (d3d 档位
+     * 的全局模式) 代替 —— 档位只约束 d3d 程序的 D3D→Vulkan 路由, 与单个面
+     * 的实际通道无关 (vkd3d 档位下 GL 程序的面是 virgl 通道, D23 实测:
+     * blit=-22 每帧失败)。 */
     bool AttachZeroCopyTarget(uint64_t surfaceKey, OHNativeWindow* producerWindow,
-                              uint64_t framePeriodNs, bool vulkanSurface);
+                              uint64_t framePeriodNs, bool vulkan, int retirementFd = -1);
     void SetZeroCopyFramePeriod(uint64_t surfaceKey, uint64_t framePeriodNs);
     void DetachZeroCopyTarget(uint64_t surfaceKey);
     bool QueryZeroCopySurfaces(std::vector<ZeroCopySurfaceInfo>& surfaces) const;
@@ -94,9 +101,12 @@ private:
     static void OnVirglIpcProcessStarted(int errorCode, OHIPCRemoteProxy* remoteProxy);
     bool SendVirglConfigureLocked();
     bool SendVirglTargetLocked(uint64_t surfaceKey, OHNativeWindow* producerWindow,
-                               uint64_t framePeriodNs, uint32_t flags);
+                               uint64_t framePeriodNs, uint32_t flags, int retirementFd);
     bool SendVirglFramePeriodLocked(uint64_t surfaceKey, uint64_t framePeriodNs);
     bool SendVirglDetachLocked(uint64_t surfaceKey);
+    // 诊断 (2026-09-16): ZC surface 查询失败的带原因日志 (调用方持 virglIpcMutex_)
+    void LogZeroCopyQueryFailureLocked(const char* reason, int32_t detail,
+                                       int32_t surfaceCount) const;
     bool StartVirglInProcessHostLocked(const VirglHostConfig& config);
     void ResetVirglInProcessSurfacesLocked();
     void ShutdownVirglIpc();
@@ -128,6 +138,7 @@ private:
     std::atomic<bool> virglServerRunning_{false};
     std::atomic<bool> vulkanPresentMode_{false};
     void* virglInProcessHandle_ = nullptr;
+    void* virglInProcessStop_ = nullptr;
     void* virglInProcessAttach_ = nullptr;
     void* virglInProcessDetach_ = nullptr;
     void* virglInProcessSetFramePeriod_ = nullptr;
@@ -143,7 +154,11 @@ private:
     int virglIpcError_ = 0;
     VirglHostConfig virglHostConfig_;
     uint64_t virglHostConfigHash_ = 0;
-    std::unordered_set<uint64_t> zeroCopyAttachedSurfaces_;
+    /* key → 已挂接的生产窗: 幂等判定要按**目标身份**做, 只看 key 在不在会把
+     * "另一个消费者先挂上了"误报成成功 (见 AttachZeroCopyTarget 注释)。 */
+    std::unordered_map<uint64_t, OHNativeWindow*> zeroCopyAttachedSurfaces_;
+    mutable bool zeroCopyQueryFailureLogged_ = false;
+    mutable std::chrono::steady_clock::time_point zeroCopyQueryFailureLogTime_{};
 };
 
 } // namespace winehua

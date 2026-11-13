@@ -53,8 +53,8 @@ public:
     // -- 显示策略 (唯一模式存储位; SetDesktopMode 写, 策略查询散布各处只读) --
     DisplayPolicy policy{};
 
-    // -- 显示尺寸 (唯一输出尺寸存储位; SetOutputSize 写；保留产品
-    //    NotifyToplevelResize 对 root 尺寸的同步路径) --
+    // -- 显示尺寸 (唯一输出尺寸存储位; SetOutputSize 写 — ArkTS 权威源,
+    //    桌面 root resize 不反写, 见 NotifyToplevelResize 注释) --
     int32_t outputW = compositor_consts::kDefaultOutputWidth;
     int32_t outputH = compositor_consts::kDefaultOutputHeight;
 

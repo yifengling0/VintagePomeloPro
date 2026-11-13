@@ -1,0 +1,407 @@
+{
+  "cold-load": {
+    "events": [
+      {
+        "index": 0,
+        "time": "2026-10-06T16:40:16.133457+08:00",
+        "elapsedSeconds": 0.0,
+        "x": 2190,
+        "y": 255
+      },
+      {
+        "index": 1,
+        "time": "2026-10-06T16:40:24.465722+08:00",
+        "elapsedSeconds": 8.328000000001339,
+        "x": 2190,
+        "y": 675
+      },
+      {
+        "index": 2,
+        "time": "2026-10-06T16:40:32.477954+08:00",
+        "elapsedSeconds": 16.343000000000757,
+        "x": 1818,
+        "y": 675
+      },
+      {
+        "index": 3,
+        "time": "2026-10-06T16:40:40.453173+08:00",
+        "elapsedSeconds": 24.312000000001717,
+        "x": 2190,
+        "y": 920
+      }
+    ],
+    "actualLogLines": 358,
+    "metrics": {
+      "wgl_lock_wait": {
+        "count": 653217,
+        "totalUs": 54290,
+        "maxUs": 93,
+        "bytes": 0
+      },
+      "map_driver": {
+        "count": 217030,
+        "totalUs": 110374,
+        "maxUs": 167,
+        "bytes": 0
+      },
+      "map_shadow": {
+        "count": 217030,
+        "totalUs": 2982928,
+        "maxUs": 2285,
+        "bytes": 56893112320
+      },
+      "shadow_in": {
+        "count": 214856,
+        "totalUs": 2913703,
+        "maxUs": 2283,
+        "bytes": 56323211264
+      },
+      "shadow_flush": {
+        "count": 217030,
+        "totalUs": 140304,
+        "maxUs": 867,
+        "bytes": 593964928
+      },
+      "gl_flush": {
+        "count": 217030,
+        "totalUs": 61155,
+        "maxUs": 192,
+        "bytes": 593964928
+      },
+      "gl_unmap": {
+        "count": 217030,
+        "totalUs": 81435,
+        "maxUs": 131,
+        "bytes": 0
+      },
+      "wgl_swap": {
+        "count": 2174,
+        "totalUs": 5510422,
+        "maxUs": 47988,
+        "bytes": 0
+      },
+      "buffer_subdata": {
+        "count": 272,
+        "totalUs": 4806,
+        "maxUs": 113,
+        "bytes": 20944
+      },
+      "tex_subimage": {
+        "count": 172,
+        "totalUs": 135084,
+        "maxUs": 6349,
+        "bytes": 0
+      }
+    },
+    "jit": null,
+    "jitRecords": 0,
+    "hostFps": [
+      {
+        "time": "16:40:15",
+        "fps": 60.77,
+        "line": "10-06 16:40:15.933  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=24720 fps=60.77 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=583/1334/1561/1937 upload_us=0/0/0/0 swap_us=1151/1876/2028/2072 total_us=2184/3550/4025/4032"
+      },
+      {
+        "time": "16:40:18",
+        "fps": 57.75,
+        "line": "10-06 16:40:18.011  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=24840 fps=57.75 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=600/1308/1420/1684 upload_us=0/0/0/0 swap_us=1190/1969/2044/2119 total_us=2229/3747/4090/4161"
+      },
+      {
+        "time": "16:40:20",
+        "fps": 59.71,
+        "line": "10-06 16:40:20.020  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=24960 fps=59.71 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=637/1456/1754/6077 upload_us=0/0/0/0 swap_us=1230/1964/2060/2216 total_us=2333/3875/4405/7041"
+      },
+      {
+        "time": "16:40:22",
+        "fps": 59.93,
+        "line": "10-06 16:40:22.023  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25080 fps=59.93 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=662/1292/1501/1618 upload_us=0/0/0/0 swap_us=1230/1919/2088/2098 total_us=2325/3663/3993/4227"
+      },
+      {
+        "time": "16:40:24",
+        "fps": 59.67,
+        "line": "10-06 16:40:24.034  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25200 fps=59.67 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=658/1322/1649/1660 upload_us=0/0/0/0 swap_us=1229/1939/2167/2392 total_us=2390/3810/4099/4104"
+      },
+      {
+        "time": "16:40:27",
+        "fps": 33.45,
+        "line": "10-06 16:40:27.621  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25320 fps=33.45 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=658/1356/1591/1655 upload_us=0/0/0/0 swap_us=1195/1962/2211/2716 total_us=2300/3825/4187/5705"
+      },
+      {
+        "time": "16:40:29",
+        "fps": 60.43,
+        "line": "10-06 16:40:29.607  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25440 fps=60.43 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=630/1349/1632/2194 upload_us=0/0/0/0 swap_us=1203/1922/2099/2275 total_us=2316/3685/4305/4340"
+      },
+      {
+        "time": "16:40:31",
+        "fps": 59.02,
+        "line": "10-06 16:40:31.640  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25560 fps=59.02 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=698/1327/1756/2059 upload_us=0/0/0/0 swap_us=1280/1927/2113/2139 total_us=2502/3771/3987/4428"
+      },
+      {
+        "time": "16:40:33",
+        "fps": 59.72,
+        "line": "10-06 16:40:33.650  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25680 fps=59.72 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=645/1304/1482/1654 upload_us=0/0/0/0 swap_us=1265/1925/1970/1971 total_us=2415/3759/4144/4207"
+      },
+      {
+        "time": "16:40:37",
+        "fps": 34.26,
+        "line": "10-06 16:40:37.152  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25800 fps=34.26 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=671/1401/4066/5282 upload_us=0/0/0/0 swap_us=1188/1930/2169/2437 total_us=2359/3751/5079/6978"
+      },
+      {
+        "time": "16:40:39",
+        "fps": 59.7,
+        "line": "10-06 16:40:39.162  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=25920 fps=59.70 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=685/1339/1933/2011 upload_us=0/0/0/0 swap_us=1220/1872/2043/2165 total_us=2304/3692/3993/4120"
+      },
+      {
+        "time": "16:40:41",
+        "fps": 60.66,
+        "line": "10-06 16:40:41.141  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26040 fps=60.66 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=631/1427/1862/1902 upload_us=0/0/0/0 swap_us=1220/1969/2095/2481 total_us=2317/4070/4297/4529"
+      },
+      {
+        "time": "16:40:44",
+        "fps": 33.39,
+        "line": "10-06 16:40:44.734  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26160 fps=33.39 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=638/1381/1509/6734 upload_us=0/0/0/0 swap_us=1218/1944/2052/2389 total_us=2291/3791/4507/7854"
+      },
+      {
+        "time": "16:40:46",
+        "fps": 59.66,
+        "line": "10-06 16:40:46.746  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26280 fps=59.66 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=676/1396/1674/1747 upload_us=0/0/0/0 swap_us=1318/2046/2892/3047 total_us=2515/4090/4670/4910"
+      },
+      {
+        "time": "16:40:48",
+        "fps": 60.24,
+        "line": "10-06 16:40:48.738  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26400 fps=60.24 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=653/1351/1613/1878 upload_us=0/0/0/0 swap_us=1246/1906/2179/2870 total_us=2371/3806/4208/4571"
+      },
+      {
+        "time": "16:40:50",
+        "fps": 58.22,
+        "line": "10-06 16:40:50.799  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26520 fps=58.22 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=617/1311/1613/1615 upload_us=0/0/0/0 swap_us=1254/2029/2211/2792 total_us=2365/3804/4058/4461"
+      },
+      {
+        "time": "16:40:52",
+        "fps": 58.27,
+        "line": "10-06 16:40:52.858  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26640 fps=58.27 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=643/1406/1603/1663 upload_us=0/0/0/0 swap_us=1284/1970/2090/2223 total_us=2426/3923/4279/4337"
+      },
+      {
+        "time": "16:40:54",
+        "fps": 58.71,
+        "line": "10-06 16:40:54.902  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26760 fps=58.71 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=746/1478/1642/1701 upload_us=0/0/0/0 swap_us=1275/2028/2231/2291 total_us=2523/4036/4262/4276"
+      },
+      {
+        "time": "16:40:56",
+        "fps": 58.05,
+        "line": "10-06 16:40:56.970  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=26880 fps=58.05 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=679/1449/1624/1666 upload_us=0/0/0/0 swap_us=1192/1927/2069/2357 total_us=2310/3746/4152/4381"
+      }
+    ],
+    "fpsMedian": 59.66,
+    "fpsMinimum": 33.39,
+    "excludedAvatarIndices": [
+      0
+    ],
+    "limits": "First avatar excluded: four selected before cold pass, so cold index 0 only highlighted; warm index 0 is its first load. Three fixed avatars here are two Ninja variants and Baby, different from baseline. No JIT records means unavailable, not zero cost (FEX_SILENTLOG=0 was omitted). Metric windows may overlap; timings may nest; host FPS is not input latency or GPU time."
+  },
+  "warm-load": {
+    "events": [
+      {
+        "index": 0,
+        "time": "2026-10-06T16:41:20.245645+08:00",
+        "elapsedSeconds": 0.0,
+        "x": 2190,
+        "y": 255
+      },
+      {
+        "index": 1,
+        "time": "2026-10-06T16:41:28.601747+08:00",
+        "elapsedSeconds": 8.359000000000378,
+        "x": 2190,
+        "y": 675
+      },
+      {
+        "index": 2,
+        "time": "2026-10-06T16:41:36.560170+08:00",
+        "elapsedSeconds": 16.31199999999808,
+        "x": 1818,
+        "y": 675
+      },
+      {
+        "index": 3,
+        "time": "2026-10-06T16:41:44.557084+08:00",
+        "elapsedSeconds": 24.31199999999808,
+        "x": 2190,
+        "y": 920
+      }
+    ],
+    "actualLogLines": 356,
+    "metrics": {
+      "wgl_lock_wait": {
+        "count": 724134,
+        "totalUs": 59973,
+        "maxUs": 152,
+        "bytes": 0
+      },
+      "map_driver": {
+        "count": 240565,
+        "totalUs": 122137,
+        "maxUs": 163,
+        "bytes": 0
+      },
+      "map_shadow": {
+        "count": 240566,
+        "totalUs": 3258328,
+        "maxUs": 880,
+        "bytes": 63062933504
+      },
+      "shadow_in": {
+        "count": 238195,
+        "totalUs": 3185390,
+        "maxUs": 878,
+        "bytes": 62441390080
+      },
+      "shadow_flush": {
+        "count": 240566,
+        "totalUs": 142306,
+        "maxUs": 697,
+        "bytes": 648221264
+      },
+      "gl_flush": {
+        "count": 240566,
+        "totalUs": 66388,
+        "maxUs": 197,
+        "bytes": 648221264
+      },
+      "gl_unmap": {
+        "count": 240566,
+        "totalUs": 88962,
+        "maxUs": 137,
+        "bytes": 0
+      },
+      "wgl_swap": {
+        "count": 2372,
+        "totalUs": 5940132,
+        "maxUs": 38428,
+        "bytes": 0
+      },
+      "tex_subimage": {
+        "count": 53,
+        "totalUs": 42893,
+        "maxUs": 4808,
+        "bytes": 0
+      },
+      "buffer_subdata": {
+        "count": 302,
+        "totalUs": 7824,
+        "maxUs": 5379,
+        "bytes": 23254
+      }
+    },
+    "jit": null,
+    "jitRecords": 0,
+    "hostFps": [
+      {
+        "time": "16:41:19",
+        "fps": 58.08,
+        "line": "10-06 16:41:19.422  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28200 fps=58.08 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=638/1354/1543/1670 upload_us=0/0/0/0 swap_us=1178/1873/1998/2089 total_us=2302/3828/3986/4220"
+      },
+      {
+        "time": "16:41:21",
+        "fps": 60.12,
+        "line": "10-06 16:41:21.418  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28320 fps=60.12 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=658/1387/1578/1892 upload_us=0/0/0/0 swap_us=1224/1895/1988/1996 total_us=2366/3727/3949/3969"
+      },
+      {
+        "time": "16:41:24",
+        "fps": 35.02,
+        "line": "10-06 16:41:24.844  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28440 fps=35.02 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=669/1252/1394/1517 upload_us=0/0/0/0 swap_us=1212/1898/2179/2302 total_us=2345/3684/4111/5224"
+      },
+      {
+        "time": "16:41:26",
+        "fps": 59.71,
+        "line": "10-06 16:41:26.854  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28560 fps=59.71 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=634/1349/1606/1794 upload_us=0/0/0/0 swap_us=1241/1956/2121/2377 total_us=2418/3843/4046/4080"
+      },
+      {
+        "time": "16:41:28",
+        "fps": 58.95,
+        "line": "10-06 16:41:28.890  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28680 fps=58.95 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=752/1325/1575/1577 upload_us=0/0/0/0 swap_us=1276/1956/2109/2183 total_us=2422/3807/4095/4116"
+      },
+      {
+        "time": "16:41:30",
+        "fps": 57.76,
+        "line": "10-06 16:41:30.968  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28800 fps=57.76 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=691/1343/1467/1966 upload_us=0/0/0/0 swap_us=1279/1894/2038/2113 total_us=2424/3765/4044/4787"
+      },
+      {
+        "time": "16:41:32",
+        "fps": 61.81,
+        "line": "10-06 16:41:32.909  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=28920 fps=61.81 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=663/1344/1500/1691 upload_us=0/0/0/0 swap_us=1258/2040/2135/2161 total_us=2444/3910/4103/4219"
+      },
+      {
+        "time": "16:41:34",
+        "fps": 58.46,
+        "line": "10-06 16:41:34.962  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29040 fps=58.46 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=665/1361/1536/1617 upload_us=0/0/0/0 swap_us=1217/1929/2078/2210 total_us=2320/3771/4225/4332"
+      },
+      {
+        "time": "16:41:36",
+        "fps": 60.19,
+        "line": "10-06 16:41:36.955  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29160 fps=60.19 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=619/1270/1525/1530 upload_us=0/0/0/0 swap_us=1221/1922/2013/2340 total_us=2231/3702/3980/4141"
+      },
+      {
+        "time": "16:41:39",
+        "fps": 58.31,
+        "line": "10-06 16:41:39.013  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29280 fps=58.31 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=619/1480/1665/1742 upload_us=0/0/0/0 swap_us=1219/2007/2058/2198 total_us=2339/3760/4174/4567"
+      },
+      {
+        "time": "16:41:41",
+        "fps": 60.2,
+        "line": "10-06 16:41:41.007  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29400 fps=60.20 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=660/1351/1561/1614 upload_us=0/0/0/0 swap_us=1188/1940/2468/2501 total_us=2292/3814/4153/4256"
+      },
+      {
+        "time": "16:41:43",
+        "fps": 59.72,
+        "line": "10-06 16:41:43.016  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29520 fps=59.72 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=699/1344/1530/1860 upload_us=0/0/0/0 swap_us=1255/1927/2169/3183 total_us=2356/3851/4444/4945"
+      },
+      {
+        "time": "16:41:45",
+        "fps": 58.92,
+        "line": "10-06 16:41:45.053  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29640 fps=58.92 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=642/1319/1402/1498 upload_us=0/0/0/0 swap_us=1292/1927/2138/2140 total_us=2487/3798/4062/4295"
+      },
+      {
+        "time": "16:41:47",
+        "fps": 57.14,
+        "line": "10-06 16:41:47.153  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29760 fps=57.14 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=633/1346/1536/1553 upload_us=0/0/0/0 swap_us=1177/1907/2442/2997 total_us=2236/3792/4165/4916"
+      },
+      {
+        "time": "16:41:49",
+        "fps": 58.47,
+        "line": "10-06 16:41:49.205  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=29880 fps=58.47 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=667/1438/1677/1707 upload_us=0/0/0/0 swap_us=1202/1898/1998/2068 total_us=2366/3826/4145/4264"
+      },
+      {
+        "time": "16:41:51",
+        "fps": 59.69,
+        "line": "10-06 16:41:51.215  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=30000 fps=59.69 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=660/1408/2004/2015 upload_us=0/0/0/0 swap_us=1246/1974/2029/2086 total_us=2413/3782/3946/4003"
+      },
+      {
+        "time": "16:41:53",
+        "fps": 59.7,
+        "line": "10-06 16:41:53.226  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=30120 fps=59.70 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=650/1314/1507/1614 upload_us=0/0/0/0 swap_us=1255/2028/2826/2984 total_us=2401/4012/4128/4468"
+      },
+      {
+        "time": "16:41:55",
+        "fps": 57.6,
+        "line": "10-06 16:41:55.309  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=30240 fps=57.60 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=677/1385/1629/1988 upload_us=0/0/0/0 swap_us=1204/1986/2277/2279 total_us=2312/3943/4189/4409"
+      },
+      {
+        "time": "16:41:57",
+        "fps": 57.57,
+        "line": "10-06 16:41:57.394  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=30360 fps=57.57 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=676/1530/2156/2307 upload_us=0/0/0/0 swap_us=1276/1904/2045/2524 total_us=2470/3820/4079/4298"
+      },
+      {
+        "time": "16:41:59",
+        "fps": 58.71,
+        "line": "10-06 16:41:59.438  2189  3189 I A00000/com.vintage.pomelopro/WL_EGL: [GL-PERF] tl=1 displayed=30480 fps=58.71 upload_bytes=0 failed_swaps=0 upload_calls_issued=0 upload_timed_frames=0 take_us=639/1395/1492/1657 upload_us=0/0/0/0 swap_us=1283/1967/2112/2123 total_us=2371/3886/4080/4162"
+      }
+    ],
+    "fpsMedian": 58.815,
+    "fpsMinimum": 35.02,
+    "excludedAvatarIndices": [
+      0
+    ],
+    "limits": "First avatar excluded: four selected before cold pass, so cold index 0 only highlighted; warm index 0 is its first load. Three fixed avatars here are two Ninja variants and Baby, different from baseline. No JIT records means unavailable, not zero cost (FEX_SILENTLOG=0 was omitted). Metric windows may overlap; timings may nest; host FPS is not input latency or GPU time."
+  }
+}

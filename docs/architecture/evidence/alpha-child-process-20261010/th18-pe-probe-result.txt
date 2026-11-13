@@ -1,0 +1,4 @@
+image	0	base=00400000	size=00174000	flags=0103	dllflags=8100	reloc_rva=00000000	reloc_size=00000000
+
+image	1	base=30000000	size=00098000	flags=0102	dllflags=8140	reloc_rva=00094000	reloc_size=00003450
+

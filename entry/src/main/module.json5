@@ -4,6 +4,7 @@
     "type": "entry",
     "description": "$string:module_desc",
     "mainElement": "EntryAbility",
+    "srcEntry": "./ets/entryability/WineAbilityStage.ets",
     "deviceTypes": [
       "phone",
       "tv",
@@ -61,6 +62,9 @@
             "actions": [
               "ohos.want.action.home"
             ]
+          },
+          {
+            "actions": ["com.vintagepomelo.action.MEMBERSHIP"]
           }
         ]
       },
@@ -85,8 +89,14 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": false,
-        "launchType": "multiton",
+        "launchType": "specified",
         "removeMissionAfterTerminate": true
+      }
+    ],
+    "metadata": [
+      {
+        "name": "client_id",
+        "value": "6917605913989898754"
       }
     ]
   }

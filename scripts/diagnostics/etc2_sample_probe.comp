@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: MIT
+#version 450
+layout(local_size_x=8,local_size_y=8) in;
+layout(set=0,binding=0) uniform sampler2D sourceImage;
+layout(set=0,binding=1,std430) writeonly buffer Output { uint rgba[]; };
+layout(push_constant) uniform Parameters { uint width; uint height; } params;
+void main() {
+    uvec2 p=gl_GlobalInvocationID.xy;
+    if(p.x>=params.width||p.y>=params.height)return;
+    rgba[p.y*params.width+p.x]=packUnorm4x8(texelFetch(sourceImage,ivec2(p),0));
+}

@@ -1,0 +1,40 @@
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/host_tests/stubs -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    /home/liufeng/src/vpp-proton/host_tests/texture_upload_stats_test.cpp /home/liufeng/src/vpp-proton/entry/src/main/cpp/common/perf_utils.cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/texture_upload_stats_test
+/home/liufeng/src/vpp-proton/build/host_tests/texture_upload_stats_test
+Upload counters preserve issued work across swap failure; static/native frames add zero uploads
+python3 /home/liufeng/src/vpp-proton/host_tests/gpu_owner_contract_test.py
+PASS owner case 0
+PASS owner case 1
+PASS owner case 2
+PASS owner case 3
+PASS owner case 4
+PASS owner case 5
+PASS owner case 6
+PASS owner case 7
+PASS owner case 8
+python3 /home/liufeng/src/vpp-proton/host_tests/gpu_scene_input_test.py
+PASS full production scene/input case 0
+PASS full production scene/input case 1
+PASS full production scene/input case 2
+PASS full production scene/input case 3
+PASS full production scene/input case 4
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_build_identity_test.py
+Wine cache identity: source/configure/native/OHOS/arch/overlay/source edits/symlinks/spaces, all preservation checks passed
+python3 /home/liufeng/src/vpp-proton/host_tests/wine_make_identity_test.py
+Top-level Wine stamp: foreign srcdir and missing provenance reject despite newer stamp/sentinel; all files preserved
+python3 /home/liufeng/src/vpp-proton/host_tests/egl_multi_consumer_test.py
+Production multi-consumer: attach isolation, independent signals, retirement, failure recovery, mixed alpha composition and texture reuse passed
+python3 /home/liufeng/src/vpp-proton/host_tests/zc_binding_lifecycle_test.py
+ZC lifecycle: destruction, takeover, foreign peer, missing-resource guard and explicit topology passed
+python3 /home/liufeng/src/vpp-proton/host_tests/steam_gpu_contract_test.py
+Venus exact identity: PID collisions, missing target, detach/reuse, backend guard passed
+Binding: zero-activity queries, first consume, retirement tombstone, disconnect and generation reuse passed
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/frame_loop_diagnostics_test /home/liufeng/src/vpp-proton/host_tests/frame_loop_diagnostics_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/frame_loop_diagnostics_test
+frame_loop_diagnostics_test PASS
+g++ -std=c++17 -Wall -Wextra -Werror -I /home/liufeng/src/vpp-proton/entry/src/main/cpp \
+    -o /home/liufeng/src/vpp-proton/build/host_tests/cef_render_switches_test /home/liufeng/src/vpp-proton/host_tests/cef_render_switches_test.cpp
+/home/liufeng/src/vpp-proton/build/host_tests/cef_render_switches_test
+cef_render_switches_test PASS

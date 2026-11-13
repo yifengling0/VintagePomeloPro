@@ -1,0 +1,39 @@
+[QUIT-PROBE] pthread-exit-wrapper
+01ac:trace:process:CreateProcessInternalW app L"th18.exe" cmdline (null), inherit 0, flags 0x4, env 00000000 ((null))
+01ac:trace:process:GetEnvironmentVariableW (L"PROTON_ORIG_LAUNCHER_NAME" 00000000 0)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_FORCE_SOFTWARE" 2033EAB8 16)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_LOGGING" 2033EB1C 2)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_ANGLE_BACKEND" 2033EA98 16)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_VMODULE" 2033E750 160)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_FORCE_SOFTWARE" 2033EAB8 16)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_LOGGING" 2033EB1C 2)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_ANGLE_BACKEND" 2033EA98 16)
+01ac:trace:process:GetEnvironmentVariableW (L"WINEHUA_CEF_VMODULE" 2033E750 160)
+01ac:trace:process:NtCreateUserProcess image_chars=30 cmd_chars=10 parent 0 machine 0
+01ac:trace:process:build_broker_argv broker pid=13609 image_wlen=30 cmd_wlen=10 argc=1
+01ac:trace:process:build_broker_argv broker pid=13609 consumed=0 image_bytes=40
+01ac:trace:process:build_broker_argv broker executable path repaired to "Z:\\games\\[th18] \xe4\xb8\x9c\xe6\x96\xb9\xe8\x99\xb9\xe9\xbe\x99\xe6\xb4\x9e\\th18.exe", consumed 1 command-line element(s)
+
+=== PID=14101 entryParamsBytes=7801 argc=2 ===
+[TEB-PROBE] pid=14101 tid=14101 event=add ptr=0x1f0000 size=0 value=0 current=0x600f605600
+[dlopen-trace] load_builtin_unixlib path=0x600f6fc480 str='/data/storage/el2/base/files/wine/bin/aarch64-unix/ntdll.so'
+[ntdll] OHOS sigchain claimed SIGSEGV/SIGBUS/SIGILL/SIGTRAP (before DFX/Wine SEH)
+01ac:trace:process:NtCreateUserProcess L"\\??\\Z:\\games\\[th18] \4e1c\65b9\8679\9f99\6d1e\\th18.exe" pid 0294 tid 0298 handles 0xe8/0xec
+01ac:trace:process:CreateProcessInternalW started process pid 0294 tid 0298
+01ac:trace:process:NtQueryInformationProcess (0xe8,0x0000001a,0x1001feec0,0x00000008,0)
+[WX-MPROTECT] pid=14101 req=0x7 rwx=1 jit_rc=0 first=OK base=0x360000 size=622592
+01ac:trace:process:NtQueryInformationProcess (0xe8,0x0000001a,0x1001feec0,0x00000008,0)
+[TEB-PROBE] pid=14101 tid=14101 event=commit ptr=0x1e0000 size=10000 value=0 current=0x1f0000
+[TEB-PROBE] pid=14101 tid=14101 event=add ptr=0x1e0000 size=0 value=1 current=0x1f0000
+[thread-start] LdrInitializeThunk tid=029c wow=8192 dispatcher=0000007EE2C6C0E0
+[thread-start] creating apc_worker_thread (dispatcher=0000007EE2C6C0E0)
+[TEB-PROBE] pid=14101 tid=14115 event=commit ptr=0x1d0000 size=10000 value=0 current=0x1e0000
+[TEB-PROBE] pid=14101 tid=14115 event=add ptr=0x1d0000 size=0 value=1 current=0x1e0000
+[thread-start] default_thread_init_func entry=0000006FFFEA9BC4 arg=0000000000000014 caller=0000006FFFEA865C tid=029c
+[thread-start]   syscall_dispatcher=0000007EE2C6C0E0
+[thread-start] LdrInitializeThunk tid=02a0 wow=8192 dispatcher=0000007EE2C6C0E0
+[thread-start] default_thread_init_func entry=0000006FFFEA9EF8 arg=0000000000000000 caller=0000006FFFEA865C tid=02a0
+[thread-start]   syscall_dispatcher=0000007EE2C6C0E0
+[QUIT-PROBE] pthread-exit-wrapper
+01ac:trace:process:NtQueryInformationProcess (0xe8,0x0000001a,0x1001fef60,0x00000008,0)
+01ac:trace:process:NtQueryInformationProcess (0xe8,0x0000001a,0x1001fef60,0x00000008,0)

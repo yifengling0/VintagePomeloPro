@@ -1,13 +1,10 @@
 import { window } from '@kit.ArkUI';
 import { hilog } from './LogService';
 import {
-  DesktopWindowMode,
   DisplayMode,
-  WineInputSession,
-  resolveCornerSafeMarginPx
+  WineInputSession
 } from '../model/AppModels';
 import { InputDispatcher } from './InputDispatcher';
-import { AppSettingsStore } from './AppSettingsStore';
 
 export interface InputOverlaySnapshot {
   session: WineInputSession;
@@ -36,6 +33,15 @@ interface OverlayWindowRect {
   height: number;
 }
 
+/** Bounds measured by the owning XComponent, in physical window coordinates. */
+export class InputOverlaySurface {
+  key: string = '';
+  left: number = 0;
+  top: number = 0;
+  width: number = 0;
+  height: number = 0;
+}
+
 const OVERLAY_DOMAIN = 0x0000;
 const OVERLAY_TAG = 'InputOverlay';
 const OVERLAY_HIDDEN_ORIGIN: number = -10000;
@@ -51,8 +57,15 @@ export class InputOverlayWindowCoordinator {
   private stressRemaining: number = 0;
   private attaching: boolean = false;
   private boundsSyncGeneration: number = 0;
+  private surfaceKey: string = 'desktop';
+  private surfaces: Map<string, InputOverlaySurface> = new Map<string, InputOverlaySurface>();
+  private boundsRevision: number = 0;
+  private boundsOp: Promise<void> = Promise.resolve();
   private visibilityGeneration: number = 0;
   private visibilityOp: Promise<void> = Promise.resolve();
+  private blockingOp: Promise<void> = Promise.resolve();
+  private engineBusy: boolean = false;
+  private launchBusy: boolean = false;
   private snapshot: InputOverlaySnapshot = {
     session: { sessionId: '', displayMode: DisplayMode.DESKTOP, toplevelId: 0, active: false },
     profileId: 'default', enabled: true, visible: false, controlsVisible: true, opacity: 72,
@@ -104,8 +117,10 @@ export class InputOverlayWindowCoordinator {
   async attach(stage: window.WindowStage, parentWindow: window.Window,
     sessionId: string, displayMode: DisplayMode, toplevelId: number,
     profileId: string = 'default', controlsVisible: boolean = true, opacity: number = 72,
-    enabled: boolean = true, visible: boolean = true): Promise<void> {
+    enabled: boolean = true, visible: boolean = true, surfaceKey: string = 'desktop'): Promise<void> {
     const session: WineInputSession = { sessionId, displayMode, toplevelId, active: true };
+    this.surfaceKey = surfaceKey;
+    this.boundsRevision++;
     this.snapshot.enabled = enabled;
     if (!enabled) {
       this.update(session, profileId, controlsVisible, opacity);
@@ -140,14 +155,9 @@ export class InputOverlayWindowCoordinator {
       // 必须在创建时写入尺寸和 zLevel。部分 API 23 WindowManager 会在
       // showWindow 后忽略对零尺寸子窗口的层级调整，导致 Wine 的直连
       // Surface 完全盖住 ArkTS 控件。
-      const initialRect = parentWindow.getWindowProperties().windowRect;
-      let initLeft = initialRect.left;
-      let initWidth = initialRect.width;
-      if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.SAFE_AREA) {
-        const margin = resolveCornerSafeMarginPx(initialRect.width, initialRect.height);
-        initLeft += margin;
-        initWidth = Math.max(1, initWidth - margin * 2);
-      }
+      const initialRect = this.resolveSurfaceRect(parentWindow);
+      const initLeft = initialRect.left;
+      const initWidth = initialRect.width;
       hilog.info(OVERLAY_DOMAIN, OVERLAY_TAG,
         'attach session=%{public}s visible=%{public}s rect=%{public}d,%{public}d %{public}dx%{public}d',
         sessionId, controlsVisible ? 'true' : 'false', initLeft, initialRect.top,
@@ -248,6 +258,24 @@ export class InputOverlayWindowCoordinator {
    * visibility so a compositor frame cannot bypass it.
    */
   async setEngineBusy(busy: boolean): Promise<void> {
+    this.engineBusy = busy;
+    await this.syncBlocking();
+  }
+
+  async setLaunchBusy(busy: boolean): Promise<void> {
+    this.launchBusy = busy;
+    await this.syncBlocking();
+  }
+
+  private async syncBlocking(): Promise<void> {
+    // Engine completion must not expose an empty native surface while Steam
+    // is still starting. Serialize window operations and read the latest reasons.
+    const pending = this.blockingOp.then((): Promise<void> => this.applyBlocking(this.engineBusy || this.launchBusy));
+    this.blockingOp = pending.catch((): void => {});
+    await pending;
+  }
+
+  private async applyBlocking(busy: boolean): Promise<void> {
     if (this.snapshot.blocking === busy && (!busy || this.snapshot.visible)) return;
     this.snapshot.blocking = busy;
     if (this.overlayWindow) {
@@ -331,6 +359,7 @@ export class InputOverlayWindowCoordinator {
       return;
     }
     this.boundsSyncGeneration++;
+    this.boundsRevision++;
     try {
       await overlay.moveWindowToGlobal(OVERLAY_HIDDEN_ORIGIN, OVERLAY_HIDDEN_ORIGIN);
     } catch (error) {
@@ -368,30 +397,62 @@ export class InputOverlayWindowCoordinator {
     }
   }
 
+  /** A page may lay out before its Ability attaches the retained overlay. */
+  updateSurfaceBounds(owner: InputOverlaySurface, key: string,
+    left: number, top: number, width: number, height: number): void {
+    if (![left, top, width, height].every((value: number): boolean => Number.isFinite(value)) ||
+      width <= 0 || height <= 0) return;
+    if (owner.key !== key) this.releaseSurfaceBounds(owner);
+    const changed = this.surfaces.get(key) !== owner || owner.left !== left || owner.top !== top ||
+      owner.width !== width || owner.height !== height;
+    owner.key = key;
+    owner.left = left;
+    owner.top = top;
+    owner.width = width;
+    owner.height = height;
+    this.surfaces.set(key, owner);
+    if (changed && this.surfaceKey === key) this.syncBounds().catch((): void => {});
+  }
+
+  releaseSurfaceBounds(owner: InputOverlaySurface): void {
+    // A disappearing old page must not delete a replacement page's measurement.
+    if (this.surfaces.get(owner.key) === owner) this.surfaces.delete(owner.key);
+  }
+
+  private resolveSurfaceRect(parent: window.Window): OverlayWindowRect {
+    const rect = parent.getWindowProperties().windowRect;
+    const surface = this.surfaces.get(this.surfaceKey);
+    if (!surface) return rect;
+    return { left: rect.left + surface.left, top: rect.top + surface.top,
+      width: surface.width, height: surface.height };
+  }
+
   async syncBounds(): Promise<void> {
-    if (!this.overlayWindow || !this.parentWindow) {
-      return;
-    }
-    if (!this.snapshot.visible && !this.attaching) {
-      return;
-    }
-    try {
-      const rect = this.parentWindow.getWindowProperties().windowRect;
-      // 切边模式: 输入覆盖层与桌面 XComponent 同步左右内缩, 使覆盖层
-      // 局部坐标 == XComponent surface 坐标, 虚拟鼠标/触摸点击不再偏移。
-      let left = rect.left;
-      let width = rect.width;
-      if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.SAFE_AREA) {
-        const margin = resolveCornerSafeMarginPx(rect.width, rect.height);
-        left += margin;
-        width = Math.max(1, width - margin * 2);
+    const revision = ++this.boundsRevision;
+    const pending = this.boundsOp.then(async (): Promise<void> => {
+      const overlay = this.overlayWindow;
+      const parent = this.parentWindow;
+      if (revision !== this.boundsRevision || !overlay || !parent ||
+        (!this.snapshot.visible && !this.attaching)) return;
+      try {
+        // Area.globalPosition is relative to the owning window. It already
+        // includes decor, safe-area and layout padding; never add them again.
+        const rect = this.resolveSurfaceRect(parent);
+        await overlay.resize(Math.max(1, Math.round(rect.width)), Math.max(1, Math.round(rect.height)));
+        if (revision !== this.boundsRevision || overlay !== this.overlayWindow ||
+          parent !== this.parentWindow || (!this.snapshot.visible && !this.attaching)) return;
+        await overlay.moveWindowToGlobal(Math.round(rect.left), Math.round(rect.top));
+        hilog.info(OVERLAY_DOMAIN, OVERLAY_TAG,
+          'surface bounds key=%{public}s rect=%{public}d,%{public}d %{public}dx%{public}d measured=%{public}s',
+          this.surfaceKey, Math.round(rect.left), Math.round(rect.top), Math.round(rect.width),
+          Math.round(rect.height), this.surfaces.has(this.surfaceKey) ? 'true' : 'false');
+      } catch (error) {
+        this.snapshot.lastError = 'syncBounds: ' + JSON.stringify(error);
+        this.publish();
       }
-      await this.overlayWindow.resize(Math.max(1, Math.round(width)), Math.max(1, Math.round(rect.height)));
-      await this.overlayWindow.moveWindowToGlobal(Math.round(left), Math.round(rect.top));
-    } catch (error) {
-      this.snapshot.lastError = 'syncBounds: ' + JSON.stringify(error);
-      this.publish();
-    }
+    });
+    this.boundsOp = pending.catch((): void => {});
+    await pending;
   }
 
   /**
@@ -413,7 +474,8 @@ export class InputOverlayWindowCoordinator {
   }
 
   setActiveToplevel(toplevelId: number): void {
-    if (toplevelId <= 0) return;
+    // A late desktop renderer rebind must not steal the managed game's input.
+    if (this.surfaceKey !== 'desktop' || toplevelId <= 0) return;
     const previous = this.snapshot.session;
     // DesktopAbility 可能先于 explorer toplevel 创建。拿到真实 root 后补全
     // 会话 ID，保证 diagnostics、恢复和输入归属使用同一个实际会话。
@@ -499,6 +561,7 @@ export class InputOverlayWindowCoordinator {
   async detach(reason: string): Promise<void> {
     this.visibilityGeneration++;
     this.boundsSyncGeneration++;
+    this.boundsRevision++;
     InputDispatcher.getInstance().releaseAll(reason);
     const overlay = this.overlayWindow;
     this.overlayWindow = null;

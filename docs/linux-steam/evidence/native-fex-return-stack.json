@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-30",
+  "status": "corrupted-return-frame-observed-first-writer-unknown",
+  "baseCommit": "7f66d9fecd312b5c15707ab27796db3d6787eddb",
+  "device": "ordinary MatePad MLR-AL10",
+  "game": "Banana Linux native through official Steam and GNU ARM64 FEX",
+  "candidateSha256": "eecce274d2736a3ef9aee63dd1edd6385150d64aa37f7fceb7f1dbf7bceb664a",
+  "fexSourceRevision": "37265b109a4bba9e10241972dfcb3d1fdb8f3f9a",
+  "fexSha256": "effeb9ebb0221b9de7b39b3cfe757c5b207680bebba5f27786fabdedcd1a4c8c",
+  "wsiSha256": "57f7457467a4d9eb9d3ecd2621f3ff8311f8278dbd99b51a7faf773e5cf17cf3",
+  "heapObserverSha256": "384e13bd43905cc905ff19905c3f078fcd7d8fdaabdf2a13db47f1f484be4d0c",
+  "freshGame": true,
+  "elapsedSeconds": 115.1,
+  "stopReason": "guest-fatal",
+  "bcUploads": 768,
+  "allocationPeakBytes": 2399513344,
+  "allocationFailures": 0,
+  "displayReadbacks": 0,
+  "clickProbeSent": false,
+  "clickProbeAccepted": null,
+  "fault": {
+    "signal": "SIGSEGV",
+    "code": "SEGV_MAPERR",
+    "hostPc": "0x0",
+    "faultAddress": "0x0",
+    "currentBlockCapturedBytes": 4096,
+    "currentBlockTailOffset": 808,
+    "currentBlockTotalSize": 920,
+    "guestCodeBytes": 324,
+    "unityElfVirtualAddress": "0x18f0c60",
+    "observedFunction": "VP8 eight-pixel horizontal six-tap predictor",
+    "callerUnityElfVirtualAddress": "0x18da150",
+    "guestStackCapturedBytes": 512,
+    "savedGuestRbp": "0x0",
+    "savedGuestReturnRip": "0x0",
+    "nearbyPixelByte": "0x6e",
+    "firstInvalidWriteLocated": false
+  },
+  "startupRegression": {
+    "steamAndGameStarted": true,
+    "clientFailedToMapSegmentMessages": 0,
+    "execAccessFallbackObserved": false
+  },
+  "privateEvidence": [
+    {
+      "name": "native-bc-banana-player.private.log",
+      "bytes": 435338,
+      "sha256": "22a25c4ed0ce5608a5173fe6a77957673002c334b51443037b24e374510504d8"
+    },
+    {
+      "name": "native-bc-banana-client.private.log",
+      "bytes": 164134,
+      "sha256": "3b58fe4f977fe5207b2703bd9d96e1a4060bd95c0bf85d2f31823d301069b781"
+    },
+    {
+      "name": "native-bc-banana-result.json",
+      "bytes": 956,
+      "sha256": "99d92345f7402873383afe2505be5b8257f72206c791987a688008a515ff6eb6"
+    },
+    {
+      "name": "native-current-block.private.bin",
+      "bytes": 4096,
+      "sha256": "a891d3c7003d9db5124da7e2f20a151d7f21a0941d04b9c7b661f46f4abed13d"
+    }
+  ],
+  "baselineRestoredAndAppUidStopped": true,
+  "releaseEnabled": false,
+  "boundaries": [
+    "A damaged return frame does not identify the earliest invalid writer",
+    "Memory POP fix does not change the register POP instructions at this site",
+    "No allocation failures does not exclude prior CPU or GPU memory corruption",
+    "No claim of stable gameplay or successful input",
+    "ARM64 startup regression does not exercise the new X_OK fallback",
+    "No game assets, accounts, saves or original OHOS Wine runtime changed"
+  ]
+}

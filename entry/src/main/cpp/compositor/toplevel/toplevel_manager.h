@@ -26,16 +26,11 @@
 // - fullscreen toplevel 锚定 (0,0): SetToplevelFullscreen 维护,
 //   合成按保比例缩放铺满, 不使用浮动位置。
 
+struct SurfaceData;
+
 class ToplevelManager {
 public:
     // -- 公共类型 --
-
-    struct WindowMask {
-        int w = 0, h = 0;
-        uint64_t hash = 0;
-        std::vector<uint8_t> bits;  // w*h, 每像素 0/1
-        bool dirty = false;
-    };
 
     // toplevel/popup 聚合状态。字段全部私有: 读走 getter, 写走语义方法,
     // 编译器强制外部只能通过方法访问 — 变更纪律 (minimized/fullscreen 唯一
@@ -78,10 +73,15 @@ public:
         int Height() const { return h_; }
         uint32_t ShmFormat() const { return shmFormat_; }  // 0=ARGB8888, 1=XRGB8888
 
-        // 帧数据写 (wl_core commit 路径)。FrameData 仅两处写点使用:
-        // CopyShmContentTight / popup 像素双缓冲轮换
+        // 帧数据写 (wl_core commit 路径)。FrameData 写点: CopyShmContentTight /
+        // popup 像素双缓冲轮换 / EnsureFrameBaseLocked 补建基底
         std::vector<uint8_t>& FrameData() { return pixels_; }
         void SetContentSize(int w, int h) { w_ = w; h_ = h; }
+        // 客户区内容尺寸 (0 = 未记录)。见类内 clientW_ 字段与
+        // ToplevelManager::SyncFullscreenContentSizeLocked 的语义说明。
+        void SetClientContentSize(int w, int h) { clientW_ = w; clientH_ = h; }
+        int ClientContentW() const { return clientW_; }
+        int ClientContentH() const { return clientH_; }
         void SetShmFormat(uint32_t fmt) { shmFormat_ = fmt; }
         void MarkDirty() { dirty_ = true; }
         void ClearDirty() { dirty_ = false; }
@@ -135,13 +135,6 @@ public:
             lastReportedW_ = w; lastReportedH_ = h; return true;
         }
 
-        // -- ARGB 窗口剪影掩码 --
-        WindowMask& MutableMask() { return mask_; }  // 仅 wl_core 掩码生成用
-        const WindowMask& Mask() const { return mask_; }
-        // 消耗型取出 (move bits + 清 dirty; mask.w==0 = 从未生成)。
-        // 两个 TakeWindowMask 实现收敛后的唯一消费入口
-        bool TakeMask(WindowMask& out);
-
         // -- WineHua modal 关系 (winehua_toplevel 协议) --
         // 0 = 非模态; 否则为本模态对话框的 owner toplevelId。
         // 模态窗口由 ToplevelManager::modalOf_ 组员化 (不入 z-order),
@@ -152,6 +145,10 @@ public:
     private:
         std::vector<uint8_t> pixels_;   // empty() = 尚无帧
         int w_ = 0, h_ = 0;             // content 尺寸 (popup 为显示尺寸)
+        // 客户区内容尺寸 (client subsurface 承载画面时由 commit 写入; 见
+        // SyncClientContentSizeLocked)。仅全屏窗口的帧合成用它当帧尺寸 —
+        // w_/h_ 保持窗口尺寸, 输入映射/窗口列表等消费方不受影响。
+        int clientW_ = 0, clientH_ = 0;
         bool dirty_ = false;
         uint64_t frameSerial_ = 0;      // 帧内容序列号 (见 FrameSerial 注释)
         uint32_t shmFormat_ = 1;        // wl_shm format (0=ARGB8888, 1=XRGB8888)
@@ -165,7 +162,6 @@ public:
         bool fullscreen_ = false;
         uint32_t modalOwnerId_ = 0;     // WineHua modal 关系 (见访问器注释)
         uint64_t fsPriority_ = 0;       // 全屏优先级序号 (规则见 fsPriority 注释)
-        WindowMask mask_;               // mask.w==0 = 从未生成
     };
 
     // -- 访问器 --
@@ -348,9 +344,6 @@ public:
     uint32_t FindToplevelBySurface(wl_resource* surf);
     size_t ToplevelSurfaceCount() const { return toplevelSurfaceMap_.size(); }
 
-    // 异型窗口掩码
-    bool TakeWindowMask(uint32_t id, int& w, int& h, std::vector<uint8_t>& out);
-
     // 标记 toplevel dirty (调用方须已持有 mutex)
     void MarkToplevelDirtyLocked(uint32_t id);
 
@@ -363,7 +356,15 @@ public:
         return it != surfaceResources_.end() ? it->second : nullptr;
     }
     void RegisterSurfaceResource(uint64_t key, wl_resource* res) { surfaceResources_[key] = res; }
-    void UnregisterSurfaceResource(uint64_t key) { surfaceResources_.erase(key); }
+    // Caller holds Lock(). Unlink surviving children before freeing a parent.
+    void UnregisterSurfaceResource(uint64_t key);
+    // Test registry membership before touching a possibly retired resource.
+    SurfaceData* FindRegisteredSurfaceDataLocked(wl_resource* resource);
+    size_t SurfaceResourceCount() const { return surfaceResources_.size(); }
+    // 诊断 (2026-09-16): 只读遍历 (present surface → owner 窗口解析取证用)
+    const std::unordered_map<uint64_t, wl_resource*>& SurfaceResources() const {
+        return surfaceResources_;
+    }
     bool ContainsSurfaceResource(wl_resource* res) {
         for (auto& [k, r] : surfaceResources_) if (r == res) return true;
         return false;
@@ -388,12 +389,6 @@ public:
     // ReassertFullscreen 同源约束 — 见 cpp 注释)。
     bool TryAutoRestoreLocked(uint32_t id, int32_t contentW, int32_t contentH);
 
-    // ARGB 窗口位置同步 (PC 多窗口模式, Wine 位置为权威 — 桌面小部件由 Wine
-    // 决定屏幕位置; 普通 PC 窗口后续 commit 忽略 geo, OHOS 窗口管理器为权威,
-    // 由调用方守卫)。返回 true = 位置变化, 调用方据此锁内发 argb_move 事件
-    // (通知 ArkTS 移动子窗口); 返回 false = 无变化不发事件。
-    bool SyncArgbPositionLocked(uint32_t id, int32_t screenX, int32_t screenY);
-
     // 桌面模式后续 commit 的位置同步: compositor 位置为权威 (move grab 后
     // Wine 不知道新位置), 但 Wine 程序主动 SetWindowPos (geo ≠ 上次 Wine
     // 快照) 必须跟随; 最小化坐标 (-32000,-32000) 只记快照不移动。判定用
@@ -402,14 +397,6 @@ public:
     // 逐字, 完整补丁说明见 cpp 定义处。
     void SyncDesktopPositionLocked(uint32_t id, int32_t screenX, int32_t screenY,
                                    bool justRestored);
-
-    // ARGB 窗口剪影掩码生成 (补丁: 从 alpha 通道生成 0/1 掩码供 setWindowMask,
-    // 阈值 128 → 半透明抗锯齿边缘向内收半像素; FNV-1a 形状哈希不变不重建 —
-    // 时钟类静态形状零开销)。pixels = ToplevelState 帧数据 (w*h 像素 BGRA,
-    // 掩码按帧分辨率存 = Wine 逻辑像素, ArkTS 侧按 effectiveScale 最近邻放大)。
-    // 返回 true = 形状/尺寸更新发生, 调用方据此发 mask_dirty 事件。
-    bool UpdateArgbMaskLocked(uint32_t id, const std::vector<uint8_t>& pixels,
-                              int32_t w, int32_t h);
 
     // 提交尺寸上报语义 (检测尺寸变化 → 通知 ArkTS 调窗; 含全屏尺寸漂移检测
     // 补丁 — war3 D3D 模式切换画面缩左上, PLAN §2.5)。锁内调用 (判定读
@@ -426,6 +413,14 @@ public:
     SizeCommitEffect HandleCommittedSizeLocked(uint32_t id, uint32_t rootId,
                                                int32_t contentW, int32_t contentH,
                                                int32_t outputW, int32_t outputH);
+
+    // 全屏窗口的帧尺寸跟随客户区内容尺寸。client subsurface 路径下 (游戏
+    // 画面全部提交在 client surface 上) 父表面只有建窗时的一次占位提交,
+    // 帧尺寸若停在那里, 客户区内容会贴在帧左上角。锁内调用, 无锁外动作。
+    // 语义与实测依据见 cpp 定义处。
+    void SyncFullscreenContentSizeLocked(uint32_t id, int32_t w, int32_t h);
+    // client subsurface 承载画面时补建帧基底 (语义见实现)。锁内调用。
+    void EnsureFrameBaseLocked(uint32_t id, int32_t w, int32_t h);
 
     // 坐标/尺寸查询
     int GetToplevelX(uint32_t id);

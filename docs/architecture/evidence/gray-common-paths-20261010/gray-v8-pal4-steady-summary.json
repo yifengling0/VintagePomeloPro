@@ -1,0 +1,31 @@
+{
+  "start": "2026-10-10T11:50:50.488671+08:00",
+  "end": "2026-10-10T11:51:10.489602+08:00",
+  "seconds": 20,
+  "pids": [
+    26446,
+    26719,
+    26733,
+    26757,
+    26766,
+    26795,
+    26807,
+    26819,
+    26857,
+    26874,
+    26884,
+    26902,
+    26922,
+    26996,
+    27015,
+    27093,
+    27249,
+    27338,
+    27387
+  ],
+  "directSamples": 20,
+  "directMean": 66.032,
+  "directMin": 63.41,
+  "directMax": 68.99,
+  "method": "1s fresh-image publication; GL-PERF has a different interval and is kept raw"
+}

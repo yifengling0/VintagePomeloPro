@@ -137,7 +137,18 @@ void TestBackendPolicy()
 
 void TestProfileResolution()
 {
-    constexpr std::array<ExpectedProfile, 5> expectedProfiles = {{
+    winehua::ProductGraphicsPolicy direct;
+    Check(winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
+              winehua::D3dBackendKind::DxvkLegacy, &direct) &&
+              direct.guest.directVulkan && !direct.guest.preciseShadow &&
+              direct.guest.submission == winehua::GuestSubmissionPolicy::Default,
+          "Direct removes Venus transport while retaining DXVK selection");
+    Check(!winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
+              winehua::D3dBackendKind::WineD3d, &direct) &&
+              !winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
+              winehua::D3dBackendKind::Vkd3dLimited500k, &direct),
+          "Direct experiment rejects unvalidated backend combinations");
+    constexpr std::array<ExpectedProfile, 6> expectedProfiles = {{
         {"observe-product-summary", "precise-dirty",
          "inline-gpu-upload-coverage-sort",
          true, false, false, false, true},
@@ -148,6 +159,7 @@ void TestProfileResolution()
          true, false, false, false, true},
         {"trace-present-image", "precise-dirty", "present-image-trace"},
         {"isolate-transport-neutral", "full", "0"},
+        {"isolate-venus-cpu-upload", "precise-dirty", "cpu-upload"},
     }};
 
     for (const ExpectedProfile& expected : expectedProfiles) {
@@ -275,6 +287,31 @@ void TestGuestProfileResolution()
     }
 
     std::vector<std::string> environment;
+    winehua::ProductGraphicsPolicy nativePolicy;
+    Check(winehua::ResolveLabGraphicsExperiment("isolate-venus-native-buffer",
+              winehua::D3dBackendKind::DxvkLegacy, &nativePolicy) &&
+              nativePolicy.host.presentMode == "native-buffer" &&
+              !nativePolicy.guest.directVulkan && nativePolicy.guest.preciseShadow,
+          "native-buffer changes host presentation while preserving Venus resource policy");
+    Check(!winehua::ResolveLabGraphicsExperiment("isolate-venus-native-buffer",
+              winehua::D3dBackendKind::DxvkModern26, &nativePolicy),
+          "native-buffer LAB rejects unqualified modern backend");
+    Check(winehua::BuildLabGuestGraphicsEnvironment("isolate-vulkan-direct",
+              winehua::D3dBackendKind::DxvkLegacy, &environment) &&
+              HasEnvironmentLine(environment, "WINEHUA_VULKAN_BACKEND=direct") &&
+              HasEnvironmentLine(environment, "DXVK_WINEHUA_PRECISE_SHADOW=0") &&
+              HasEnvironmentLine(environment, "VN_WINEHUA_REMOTE_MEMORY_SYNC=0"),
+          "Direct Guest serialization selects system driver without shadow copies");
+    Check(winehua::BuildLabGuestGraphicsEnvironment("isolate-vulkan-direct-precise-map",
+              winehua::D3dBackendKind::DxvkLegacy, &environment) &&
+              HasEnvironmentLine(environment, "WINEHUA_VULKAN_BACKEND=direct") &&
+              HasEnvironmentLine(environment, "WINEHUA_VK_PRECISE_MAP=1") &&
+              HasEnvironmentLine(environment, "DXVK_WINEHUA_PRECISE_SHADOW=1") &&
+              HasEnvironmentLine(environment, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"),
+          "Direct WOW64 precise maps pair with explicit legacy DXVK publication");
+    Check(!winehua::BuildLabGuestGraphicsEnvironment("isolate-vulkan-direct-precise-map",
+              winehua::D3dBackendKind::DxvkModern26, &environment),
+          "Direct precise maps reject DXVK without the explicit publication contract");
     Check(winehua::BuildProductGuestGraphicsEnvironment(
               winehua::D3dBackendKind::DxvkLegacy, &environment),
           "serialize product DXVK 1.10 guest policy");
@@ -282,6 +319,7 @@ void TestGuestProfileResolution()
               "WINEHUA_GRAPHICS_PROFILE=product-vulkan") &&
               HasEnvironmentLine(environment,
               "DXVK_WINEHUA_PRECISE_SHADOW=1") &&
+              HasEnvironmentLine(environment, "WINEHUA_VK_PRECISE_MAP=0") &&
               HasEnvironmentLine(environment,
               "VN_WINEHUA_STRONG_RING_BARRIER=1") &&
               HasEnvironmentLine(environment,
@@ -447,12 +485,12 @@ void TestVirglHostConfig()
     winehua::VirglHostConfig config = {
         "/data/libwinehua_vtest_server.so", "/data/virgl.sock",
         "/data/libs", "egl-thread", "/data/virgl.log", "precise-dirty",
-        "inline-gpu-upload-coverage-sort", "1", "1", "0", "0",
+        "perf", "fifo", "1", "0", "0",
     };
     winehua::VirglHostLaunchConfig launch;
     std::string error;
     Check(winehua::BuildVirglHostLaunchConfig(config, &launch, &error),
-          "WHIP v10 Host config accepts explicit summary bit");
+          "Host config accepts the explicit perf selector");
     Check(launch.entryParams.find(
               "WINEHUA_VTEST_PRESENT_PERF_SUMMARY=1") != std::string::npos &&
               launch.entryParams.find("VKR_WINEHUA_PERF_SUMMARY=1") !=
@@ -462,15 +500,50 @@ void TestVirglHostConfig()
 
     const uint64_t summaryFingerprint =
         winehua::FingerprintVirglHostConfig(config);
-    config.perfSummary = "0";
+    config.shadowTrace = "inline-gpu-upload-coverage-sort";
     Check(winehua::FingerprintVirglHostConfig(config) != summaryFingerprint,
-          "summary bit participates in Host configuration identity");
-    config.perfSummary = "mailbox";
+          "summary selector participates in Host configuration identity");
+    config.gpuUploadWait = "mailbox";
     Check(!winehua::ValidateVirglHostConfig(config, &error),
-          "retired present-mode value fails the binary WHIP v10 slot");
+          "invalid upload-wait flag fails validation");
+    config.gpuUploadWait = "0";
+    config.shadowTrace = "inline-gpu-upload-bound-buffers";
+    Check(winehua::BuildVirglHostLaunchConfig(config, &launch, &error) &&
+              launch.entryParams.find("VKR_WINEHUA_BOUND_BUFFER_LIST=1") != std::string::npos &&
+              launch.entryParams.find("VKR_WINEHUA_GPU_UPLOAD_INLINE=1") != std::string::npos &&
+              launch.entryParams.find("VKR_WINEHUA_COVERAGE_SORT=1") != std::string::npos &&
+              launch.entryParams.find("VKR_WINEHUA_SHADOW_GENERATION_SERIALIZE=1") != std::string::npos &&
+              launch.entryParams.find("VKR_WINEHUA_SHADOW_COVER_UPLOAD=0") != std::string::npos &&
+              !launch.forwardPerfSummary,
+          "bound-buffer isolation preserves upload correctness without enabling diagnostics");
 }
 
 } // namespace
+
+static void TestAutomaticDirectPolicy()
+{
+    using winehua::D3dBackendKind;
+    winehua::ProductGraphicsPolicy policy;
+    winehua::SetProductDirectVulkanVerified(false);
+    Check(winehua::ResolveProductGraphicsPolicy(D3dBackendKind::DxvkLegacy, &policy) &&
+          !policy.guest.directVulkan, "unverified capability keeps Venus");
+    winehua::SetProductDirectVulkanVerified(true);
+    Check(winehua::ResolveSessionGraphicsPolicy("product-vulkan", D3dBackendKind::DxvkLegacy, &policy) &&
+          policy.route == winehua::kProductVulkanRoute && policy.host.name == policy.route &&
+          policy.guest.directVulkan && policy.guest.directPreciseMaps && policy.guest.preciseShadow &&
+          policy.guest.submission == winehua::GuestSubmissionPolicy::Default,
+          "verified product uses paired Direct range copies without a LAB id");
+    for (auto backend : {D3dBackendKind::WineD3d, D3dBackendKind::DxvkModern26, D3dBackendKind::Vkd3dLimited500k})
+        Check(winehua::ResolveProductGraphicsPolicy(backend, &policy) && !policy.guest.directVulkan,
+              "unqualified backends preserve their product path");
+    Check(winehua::ResolveSessionGraphicsPolicy("trace-present-image", D3dBackendKind::DxvkLegacy, &policy) &&
+          !policy.guest.directVulkan && policy.guest.tracePresentImage,
+          "explicit Venus diagnostic remains Venus after automatic Direct qualification");
+    winehua::SetProductDirectVulkanVerified(false);
+    Check(winehua::ResolveSessionGraphicsPolicy("product-vulkan", D3dBackendKind::DxvkLegacy, &policy) &&
+          !policy.guest.directVulkan && !policy.guest.directPreciseMaps,
+          "failed verification removes Direct and its mapped-memory protocol");
+}
 
 int main()
 {
@@ -480,6 +553,7 @@ int main()
     TestPresentPacing();
     TestPresenterRuntimePolicy();
     TestVirglHostConfig();
+    TestAutomaticDirectPolicy();
     if (failures) return EXIT_FAILURE;
     std::cout << "graphics_policy_test: PASS\n";
     return EXIT_SUCCESS;

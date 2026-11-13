@@ -1,0 +1,289 @@
+{
+  "binarySHA256": "3c1bb5f807a4429e2e44690c10b2d3e367c6dfdaee2e999a5fd472d59d75aaf4",
+  "imageBase": "0x180000000",
+  "sections": [
+    {
+      "name": ".text",
+      "rva": "0x1000",
+      "size": "0x1bff00",
+      "rawOffset": "0x1000"
+    },
+    {
+      "name": ".rdata",
+      "rva": "0x1c1000",
+      "size": "0x1968ec",
+      "rawOffset": "0x1c1000"
+    },
+    {
+      "name": ".buildid",
+      "rva": "0x358000",
+      "size": "0x35",
+      "rawOffset": "0x358000"
+    },
+    {
+      "name": ".data",
+      "rva": "0x359000",
+      "size": "0x33c8",
+      "rawOffset": "0x359000"
+    },
+    {
+      "name": ".pdata",
+      "rva": "0x35d000",
+      "size": "0x7a68",
+      "rawOffset": "0x35b000"
+    },
+    {
+      "name": ".tls",
+      "rva": "0x365000",
+      "size": "0x10",
+      "rawOffset": "0x363000"
+    },
+    {
+      "name": ".reloc",
+      "rva": "0x366000",
+      "size": "0x991c",
+      "rawOffset": "0x364000"
+    },
+    {
+      "name": "/4",
+      "rva": "0x370000",
+      "size": "0x309c0",
+      "rawOffset": "0x36e000"
+    },
+    {
+      "name": "/18",
+      "rva": "0x3a1000",
+      "size": "0x30",
+      "rawOffset": "0x39f000"
+    },
+    {
+      "name": "/58",
+      "rva": "0x3a2000",
+      "size": "0xac778c",
+      "rawOffset": "0x3a0000"
+    },
+    {
+      "name": "/70",
+      "rva": "0xe6a000",
+      "size": "0x210fc3",
+      "rawOffset": "0xe68000"
+    },
+    {
+      "name": "/82",
+      "rva": "0x107b000",
+      "size": "0x6f40b6",
+      "rawOffset": "0x1079000"
+    },
+    {
+      "name": "/33",
+      "rva": "0x1770000",
+      "size": "0x1afd60",
+      "rawOffset": "0x176e000"
+    },
+    {
+      "name": "/47",
+      "rva": "0x1920000",
+      "size": "0xd01675",
+      "rawOffset": "0x191e000"
+    }
+  ],
+  "anonymousMappedBase": "0x6ffc430000",
+  "nextMappedRVA": "0x1c1000",
+  "limitation": "Symbolized visible callers, not hidden leaf instructions or measured helper self-time.",
+  "symbols": [
+    {
+      "symbol": "softfloat_roundPackToExtF80",
+      "callerCycleWeightPercent": 4.842387372104645
+    },
+    {
+      "symbol": "extF80_mul",
+      "callerCycleWeightPercent": 1.8581776383089512
+    },
+    {
+      "symbol": "softfloat_roundPackToF32",
+      "callerCycleWeightPercent": 1.4912701087433633
+    },
+    {
+      "symbol": "softfloat_subMagsExtF80",
+      "callerCycleWeightPercent": 1.467001011396647
+    },
+    {
+      "symbol": "softfloat_addMagsExtF80",
+      "callerCycleWeightPercent": 1.4140101597741526
+    },
+    {
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)372>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 1.0203915308111131
+    },
+    {
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)365>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.916472210152258
+    },
+    {
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)389>::handle4(unsigned short, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.6545728209289505
+    },
+    {
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)411>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.5905181484447973
+    },
+    {
+      "symbol": "WowSyscallHandler::HandleSyscallImpl(FEXCore::Core::CpuStateFrame*, FEXCore::HLE::SyscallArguments*)",
+      "callerCycleWeightPercent": 0.5854973672566888
+    },
+    {
+      "symbol": "extF80_to_f32",
+      "callerCycleWeightPercent": 0.39876968344480457
+    },
+    {
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)369>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.2807240149017558
+    },
+    {
+      "symbol": "extF80_sub",
+      "callerCycleWeightPercent": 0.26247660553418917
+    },
+    {
+      "symbol": "softfloat_shiftRightJam128",
+      "callerCycleWeightPercent": 0.2400974559538005
+    },
+    {
+      "symbol": "extF80_lt",
+      "callerCycleWeightPercent": 0.18032057728482534
+    },
+    {
+      "symbol": "extF80_add",
+      "callerCycleWeightPercent": 0.167566574394861
+    },
+    {
+      "symbol": "extF80_eq",
+      "callerCycleWeightPercent": 0.15272646081075153
+    },
+    {
+      "symbol": "softfloat_roundToI32",
+      "callerCycleWeightPercent": 0.15259581426595786
+    }
+  ],
+  "threadSymbols": [
+    {
+      "tid": 28272,
+      "symbol": "softfloat_roundPackToExtF80",
+      "callerCycleWeightPercent": 2.9813015698969716
+    },
+    {
+      "tid": 28371,
+      "symbol": "softfloat_roundPackToExtF80",
+      "callerCycleWeightPercent": 1.861085802207672
+    },
+    {
+      "tid": 28272,
+      "symbol": "extF80_mul",
+      "callerCycleWeightPercent": 1.2661587190973425
+    },
+    {
+      "tid": 28272,
+      "symbol": "softfloat_roundPackToF32",
+      "callerCycleWeightPercent": 0.8698256968974241
+    },
+    {
+      "tid": 28371,
+      "symbol": "softfloat_subMagsExtF80",
+      "callerCycleWeightPercent": 0.7536796042706957
+    },
+    {
+      "tid": 28272,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)372>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.7525943196646432
+    },
+    {
+      "tid": 28272,
+      "symbol": "softfloat_addMagsExtF80",
+      "callerCycleWeightPercent": 0.7334791849880897
+    },
+    {
+      "tid": 28272,
+      "symbol": "softfloat_subMagsExtF80",
+      "callerCycleWeightPercent": 0.713321407125951
+    },
+    {
+      "tid": 28371,
+      "symbol": "softfloat_addMagsExtF80",
+      "callerCycleWeightPercent": 0.6805309747860635
+    },
+    {
+      "tid": 28371,
+      "symbol": "extF80_mul",
+      "callerCycleWeightPercent": 0.5920189192116095
+    },
+    {
+      "tid": 28272,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)411>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.5905181484447973
+    },
+    {
+      "tid": 28272,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)365>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.5851113895526358
+    },
+    {
+      "tid": 28371,
+      "symbol": "softfloat_roundPackToF32",
+      "callerCycleWeightPercent": 0.5366955650283929
+    },
+    {
+      "tid": 28304,
+      "symbol": "WowSyscallHandler::HandleSyscallImpl(FEXCore::Core::CpuStateFrame*, FEXCore::HLE::SyscallArguments*)",
+      "callerCycleWeightPercent": 0.46701110096574855
+    },
+    {
+      "tid": 28272,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)389>::handle4(unsigned short, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.4014866908807684
+    },
+    {
+      "tid": 28371,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)365>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.33136082059962224
+    },
+    {
+      "tid": 28272,
+      "symbol": "extF80_to_f32",
+      "callerCycleWeightPercent": 0.313117293620333
+    },
+    {
+      "tid": 28371,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)372>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.2677972111464701
+    },
+    {
+      "tid": 28371,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)389>::handle4(unsigned short, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.24344832596494415
+    },
+    {
+      "tid": 28272,
+      "symbol": "extF80_lt",
+      "callerCycleWeightPercent": 0.18032057728482534
+    },
+    {
+      "tid": 28272,
+      "symbol": "extF80_sub",
+      "callerCycleWeightPercent": 0.17658975202716812
+    },
+    {
+      "tid": 28272,
+      "symbol": "FEXCore::CPU::OpHandlers<(FEXCore::IR::IROps)369>::handle(unsigned short, __Uint8x16_t, __Uint8x16_t, FEXCore::Core::CpuStateFrame*)",
+      "callerCycleWeightPercent": 0.16586067834956428
+    },
+    {
+      "tid": 28272,
+      "symbol": "extF80_eq",
+      "callerCycleWeightPercent": 0.15272646081075153
+    },
+    {
+      "tid": 28272,
+      "symbol": "softfloat_roundToI32",
+      "callerCycleWeightPercent": 0.1405044719337074
+    }
+  ]
+}

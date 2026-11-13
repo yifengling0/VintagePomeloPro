@@ -1,0 +1,22 @@
+Captured at 2026-10-04T15:52:38+0800; filtered bm dump for com.vintage.pomelopro.
+29:             "bundleName": "",
+35:                 "versionCode": 0,
+36:                 "versionName": ""
+43:                 "versionCode": 0,
+44:                 "versionName": ""
+46:             "versionCode": 0,
+47:             "versionName": ""
+59:         "bundleName": "com.vintage.pomelopro",
+79:             "bundleName": "com.vintage.pomelopro",
+100:             "bundleName": "com.vintage.pomelopro",
+115:             "bundleName": "com.vintage.pomelopro",
+161:         "versionCode": 1004035,
+162:         "versionName": "1.4.5-proton.26-alpha"
+184:                     "bundleName": "com.vintage.pomelopro",
+288:                     "bundleName": "com.vintage.pomelopro",
+404:                     "bundleName": "com.vintage.pomelopro",
+511:             "bundleName": "com.vintage.pomelopro",
+587:             "versionCode": 1004035,
+725:             "bundleName": "com.vintage.pomelopro",
+751:     "versionCode": 1004035,
+752:     "versionName": "1.4.5-proton.26-alpha"

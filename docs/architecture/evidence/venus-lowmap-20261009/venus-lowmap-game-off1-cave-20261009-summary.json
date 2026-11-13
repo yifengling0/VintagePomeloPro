@@ -1,0 +1,27 @@
+{
+  "start": "2026-10-09T09:36:26.652264+08:00",
+  "end": "2026-10-09T09:37:01.653268+08:00",
+  "requestedSeconds": 35,
+  "displayed": {
+    "samples": 6,
+    "seconds": 32.394999980926514,
+    "frames": 600,
+    "fps": 18.521376766577163
+  },
+  "sourcePresented": {
+    "samples": 6,
+    "seconds": 32.35599994659424,
+    "frames": 600,
+    "fps": 18.543701353391658
+  },
+  "displayedIntervalFps": [
+    18.08,
+    18.35,
+    18.37,
+    18.64,
+    18.37,
+    18.89
+  ],
+  "failures": [],
+  "method": "counter differences over timestamped steady-state log intervals; no per-frame P95 measurement"
+}

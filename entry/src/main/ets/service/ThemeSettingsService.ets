@@ -30,6 +30,10 @@ export class ThemeSettingsService {
     await AppSettingsStore.getInstance().saveGlobalSettings(settings);
     this.listeners.forEach((listener: ThemeSettingsListener) => listener(settings));
   }
+  refreshConfiguration(): void {
+    const settings = this.getSettings(); this.applyColorMode(settings);
+    this.listeners.forEach((listener: ThemeSettingsListener): void => listener(settings));
+  }
 
   subscribe(listener: ThemeSettingsListener): void {
     this.listeners.add(listener);
@@ -44,6 +48,8 @@ export class ThemeSettingsService {
     let colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
     if (skinFollowsSystem(settings)) {
       colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET;
+    } else if (settings.uiSkin === UiSkin.DECK) {
+      colorMode = ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
     } else if (settings.uiSkin === UiSkin.CONSOLE) {
       colorMode = settings.consolePalette === ConsolePalette.PEARL ?
         ConfigurationConstant.ColorMode.COLOR_MODE_LIGHT : ConfigurationConstant.ColorMode.COLOR_MODE_DARK;

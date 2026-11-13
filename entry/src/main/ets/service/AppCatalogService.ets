@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { PortableGameConfigurationService } from './PortableGameConfigurationService';
 import { fileIo as fs, fileUri, picker } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
@@ -14,9 +15,12 @@ import {
   stableAppId
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
+import { SteamLocalService } from '../steam/SteamLocalService';
+import { SteamCatalogScope, steamCatalogPathKind } from '../steam/SteamLocalRules';
 import { DesktopModeService, MODE_VIRTUAL } from './DesktopModeService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
+  builtinSupportsRenderMode,
   catalogFileName,
   chooseBackgroundFileName,
   chooseCoverFileName,
@@ -38,6 +42,8 @@ interface BuiltinCatalogItem {
   launchParams: BuiltinLaunchParams;
   cover: string;
   displayMode?: string;
+  renderModes?: string[];
+  enabled?: boolean;
 }
 
 interface BuiltinCatalogFile {
@@ -259,12 +265,15 @@ export class AppCatalogService {
 
   async initialize(context: common.UIAbilityContext): Promise<void> {
     this.context = context;
+    await PortableGameConfigurationService.getInstance().initialize(context);
     this.libraryRoot = this.directLibraryRoot();
     const status = this.ensureGamesDirectory();
     // DOWNLOAD mode is a provisioning API, not a generic file chooser. It
     // returns the app-scoped Download/<bundle> directory and restores its
     // persistent access grant when the directory already exists.
     if (!status.ready) await this.provisionGamesDirectory();
+    try { await SteamLocalService.getInstance().initialize(context, this.libraryRoot); }
+    catch (error) { hilog.warn(DOMAIN, TAG, 'Steam recovery: %{public}s', String(error)); }
   }
 
   getLibraryRoot(): string {
@@ -464,9 +473,14 @@ export class AppCatalogService {
     builtins.forEach((item: AppDescriptor) => merged.push(item));
 
     const directoryStatus = this.ensureGamesDirectory();
+    // Resolve Steam ownership once, then use identical boundaries for both
+    // fresh discovery and old cache entries (including unavailable helpers).
+    const steamScope = SteamLocalService.getInstance().getCatalogScope();
     if (directoryStatus.ready) {
+      const steam = await SteamLocalService.getInstance().scan();
+      steam.forEach((item: AppDescriptor) => merged.push(item));
       const external = await this.scanExternal(directoryStatus.games,
-        AppSettingsStore.getInstance().getCatalogCache());
+        AppSettingsStore.getInstance().getCatalogCache(), steamScope);
       external.forEach((item: AppDescriptor) => merged.push(item));
     }
 
@@ -475,6 +489,8 @@ export class AppCatalogService {
     const cachedCards = AppSettingsStore.getInstance().getCatalogCache();
     for (let cachedIndex = 0; cachedIndex < cachedCards.length; cachedIndex++) {
       const cached = cachedCards[cachedIndex];
+      if (cached.steam) continue;
+      if (steamCatalogPathKind(cached.directory, steamScope) !== 'game') continue;
       if (cached.source !== AppSource.DOWNLOAD || currentIds.has(cached.id)) continue;
       const settings = AppSettingsStore.getInstance().getAppSettings(cached.id);
       cached.title = settings.customTitle || cached.title;
@@ -493,6 +509,9 @@ export class AppCatalogService {
       // executable directly under games/ has no distinct folder and is
       // removed as soon as that executable disappears.
       const directoryIsGamesRoot = normalizedDirectory === normalizedGames;
+      // Identity migration must retire the old cached card for the same game folder.
+      if (!directoryIsGamesRoot && merged.some((item: AppDescriptor): boolean => item.source === AppSource.DOWNLOAD &&
+        item.directory.replace(/\\/g, '/').replace(/\/+$/, '') === normalizedDirectory)) continue;
       const directoryIsLegacyNestedGamesRoot =
         normalizedDirectory.toLowerCase() === (normalizedGames + '/games').toLowerCase();
       const directoryIsSteamContainer =
@@ -553,7 +572,9 @@ export class AppCatalogService {
     }
 
     const result: AppDescriptor[] = [];
+    const renderMode = AppSettingsStore.getInstance().getRenderMode();
     catalog.apps.forEach((item: BuiltinCatalogItem) => {
+      if (!builtinSupportsRenderMode(renderMode, item.renderModes, item.enabled)) return;
       const kind = this.parseLaunchKind(item.launchKind);
       const dm = DesktopModeService.getInstance();
       const override = dm.getOverrideMode();
@@ -596,17 +617,22 @@ export class AppCatalogService {
         { id: 'builtin-desktop', title: 'Wine 桌面', launchKind: 'wine-desktop', launchParams: { executable: 'explorer.exe' }, cover: '' },
         { id: 'builtin-explorer', title: '文件资源管理器', launchKind: 'wine-system', launchParams: { executable: 'explorer.exe', arguments: ['Z:\\'] }, cover: '' },
         { id: 'builtin-winecfg', title: 'Wine 配置', launchKind: 'wine-system', launchParams: { executable: 'winecfg.exe' }, cover: '' },
-        { id: 'builtin-iexplore', title: 'Internet Explorer', launchKind: 'wine-system', launchParams: { executable: 'C:\\windows\\system32\\iexplore.exe' }, cover: '' },
         { id: 'builtin-control', title: '控制面板', launchKind: 'wine-system', launchParams: { executable: 'control.exe' }, cover: '' },
         { id: 'builtin-taskmgr', title: '任务管理器', launchKind: 'wine-system', launchParams: { executable: 'taskmgr.exe' }, cover: '' },
         { id: 'builtin-regedit', title: '注册表编辑器', launchKind: 'wine-system', launchParams: { executable: 'regedit.exe' }, cover: '' },
         { id: 'builtin-cmd', title: '命令提示符', launchKind: 'wine-system', launchParams: { executable: 'wineconsole.exe', arguments: ['cmd.exe'] }, cover: '' },
         { id: 'builtin-notepad', title: '记事本', launchKind: 'wine-system', launchParams: { executable: 'C:\\windows\\system32\\notepad.exe' }, cover: '' },
-        { id: 'builtin-graphics-smoke', title: '图形测试', launchKind: 'wine-system', launchParams: { executable: 'winehua_graphics_smoke.exe' }, cover: '' },
-        { id: 'builtin-dxvk-cube', title: 'DXVK 立方体测试', launchKind: 'wine-system', launchParams: {
+        { id: 'builtin-graphics-smoke', title: '图形测试', launchKind: 'wine-system', launchParams: {
+          executable: 'C:\\smoke\\x64\\winehua_graphics_smoke.exe', workingDirectory: 'C:\\smoke\\x64' }, cover: '' },
+        { id: 'builtin-dxvk-cube', title: 'DXVK 立方体测试', launchKind: 'wine-system',
+          renderModes: ['dxvk_1_10', 'dxvk_2_6'], launchParams: {
           executable: 'C:\\smoke\\x64\\winehua_d3d_switch_cube.exe', arguments: ['--d3d11'],
           workingDirectory: 'C:\\smoke\\x64' }, cover: '' },
-        { id: 'builtin-audio-smoke', title: '音频测试', launchKind: 'wine-system', launchParams: { executable: 'winehua_audio_smoke.exe' }, cover: '' }
+        { id: 'builtin-audio-smoke', title: '音频测试', launchKind: 'wine-system', launchParams: {
+          executable: 'C:\\smoke\\x64\\winehua_audio_smoke.exe',
+          arguments: ['--automation', '--seconds', '3', '--test-id', 'builtin-audio-smoke',
+            '--result', 'C:\\smoke\\results\\builtin-audio-smoke.json'],
+          workingDirectory: 'C:\\smoke\\x64' }, cover: '' }
       ]
     };
   }
@@ -621,7 +647,7 @@ export class AppCatalogService {
   }
 
   private async scanExternal(gamesPath: string, cachedCards: AppDescriptor[],
-    containerDepth: number = 0): Promise<AppDescriptor[]> {
+    steamScope: SteamCatalogScope, containerDepth: number = 0): Promise<AppDescriptor[]> {
     const result: AppDescriptor[] = [];
     let names: string[] = [];
     try {
@@ -632,15 +658,18 @@ export class AppCatalogService {
 
     for (let index = 0; index < names.length; index++) {
       const name = names[index];
+      if (name.toLowerCase() === '.pomelo') continue;
       if (containerDepth === 0 && name.toLowerCase() === 'steam-download-staging') continue;
       const path = joinPath(gamesPath, name);
+      const steamKind = steamCatalogPathKind(path, steamScope);
+      if (steamKind === 'excluded') continue;
       if (await isDirectoryAsync(path)) {
         // Some older builds provisioned an extra games/games level. Treat it
         // as a structural container and expose each directory below it as its
         // own card instead of showing one unavailable card named "games".
-        if ((name.toLowerCase() === GAMES_DIRECTORY ||
-          (name.toLowerCase() === 'steam' && containerDepth === 0)) && containerDepth < 2) {
-          const nested = await this.scanExternal(path, cachedCards, containerDepth + 1);
+        if (steamKind === 'container' || ((name.toLowerCase() === GAMES_DIRECTORY ||
+          (name.toLowerCase() === 'steam' && containerDepth === 0)) && containerDepth < 2)) {
+          const nested = await this.scanExternal(path, cachedCards, steamScope, containerDepth + 1);
           nested.forEach((item: AppDescriptor) => result.push(item));
           continue;
         }
@@ -657,7 +686,9 @@ export class AppCatalogService {
     const automaticExecutable = this.chooseExecutable(directory, candidates);
     const cached = cachedCards
       .find((item: AppDescriptor) => item.directory === directory);
-    const id = cached?.id ?? stableAppId(AppSource.DOWNLOAD, automaticExecutable || directory);
+    const oldId = cached?.id ?? stableAppId(AppSource.DOWNLOAD, automaticExecutable || directory);
+    const selected = AppSettingsStore.getInstance().getAppSettings(oldId).executable || automaticExecutable;
+    const id = await PortableGameConfigurationService.getInstance().discover(directory, selected, oldId);
     const settings = AppSettingsStore.getInstance().getAppSettings(id);
     // An explicit user choice remains authoritative even when the file was moved.
     // This lets the catalog expose an unavailable card that can be re-associated.
@@ -751,6 +782,7 @@ export class AppCatalogService {
       for (let index = 0; index < names.length; index++) {
         if (result.length >= maxTargets) break;
         const name = names[index].replace(/\\/g, '/').replace(/^\/+/, '');
+        if (name.split('/').some((part: string): boolean => part.toLowerCase() === '.pomelo')) continue;
         if (!name || name.split('/').some((part: string) => part === '..')) continue;
         const path = joinPath(frame.path, name);
         // Skip known asset/library files without a stat. Deep picker scans

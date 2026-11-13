@@ -1,0 +1,57 @@
+{
+  "device": "MatePad Edge QXS-W00",
+  "route": "OHOS Wine, FEX, Wayland/native Vulkan, legacy DXVK ARM64X",
+  "failure": "12-channel spatial render rejected, then write-event feedback loop exhausted ring (0x88890006)",
+  "before": {
+    "events": 27,
+    "frames": 12960,
+    "elapsedMs": 38,
+    "result": "AUDCLNT_E_BUFFER_TOO_LARGE"
+  },
+  "pacingFixed": {
+    "events": 300,
+    "frames": 144000,
+    "elapsedMs": 3068,
+    "ordinary12ChannelProbe": "PASS",
+    "userConfirmedAudible": true,
+    "userReportedLowVolume": true
+  },
+  "volumeFixed": {
+    "events": 300,
+    "frames": 144000,
+    "elapsedMs": 3059,
+    "frontChannelGain": 1.0,
+    "limiting": "linked stereo peaks above full scale only",
+    "userLoudnessConfirmation": "normal volume; slight distortion not excluded"
+  },
+  "managedPatches": [
+    "0080-wineohos-shared-multichannel-downmix.patch",
+    "0081-wineohos-render-event-pacing.patch"
+  ],
+  "checks": [
+    "real 12-channel spatial probe",
+    "ordinary 12-channel WASAPI probe",
+    "host downmix gain/route/limit checks",
+    "ASan/UBSan",
+    "Wine format contract tests (5)",
+    "clean managed-overlay replay",
+    "graphics effective-source/recipe checks"
+  ],
+  "gamePCM": {
+    "12channelNonzero": true,
+    "sampledOutputPeaksS16": [
+      2172,
+      4120,
+      4816,
+      2145
+    ],
+    "samplesAreNotSynchronizedBeforeAfterBenchmark": true
+  },
+  "releaseLibrary": {
+    "sha256": "3f3e68919f30d4f05fffb20f8d6f27d8c9b75315aee8f9d8fde01407fd13e2a8",
+    "bytes": 310912,
+    "diagnosticMarkerAbsent": true,
+    "source": "managed OHOS Wine audio patches; no PCM diagnostics"
+  },
+  "deviceTestedProductionBytes": false
+}

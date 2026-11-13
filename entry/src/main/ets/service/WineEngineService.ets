@@ -1,8 +1,11 @@
 import { common } from '@kit.AbilityKit';
+import { promptAction, router } from '@kit.ArkUI';
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { zlib } from '@kit.BasicServicesKit';
+import { BusinessError, zlib } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
-import testNapi from 'libentry.so';
+import displayRoute from 'libdisplay_route_napi.so';
+import { X11ClipboardService } from './X11ClipboardService';
+import testNapi, { ProductDirectProbeResult } from 'libentry.so';
 import {
   D3DRendererPreference,
   DisplayMode,
@@ -15,11 +18,14 @@ import {
   canTransitionEngineState,
   LaunchKind,
   resolveWinePresentationMode,
-  box64PresetEnvString
+  WineTranslationEngine,
+  normalizeWineTranslationEngine,
+  resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
 import { syncManagedSmoke } from './ManagedSmokePayloadService';
 import { WineWindowManager } from './WineWindowManager';
+import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
 
 const DOMAIN = 0x0000;
 const TAG = 'WineEngine';
@@ -37,9 +43,12 @@ const RUNTIME_VERSION_MARKER = WINE_ROOT + '/.winehua-runtime-version';
 // The user's prefix and Download games must remain intact across upgrades.
 const PREFIX_RUNTIME_VERSION_MARKER = FILES_BASE + '/.wine/.winehua-prefix-runtime-version';
 const PREFIX_SYSTEM_REG = FILES_BASE + '/.wine/system.reg';
-// ArkTS 不再用固定阶段死线: native 协调者会发 phase:/fail:/wine-ready 事件,
-// 等待只由事件结束。下面的安全网仅在"长时间完全无事件"时兜底, 正常不会触发。
-const ENGINE_NO_EVENT_SAFETY_MS = 30 * 60 * 1000;
+// Bounds cover prerequisite awaits as well as native startup. Repeated
+// callers/events never renew these deadlines. Native state is polled as a
+// level signal, so a missed callback cannot leave the UI waiting forever.
+const ENGINE_STARTUP_TOTAL_MS = 210000;
+const ENGINE_STARTUP_POLL_MS = 250;
+interface WineStartupSnapshot { generation: number; active: boolean; state: string; phase: string; }
 // 对齐 native drain 上限 (约 30s) + tsfn 余量。NCP 退出靠 appspawn 回调,
 // 回调丢失时提前放行会让新会话与旧 drain 抢跑 (winehua d256317e)。
 const NATIVE_SHUTDOWN_TIMEOUT_MS = 35000;
@@ -304,21 +313,15 @@ function registryHasObsoleteGameFontSubstitutes(registry: string): boolean {
 const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
   { path: PREFIX_MARKER, label: 'share/wine/wine.inf' },
   { path: WINE_BIN + '/explorer.exe', label: 'bin/explorer.exe' },
-  { path: WINE_BIN + '/Alarm01.wav', label: 'bin/Alarm01.wav' },
   { path: WINE_BIN + '/guest_gfx/winehua-guest-gfx.env', label: 'bin/guest_gfx/winehua-guest-gfx.env' },
   { path: WINE_BIN + '/guest_gfx/lib/libEGL.so', label: 'bin/guest_gfx/lib/libEGL.so' },
   { path: WINE_BIN + '/guest_gfx/lib/dri/virtio_gpu_dri.so', label: 'bin/guest_gfx/lib/dri/virtio_gpu_dri.so' },
   { path: WINE_BIN + '/guest_vulkan/lib/libvulkan.so.1', label: 'bin/guest_vulkan/lib/libvulkan.so.1' },
-  { path: WINE_BIN + '/guest_vulkan/share/vulkan/icd.d/venus_icd.x86_64.json',
+  { path: WINE_BIN + '/guest_vulkan/share/vulkan/icd.d/venus_icd.aarch64.json',
     label: 'bin/guest_vulkan/share/vulkan/icd.d/venus_icd.x86_64.json' },
   { path: WINE_ROOT + '/dxvk/manifest.json', label: 'dxvk/manifest.json' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d9.dll', label: 'dxvk/legacy/x64/d3d9.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d10core.dll', label: 'dxvk/legacy/x64/d3d10core.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d10.dll', label: 'dxvk/legacy/x64/d3d10.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x64/d3d10_1.dll', label: 'dxvk/legacy/x64/d3d10_1.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x64/d3d11.dll', label: 'dxvk/legacy/x64/d3d11.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x64/dxgi.dll', label: 'dxvk/legacy/x64/dxgi.dll' },
-  { path: WINE_ROOT + '/dxvk/legacy/x86/d3d9.dll', label: 'dxvk/legacy/x86/d3d9.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10core.dll', label: 'dxvk/legacy/x86/d3d10core.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10.dll', label: 'dxvk/legacy/x86/d3d10.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10_1.dll', label: 'dxvk/legacy/x86/d3d10_1.dll' },
@@ -329,7 +332,7 @@ const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
     label: 'smoke/x64/winehua_d3d_switch_cube.exe' },
   { path: WINE_ROOT + '/smoke/x86/winehua_d3d_switch_cube.exe',
     label: 'smoke/x86/winehua_d3d_switch_cube.exe' },
-  { path: WINE_BIN + '/x86_64-windows', label: 'bin/x86_64-windows', directory: true },
+  { path: WINE_BIN + '/aarch64-windows', label: 'bin/aarch64-windows', directory: true },
   { path: WINE_BIN + '/i386-windows', label: 'bin/i386-windows', directory: true }
 ];
 
@@ -649,6 +652,8 @@ export class WineEngineService {
   private waiters: Array<(ready: boolean) => void> = [];
   private callbackInstalled: boolean = false;
   private restartPromise: Promise<boolean> | null = null;
+  private upgradeGuard: WineUpgradeGuard = new WineUpgradeGuard();
+  private upgradeWarningPromise: Promise<void> | null = null;
   private prefixRefreshRequired: boolean = false;
   private pendingPrefixVersion: Uint8Array = new Uint8Array(0);
   private d3dBackend: string = 'dxvk_legacy';
@@ -663,9 +668,16 @@ export class WineEngineService {
   private appliedHostGraphicsBackend: string = 'dxvk_legacy';
   private hostGraphicsLabExperiment: string = '';
   private appliedHostGraphicsLabExperiment: string = '';
+  private productDirectProbe: Promise<boolean> | null = null;
   private enginePhase: string = '';
   private phaseStartedAt: number = 0;
+  private preparationStartedAt: number = 0;
   private readySafetyTimer: number = -1;
+  private startupGeneration: number = 0;
+  private nativeGeneration: number = 0;
+  private requestedSessionKey: string = '';
+  private nativeStopPromise: Promise<void> | null = null;
+  private runtimeInstallPromise: Promise<boolean> | null = null;
   // Want 自动化 (winehua.autoStart / winehua.program): 挂在本服务, 不引入 WineEnvService
   autoStartPending: boolean = false;
   private autoProgram: string = '';
@@ -732,11 +744,16 @@ export class WineEngineService {
   }
 
   getPhaseElapsedMs(): number {
-    return this.enginePhase ? Date.now() - this.phaseStartedAt : 0;
+    return this.enginePhase ? Math.max(0, Date.now() - this.phaseStartedAt) : this.getPreparationElapsedMs();
+  }
+
+  getPreparationElapsedMs(): number {
+    return this.preparationStartedAt > 0 ? Math.max(0, Date.now() - this.preparationStartedAt) : 0;
   }
 
   private phaseText(phase: string): string {
     switch (phase) {
+      case 'runtime': return '准备运行组件';
       case 'graphics': return '准备图形栈';
       case 'wineserver': return '启动 Wine 服务';
       case 'wineboot': return '初始化 Wine 环境';
@@ -750,14 +767,19 @@ export class WineEngineService {
     switch (reason) {
       case 'graphics-unavailable': return '图形栈未就绪';
       case 'wineserver-spawn': return 'Wine 服务启动失败';
+      case 'wineserver':
       case 'wineserver-died': return 'Wine 服务退出';
       case 'wineboot-spawn': return 'Wine 环境初始化启动失败';
       case 'wineboot-no-progress': return 'Wine 环境初始化无进展';
       case 'wineboot-cap': return 'Wine 环境初始化超时';
+      case 'wineboot-dispatch': return 'Wine 初始化进程创建或执行失败，请重新启动';
+      case 'wineboot':
       case 'wineboot-failed': return 'Wine 环境初始化失败';
       case 'prefix-prepare': return '运行环境准备失败';
       case 'explorer-spawn': return '桌面启动失败';
       case 'explorer-died': return '桌面进程退出';
+      case 'runtime': return '安装运行组件';
+      case 'coordinator': return '启动协调器未完成';
       case 'explorer-root-timeout': return '桌面就绪超时';
       default: return reason;
     }
@@ -797,8 +819,20 @@ export class WineEngineService {
    * 产品入口 ensureReady 转发到本方法，AppSessionService 无需改调用方。
    */
   async startSession(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string, prefixMode: string = 'reuse'): Promise<boolean> {
+    homeDirectory: string, prefixMode: string = 'reuse', foregroundCurrent?: () => boolean): Promise<boolean> {
     if (!this.context) return false;
+    if (this.nativeStopPromise) await this.nativeStopPromise;
+    // Inspect the old installation before extraction changes its markers and
+    // before the ERROR retry path can start any native services.
+    try {
+      if (this.blockLegacyWineUpgrade()) return false;
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'Wine upgrade check failed: %{public}s', JSON.stringify(error));
+      this.setState(EngineState.PREPARING, '正在检查 Wine 安装');
+      this.setState(EngineState.ERROR, 'Wine 安装检测失败，请在系统设置中检查或重置 Wine 环境');
+      this.finishWaiters(false);
+      return false;
+    }
     const requestedPrefixMode = prefixMode === 'clean' ? 'clean' : 'reuse';
     const requestedWineLanguage = AppSettingsStore.getInstance().getGlobalSettings().wineLanguage;
     const requestedD3DBackend = this.selectedD3DBackend();
@@ -813,23 +847,17 @@ export class WineEngineService {
       this.syncManagedSmokePayload('ready-reuse');
       return true;
     }
-    if (this.state === EngineState.PREPARING && this.mode === mode &&
-      this.presentationMode === presentationMode &&
-      this.d3dBackend === requestedD3DBackend &&
-      this.activePrefixMode === requestedPrefixMode &&
-      this.activeWineLanguage === requestedWineLanguage &&
-      this.appliedHostGraphicsBackend === this.hostGraphicsBackend &&
-      this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) return this.waitForReady();
+    const sessionKey = [mode, presentationMode, requestedD3DBackend, requestedPrefixMode,
+      requestedWineLanguage, homeDirectory, this.hostGraphicsBackend, this.hostGraphicsLabExperiment].join('|');
+    if (this.state === EngineState.PREPARING && this.requestedSessionKey === sessionKey) {
+      return this.waitForReady();
+    }
 
     if (this.state === EngineState.ERROR) {
-      // native 进程仍存活说明协调者可能还在推进 (例如之前 ArkTS 侧瞬态失败):
-      // 不重启 server, 只重新进入等待, 避免双服务竞态。
-      let processes: NativeProcessInfo[] = [];
-      try { processes = testNapi.getProcessList() as NativeProcessInfo[]; } catch (_) {}
-      if (processes.length > 0) {
-        this.setState(EngineState.PREPARING, '正在等待引擎恢复');
-        return this.waitForReady();
-      }
+      // A failed coordinator has no pending ready event. Residual services
+      // cannot recover it; use the existing serialized stop/drain/restart path
+      // so runtime repair runs before a new Wine session starts.
+      return this.restart(mode, presentationMode, homeDirectory, requestedPrefixMode, foregroundCurrent);
     }
 
     if (this.state !== EngineState.STOPPED &&
@@ -855,17 +883,38 @@ export class WineEngineService {
     this.activePrefixMode = requestedPrefixMode;
     this.activeWineLanguage = requestedWineLanguage;
     this.homeDirectory = homeDirectory;
+    this.requestedSessionKey = sessionKey;
+    const generation = ++this.startupGeneration;
+    this.nativeGeneration = 0;
     this.setState(EngineState.PREPARING, '正在准备 Wine 引擎');
+    this.handleEnginePhase('runtime');
+    this.resetReadySafetyNet();
+    // Subscribe before any asynchronous prerequisite or native launch. Return
+    // this bounded result even if an SDK promise never settles.
+    const ready = this.waitForReady();
+    this.prepareSession(generation, homeDirectory, foregroundCurrent).catch(() => {
+      this.failStartup(generation, 'Wine 引擎准备失败，请重试');
+    });
+    return ready;
+  }
 
+  private startupCurrent(generation: number): boolean {
+    return generation === this.startupGeneration && this.state === EngineState.PREPARING;
+  }
+
+  private async prepareSession(generation: number, homeDirectory: string,
+    foregroundCurrent?: () => boolean): Promise<void> {
     try {
       const settings = AppSettingsStore.getInstance().getGlobalSettings();
       const bundledRuntimeVersion = this.getBundledRuntimeVersion();
       const prefixRefreshRequired = await this.ensureRuntimeInstalled(bundledRuntimeVersion);
+      if (!this.startupCurrent(generation)) return;
       this.prefixRefreshRequired = prefixRefreshRequired;
       this.pendingPrefixVersion = prefixRefreshRequired ? bundledRuntimeVersion : new Uint8Array(0);
       // 桌面模式按最新设置统一判定 (phone 恒虚拟; tablet 默虚拟可切多窗口; PC 按设置)。
       // 切换后重启引擎即生效 — applyModePolicy 内部已同步 native setDesktopMode。
       WineWindowManager.getInstance().applyModePolicy();
+      WineWindowManager.getInstance().setStartupForegroundGuard(foregroundCurrent ?? null);
       this.presentationMode = WineWindowManager.getInstance().presentationMode;
       if (this.presentationMode !== WinePresentationMode.MANAGED_WINDOWS) {
         const orientation = settings.desktopOrientation ?? ScreenOrientationSetting.SENSOR_LANDSCAPE;
@@ -874,17 +923,30 @@ export class WineEngineService {
         // Wayland desktop frame from being created at the old orientation.
         WineWindowManager.getInstance().prepareOutputForOrientation(orientation);
       }
+      // Display owns presentation capabilities. Select it before resolving
+      // the paired Host/Guest transport, including the desktop consumer.
+      if (displayRoute.setDisplayRoute(settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland') === false) {
+        this.failStartup(generation, '显示后端仍被上一会话占用，请完整退出后重试', false);
+        return;
+      }
       // Resolve the backend intent into one Native-owned Host/Guest route
       // before VirGL starts. ArkTS no longer duplicates shadow/upload flags.
       try {
+        // VPP product-vulkan 图形路由 (注入 virgl/guest_gfx/vulkan/dxvk 会话 env)。
+        // 注: explorer 等进程 exit=11 是 wine SEH 正常形态 (fault-forensics:
+        // "宿主返回码不等于失败"), 不作为路由回归的依据。
+        if (this.hostGraphicsLabExperiment.length === 0) {
+          this.handleEnginePhase('graphics');
+          await this.ensureProductDirectCapability();
+          if (!this.startupCurrent(generation)) return;
+        }
         const policyApplied = this.hostGraphicsLabExperiment.length > 0 ?
           (testNapi.setHostGraphicsExperimentForLab(
             this.hostGraphicsLabExperiment, this.hostGraphicsBackend) as boolean) :
           (testNapi.setHostGraphicsBackend(this.hostGraphicsBackend) as boolean);
         if (!policyApplied) {
-          this.setState(EngineState.ERROR, '图形配置无效');
-          this.finishWaiters(false);
-          return false;
+          this.failStartup(generation, '图形配置无效');
+          return;
         }
         this.appliedHostGraphicsBackend = this.hostGraphicsBackend;
         this.appliedHostGraphicsLabExperiment = this.hostGraphicsLabExperiment;
@@ -892,47 +954,115 @@ export class WineEngineService {
         hilog.error(DOMAIN, TAG,
           'graphics policy resolve failed backend=%{public}s labExperiment=%{public}s error=%{public}s',
           this.hostGraphicsBackend, this.hostGraphicsLabExperiment, JSON.stringify(error));
-        this.setState(EngineState.ERROR, '图形配置解析失败');
-        this.finishWaiters(false);
-        return false;
+        this.failStartup(generation, '图形配置解析失败');
+        return;
       }
-      const serverReady = testNapi.startServer(SOCK) as boolean;
+      if (!this.startupCurrent(generation)) return;
+      const prefixDirectory = this.activePrefixMode === 'clean' ?
+        FILES_BASE + '/containers/clean/prefix' : PREFIX_DIR;
+      const socket = prefixDirectory + '/wine-wayland';
+      this.requireSelectedCpuModule(settings.wineTranslationEngine);
+      if (this.activePrefixMode === 'clean') {
+        this.syncManagedFexModules(prefixDirectory);
+        this.syncManagedIcuModules(prefixDirectory);
+      }
+      const serverReady = testNapi.startServer(socket) as boolean;
       if (!serverReady) {
-        this.setState(EngineState.ERROR, 'Wayland 服务启动失败');
-        this.finishWaiters(false);
-        return false;
+        this.failStartup(generation, 'Wayland 服务启动失败');
+        return;
+      }
+      if (settings.wineDisplayRoute === 'x11') {
+        this.handleEnginePhase('x11');
+        displayRoute.startDisplayRouteChain(BigInt(0), false, 0, 0, true,
+          this.presentationMode === WinePresentationMode.MANAGED_WINDOWS);
+        const deadline = Date.now() + 120000;
+        while (displayRoute.displayRoutePhase() !== 2) {
+          if (!this.startupCurrent(generation)) return;
+          if (displayRoute.displayRoutePhase() === 4 || Date.now() >= deadline) {
+            displayRoute.stopDisplayRouteChain();
+            this.failStartup(generation, 'X11 显示服务启动失败，请重试或切回 Wayland');
+            return;
+          }
+          await new Promise<void>((resolve: () => void) => setTimeout(resolve, 100));
+        }
+        X11ClipboardService.start();
       }
       // Native runs wineboot --init only for a new prefix. Existing prefixes
       // are migrated above before any wineserver process starts.
-      testNapi.launchClient(BOX64, [], SOCK, WINE_BIN + ':' + WINE_LIB,
-        homeDirectory, requestedPrefixMode === 'clean', requestedPrefixMode, this.d3dBackend,
-        box64PresetEnvString(settings.box64Preset), this.activeWineLanguage);
-      return this.waitForReady();
+      // proton 方案③ launchClient 参数布局 (containerSession 语义):
+      // exe, argv, sock, libPath, home, d3d, dxvk, lang, containerId,
+      // directNcp, desktopVulkanCompositor, desktopStallSeconds, cpuEnvironment
+      // Native derives the automatic product/LAB transport and compositor from the applied
+      // graphics policy; these booleans remain defaults for older callers.
+      const wineUnixSubdir = pathExists(`${WINE_BIN}/aarch64-unix`) ? 'aarch64-unix' : 'x86_64-unix';
+      const launched = testNapi.launchClient(BOX64, [], socket, WINE_BIN + ':' + WINE_BIN + '/' + wineUnixSubdir,
+        homeDirectory, this.d3dBackend, this.d3dBackend, this.activeWineLanguage,
+        this.activePrefixMode === 'clean' ? 'clean' : 'default', false, false, 0,
+        resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset));
+      if (launched !== 0) {
+        this.failStartup(generation, 'Wine 启动请求未被接受，请重试');
+        return;
+      }
+      const snapshot = JSON.parse(testNapi.getWineStartupState()) as WineStartupSnapshot;
+      this.nativeGeneration = snapshot.generation;
+      this.pollStartup(generation);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', JSON.stringify(error));
-      this.setState(EngineState.ERROR, 'Wine 引擎准备失败');
-      this.finishWaiters(false);
-      return false;
+      const detail = error instanceof Error ? error.message : (JSON.stringify(error) || '未知异常');
+      hilog.error(DOMAIN, TAG, 'ensureReady failed: %{public}s', detail);
+      // Component verification has actionable product messages. Preserve them
+      // instead of serializing Error to {} and hiding the cause from the user.
+      this.failStartup(generation, detail.startsWith('Box64 转译组件') ? detail :
+        'Wine 引擎准备失败，请重试');
     }
   }
 
+  private blockLegacyWineUpgrade(): boolean {
+    if (!this.upgradeGuard.needsReset(this.getBundledRuntimeVersion())) return false;
+    // Pending program requests observe PREPARING -> ERROR and resolve instead
+    // of remaining queued for a ready event that this blocked launch cannot emit.
+    this.setState(EngineState.PREPARING, '正在检查 Wine 安装');
+    this.setState(EngineState.ERROR, '旧版 Wine 环境需要重置，请进入系统设置 → Wine 引擎');
+    this.finishWaiters(false);
+    if (!this.upgradeWarningPromise) {
+      this.upgradeWarningPromise = promptAction.showDialog({
+        title: '升级后需要重置 Wine',
+        message: WINE_UPGRADE_RESET_MESSAGE,
+        buttons: [{ text: '稍后处理', color: '#667085' }, { text: '前往重置', color: '#D94848' }]
+      }).then(async (answer): Promise<void> => {
+        if (answer.index === 1) {
+          await router.pushUrl({ url: 'pages/SystemSettings', params: { section: 'engine' } });
+        }
+      }).catch((error: BusinessError): void => {
+        hilog.warn(DOMAIN, TAG, 'Wine upgrade reminder dismissed or unavailable: %{public}s', JSON.stringify(error));
+      }).finally((): void => { this.upgradeWarningPromise = null; });
+    }
+    return true;
+  }
+
   async ensureReady(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string): Promise<boolean> {
-    return this.startSession(mode, presentationMode, homeDirectory, 'reuse');
+    homeDirectory: string, foregroundCurrent?: () => boolean): Promise<boolean> {
+    return this.startSession(mode, presentationMode, homeDirectory, 'reuse', foregroundCurrent);
   }
 
   /**
    * Prepare the smoke session through the same engine owner. Reuse stays on
    * the product prefix. Clean first completes any product runtime migration,
-   * then stops the broker and boots an isolated .wine-smoke session.
+   * then stops the broker and boots an isolated containers/clean/prefix session.
    */
   async ensureSmokeReady(mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string, prefixMode: string): Promise<boolean> {
-    const productReady = await this.ensureReady(mode, presentationMode, homeDirectory);
+    // A clean diagnostic immediately stops this prerequisite session. Never
+    // enqueue a DesktopAbility for a root we are about to destroy: its delayed
+    // onCreate could otherwise cover the real session with a stale black view.
+    const productReady = await this.ensureReady(mode, presentationMode, homeDirectory,
+      prefixMode === 'clean' ? (): boolean => false : undefined);
     if (!productReady || prefixMode !== 'clean') return productReady;
     await this.stopSession();
     let reset = false;
-    try { reset = testNapi.resetWinePrefix('clean') as boolean; } catch (_) {}
+    try {
+      ensureDirectory(FILES_BASE + '/containers/clean/prefix');
+      reset = testNapi.resetWinePrefix('clean') as boolean;
+    } catch (_) {}
     if (!reset) {
       this.setState(EngineState.ERROR, '隔离 smoke 环境清理失败');
       return false;
@@ -972,7 +1102,16 @@ export class WineEngineService {
     // Carry the already-applied LAB id into the child launch. Native resolves
     // the Guest half from the same policy authority that configured Host;
     // product sessions add no experiment override.
-    const launchEnvironment = envOverrides.slice();
+    const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset).concat(envOverrides);
+    // App overrides are last, matching native environment application. Validate
+    // the selected module even when the already-running desktop uses FEX.
+    let launchCpuEngine = settings.wineTranslationEngine;
+    for (const entry of launchEnvironment) {
+      if (entry === 'WINEHUA_WOW64_ENGINE=box') launchCpuEngine = WineTranslationEngine.BOX64;
+      else if (entry === 'WINEHUA_WOW64_ENGINE=fex') launchCpuEngine = WineTranslationEngine.FEX;
+    }
+    this.requireSelectedCpuModule(launchCpuEngine);
     // 旧 Windows 游戏（梦幻群侠传/XYQ 系）用 GDI 把文字画进位图后再二值化成字形
     // 遮罩：启动器.exe 0x4a5b40 只把 > 0x7ffe 的像素当笔画。灰度抗锯齿会把 12px
     // 汉字笔画变成灰色，于是被当成透明，游戏内文字只剩零散笔画碎片，看起来像乱码。
@@ -1045,6 +1184,26 @@ export class WineEngineService {
     return this.hostGraphicsBackend;
   }
 
+  private ensureProductDirectCapability(): Promise<boolean> {
+    if (!this.productDirectProbe) {
+      this.productDirectProbe = this.probeProductDirectCapability();
+    }
+    return this.productDirectProbe;
+  }
+
+  private async probeProductDirectCapability(): Promise<boolean> {
+    try {
+      const result = await testNapi.probeProductDirectSupport() as ProductDirectProbeResult;
+      hilog.info(DOMAIN, TAG,
+        'Direct capability supported=%{public}s stage=%{public}s device=%{public}s frames=%{public}d',
+        result.supported ? 'true' : 'false', result.stage, result.deviceName, result.framesVerified);
+      return result.supported;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'Direct capability unavailable; using Venus: %{public}s', JSON.stringify(error));
+      return false;
+    }
+  }
+
   selectHostGraphicsExperimentForLab(experimentId: string): boolean {
     const selected = experimentId.trim();
     if (selected.length === 0) return false;
@@ -1092,19 +1251,38 @@ export class WineEngineService {
    * 产品入口 stopAll 转发到本方法。NAPI 仍是 testNapi.stopAll。
    */
   async stopSession(): Promise<void> {
-    try {
-      testNapi.stopAll();
-    } catch (_) {
-    }
+    ++this.startupGeneration;
+    this.nativeGeneration = 0;
     this.finishWaiters(false);
-    await this.waitForNativeShutdown();
+    try { await this.drainNativeSession(); } catch (error) {
+      this.setState(EngineState.ERROR, 'Wine 停止超时，请稍后重试；若仍失败请重新打开应用');
+      throw new Error((error as Error).message);
+    }
     this.mode = null;
     this.presentationMode = null;
     this.activePrefixMode = 'reuse';
     this.setState(EngineState.STOPPED, 'Wine 引擎已停止');
-    // Leave a small socket-settle window after the process list becomes empty.
-    // Restarting the Wayland server immediately can otherwise race the old
-    // wine-wayland socket teardown on slower ARM tablets.
+  }
+
+  private async drainNativeSession(): Promise<void> {
+    if (this.nativeStopPromise) return this.nativeStopPromise;
+    const operation = this.performNativeStop();
+    this.nativeStopPromise = operation;
+    try { await operation; } finally {
+      if (this.nativeStopPromise === operation) this.nativeStopPromise = null;
+    }
+  }
+
+  private async performNativeStop(): Promise<void> {
+    X11ClipboardService.stop();
+    testNapi.stopAll();
+    await this.waitForNativeShutdown();
+    displayRoute.stopDisplayRouteChain();
+    const displayDeadline = Date.now() + 5000;
+    while (displayRoute.displayRoutePhase() !== 0 && displayRoute.displayRoutePhase() !== 4) {
+      if (Date.now() >= displayDeadline) throw new Error('X11 显示服务停止超时');
+      await new Promise<void>((resolve: () => void) => setTimeout(resolve, 50));
+    }
     await new Promise<void>((resolve: () => void) => setTimeout(resolve, 300));
   }
 
@@ -1117,22 +1295,22 @@ export class WineEngineService {
    * Concurrent UI requests share one operation so two taps cannot start competing servers.
    */
   async restart(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string): Promise<boolean> {
+    homeDirectory: string, prefixMode: string = 'reuse', foregroundCurrent?: () => boolean): Promise<boolean> {
     if (this.restartPromise) return this.restartPromise;
-    const operation = this.performRestart(mode, presentationMode, homeDirectory);
+    const operation = this.performRestart(mode, presentationMode, homeDirectory, prefixMode, foregroundCurrent);
     this.restartPromise = operation;
-    const ready = await operation;
-    if (this.restartPromise === operation) this.restartPromise = null;
-    return ready;
+    try { return await operation; } finally {
+      if (this.restartPromise === operation) this.restartPromise = null;
+    }
   }
 
   private async performRestart(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string): Promise<boolean> {
+    homeDirectory: string, prefixMode: string, foregroundCurrent?: () => boolean): Promise<boolean> {
     if (this.state !== EngineState.STOPPED) {
       this.setState(EngineState.SWITCHING, '正在重新启动 Wine 引擎');
     }
     await this.stopSession();
-    return this.startSession(mode, presentationMode, homeDirectory);
+    return this.startSession(mode, presentationMode, homeDirectory, prefixMode, foregroundCurrent);
   }
 
   private async waitForNativeShutdown(): Promise<void> {
@@ -1140,10 +1318,11 @@ export class WineEngineService {
     while (Date.now() < deadline) {
       let processes: NativeProcessInfo[] = [];
       try { processes = testNapi.getProcessList() as NativeProcessInfo[]; } catch (_) {}
-      if (processes.length === 0) return;
+      const startup = JSON.parse(testNapi.getWineStartupState()) as WineStartupSnapshot;
+      if (processes.length === 0 && !startup.active) return;
       await new Promise<void>((resolve: () => void) => setTimeout(resolve, NATIVE_SHUTDOWN_POLL_MS));
     }
-    hilog.warn(DOMAIN, TAG, 'native process list did not settle before restart timeout');
+    throw new Error('旧 Wine 会话尚未停止，请稍后重试');
   }
 
   async switchDisplaySession(): Promise<void> {
@@ -1159,7 +1338,10 @@ export class WineEngineService {
    * 本仓不清 WINE_ROOT 整树（forceRefreshRuntime 解绑版本标记后按缺失路径重装）。
    */
   async wipeEnvironment(): Promise<void> {
-    testNapi.resetWinePrefix();
+    if (!(testNapi.resetWinePrefix() as boolean)) {
+      this.setState(EngineState.ERROR, 'Wine 环境清理失败，请备份数据后卸载本应用并重新安装');
+      throw new Error('Unable to reset Wine prefix');
+    }
     await this.forceRefreshRuntime();
   }
 
@@ -1181,7 +1363,12 @@ export class WineEngineService {
         throw new Error('备份文档或注册表失败: ' + JSON.stringify(error));
       }
     }
-    await this.wipeEnvironment();
+    try {
+      await this.wipeEnvironment();
+    } catch (error) {
+      this.setState(EngineState.ERROR, 'Wine 环境重置失败，请备份重要数据后卸载本应用并重新安装');
+      throw new Error('Wine 环境重置失败: ' + (error as Error).message);
+    }
     if (preserve) {
       try {
         restorePrefixUserData(RESET_KEEP_DIR);
@@ -1194,12 +1381,18 @@ export class WineEngineService {
     } else {
       removeRecursive(RESET_KEEP_DIR);
     }
+    // Acknowledging the dialog never clears the requirement. Only a completed
+    // prefix wipe, runtime reinstall and optional data restore can release it.
+    this.upgradeGuard.completeReset();
     if (home.length > 0) {
       const settings = AppSettingsStore.getInstance().getGlobalSettings();
       const presentation = resolveWinePresentationMode(
         LaunchKind.WINE_EXE, settings.defaultDisplayMode,
         AppSettingsStore.getInstance().usesManagedWineWindows());
-      await this.startSession(settings.defaultDisplayMode, presentation, home);
+      if (!await this.startSession(settings.defaultDisplayMode, presentation, home)) {
+        this.setState(EngineState.ERROR, '重置后仍无法启动 Wine，请备份重要数据后卸载本应用并重新安装');
+        throw new Error(this.message);
+      }
       return;
     }
     this.setState(EngineState.STOPPED, 'Wine 环境已重置');
@@ -1214,8 +1407,9 @@ export class WineEngineService {
 
   private waitForReady(): Promise<boolean> {
     if (this.state === EngineState.READY) return Promise.resolve(true);
-    if (this.state === EngineState.ERROR) return Promise.resolve(false);
-    this.resetReadySafetyNet();
+    if (this.state !== EngineState.PREPARING && this.state !== EngineState.SWITCHING) {
+      return Promise.resolve(false);
+    }
     return new Promise<boolean>((resolve: (ready: boolean) => void) => {
       let completed = false;
       const finish = (ready: boolean): void => {
@@ -1228,19 +1422,90 @@ export class WineEngineService {
   }
 
   private resetReadySafetyNet(): void {
-    if (this.readySafetyTimer >= 0) {
-      clearTimeout(this.readySafetyTimer);
-      this.readySafetyTimer = -1;
-    }
-    if (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING) {
-      this.readySafetyTimer = setTimeout(() => {
-        this.readySafetyTimer = -1;
-        if (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING) {
-          this.setState(EngineState.ERROR, '引擎长时间无响应，请重试');
-          this.finishWaiters(false);
+    if (this.readySafetyTimer >= 0) return;
+    const generation = this.startupGeneration;
+    this.readySafetyTimer = setInterval(() => this.pollStartup(generation), ENGINE_STARTUP_POLL_MS);
+  }
+
+  private failStartup(generation: number, message: string, drain: boolean = true): void {
+    if (!this.startupCurrent(generation)) return;
+    this.captureInitializationDiagnostic();
+    ++this.startupGeneration;
+    this.nativeGeneration = 0;
+    this.setState(EngineState.ERROR, message);
+    this.finishWaiters(false);
+    if (!drain) return;
+    this.drainNativeSession().catch((error: Error): void => {
+      hilog.error(DOMAIN, TAG, 'startup cleanup incomplete: %{public}s', error.message);
+    });
+  }
+
+  private pollStartup(generation: number): void {
+    if (!this.startupCurrent(generation)) return;
+    try {
+      if (this.nativeGeneration > 0) {
+        const snapshot = JSON.parse(testNapi.getWineStartupState()) as WineStartupSnapshot;
+        if (snapshot.generation !== this.nativeGeneration || snapshot.state === 'cancelled') {
+          this.failStartup(generation, 'Wine 启动已中止，请重试');
+          return;
         }
-      }, ENGINE_NO_EVENT_SAFETY_MS);
+        if (snapshot.state === 'failed') {
+          this.failStartup(generation, 'Wine 启动失败：' + this.failReasonText(snapshot.phase));
+          return;
+        }
+        if (snapshot.state === 'ready') {
+          this.completeStartup();
+          return;
+        }
+        if (snapshot.phase && snapshot.phase !== this.enginePhase) this.handleEnginePhase(snapshot.phase);
+      }
+      const phaseLimit = (this.enginePhase === 'runtime' || this.enginePhase === 'x11') ? 120000 :
+        (this.enginePhase === 'wineboot' ? 125000 : 45000);
+      if (this.getPreparationElapsedMs() >= ENGINE_STARTUP_TOTAL_MS || this.getPhaseElapsedMs() >= phaseLimit) {
+        hilog.error(DOMAIN, TAG, 'startup timeout stage=%{public}s totalMs=%{public}d phaseMs=%{public}d',
+          this.enginePhase, this.getPreparationElapsedMs(), this.getPhaseElapsedMs());
+        this.failStartup(generation, 'Wine 启动超时（' + this.getPhaseText() + '），已中止，可重新启动');
+      }
+    } catch (_) {
+      this.failStartup(generation, '无法查询 Wine 启动状态，请重试');
     }
+  }
+
+  private captureInitializationDiagnostic(): void {
+    if (this.activePrefixMode !== 'clean') return;
+    try {
+      const now = new Date();
+      const day = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const log = '/data/storage/el2/base/temp/wine_stderr_' + day + '.log';
+      const size = fs.statSync(log).size;
+      const length = Math.min(size, 512 * 1024);
+      const file = fs.openSync(log, fs.OpenMode.READ_ONLY);
+      const buffer = new ArrayBuffer(length);
+      let count = 0;
+      try { count = fs.readSync(file.fd, buffer, { offset: size - length, length: length }); }
+      finally { fs.closeSync(file); }
+      const output = fs.openSync(FILES_BASE + '/containers/clean/prefix/.winehua-init-tail.log',
+        fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+      try { fs.writeSync(output.fd, buffer, { length: count }); }
+      finally { fs.closeSync(output); }
+    } catch (_) {}
+  }
+
+  private completeStartup(): void {
+    this.captureInitializationDiagnostic();
+    if (this.prefixRefreshRequired) {
+      const marker = this.activePrefixMode === 'clean' ?
+        FILES_BASE + '/containers/clean/prefix/.winehua-prefix-runtime-version' : PREFIX_RUNTIME_VERSION_MARKER;
+      if (!this.writeVersionMarker(marker, this.pendingPrefixVersion)) {
+        this.failStartup(this.startupGeneration, 'Wine 环境配置结果保存失败');
+        return;
+      }
+      this.prefixRefreshRequired = false;
+      this.pendingPrefixVersion = new Uint8Array(0);
+    }
+    this.syncManagedSmokePayload('engine-ready');
+    this.setState(EngineState.READY, 'Wine 引擎已就绪');
+    this.finishWaiters(true);
   }
 
   private finishWaiters(ready: boolean): void {
@@ -1250,76 +1515,39 @@ export class WineEngineService {
   }
 
   private handleNativeState(raw: string): void {
-    if (raw.startsWith('phase:')) {
-      this.handleEnginePhase(raw.substring('phase:'.length));
+    if (this.state === EngineState.STOPPED || this.state === EngineState.ERROR) return;
+    if (this.state === EngineState.PREPARING) {
+      if (!this.nativeGeneration) return;
+      // A delayed callback may belong to the previous generation. Only the
+      // retained state can fail/complete this generation.
+      this.pollStartup(this.startupGeneration);
       return;
     }
-    if (raw.startsWith('fail:')) {
-      const reason = raw.substring('fail:'.length);
-      hilog.error(DOMAIN, TAG, 'engine failed: %{public}s', reason);
-      this.setState(EngineState.ERROR, 'Wine 启动失败：' + this.failReasonText(reason));
-      this.finishWaiters(false);
-      return;
-    }
-    const separator = raw.indexOf(':');
-    const processScoped = separator > 0;
-    const value = separator >= 0 ? raw.substring(separator + 1) : raw;
-    if (value === 'wine-ready' || value === 'wine-running') {
-      const becomingReady = this.state !== EngineState.READY;
-      if (value === 'wine-ready' && this.prefixRefreshRequired) {
-        // Do not claim a refreshed prefix until native wineboot completed and
-        // the marker is durable. A failed write deliberately leaves the
-        // marker stale so the next launch retries the refresh.
-        if (!this.writeVersionMarker(PREFIX_RUNTIME_VERSION_MARKER, this.pendingPrefixVersion)) {
-          this.setState(EngineState.ERROR, 'Wine 环境配置结果保存失败');
-          this.finishWaiters(false);
-          return;
-        }
-        this.prefixRefreshRequired = false;
-        this.pendingPrefixVersion = new Uint8Array(0);
-      }
-      if (becomingReady) this.syncManagedSmokePayload('engine-ready');
-      this.setState(EngineState.READY, value === 'wine-running' ? 'Windows 程序运行中' : 'Wine 引擎已就绪');
-      this.finishWaiters(true);
-    } else if (value === 'wineserver-starting' || value === 'wineboot-starting') {
-      this.setState(EngineState.PREPARING, value === 'wineboot-starting' ? '正在初始化 Wine 环境' : '正在启动 Wine 服务');
-    } else if (value === 'wine-failed' && processScoped && this.state === EngineState.READY) {
-      // runWineExe reports a process-scoped failure as "-1:wine-failed".
-      // The engine and Wayland server are still usable; AppSessionService
-      // already rejects the failed NativeLaunchResult for that one card.
-      hilog.warn(DOMAIN, TAG, 'Windows program launch failed while engine remains ready: %{public}s', raw);
-    } else if (value === 'wine-failed' || value === 'wineboot-failed' || value === 'wineserver-failed') {
-      this.setState(EngineState.ERROR, 'Wine 启动失败');
-      this.finishWaiters(false);
-    } else if (value === 'exited' && (testNapi.getProcessList() as NativeProcessInfo[]).length === 0) {
-      if (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING) {
-        // appspawn wrapper processes may exit while wineboot/services continue
-        // in broker-spawned children. The native launch coordinator emits an
-        // explicit ready/failure result; the no-event safety net remains the
-        // bounded fallback when that result never arrives.
-        hilog.info(DOMAIN, TAG, 'transient zero-process exit while %{public}s; waiting for launch result', this.state);
-      } else if (this.state !== EngineState.STOPPED) {
-        this.setState(EngineState.STOPPED, 'Wine 引擎已停止');
-      }
+    if (this.state !== EngineState.READY) return;
+    if (raw.startsWith('state:failed:') || raw.startsWith('fail:')) {
+      const snapshot = JSON.parse(testNapi.getWineStartupState()) as WineStartupSnapshot;
+      if (snapshot.generation === this.nativeGeneration && snapshot.state === 'ready') return;
+      this.setState(EngineState.ERROR, 'Wine 运行失败：' + this.failReasonText(raw.substring(raw.lastIndexOf(':') + 1)));
+    } else if (raw === 'state:stopped' || raw === 'stopped') {
+      const snapshot = JSON.parse(testNapi.getWineStartupState()) as WineStartupSnapshot;
+      // A queued acknowledgement of an earlier drain is harmless.
+      if (snapshot.generation === this.nativeGeneration && snapshot.state === 'ready') return;
+      this.setState(EngineState.STOPPED, 'Wine 引擎已停止');
+    } else if (raw === 'wine-failed' || raw === 'wineboot-failed' || raw === 'wineserver-failed') {
+      this.setState(EngineState.ERROR, 'Wine 运行失败');
+    } else if (raw.endsWith(':wine-failed')) {
+      // One card failing must not tear down a healthy shared Wine session.
+      hilog.warn(DOMAIN, TAG, 'Windows program launch failed while engine remains ready');
     }
   }
 
   private handleEnginePhase(phase: string): void {
-    this.enginePhase = phase;
-    this.phaseStartedAt = Date.now();
-    if (phase === 'ready') {
-      // phase:ready is informational. Only the following wine-ready terminal
-      // event may persist the prefix runtime marker and release callers; doing
-      // it here races past that durable finalization on upgraded prefixes.
-      return;
+    if (this.state !== EngineState.PREPARING && this.state !== EngineState.SWITCHING) return;
+    if (this.enginePhase !== phase) {
+      this.enginePhase = phase;
+      this.phaseStartedAt = Date.now();
     }
-    const phaseMessage = '正在初始化 Wine：' + this.phaseText(phase);
-    if (this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING) {
-      this.setState(this.state, phaseMessage);
-    } else if (this.state !== EngineState.READY) {
-      this.setState(EngineState.PREPARING, phaseMessage);
-    }
-    this.resetReadySafetyNet();
+    this.setState(this.state, '正在初始化 Wine：' + this.phaseText(phase));
   }
 
   private syncManagedSmokePayload(trigger: string): boolean {
@@ -1337,14 +1565,22 @@ export class WineEngineService {
       hilog.warn(DOMAIN, TAG, 'unexpected engine transition %{public}s -> %{public}s', this.state, state);
     }
     hilog.info(DOMAIN, TAG, 'engine state %{public}s -> %{public}s: %{public}s', this.state, state, message);
+    const wasBusy = this.state === EngineState.PREPARING || this.state === EngineState.SWITCHING;
+    const busy = state === EngineState.PREPARING || state === EngineState.SWITCHING;
+    if (busy && !wasBusy) {
+      this.preparationStartedAt = Date.now();
+      this.enginePhase = '';
+      this.phaseStartedAt = 0;
+    }
     this.state = state;
     this.message = message;
     if (state === EngineState.READY || state === EngineState.STOPPED || state === EngineState.ERROR) {
       if (this.readySafetyTimer >= 0) {
-        clearTimeout(this.readySafetyTimer);
+        clearInterval(this.readySafetyTimer);
         this.readySafetyTimer = -1;
       }
     }
+    if (state === EngineState.STOPPED || state === EngineState.ERROR) this.finishWaiters(false);
     this.listeners.forEach((listener: EngineStateListener) => listener(state, message));
   }
 
@@ -1415,7 +1651,9 @@ export class WineEngineService {
       const registry = fs.readTextSync(PREFIX_SYSTEM_REG);
       const sectionHeader = '[Software\\\\Microsoft\\\\Windows NT\\\\CurrentVersion\\\\FontSubstitutes]';
       const sectionStart = registry.indexOf(sectionHeader);
-      if (sectionStart < 0) throw new Error('FontSubstitutes registry section missing');
+      // proton 方案③ 的 system.reg 节名转义/结构与方案②不同时, 节可能找不到;
+      // 字体替换是增强项, 缺节直接跳过而不是阻塞引擎 (实测阻塞 smoke 启动)。
+      if (sectionStart < 0) return true;
       let sectionEnd = registry.indexOf('\n[', sectionStart + sectionHeader.length);
       if (sectionEnd < 0) sectionEnd = registry.length;
       const replacements: Map<string, FontSubstitute> = new Map<string, FontSubstitute>();
@@ -1521,10 +1759,185 @@ export class WineEngineService {
     }
   }
 
+  // Equal file sizes cannot identify an upgraded FEX/ICU binary. Compare in
+  // bounded chunks, preserving the previous module if either read is incomplete.
+  private binaryFilesMatch(source: string, target: string): boolean {
+    let size = 0;
+    try {
+      const left = fs.statSync(source);
+      const right = fs.statSync(target);
+      if (!left.isFile() || !right.isFile() || left.size !== right.size) return false;
+      size = left.size;
+    } catch (_) { return false; }
+    const leftFile = fs.openSync(source, fs.OpenMode.READ_ONLY);
+    try {
+      const rightFile = fs.openSync(target, fs.OpenMode.READ_ONLY);
+      try {
+        const left = new ArrayBuffer(65536);
+        const right = new ArrayBuffer(65536);
+        const leftBytes = new Uint8Array(left);
+        const rightBytes = new Uint8Array(right);
+        for (let offset = 0; offset < size; offset += left.byteLength) {
+          const length = Math.min(left.byteLength, size - offset);
+          if (fs.readSync(leftFile.fd, left, { offset, length }) !== length ||
+            fs.readSync(rightFile.fd, right, { offset, length }) !== length) {
+            throw new Error('Incomplete managed module read');
+          }
+          for (let i = 0; i < length; ++i) if (leftBytes[i] !== rightBytes[i]) return false;
+        }
+        return true;
+      } finally { fs.closeSync(rightFile); }
+    } finally { fs.closeSync(leftFile); }
+  }
+
+  private requireSelectedCpuModule(engine: string): void {
+    if (normalizeWineTranslationEngine(engine) !== WineTranslationEngine.BOX64) return;
+    const module = WINE_BIN + '/aarch64-windows/wowbox64.dll';
+    if (!pathExists(module) || !fs.statSync(module).isFile() || fs.statSync(module).size === 0) {
+      throw new Error('Box64 转译组件缺失，请重新安装完整 Wine 运行组件');
+    }
+  }
+
+  private syncManagedFexModules(prefixDirectory: string = PREFIX_DIR): void {
+    // These two CPU modules are paired with the app's Wine runtime. They are
+    // ordinary MinGW PE files, so wineboot's WineFakeDlls update skips them.
+    // Run before starting Wine, including after an interrupted runtime refresh.
+    const system32 = prefixDirectory + '/drive_c/windows/system32';
+    const names: string[] = ['libwow64fex.dll', 'libarm64ecfex.dll'];
+    const boxModule = WINE_BIN + '/aarch64-windows/wowbox64.dll';
+    if (pathExists(boxModule)) names.push('wowbox64.dll');
+    if (!names.some((name: string): boolean => pathExists(WINE_BIN + '/aarch64-windows/' + name))) {
+      return; // Historical x64-only Wine runtime.
+    }
+    // wineboot does not install these ordinary MinGW DLLs. On a fresh prefix
+    // its 32-bit registration workers already need FEX, so create system32
+    // and deploy both CPU modules before the first wineserver/wineboot launch.
+    for (const name of names) {
+      const source = WINE_BIN + '/aarch64-windows/' + name;
+      if (!pathExists(source) || !fs.statSync(source).isFile() || fs.statSync(source).size === 0) {
+        throw new Error('Missing or empty managed CPU module: ' + name);
+      }
+    }
+    if (!pathExists(system32)) fs.mkdirSync(system32, true);
+    for (const name of names) {
+      const source = WINE_BIN + '/aarch64-windows/' + name;
+      const target = system32 + '/' + name;
+      if (this.binaryFilesMatch(source, target)) continue;
+      const temporary = target + '.winehua-update';
+      try {
+        fs.copyFileSync(source, temporary);
+        if (!this.binaryFilesMatch(source, temporary)) {
+          throw new Error('Incomplete managed CPU module copy: ' + name);
+        }
+        fs.renameSync(temporary, target);
+        hilog.info(DOMAIN, TAG, 'updated managed CPU module: %{public}s', name);
+      } finally {
+        if (pathExists(temporary)) fs.unlinkSync(temporary);
+      }
+    }
+  }
+
+  private isWineBuiltinModule(path: string): boolean {
+    if (!pathExists(path) || fs.statSync(path).size < 80) return false;
+    const file = fs.openSync(path, fs.OpenMode.READ_ONLY);
+    try {
+      const buffer = new ArrayBuffer(80);
+      if (fs.readSync(file.fd, buffer, { offset: 0, length: 80 }) !== 80) {
+        throw new Error('Incomplete builtin module header');
+      }
+      const bytes = new Uint8Array(buffer);
+      const signature = 'Wine builtin DLL';
+      for (let i = 0; i < signature.length; i++) {
+        if (bytes[64 + i] !== signature.charCodeAt(i)) return false;
+      }
+      return true;
+    } finally { fs.closeSync(file); }
+  }
+
+  private syncManagedIcuModules(prefixDirectory: string = PREFIX_DIR): void {
+    if (!pathExists(WINE_ROOT + '/icu-compat.json')) return;
+    const names: string[] = ['icu.dll', 'icuuc.dll', 'icuin.dll'];
+    const arches: string[] = ['aarch64-windows', 'i386-windows'];
+    const dirs: string[] = ['system32', 'syswow64'];
+    // Validate the whole pair before publishing anything into the prefix.
+    for (const arch of arches) {
+      for (const name of names) {
+        if (!this.isWineBuiltinModule(WINE_BIN + '/' + arch + '/' + name)) {
+          throw new Error('Missing or invalid managed ICU module: ' + arch + '/' + name);
+        }
+      }
+    }
+    const data = WINE_ROOT + '/share/wine/nls/icudtl.dat';
+    if (!pathExists(data) || !fs.statSync(data).isFile() || fs.statSync(data).size === 0) {
+      throw new Error('Missing managed ICU Unicode data');
+    }
+    for (let arch = 0; arch < arches.length; arch++) {
+      const directory = prefixDirectory + '/drive_c/windows/' + dirs[arch];
+      if (!pathExists(directory)) fs.mkdirSync(directory, true);
+      for (const name of names) {
+        const source = WINE_BIN + '/' + arches[arch] + '/' + name;
+        const target = directory + '/' + name;
+        // Respect user-installed native Windows ICU overrides.
+        if (pathExists(target) && !this.isWineBuiltinModule(target)) continue;
+        if (this.binaryFilesMatch(source, target)) continue;
+        const temporary = target + '.winehua-update';
+        try {
+          fs.copyFileSync(source, temporary);
+          if (!this.binaryFilesMatch(source, temporary)) throw new Error('Incomplete managed ICU copy');
+          fs.renameSync(temporary, target);
+        } finally {
+          if (pathExists(temporary)) fs.unlinkSync(temporary);
+        }
+      }
+    }
+  }
+
+  // Only retired files shipped inside our managed runtime. Never traverse a
+  // link or touch a prefix, Steam library, account configuration or save.
+  private retireLinuxRuntimeBridge(): void {
+    if (!pathExists(WINE_ROOT)) return;
+    const root = fs.lstatSync(WINE_ROOT);
+    if (root.isSymbolicLink() || !root.isDirectory()) return;
+    const retired = [
+      'bin/i386-windows/lsteamclient.dll',
+      'bin/aarch64-windows/lsteamclient.dll',
+      'linux-steam-bridge.json'
+    ];
+    for (const relative of retired) {
+      const parts = relative.split('/');
+      let current = WINE_ROOT;
+      let safe = true;
+      for (let index = 0; index < parts.length; ++index) {
+        current += '/' + parts[index];
+        if (!pathExists(current)) { safe = false; break; }
+        const stat = fs.lstatSync(current);
+        if (stat.isSymbolicLink() ||
+          (index < parts.length - 1 ? !stat.isDirectory() : !stat.isFile())) {
+          safe = false;
+          break;
+        }
+      }
+      if (safe) {
+        fs.unlinkSync(current);
+        hilog.info(DOMAIN, TAG, 'removed retired managed bridge: %{public}s', relative);
+      }
+    }
+  }
+
   private async ensureRuntimeInstalled(bundledVersion: Uint8Array): Promise<boolean> {
+    if (this.runtimeInstallPromise) return this.runtimeInstallPromise;
+    const operation = this.installRuntime(bundledVersion);
+    this.runtimeInstallPromise = operation;
+    try { return await operation; } finally {
+      if (this.runtimeInstallPromise === operation) this.runtimeInstallPromise = null;
+    }
+  }
+
+  private async installRuntime(bundledVersion: Uint8Array): Promise<boolean> {
     // Recover or reconcile a marker stashed by a previous interrupted extract
     // before deciding whether this runtime is complete.
     this.reconcilePreservedWineInf();
+    this.retireLinuxRuntimeBridge();
     try {
       ensureWineFontsDirectory();
       copyImportedFontsIntoWineShare();
@@ -1537,6 +1950,9 @@ export class WineEngineService {
     const prefixMatches = this.prefixVersionMatches(bundledVersion);
     const fontSubstitutesCurrent = this.prefixFontSubstitutesCurrent();
     if (missingBefore.length === 0 && versionMatches) {
+      this.requireSelectedCpuModule(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine);
+      this.syncManagedFexModules();
+      this.syncManagedIcuModules();
       if (prefixMatches && fontSubstitutesCurrent) return false;
       // Upgrade path for versions released before the prefix marker existed:
       // when the extracted runtime itself did not change and the prefix is
@@ -1598,6 +2014,9 @@ export class WineEngineService {
       if (missingAfter.length > 0) {
         throw new Error('Wine runtime incomplete after extract: ' + missingAfter.join(', '));
       }
+      this.requireSelectedCpuModule(AppSettingsStore.getInstance().getGlobalSettings().wineTranslationEngine);
+      this.syncManagedFexModules();
+      this.syncManagedIcuModules();
       if (!this.writeVersionMarker(RUNTIME_VERSION_MARKER, bundledVersion)) {
         throw new Error('Unable to persist Wine runtime version marker');
       }

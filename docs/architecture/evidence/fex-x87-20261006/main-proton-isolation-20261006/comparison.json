@@ -1,0 +1,398 @@
+{
+  "captures": {
+    "box-cold-v2": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T17:39:04",
+        "fps": [
+          {
+            "time": "10-06 17:39:05.906",
+            "displayed": 25920,
+            "fps": 51.41
+          },
+          {
+            "time": "10-06 17:39:07.780",
+            "displayed": 26040,
+            "fps": 64.0
+          },
+          {
+            "time": "10-06 17:39:09.640",
+            "displayed": 26160,
+            "fps": 64.53
+          }
+        ],
+        "minHostWindowFps": 51.41
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T17:39:12",
+        "fps": [
+          {
+            "time": "10-06 17:39:13.885",
+            "displayed": 26400,
+            "fps": 50.47
+          },
+          {
+            "time": "10-06 17:39:15.760",
+            "displayed": 26520,
+            "fps": 64.01
+          },
+          {
+            "time": "10-06 17:39:17.636",
+            "displayed": 26640,
+            "fps": 63.97
+          }
+        ],
+        "minHostWindowFps": 50.47
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T17:39:20",
+        "fps": [
+          {
+            "time": "10-06 17:39:21.895",
+            "displayed": 26880,
+            "fps": 50.15
+          },
+          {
+            "time": "10-06 17:39:23.772",
+            "displayed": 27000,
+            "fps": 63.94
+          },
+          {
+            "time": "10-06 17:39:25.638",
+            "displayed": 27120,
+            "fps": 64.28
+          }
+        ],
+        "minHostWindowFps": 50.15
+      }
+    ],
+    "box-warm": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T17:40:07",
+        "fps": [
+          {
+            "time": "10-06 17:40:08.449",
+            "displayed": 29880,
+            "fps": 63.69
+          },
+          {
+            "time": "10-06 17:40:10.294",
+            "displayed": 30000,
+            "fps": 65.05
+          },
+          {
+            "time": "10-06 17:40:12.160",
+            "displayed": 30120,
+            "fps": 64.3
+          }
+        ],
+        "minHostWindowFps": 63.69
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T17:40:15",
+        "fps": [
+          {
+            "time": "10-06 17:40:15.897",
+            "displayed": 30360,
+            "fps": 63.93
+          },
+          {
+            "time": "10-06 17:40:17.764",
+            "displayed": 30480,
+            "fps": 64.28
+          },
+          {
+            "time": "10-06 17:40:19.623",
+            "displayed": 30600,
+            "fps": 64.53
+          },
+          {
+            "time": "10-06 17:40:21.490",
+            "displayed": 30720,
+            "fps": 64.28
+          }
+        ],
+        "minHostWindowFps": 63.93
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T17:40:22",
+        "fps": [
+          {
+            "time": "10-06 17:40:23.384",
+            "displayed": 30840,
+            "fps": 63.37
+          },
+          {
+            "time": "10-06 17:40:25.245",
+            "displayed": 30960,
+            "fps": 64.49
+          },
+          {
+            "time": "10-06 17:40:27.129",
+            "displayed": 31080,
+            "fps": 63.68
+          },
+          {
+            "time": "10-06 17:40:28.998",
+            "displayed": 31200,
+            "fps": 64.2
+          }
+        ],
+        "minHostWindowFps": 63.37
+      }
+    ],
+    "fex-cold": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T17:47:02",
+        "fps": [
+          {
+            "time": "10-06 17:47:02.592",
+            "displayed": 13080,
+            "fps": 58.24
+          },
+          {
+            "time": "10-06 17:47:07.388",
+            "displayed": 13200,
+            "fps": 25.02
+          }
+        ],
+        "minHostWindowFps": 25.02
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T17:47:10",
+        "fps": [
+          {
+            "time": "10-06 17:47:13.160",
+            "displayed": 13440,
+            "fps": 32.32
+          },
+          {
+            "time": "10-06 17:47:15.237",
+            "displayed": 13560,
+            "fps": 57.78
+          }
+        ],
+        "minHostWindowFps": 32.32
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T17:47:18",
+        "fps": [
+          {
+            "time": "10-06 17:47:20.826",
+            "displayed": 13800,
+            "fps": 33.93
+          },
+          {
+            "time": "10-06 17:47:22.784",
+            "displayed": 13920,
+            "fps": 61.27
+          },
+          {
+            "time": "10-06 17:47:24.885",
+            "displayed": 14040,
+            "fps": 57.13
+          }
+        ],
+        "minHostWindowFps": 33.93
+      }
+    ],
+    "fex-warm": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T17:48:03",
+        "fps": [
+          {
+            "time": "10-06 17:48:04.838",
+            "displayed": 16320,
+            "fps": 55.57
+          },
+          {
+            "time": "10-06 17:48:06.866",
+            "displayed": 16440,
+            "fps": 59.19
+          },
+          {
+            "time": "10-06 17:48:08.957",
+            "displayed": 16560,
+            "fps": 57.38
+          }
+        ],
+        "minHostWindowFps": 55.57
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T17:48:10",
+        "fps": [
+          {
+            "time": "10-06 17:48:11.027",
+            "displayed": 16680,
+            "fps": 57.98
+          },
+          {
+            "time": "10-06 17:48:13.062",
+            "displayed": 16800,
+            "fps": 58.96
+          },
+          {
+            "time": "10-06 17:48:15.081",
+            "displayed": 16920,
+            "fps": 59.44
+          }
+        ],
+        "minHostWindowFps": 57.98
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T17:48:18",
+        "fps": [
+          {
+            "time": "10-06 17:48:19.201",
+            "displayed": 17160,
+            "fps": 56.87
+          },
+          {
+            "time": "10-06 17:48:21.177",
+            "displayed": 17280,
+            "fps": 60.74
+          },
+          {
+            "time": "10-06 17:48:23.187",
+            "displayed": 17400,
+            "fps": 59.68
+          }
+        ],
+        "minHostWindowFps": 56.87
+      }
+    ],
+    "float-cold": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T18:08:36",
+        "fps": [
+          {
+            "time": "10-06 18:08:40.989",
+            "displayed": 13200,
+            "fps": 19.39
+          }
+        ],
+        "minHostWindowFps": 19.39
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T18:08:43",
+        "fps": [
+          {
+            "time": "10-06 18:08:43.258",
+            "displayed": 13320,
+            "fps": 52.88
+          },
+          {
+            "time": "10-06 18:08:47.643",
+            "displayed": 13440,
+            "fps": 27.36
+          },
+          {
+            "time": "10-06 18:08:49.946",
+            "displayed": 13560,
+            "fps": 52.12
+          }
+        ],
+        "minHostWindowFps": 27.36
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T18:08:51",
+        "fps": [
+          {
+            "time": "10-06 18:08:54.090",
+            "displayed": 13680,
+            "fps": 28.96
+          },
+          {
+            "time": "10-06 18:08:56.306",
+            "displayed": 13800,
+            "fps": 54.15
+          }
+        ],
+        "minHostWindowFps": 28.96
+      }
+    ],
+    "float-warm": [
+      {
+        "character": "money",
+        "deviceStart": "2026-10-06T18:09:35",
+        "fps": [
+          {
+            "time": "10-06 18:09:36.276",
+            "displayed": 15840,
+            "fps": 49.96
+          },
+          {
+            "time": "10-06 18:09:38.444",
+            "displayed": 15960,
+            "fps": 55.36
+          },
+          {
+            "time": "10-06 18:09:40.662",
+            "displayed": 16080,
+            "fps": 54.09
+          }
+        ],
+        "minHostWindowFps": 49.96
+      },
+      {
+        "character": "flower",
+        "deviceStart": "2026-10-06T18:09:43",
+        "fps": [
+          {
+            "time": "10-06 18:09:45.224",
+            "displayed": 16320,
+            "fps": 52.51
+          },
+          {
+            "time": "10-06 18:09:47.425",
+            "displayed": 16440,
+            "fps": 54.52
+          },
+          {
+            "time": "10-06 18:09:49.570",
+            "displayed": 16560,
+            "fps": 55.94
+          }
+        ],
+        "minHostWindowFps": 52.51
+      },
+      {
+        "character": "green",
+        "deviceStart": "2026-10-06T18:09:50",
+        "fps": [
+          {
+            "time": "10-06 18:09:51.845",
+            "displayed": 16680,
+            "fps": 52.76
+          },
+          {
+            "time": "10-06 18:09:53.948",
+            "displayed": 16800,
+            "fps": 57.06
+          },
+          {
+            "time": "10-06 18:09:56.208",
+            "displayed": 16920,
+            "fps": 53.1
+          }
+        ],
+        "minHostWindowFps": 52.76
+      }
+    ]
+  },
+  "limitations": "One session per CPU backend. Three characters added to an empty roster then removed; inspect contact sheets. Host 120-frame FPS windows overlap commands and are not input latency, GPU timing, or a main-package A/B. Box differs in x87 precision; diagnostic only."
+}

@@ -17,17 +17,17 @@ const models = require(path.resolve(outputDirectory, 'model/AppModels.js'));
 const keynames = require(path.resolve(outputDirectory, 'common/EvdevKeyNames.js'));
 
 // ---- 模板工厂 ----
-assert.equal(models.INPUT_TEMPLATES.length, 5);
+assert.equal(models.INPUT_TEMPLATES.length, 6);
 assert.equal(models.INPUT_PROFILE_SCHEMA_VERSION, 6);
 assert.deepEqual(models.INPUT_TEMPLATES.map((template) => template.id),
-  ['default', 'full-keyboard', 'rpg', 'fps', 'action']);
+  ['steam-navigation', 'default', 'full-keyboard', 'rpg', 'fps', 'action']);
 
 const builtIns = models.createBuiltInInputProfiles();
 assert.deepEqual(builtIns.map((profile) => profile.id),
-  ['default', 'builtin-full-keyboard', 'builtin-rpg', 'builtin-fps', 'builtin-action']);
+  ['builtin-steam-navigation', 'default', 'builtin-full-keyboard', 'builtin-rpg', 'builtin-fps', 'builtin-action']);
 assert.ok(builtIns.every((profile) => models.isBuiltInInputProfileId(profile.id)));
 assert.equal(models.isBuiltInInputProfileId('desktop-user'), false);
-assert.deepEqual(builtIns.map((profile) => profile.builtInRevision), [4, 14, 5, 3, 3]);
+assert.deepEqual(builtIns.map((profile) => profile.builtInRevision), [1, 4, 14, 5, 3, 3]);
 
 const generic = models.createDefaultInputProfile();
 assert.equal(generic.id, 'default');

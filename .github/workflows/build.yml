@@ -3,17 +3,16 @@ name: Build VintagePomeloPro HAP (arm64-v8a, unsigned)
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
     tags:
       - 'dev-*'                 # 开发版 (直接发布, 不占 Latest 徽章)
       - 'rc-*'                  # RC 版 (占 Latest 徽章)
     paths-ignore:
-      - 'docs/**'
       - '**.md'
       - '.gitignore'
       - 'LICENSE*'
   pull_request:
-    branches: [master, main]
+    branches: [main]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -28,9 +27,69 @@ permissions:
   contents: write
   packages: read
 
+# Keep only the latest branch push; tagged/manual releases keep their own run.
+concurrency:
+  group: vpp-hap-${{ github.workflow }}-${{ github.ref }}-${{ inputs.release_tag }}
+  cancel-in-progress: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') }}
+
 jobs:
+  membership-checks:
+    name: Verify membership backend and checkout
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          submodules: false
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/value-added/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm ci --prefix server/value-added --ignore-scripts --no-audit --no-fund
+      - name: Test backend purchase verification and entitlements
+        run: npm test --prefix server/value-added
+      - name: Test client checkout and recovery
+        run: |
+          npm install --prefix "$RUNNER_TEMP/vpp-typescript" --no-save --no-package-lock \
+            --ignore-scripts --no-audit --no-fund typescript@4.9.5
+          ts="$RUNNER_TEMP/vpp-typescript/node_modules/typescript/lib/typescript.js"
+          node scripts/run_value_added_service_tests.cjs --source "$ts"
+          node scripts/run_membership_checkout_ui_tests.cjs "$ts"
+
+  source-checks:
+    name: Verify OHOS Wine and Windows Steam source inputs
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
+          submodules: false
+          fetch-depth: 1
+      # Source-contract tests need the exact pinned Mesa and DXVK inputs.
+      - name: Restore pinned provenance and DXVK overlay test inputs
+        run: |
+          git -c url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf=git@github.com: \
+            submodule update --init --depth=1 -- thirdparty/mesa thirdparty/dxvk
+
+      - name: Test provenance and dependency restore
+        run: |
+          python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-preflight-${{ github.sha }}
+          path: |
+            ci-artifacts/ci-preflight.json
+          if-no-files-found: error
+          retention-days: 14
+
   build:
     name: make NATIVE_ARCH=arm64-v8a hap-unsigned
+    needs: [source-checks, membership-checks]
     runs-on: ubuntu-26.04
     timeout-minutes: 180
     outputs:
@@ -43,7 +102,9 @@ jobs:
         shell: bash
 
     container:
-      image: ghcr.io/panedioic/winehua-buildenv:test
+      # Immutable image observed in the 2026-11-09 CI runs. Update this
+      # digest deliberately and rerun clean-build/device qualification.
+      image: ghcr.io/panedioic/winehua-buildenv@sha256:59f64bde2c1f6b54ad7505032622be94d52279b6c1523d54204992a2249b1a8c
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -66,15 +127,46 @@ jobs:
           git config --global \
             url."https://github.com/GitMirroring/libunistring.git".insteadOf \
             "https://git.savannah.gnu.org/git/libunistring.git"
+          # Old immutable tags still name the intermittently unavailable origin.
+          # This public mirror contains the same pinned Nettle git objects.
+          git config --global \
+            url."https://github.com/gnutls/nettle.git".insteadOf \
+            "https://git.lysator.liu.se/nettle/nettle.git"
 
-      - name: Checkout with submodules
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           # Dispatch can build an existing immutable tag using the repaired workflow.
           ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
-          submodules: recursive
+          submodules: false
           fetch-depth: 1
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Keep the pinned objects already fetched when an upstream Git service
+      # briefly returns 502/503/504. Authentication/missing refs still fail fast;
+      # the source gate below verifies every exact recursive gitlink afterwards.
+      - name: Fetch pinned submodules with bounded retries
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule sync --recursive
+          fetch_tail="$RUNNER_TEMP/vpp-submodule-fetch-tail.log"
+          trap 'rm -f -- "$fetch_tail"' EXIT
+          for attempt in 1 2 3 4 5; do
+            set +e
+            git -c http.lowSpeedLimit=1 -c http.lowSpeedTime=45 submodule update \
+              --init --recursive --depth=1 --jobs=4 2>&1 | tee /dev/stderr | tail -c 65536 > "$fetch_tail"
+            fetch_status=${PIPESTATUS[0]}
+            set -e
+            if [ "$fetch_status" -eq 0 ]; then exit 0; fi
+            if [ "$attempt" -eq 5 ] ||
+              grep -Eiq 'Authentication failed|returned error: (401|403)|repository.*not found|not our ref' "$fetch_tail" ||
+              ! grep -Eiq 'returned error: 50[234]|HTTP[^0-9]*50[234]|Gitaly.*not available|TLS connection was non-properly terminated|Connection reset by peer|Could not resolve host|Failed to connect|Operation timed out|RPC failed; curl (18|28|35|56|92)' "$fetch_tail"; then
+              exit "$fetch_status"
+            fi
+            echo "Transient submodule fetch failure; retry $((attempt + 1))/5 in 15s"
+            sleep 15
+          done
 
       # Check exact gitlinks, not .gitmodules branch tips. Fail before compilation.
       - name: Verify source and release versions
@@ -103,8 +195,12 @@ jobs:
           fi
           python3 scripts/verify_ci_release.py source --expected-sha "$expected_sha" \
             --release-tag "$RELEASE_TAG" --output ci-artifacts/ci-source.json
-          make test-ci-release
           echo "commit=$expected_sha" >> "$GITHUB_OUTPUT"
+
+      # Catch source-overlay drift against the exact recursive submodule before
+      # beginning the long Native and graphics build.
+      - name: Verify VirGL overlays against pinned source
+        run: python3 host_tests/virgl_patch_application_test.py --source thirdparty/virglrenderer
 
       - name: Upload source version manifest
         uses: actions/upload-artifact@v4
@@ -171,33 +267,34 @@ jobs:
       # 这里 no-op.
       - name: Ensure CI build dependencies present
         run: |
-          packages=()
-          if [ ! -f /usr/share/aclocal/ltdl.m4 ]; then
-            packages+=(libltdl-dev)
-          fi
-          if ! command -v glslangValidator >/dev/null 2>&1; then
-            packages+=(glslang-tools)
-          fi
-          if ! command -v x86_64-w64-mingw32-widl >/dev/null 2>&1; then
-            packages+=(mingw-w64-tools)
-          fi
-          # vkd3d-proton 补丁系列用 patch 打到隔离副本; 精简镜像可能没带
-          if ! command -v patch >/dev/null 2>&1; then
-            packages+=(patch)
-          fi
-          if ! command -v msgfmt >/dev/null 2>&1; then
-            packages+=(gettext)
-          fi
-          if ! command -v curl >/dev/null 2>&1; then
-            packages+=(curl)
-          fi
-          if [ "${#packages[@]}" -gt 0 ]; then
-            echo "Installing missing CI packages: ${packages[*]}"
-            apt-get update
-            apt-get install -y --no-install-recommends "${packages[@]}"
-          else
-            echo "CI build dependencies already present"
-          fi
+          bash scripts/ensure_build_dependencies.sh
+
+      - name: Verify native build prerequisites before compilation
+        run: |
+          set -euo pipefail
+          for tool in gcc g++ make cmake ninja meson bison flex autoconf automake \
+                      libtoolize pkg-config git python3 java zip file \
+                      glslangValidator spirv-as spirv-dis spirv-val spirv-opt \
+                      msgfmt curl wget makeinfo xz aarch64-linux-gnu-gcc \
+                      x86_64-w64-mingw32-g++ i686-w64-mingw32-g++ \
+                      x86_64-w64-mingw32-widl; do
+            command -v "$tool" >/dev/null || { echo "Missing CI tool: $tool" >&2; exit 1; }
+          done
+          test -f /usr/share/aclocal/ltdl.m4
+          python3 -c 'import yaml, mako, markupsafe'
+          # Compile and link a real probe, so a compiler without target libc
+          # startup objects is rejected here rather than in box64's CMake.
+          mkdir -p ci-artifacts
+          printf 'int main(void) { return 0; }\n' | \
+            aarch64-linux-gnu-gcc -x c - -o ci-artifacts/arm64-toolchain-probe
+          file ci-artifacts/arm64-toolchain-probe
+          rm ci-artifacts/arm64-toolchain-probe
+
+      - name: Test versioned Wayland generated-header staging
+        run: |
+          python3 host_tests/wayland_header_staging_test.py
+          python3 host_tests/llvm_mingw_download_test.py
+          python3 host_tests/display_libs_download_test.py
 
       - name: Show environment
         run: |
@@ -217,36 +314,130 @@ jobs:
           echo "== nproc =="
           nproc
 
-      # 先单独构建运行时组件再打 HAP: 运行时构建失败与打包失败分开上报.
-      - name: Build guest graphics runtime (x64 + x86)
+      # Hvigor automatically runs entry:clean after a fresh checkout or a
+      # toolchain change, deleting the project root build/ directory. Trigger
+      # that clean before restoring downloads or compiling native libraries.
+      - name: Install ArkTS project dependencies
         run: |
-          set -euxo pipefail
-          make NATIVE_ARCH=arm64-v8a dxvk
-          for dll in \
-            build/dxvk/legacy/x64/bin/d3d11.dll \
-            build/dxvk/legacy/x64/bin/dxgi.dll \
-            build/dxvk/legacy/x86/bin/d3d11.dll \
-            build/dxvk/legacy/x86/bin/dxgi.dll; do
-            test -s "$dll"
-          done
-          file build/dxvk/legacy/x64/bin/d3d11.dll \
-               build/dxvk/legacy/x64/bin/dxgi.dll \
-               build/dxvk/legacy/x86/bin/d3d11.dll \
-               build/dxvk/legacy/x86/bin/dxgi.dll
-          sha256sum build/dxvk/legacy/{x64,x86}/bin/{d3d11,dxgi}.dll
+          ohpm install --all
+          # Dependency installation must not rewrite committed app inputs.
+          git diff --exit-code HEAD --ignore-submodules=all
+
+      - name: Prepare Hvigor before restoring native build inputs
+        run: |
+          set -euo pipefail
+          if [ -d build ] && [ -n "$(ls -A build)" ]; then
+            echo "Refusing Hvigor prebuild: native build directory is not empty" >&2
+            exit 1
+          fi
+          hvigor=(/apps/harmony/bin/hvigorw --mode module -p module=entry@default -p product=default -p buildMode=release default@PreBuild)
+          "${hvigor[@]}"
+          # Exercise the real project a second time with a sentinel: a future
+          # Hvigor behavior change must fail before any expensive native work.
+          mkdir -p build
+          sentinel=build/.ci-hvigor-clean-sentinel
+          printf 'preserve native build outputs\n' > "$sentinel"
+          "${hvigor[@]}"
+          test -f "$sentinel" || { echo "Hvigor deleted the native build directory" >&2; exit 1; }
+          rm -f "$sentinel"
+
+      # Replay first, before the hour-long native dependency build. This uses
+      # small fixtures and leaves the verified checkout untouched.
+      - name: Restore verified native source archives
+        id: native-source-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/downloads/*.tar.gz
+            build/downloads/*.tar.xz
+            .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
+          key: native-sources-v2-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/build_xcb_stack.sh', 'scripts/build_x11_client.sh', 'scripts/build_xwayland.sh', 'scripts/download_verified_source.sh', 'scripts/prefetch_x11_sources.py', 'scripts/download_llvm_mingw.py') }}
+
+      - name: Verify fresh and incremental FEX source overlays
+        env:
+          VP_KEEP_TOOLCHAIN_ARCHIVE: '1'
+        run: |
+          # Fail early on verified display source downloads rather than after Wine builds.
+          bash scripts/build_display_libs.sh --fetch-only
+          python3 host_tests/verified_source_download_test.py
+          python3 scripts/prefetch_x11_sources.py --downloads build/downloads
+          # wlroots host compilation needs generated protocol enum headers;
+          # test with an empty host include directory before the long build.
+          bash scripts/build_wayland.sh --scanner-only
+          WAYLAND_SCANNER="$PWD/build/host-tools/bin/wayland-scanner" python3 host_tests/wlroots_protocol_headers_test.py
+          WAYLAND_SCANNER="$PWD/build/host-tools/bin/wayland-scanner" python3 host_tests/native_protocol_build_test.py
+          python3 host_tests/fex_overlay_replay_test.py --output ci-artifacts/fex-overlays.json
+          python3 host_tests/fex_build_identity_test.py
+          python3 host_tests/fex_simd_runtime_test.py
+          # Compile both device probes; execution still requires Wine/FEX.
+          i686-w64-mingw32-gcc -O2 tests/runtime/fex_smc_blocks.c -o ci-artifacts/fex-smc-i686.exe
+          x86_64-w64-mingw32-gcc -O2 tests/runtime/fex_smc_blocks.c -o ci-artifacts/fex-smc-x86_64.exe
+
+      - name: Save verified native source archives
+        if: steps.native-source-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: |
+            build/downloads/*.tar.gz
+            build/downloads/*.tar.xz
+            .temp/llvm-mingw-20260826-ucrt-ubuntu-22.04-x86_64.tar.xz
+          key: native-sources-v2-${{ runner.os }}-${{ hashFiles('scripts/build_display_libs.sh', 'scripts/build_xcb_stack.sh', 'scripts/build_x11_client.sh', 'scripts/build_xwayland.sh', 'scripts/download_verified_source.sh', 'scripts/prefetch_x11_sources.py', 'scripts/download_llvm_mingw.py') }}
+
+      - name: Test X11 window identities and Wine overlay verification
+        run: |
+          python3 host_tests/display_spawn_fds_test.py
+          python3 host_tests/display_child_log_test.py
+          python3 host_tests/x11_runtime_contract_test.py
+          python3 host_tests/display_overlay_stack_test.py
+          python3 host_tests/x11_external_host_test.py
+          python3 host_tests/wine_overlay_proof_test.py
+
+      - name: Test X11 input and Ability restore before the long source build
+        run: |
+          python3 host_tests/x11_desktop_input_test.py
+          python3 host_tests/wine_ability_restore_test.py
+          make test-renderer-scopes
+
+      - name: Test Proton runtime lifecycle and Steam downloads
+        run: make test-game-runtime
+
+      - name: Configure every Native target before the long source build
+        run: |
+          python3 scripts/ci_preflight.py --skip-tests \
+            --sdk /apps/harmony/sdk/default/openharmony --report ci-artifacts/native-preflight.json
+          git diff --exit-code HEAD --ignore-submodules=all
+
+      - name: Reuse the pinned Windows Steam offline archive
+        uses: actions/cache@v4
+        with:
+          path: build/release-offline/*.zip
+          key: windows-steam-offline-${{ hashFiles('docs/windows-steam/offline-package.lock.json') }}
 
       - name: Build HAP
         env:
           NATIVE_ARCH: arm64-v8a
+          WINE_ARCH: aarch64
+          GUEST_ARCH: aarch64
           # 与上游一致: guest gfx 负责自动构建 host-tools/wayland-scanner
           # (build_native.sh 硬性依赖), 并产出完整 guest Mesa/VirGL 载荷;
           # wine-mono 必须与 appwiz.cpl 同包, 否则 assemble.sh 直接失败。
           BUILD_GUEST_GFX: '1'
           BUILD_GUEST_VULKAN: '1'
           BUILD_WINE_MONO: '1'
+          # Rebuilt bytes are candidates, not the device-accepted binary lock.
+          SOURCE_BUILD_MANIFEST: ${{ github.workspace }}/ci-artifacts/ci-source.json
         run: |
           set -euxo pipefail
-          make NATIVE_ARCH=arm64-v8a GUEST_ARCH=x86_64 hap-unsigned
+          make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 GUEST_ARCH=aarch64 hap-unsigned
+          make NATIVE_ARCH=arm64-v8a WINE_ARCH=aarch64 arm64ec-release-gate
+          make test-xdg-resource-lifecycle
+
+      # These tests extract production functions from the patched Wine tree.
+      # Run after assemble, never against the pristine submodule checkout.
+      - name: Test patched X11 presentation and window lifecycle
+        run: make test-x11-integration test-venus-native-present
 
       - name: Locate artifacts
         id: art
@@ -258,6 +449,17 @@ jobs:
           test -s "$hap"
           python3 scripts/verify_ci_release.py artifact --manifest ci-artifacts/ci-source.json \
             --hap "$hap" --output ci-artifacts/ci-artifact.json
+          python3 scripts/v2_product_contract.py --hap "$hap"
+          python3 scripts/prepare_windows_steam_offline.py --output-dir build/release-offline --hap "$hap"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          folder = Path('build/release-offline')
+          report = json.loads((folder / 'release-offline-packages.json').read_text())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              item, = report['packages']
+              output.write(f"steam_offline={folder / item['fileName']}\n")
+          PY
           echo "hap=$hap" >> "$GITHUB_OUTPUT"
 
       - name: Upload HAP
@@ -271,6 +473,18 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload matching offline import packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: VintagePomeloPro-offline-${{ steps.source.outputs.commit }}
+          path: |
+            ${{ steps.art.outputs.steam_offline }}
+            build/release-offline/release-offline-packages.json
+            build/release-offline/SHA256SUMS-current.txt
+            build/release-offline/OFFLINE-IMPORT.txt
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -281,6 +495,7 @@ jobs:
             build/**/CMakeFiles/CMakeOutput.log
             build/**/CMakeFiles/CMakeError.log
             build/**/config.log
+            ci-artifacts/*.json
           if-no-files-found: ignore
           retention-days: 7
 
@@ -350,6 +565,26 @@ jobs:
           cp ci-artifacts/ci-artifact.json "VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
           ls -lh
 
+      - name: Download matching offline import packages
+        uses: actions/download-artifact@v4
+        with:
+          name: VintagePomeloPro-offline-${{ needs.build.outputs.source_sha }}
+          path: ./release-assets
+
+      - name: Verify offline packages match the published HAP
+        run: python3 scripts/prepare_windows_steam_offline.py --verify-only --output-dir release-assets --hap "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
+
+      # 2.0 publishes clean source-built artifacts. Bind every rebuilt module
+      # to the verified source receipt and retain the explicit deviceValidated=false
+      # policy; the old 1.4.9 binary hashes are not new-build hardware approval.
+      - name: Verify source-built runtime before publication
+        run: |
+          hap="release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
+          python3 scripts/verify_ci_release.py artifact --manifest release-assets/ci-artifacts/ci-source.json \
+            --hap "$hap" --output "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
+          python3 scripts/check_runtime_components.py --hap "$hap" \
+            --source-build-manifest release-assets/ci-artifacts/ci-source.json
+
       - name: Generate changelog
         env:
           SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
@@ -389,6 +624,9 @@ jobs:
           files: |
             release-assets/*.hap
             release-assets/*.json
+            release-assets/*.zip
+            release-assets/SHA256SUMS-current.txt
+            release-assets/OFFLINE-IMPORT.txt
           draft: false
           # dev-*/rc-* 均不标 pre-release (GitHub 规则: prerelease 不能是 latest)
           prerelease: false

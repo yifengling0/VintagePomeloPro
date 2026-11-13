@@ -1,0 +1,29 @@
+{
+  "env": [
+    {
+      "key": "WINEHUA_WINEDEBUG",
+      "value": "-all,+err"
+    },
+    {
+      "key": "WINEHUA_OPENGL_DIAG",
+      "value": "1"
+    },
+    {
+      "key": "GALLIUM_DRIVER",
+      "value": "softpipe"
+    },
+    {
+      "key": "LIBGL_ALWAYS_SOFTWARE",
+      "value": "1"
+    },
+    {
+      "key": "MESA_GL_VERSION_OVERRIDE",
+      "value": "2.1"
+    },
+    {
+      "key": "MESA_GLSL_VERSION_OVERRIDE",
+      "value": "120"
+    }
+  ],
+  "output": "C:\\opengl-softpipe-gl21-wgl32-v3-20261009.tsv"
+}

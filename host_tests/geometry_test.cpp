@@ -87,19 +87,25 @@ int main()
         CHECK(t.dstH == 563, "dst rounding is lround, not trunc");
     }
 
-    // 8. Input baselines track the actual mapping, not just the surface ID.
+    // 8. 全屏内容尺寸选择 (ZC 游戏 zero-copy 层几何 / SHM 游戏 buffer)
     {
-        FitRect before, after;
-        ComputeFitRect(1416, 640, 128, 128, before);
-        ComputeFitRect(1416, 640, 800, 600, after);
-        CHECK(!SameFitRect(before, after), "temporary window to real fullscreen invalidates baseline");
-        CHECK(SameFitRect(after, after), "stable geometry preserves relative deltas");
-        before = after; before.offX++;
-        CHECK(!SameFitRect(before, after), "origin change invalidates baseline");
-        before = after; before.scale *= 2;
-        CHECK(!SameFitRect(before, after), "scale change invalidates baseline");
-        before = after; before.srcW++;
-        CHECK(!SameFitRect(before, after), "content bounds change invalidates baseline");
+        int w = 0, h = 0;
+        // ZC 游戏: 画面在 zero-copy 层, 内容 = 层实际几何 (与渲染视口同源,
+        // 修复 preFs 快照与层几何失配导致的光标常数平移偏移)
+        SelectFullscreenContentSize(640, 480, 1400, 920, true, w, h);
+        CHECK(w == 640 && h == 480, "ZC game uses layer geometry");
+        // ZC 层几何与 buffer 同尺寸 (窗口化全屏): 等价, 用 layer (== buffer)
+        SelectFullscreenContentSize(1400, 920, 1400, 920, true, w, h);
+        CHECK(w == 1400 && h == 920, "layer==buffer uses layer");
+        // SHM 游戏: buffer 即画面, 填满整个 buffer → buffer 尺寸
+        SelectFullscreenContentSize(640, 480, 1400, 920, false, w, h);
+        CHECK(w == 1400 && h == 920, "SHM game uses buffer");
+        // layer 几何未就绪 (0): 退化用 buffer
+        SelectFullscreenContentSize(0, 0, 1400, 920, true, w, h);
+        CHECK(w == 1400 && h == 920, "no layer geometry uses buffer");
+        // layer 部分无效: 恒用 buffer
+        SelectFullscreenContentSize(640, 0, 1400, 920, true, w, h);
+        CHECK(w == 1400 && h == 920, "half-valid layer uses buffer");
     }
 
     // 9. A 1280x800 virtual frame fits a 1280x720 panel without distortion.

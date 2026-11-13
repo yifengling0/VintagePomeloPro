@@ -1,7 +1,8 @@
-#include "compositor/toplevel/toplevel_manager.h"
-#include "compositor/frame/debug_assert.h"
-#include "compositor/frame/compositor_utils.h"    // IsRestoreSizeCommit (最小化自动恢复判定)
-#include "compositor/frame/compositor_constants.h"  // 掩码阈值/FNV 常数/最小化坐标阈值
+#include "toplevel_manager.h"
+#include "compositor/frame/surface_data.h"
+#include "debug_assert.h"
+#include "compositor_utils.h"    // IsRestoreSizeCommit (最小化自动恢复判定)
+#include "compositor_constants.h"  // 掩码阈值/FNV 常数/最小化坐标阈值
 #include <hilog/log.h>
 
 #undef LOG_DOMAIN
@@ -30,23 +31,6 @@ bool ToplevelManager::TryAutoRestoreLocked(uint32_t id, int32_t contentW, int32_
         st->SetMinimized(false);
         OH_LOG_INFO(LOG_APP, "[MW] auto-restore tl=%{public}u size=%{public}dx%{public}d",
                     id, contentW, contentH);
-        return true;
-    }
-    return false;
-}
-
-bool ToplevelManager::SyncArgbPositionLocked(uint32_t id, int32_t screenX, int32_t screenY) {
-    auto* st = FindToplevelLocked(id);
-    if (!st) return false;  // 调用点建档后必有 (防御)
-    /*
-     * ARGB 窗口: Wine 位置为权威 (桌面小部件由 Wine 决定屏幕位置)。
-     * 普通 PC 窗口后续 commit 忽略 geoX/geoY (OHOS 窗口管理器为权威),
-     * ARGB 窗口相反: geo 变化 → 通知 ArkTS 移动子窗口。
-     * (历史字段 geoX/geoY 已于重构第 5A2 步消亡 — 其"桌面屏幕位置"义即
-     * 本方法接收的 screenX/Y, 由 CommittedSurface::screenPos 命名承载)
-     */
-    if (st->X() != screenX || st->Y() != screenY) {
-        st->SetPosition(screenX, screenY);
         return true;
     }
     return false;
@@ -83,39 +67,6 @@ void ToplevelManager::SyncDesktopPositionLocked(uint32_t id, int32_t screenX, in
     }
 }
 
-bool ToplevelManager::UpdateArgbMaskLocked(uint32_t id, const std::vector<uint8_t>& pixels,
-                                           int32_t w, int32_t h) {
-    auto* st = FindToplevelLocked(id);
-    if (!st) return false;  // 调用点建档后必有 (防御)
-    /*
-     * ARGB 窗口: 从 alpha 通道生成 0/1 剪影掩码 (setWindowMask 用)。
-     * - 阈值 128: 半透明抗锯齿边缘向内收半像素, 避免灰边外扩
-     * - 形状哈希没变就不重建: 时钟类静态形状零开销,
-     *   动画类 (桌面宠物) 每帧变形才按帧重算
-     * - 掩码是帧分辨率 (Wine 逻辑像素); setWindowMask 要求等于
-     *   窗口物理尺寸, ArkTS 侧按 effectiveScale 最近邻放大
-     */
-    const size_t pixCount = static_cast<size_t>(w) * h;
-    uint64_t hash = compositor_consts::kFnv1aOffsetBasis;
-    for (size_t i = 3; i < pixCount * 4; i += 4) {
-        hash ^= (pixels[i] >= compositor_consts::kArgbMaskAlphaThreshold) ? 1 : 0;
-        hash *= compositor_consts::kFnv1aPrime;
-    }
-    auto& m = st->MutableMask();
-    if (hash != m.hash || m.w != w || m.h != h) {
-        m.hash = hash;
-        m.w = w;
-        m.h = h;
-        m.bits.resize(pixCount);
-        for (size_t i = 0; i < pixCount; i++) {
-            m.bits[i] = (pixels[i * 4 + 3] >= compositor_consts::kArgbMaskAlphaThreshold) ? 1 : 0;
-        }
-        m.dirty = true;
-        return true;
-    }
-    return false;
-}
-
 ToplevelManager::SizeCommitEffect ToplevelManager::HandleCommittedSizeLocked(
     uint32_t id, uint32_t rootId, int32_t contentW, int32_t contentH,
     int32_t outputW, int32_t outputH) {
@@ -149,6 +100,63 @@ ToplevelManager::SizeCommitEffect ToplevelManager::HandleCommittedSizeLocked(
     return SizeCommitEffect::ResizeEvent;
 }
 
+void ToplevelManager::SyncFullscreenContentSizeLocked(uint32_t id, int32_t w, int32_t h) {
+    auto* st = FindToplevelLocked(id);
+    if (!st || w <= 0 || h <= 0 || !st->IsFullscreen()) return;
+    if (st->ClientContentW() == w && st->ClientContentH() == h) return;
+    if (w >= st->Width() && h >= st->Height()) return;
+    /*
+     * 全屏窗口的帧尺寸必须跟随"实际承载画面的 surface"。
+     *
+     * 独占全屏游戏在 win32u 侧会被 window_clip_client_surfaces 丢掉 GDI
+     * window surface (wine-valve 独有 — Proton 为 GL/Vulkan 呈现路径省掉 GDI
+     * 这一层), 游戏画面此后全部提交在 client subsurface 上; 父 toplevel
+     * surface 只在建窗时提交一次"窗口尺寸的占位 buffer"(wayland_surface_
+     * ensure_contents 按 window.rect 造 buffer, 内容只有 GDI 装饰)。帧尺寸
+     * 由父表面那一次提交定下后不再更新, 客户区内容于是原样贴在帧左上角 —
+     * 表现即"全屏游戏画面缩在屏幕左上角"。
+     *
+     * master 树没有这段丢弃逻辑: GDI surface 保留, 游戏帧直接提交为 toplevel
+     * surface 的内容, 帧尺寸天然等于内容尺寸。实测对照 (同一游戏同一场景):
+     * master 帧 800x600 且父表面每帧提交 (5786 次); proton 帧 1560x1040 而父
+     * 表面只提交 1 次、客户区层提交 78 次。此处把同一语义补到 client
+     * subsurface 路径上。
+     *
+     * 只记录客户区尺寸, 不动 w_/h_ (窗口尺寸): 输入坐标逆映射
+     * (ComputeFullscreenFitLocked) 拿 w_/h_ 当屏幕基准, 改了会让鼠标位移
+     * 比例失真 (实测: 改成客户区尺寸后鼠标移动约为 1/(1560/800) 倍, 且
+     * 游戏内光标闪烁)。帧尺寸由 WindowFrameComposer::Compose 单独取
+     * ClientContentW/H。
+     *
+     * 只对全屏窗口生效: 普通窗口的客户区本来就小于窗口 (标题栏/边框), 帧仍
+     * 应是窗口尺寸, 不能跟着客户区缩小。
+     */
+    OH_LOG_INFO(LOG_APP, "[MW] toplevel #%{public}u fullscreen frame %{public}dx%{public}d -> client %{public}dx%{public}d",
+                id, st->Width(), st->Height(), w, h);
+    st->SetClientContentSize(w, h);
+}
+
+void ToplevelManager::EnsureFrameBaseLocked(uint32_t id, int32_t w, int32_t h) {
+    auto* st = FindToplevelLocked(id);
+    if (!st || w <= 0 || h <= 0 || st->HasFrame()) return;
+    /*
+     * client subsurface 承载画面时给 toplevel 补建帧基底。
+     *
+     * 可见性判据 IsToplevelVisibleLocked 要求 HasFrame(), 而 HasFrame() 只看
+     * pixels_ 是否为空; pixels_ 原本只由 toplevel surface 自己的 commit
+     * (CopyToplevelContent) 填充。D3D 独占全屏程序被 window_clip_client_surfaces
+     * 丢掉 GDI window surface 后, 画面全部提交在 client subsurface 上, 父 surface
+     * 可能一次都不提交 — pixels_ 恒空, toplevel 被判不可见, 合成器一帧都不生成。
+     * 表现是"有声音、点击有响应、渲染回读在跑, 但屏幕全黑"(实测 war3 D3D8 全屏)。
+     *
+     * 只在空基底时补建: 已有基底的窗口 (父 surface 有过占位提交) 尺寸由帧路径
+     * 决定, 这里不干预 — 两个来源各按自己尺寸 resize 会来回抖动。
+     */
+    st->FrameData().assign(static_cast<size_t>(w) * h * 4, 0);
+    OH_LOG_INFO(LOG_APP, "[MW] toplevel #%{public}u frame base created %{public}dx%{public}d (client subsurface)",
+                id, w, h);
+}
+
 // -- ToplevelState 语义方法 --
 
 void ToplevelManager::ToplevelState::ApplyFullscreen(bool on) {
@@ -160,14 +168,7 @@ void ToplevelManager::ToplevelState::ApplyFullscreen(bool on) {
               "fullscreen toplevel must be anchored at (0,0)");
 }
 
-bool ToplevelManager::ToplevelState::TakeMask(WindowMask& out) {
-    if (mask_.w == 0 || !mask_.dirty) return false;
-    out.w = mask_.w;
-    out.h = mask_.h;
-    out.bits = std::move(mask_.bits);
-    mask_.dirty = false;
-    return true;
-}
+// -- 渲染/输入共用的 toplevel 可见性检查 --
 
 // -- WineHua modal 命中拦截 --
 
@@ -275,18 +276,6 @@ uint32_t ToplevelManager::FindToplevelBySurface(wl_resource* surf) {
     return 0;
 }
 
-bool ToplevelManager::TakeWindowMask(uint32_t id, int& w, int& h, std::vector<uint8_t>& out) {
-    auto lk = Lock();
-    auto it = toplevels_.find(id);
-    if (it == toplevels_.end()) return false;
-    WindowMask m;
-    if (!it->second.TakeMask(m)) return false;
-    w = m.w;
-    h = m.h;
-    out = std::move(m.bits);
-    return true;
-}
-
 // -- 诊断数据访问 --
 
 void ToplevelManager::MarkToplevelDirtyLocked(uint32_t id) {
@@ -331,4 +320,28 @@ ToplevelManager::ToplevelGeometrySnapshot ToplevelManager::GetToplevelGeometrySn
         s.shmFormat = it->second.ShmFormat();
     }
     return s;
+}
+
+SurfaceData* ToplevelManager::FindRegisteredSurfaceDataLocked(wl_resource* resource)
+{
+    if (!resource || !ContainsSurfaceResource(resource)) return nullptr;
+    return static_cast<SurfaceData*>(wl_resource_get_user_data(resource));
+}
+
+void ToplevelManager::UnregisterSurfaceResource(uint64_t key)
+{
+    const auto it = surfaceResources_.find(key);
+    if (it == surfaceResources_.end()) return;
+    const auto* retired = it->second;
+    for (const auto& [childKey, resource] : surfaceResources_) {
+        if (!resource || resource == retired) continue;
+        auto* child = static_cast<SurfaceData*>(wl_resource_get_user_data(resource));
+        if (child && child->parentSurface == retired) {
+            child->parentSurface = nullptr;
+            // Retain the subsurface role until wl_subsurface is destroyed. A
+            // detached child must not bootstrap as a role-less GPU producer.
+            child->directVisible = false;
+        }
+    }
+    surfaceResources_.erase(it);
 }

@@ -1,0 +1,18 @@
+--- a/sysdeps/unix/sysv/linux/spawni.c
++++ b/sysdeps/unix/sysv/linux/spawni.c
+@@ -389,13 +389,8 @@
+       .stack = (uintptr_t) stack,
+       .stack_size = stack_size,
+     };
+-#ifdef HAVE_CLONE3_WRAPPER
+-  args.use_clone3 = true;
+-  new_pid = __clone3 (&clone_args, sizeof (clone_args), __spawni_child,
+-		      &args);
+-  /* clone3 was added in 5.3 and CLONE_CLEAR_SIGHAND in 5.5.  */
+-  if (new_pid == -1 && (errno == ENOSYS || errno == EINVAL))
+-#endif
++  /* OHOS sandbox kills clone3 rather than returning ENOSYS. Use glibc's
++     existing clone fallback, including its signal-disposition handling. */
+     {
+       args.use_clone3 = false;
+       new_pid = __clone_internal_fallback (&clone_args, __spawni_child,

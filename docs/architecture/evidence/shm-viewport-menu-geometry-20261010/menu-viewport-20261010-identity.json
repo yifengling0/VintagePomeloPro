@@ -1,0 +1,9 @@
+{
+  "base": "sprite-window-opacity-20261010-unsigned.hap",
+  "unsignedSha256": "c10ae0f6f87b9dc6778677d69a567a2ab186b5e8ee80527cd2d4f6e2346b5343",
+  "signedSha256": "9bd303e616e1fea50e5a45924960c4ae9680df85cc1e70a4cec2318abe2627ce",
+  "changedEntries": [
+    "libs/arm64-v8a/libentry.so"
+  ],
+  "libentrySha256": "1d77555cec71e78f2363e530bd950eef130205fc0ba373bbd259684864ab4586"
+}

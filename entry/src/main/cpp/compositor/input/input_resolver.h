@@ -1,6 +1,8 @@
 #pragma once
 #include <wayland-server-core.h>
 #include <cstdint>
+#include <vector>
+#include "compositor/frame/compositor_layer.h"
 
 class ToplevelManager;
 class DesktopCompositor;
@@ -9,8 +11,10 @@ class DesktopCompositor;
 //
 // 裁决闭环 (重构第 4A 步): FindInputTargetAt 返回终态 — 调用方无需再懂
 // "桌面坐标→surface 局部"的逆映射与内容区钳制, 直接取 localX/localY 注入
-// (wl_fixed 转换在注入时做)。产品仍保留 origin/scale/contentW/H 用于
-// 相对指针基线失效判定：全屏尺寸变化不能变成虚假的鼠标增量。
+// (wl_fixed 转换在注入时做); 调用方只按 swallow 加工 (见下)。origin/scale
+// 保留供诊断日志 (TARGET/SCROLL-TARGET 断点), 不再参与换算; 内容区尺寸
+// (钳制上界 contentW/H) 是 ComputeLocalPoint 的内部管道参数, 无外部
+// 消费者, 4C2 顺手项已从 InputTarget 删除 (局部变量传给纯函数)。
 struct InputTarget {
     uint32_t toplevelId = 0;         // 事件归属 toplevel (raise/键盘焦点)
     wl_resource* surface = nullptr;  // pointer enter 目标
@@ -34,6 +38,7 @@ struct InputTarget {
     // 仅输入日志 (TARGET/SCROLL-TARGET 断点 2/4B) 消费, 不参与换算。
     double originX = 0.0, originY = 0.0;
     double scale = 1.0;
+    // Coordinate-space identity for relative-motion baselines.
     int contentW = 0, contentH = 0;
 };
 
@@ -51,6 +56,7 @@ struct InputTarget {
 // 否则按下拖到黑边松手会丢 release, 按键状态永久卡死 (见实现注释)。
 class InputResolver {
 public:
+    bool IsToplevelIsolated(uint32_t id) const;
     InputResolver(ToplevelManager& tmgr, DesktopCompositor& compositor,
                   const uint32_t& desktopRootToplevelId,
                   const int32_t& outputW, const int32_t& outputH);
@@ -66,11 +72,26 @@ public:
     // 未命中层时回退 toplevel / desktop root。返回 false = surface 不可用。
     bool FindInputTargetAt(double lx, double ly, InputTarget& out);
 
+    // Pure query of an already-validated snapshot; caller holds tmgr. No input,
+    // focus, raise or diagnostic-cache writes when logSelection is false.
+    bool FindInputTargetInLayersLocked(double lx, double ly, InputTarget& out,
+                                      const std::vector<CompositorLayer>& layers,
+                                      int rootW, int rootH, uint32_t fullscreenId,
+                                      bool logSelection = false);
+
     // Desktop 模式: 在合成帧中查找包含 (x,y) 的 toplevel (用于输入路由)
     uint32_t FindToplevelAt(int x, int y);
 
     // surface 指针是否仍存活 (输入注入前的防御校验, 遍历 surfaceResources_)
     bool IsSurfaceAlive(wl_resource* surface);
+    bool IsExternallyHostedSurface(wl_resource* surface);
+    bool CanMoveExternalHost(uint32_t source, uint32_t host);
+
+    // Keyboard focus belongs to the mapped window, even when its render child
+    // was hit. Validate the live protocol ancestry before changing focus.
+    // Called on the Wayland dispatch thread, where resources cannot disappear
+    // between this query and the protocol send.
+    wl_resource* ResolveKeyboardFocusSurface(uint32_t toplevelId, wl_resource* hitSurface);
 
     // surface 局部坐标 → 桌面坐标 (warp 锚点换算, OnPointerWarp 用)。
     // 全屏 toplevel 用与命中/渲染相同的 FitRect 正变换; 普通窗口 = 位置+局部。

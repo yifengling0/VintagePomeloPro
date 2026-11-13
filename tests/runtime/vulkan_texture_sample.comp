@@ -1,0 +1,13 @@
+#version 450
+// An offscreen sampling test; no DXVK or game resources are changed.
+layout(local_size_x = 64) in;
+layout(set = 0, binding = 0) uniform sampler2D sourceTexture;
+layout(std430, set = 0, binding = 1) buffer Result { vec4 pixels[]; } result;
+void main() {
+  uint i = gl_GlobalInvocationID.x;
+  result.pixels[i] = texelFetch(sourceTexture, ivec2(i % 8, i / 8), 0);
+  if (i == 0) {
+    result.pixels[64] = textureLod(sourceTexture, vec2(0.5), 0);
+    result.pixels[65] = texelFetch(sourceTexture, ivec2(1), 1);
+  }
+}

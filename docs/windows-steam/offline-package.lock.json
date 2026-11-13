@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "fileName": "Steam-Windows-离线导入包-20261011.zip",
+  "url": "https://github.com/yifengling0/VintagePomeloPro/releases/download/build-deps-winsteam-runtime32-r2/Steam-Windows-%E7%A6%BB%E7%BA%BF%E5%AF%BC%E5%85%A5%E5%8C%85-20261011.zip",
+  "bytes": 332748238,
+  "sha256": "8108462833063f0a35c224c0cc42fee236f2a9a8dcf76935533d25a817c2d434",
+  "files": 6981,
+  "expandedBytes": 706299706,
+  "product": "Windows Steam",
+  "provenance": "Existing sanitized runtime32-r2 archive imported and validated on Mini; the application updates its pinned helper before normal launch."
+}

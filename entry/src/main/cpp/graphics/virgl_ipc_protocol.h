@@ -25,6 +25,7 @@ enum SurfaceFlags : uint32_t {
     // object reference; it must be paired with NativeObjectUnreference rather
     // than the DestroyNativeWindow ownership used by the NCP parcel path.
     kSurfaceNativeObjectReference = 1u << 2,
+    kSurfaceRetirementChannel = 1u << 3, // attach-only FD; no image bytes
 };
 
 struct SurfaceInfo {

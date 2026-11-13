@@ -1,13 +1,82 @@
+import { isValueAddedVisibleOnDevice } from '../model/ValueAddedModels';
 import deviceInfo from '@ohos.deviceInfo';
+import { settings } from '@kit.BasicServicesKit';
+import { common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '../service/LogService';
 import { ScreenOrientationSetting } from '../model/AppModels';
 
 const DOMAIN = 0x0000;
 
+const PC_MODE_KEY: string = 'settings.sceneboard.ispcmode';
+
 export class DeviceCapabilityPolicy {
+  private static modeContext: common.UIAbilityContext | null = null;
+  private static observingPcMode: boolean = false;
+  private static modeOwners: Set<common.UIAbilityContext> = new Set();
+  private static pcMode: string = 'unknown';
+  private static modeListeners: Set<() => void> = new Set();
+
+  static startPcModeMonitoring(context: common.UIAbilityContext): void {
+    DeviceCapabilityPolicy.modeOwners.add(context);
+    if (DeviceCapabilityPolicy.modeContext) return;
+    DeviceCapabilityPolicy.modeContext = context;
+    DeviceCapabilityPolicy.refreshPcMode(context);
+    try {
+      DeviceCapabilityPolicy.observingPcMode = settings.registerKeyObserver(context,
+        PC_MODE_KEY, settings.domainName.USER_PROPERTY, () => {
+          DeviceCapabilityPolicy.refreshPcMode(context);
+        });
+      // Close the read/register race when the system switches mode at startup.
+      DeviceCapabilityPolicy.refreshPcMode(context);
+    } catch (error) {
+      hilog.warn(DOMAIN, 'DeviceMode', 'PC mode observer unavailable: %{public}s', JSON.stringify(error));
+    }
+  }
+
+  static stopPcModeMonitoring(owner: common.UIAbilityContext): void {
+    DeviceCapabilityPolicy.modeOwners.delete(owner);
+    if (DeviceCapabilityPolicy.modeContext !== owner) return;
+    const context = DeviceCapabilityPolicy.modeContext;
+    if (context && DeviceCapabilityPolicy.observingPcMode) {
+      try { settings.unregisterKeyObserver(context, PC_MODE_KEY, settings.domainName.USER_PROPERTY); }
+      catch (_) {}
+    }
+    DeviceCapabilityPolicy.observingPcMode = false;
+    DeviceCapabilityPolicy.modeContext = null;
+    for (const nextOwner of DeviceCapabilityPolicy.modeOwners) {
+      DeviceCapabilityPolicy.startPcModeMonitoring(nextOwner);
+      break;
+    }
+  }
+
+  static refreshPcMode(context: common.UIAbilityContext): void {
+    let next: string = 'unknown';
+    try {
+      const value = settings.getValueSync(context, PC_MODE_KEY, 'unknown', settings.domainName.USER_PROPERTY);
+      if (value === 'true' || value === 'false') next = value;
+    } catch (_) {
+      // A transient settings failure cannot switch a live PC session to tablet.
+      // Before the first successful read pcMode is unknown (static fallback).
+      return;
+    }
+    if (next === DeviceCapabilityPolicy.pcMode) return;
+    DeviceCapabilityPolicy.pcMode = next;
+    AppStorage.setOrCreate('hostPcMode', next);
+    hilog.info(DOMAIN, 'DeviceMode', 'PC mode=%{public}s deviceType=%{public}s managedWindows=%{public}s',
+      next, DeviceCapabilityPolicy.deviceType(), DeviceCapabilityPolicy.usesManagedWineWindows() ? 'yes' : 'no');
+    DeviceCapabilityPolicy.modeListeners.forEach((listener: () => void) => listener());
+  }
+
+  static addPcModeListener(listener: () => void): void { DeviceCapabilityPolicy.modeListeners.add(listener); }
+  static removePcModeListener(listener: () => void): void { DeviceCapabilityPolicy.modeListeners.delete(listener); }
+
   static deviceType(): string {
     return deviceInfo.deviceType;
+  }
+
+  static supportsValueAddedFeatures(): boolean {
+    return isValueAddedVisibleOnDevice(DeviceCapabilityPolicy.deviceType());
   }
 
   static isPhoneDevice(): boolean {
@@ -25,7 +94,10 @@ export class DeviceCapabilityPolicy {
 
   static usesManagedWineWindows(): boolean {
     const type = DeviceCapabilityPolicy.deviceType();
-    return type === '2in1' || type === 'pc';
+    if (type === 'phone' || type === 'tv') return false;
+    if (type === 'pc') return true;
+    if (DeviceCapabilityPolicy.pcMode !== 'unknown') return DeviceCapabilityPolicy.pcMode === 'true';
+    return type === '2in1';
   }
 
   static supportsSensorRotation(): boolean {
@@ -53,6 +125,8 @@ export class DeviceCapabilityPolicy {
   }
 
   static applyDesktopOrientation(target: window.Window, setting: ScreenOrientationSetting, tag: string): Promise<void> {
+    // Freeform PC windows follow the system workspace, not the game's orientation.
+    if (DeviceCapabilityPolicy.usesManagedWineWindows()) return Promise.resolve();
     let orientation: window.Orientation = window.Orientation.AUTO_ROTATION_LANDSCAPE_RESTRICTED;
     if (setting === ScreenOrientationSetting.LANDSCAPE) {
       orientation = window.Orientation.LANDSCAPE;
@@ -69,6 +143,7 @@ export class DeviceCapabilityPolicy {
   /** Wait until windowRect matches the requested portrait/landscape side. */
   static async waitForRequestedOrientation(target: window.Window, setting: ScreenOrientationSetting,
     tag: string): Promise<void> {
+    if (DeviceCapabilityPolicy.usesManagedWineWindows()) return;
     const needLandscape = setting !== ScreenOrientationSetting.PORTRAIT;
     for (let attempt = 0; attempt < 16; attempt++) {
       try {

@@ -1,13 +1,41 @@
+# 构建上下文仅用于生成构建镜像 — 镜像内不 COPY 任何源码, 源码在运行时通过
+# `-v /path/to/wineohos:/data/src/winehua` 挂载. 排除生成物/大目录/隐私, 避免
+# 把 ~28GB 的上下文发给 docker daemon (拖慢构建、占内存) 以及泄露签名材料.
+#
+# 注意: 不要排除 harmony-sdk/ — ci/Dockerfile.buildenv 通过
+#   --build-arg SDK_SRC=./harmony-sdk + COPY 把它打进 CI 镜像.
+
 .git
-.hvigor
-.idea
-.ohos
+.gitmodules
+
+# 构建产物 (6.4G)
 build
-oh_modules
-entry/.cxx
-entry/.test
+**/build
 entry/build
-entry/libs
-entry/oh_modules
-entry/src/main/resources/rawfile/wine-data.zip
+
+# 运行时日志 / 采集 (14G)
+.temp
+
+# hvigor 构建缓存
+.hvigor
+
+# ohpm / npm 依赖
+oh_modules
+node_modules
+**/oh_modules
+**/node_modules
+
+# 签名材料 (隐私: .cer/.p7b/.p12)
+.ohos
+
+# 本地配置
+.claude
+.idea
+.vscode
+
+# 第三方 submodule (1.7G, 运行时挂载, 镜像构建不需要)
 thirdparty
+
+# 临时目录
+tmp
+replay_fs.spv

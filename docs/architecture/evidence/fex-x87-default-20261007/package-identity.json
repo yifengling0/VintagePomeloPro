@@ -1,0 +1,39 @@
+{
+  "sourceHead": "62ca61faa87351307daa18b59c7d6fd26cbc0db6",
+  "baselineHapSha256": "d6f2340843b1f6c76ea18833b6782697c727a68c2a80f8bf3ded8705d6193b27",
+  "changedHapEntries": [
+    "libs/arm64-v8a/libentry.so",
+    "libs/arm64-v8a/libwine_child.so"
+  ],
+  "native": {
+    "libentry.so": {
+      "compilerSha256": "918e5c95af87869d3d79943463e178b58855586e229fdf531e5634ddb8d727ad",
+      "packagedSha256": "e7f3a22ec0935e6882e0d9ca9c597c29df0ae817c115e4a52041d72626e2c2d0",
+      "loadedSectionsUnchanged": true
+    },
+    "libwine_child.so": {
+      "compilerSha256": "974b99d99e78255e9bb9a5fff25fb235095ca279ea301b16d0c6789af4bb4085",
+      "packagedSha256": "bbeb3796932305f4fe425698990ad5a3479b7a8953c36654965eaa3f2d862499",
+      "loadedSectionsUnchanged": true
+    }
+  },
+  "arktsSha256": "0aa8462b3b936af99e464fb59bf3b5ae98d5e8f721c66f195e544bab5f572e57",
+  "runtimeVersion": "content=f5a6e564c6a3cb3d;wine-valve=cd547f7a0e;fex=86ff33bbe2;arch=arm64-v8a:aarch64",
+  "fexDLLSha256": "002a4a3a399db0743b0563d53ab7880b1d9bfa32ae19b7f513256a1938cbadfa",
+  "policy": "ARM native Wine baseline FEX_X87REDUCEDPRECISION=1; explicit entry override 0 selects strict F80",
+  "unsignedHap": {
+    "filename": "entry-x87-reduced-default-unsigned.hap",
+    "sha256": "b2d7f5b8337a6107bca5dc50d6ff62d6765848ec50f50385719869ec50b2b5a4",
+    "bytes": 357644104
+  },
+  "hap": {
+    "filename": "entry-x87-reduced-default-debug-signed.hap",
+    "sha256": "1416cdb026f24b909120f83ef859edf832fc9cb659bc057911da67a7779de4ab",
+    "bytes": 358939611
+  },
+  "signatureValidation": "Official hap-sign-tool verify-app succeeded; all archive payload entries identical to unsigned candidate; .pages.info regenerated",
+  "signingMetadataChanged": [
+    ".pages.info"
+  ],
+  "deviceAcceptance": "Installed on MatePad Mini; direct PE32 probe with no override observes reduced-f64; explicit Want FEX_X87REDUCEDPRECISION=0 observes strict-f80; full session restart between tests"
+}

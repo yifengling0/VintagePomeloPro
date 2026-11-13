@@ -1,10 +1,13 @@
 import { common, Want } from '@kit.AbilityKit';
+import fs from '@ohos.file.fs';
 import { hilog } from './LogService';
 import testNapi from 'libentry.so';
 import {
   BOX64_PRESET_DEFAULT,
+  WineTranslationEngine,
+  resolveAppWineTranslationEngine,
+  resolveWineCpuEnvironment,
   AppDescriptor,
-  DesktopWindowMode,
   DisplayMode,
   EngineState,
   GlobalSettings,
@@ -16,22 +19,25 @@ import {
   SessionState,
   UNITY_COMPAT_LAUNCH_ARGS,
   WinePresentationMode,
-  graphicsLaunchPresetArgs,
   isUnityCompatPreset,
-  mergeLaunchArguments,
+  resolveGraphicsLaunchArguments,
   normalizeCatalogLaunchIdentity,
   normalizeLaunchPath,
-  resolveBox64PresetEnv,
   resolveLaunchDisplayMode,
   resolveMfCompatEnv,
+  resolveFexCompatEnv,
   resolveWinePresentationMode
 } from '../model/AppModels';
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
 import { WineEngineService } from './WineEngineService';
 import { WineWindowManager } from './WineWindowManager';
+import { HostWindowTasks } from './HostWindowTasks';
 import { InputOverlayWindowCoordinator } from './InputOverlayWindowCoordinator';
 import { AppSettingsStore } from './AppSettingsStore';
 import { AppCatalogService } from './AppCatalogService';
+import { SteamLocalService } from '../steam/SteamLocalService';
+import { STEAM_CLIENT_ID, steamLaunchArguments } from '../steam/SteamLocalRules';
+import { DEFAULT_GAME_CONTAINER_ID, wineDriveCForContainer } from './GameContainer';
 
 const DOMAIN = 0x0000;
 
@@ -66,10 +72,18 @@ interface PendingLaunchRequest {
   homeDirectory: string;
   resolve: (result: RuntimeSession | null) => void;
 }
+
+export interface RunningAppSnapshot {
+  appIds: Set<string>;
+  paths: Set<string>;
+}
+
 export class AppSessionService {
   private static instance: AppSessionService | null = null;
   private context: common.UIAbilityContext | null = null;
   private sessions: Map<string, RuntimeSession> = new Map<string, RuntimeSession>();
+  private steamLaunches: Map<string, Promise<RuntimeSession | null>> = new Map<string, Promise<RuntimeSession | null>>();
+  private pendingSteamGames: Map<string, RuntimeSession> = new Map<string, RuntimeSession>();
   private pendingToplevels: PendingToplevelAssociation[] = [];
   private desktopRootWaiters: Array<(session: RuntimeSession | null) => void> = [];
   private promoteRetries: Map<string, number> = new Map<string, number>();
@@ -81,6 +95,12 @@ export class AppSessionService {
 
   initialize(context: common.UIAbilityContext): void {
     this.context = context;
+    HostWindowTasks.getInstance().setWineGameEligibility((sessionId: string): boolean => {
+      const session = this.sessions.get(sessionId);
+      return !!session && session.state !== SessionState.STOPPED && session.state !== SessionState.ERROR &&
+        session.appId !== DESKTOP_APP_ID && session.appId !== STEAM_CLIENT_ID &&
+        !isWineInfrastructurePath(session.executable);
+    });
     WineWindowManager.getInstance().setSessionAssociationCallback(
       (sessionId: string, clientPid: number, toplevelId: number): void => {
         this.associateToplevel(sessionId, clientPid, toplevelId);
@@ -139,8 +159,25 @@ export class AppSessionService {
     return LaunchConflictKind.NONE;
   }
 
-  async launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
-    if (!app.available) return null;
+  launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
+    if (!app.steam) return this.launchInternal(app, settings, homeDirectory);
+    if (!SteamLocalService.getInstance().canLaunch()) return Promise.reject(new Error('Steam 正在更新，请稍候'));
+    if (SteamLocalService.getInstance().hasForeignClient()) return Promise.reject(new Error('请先退出其他目录中的 Steam，再打开已导入的客户端'));
+    this.reconcile();
+    const pending = this.pendingSteamGames.get(app.id);
+    if (pending && Date.now() - pending.startedAt < 60000) return Promise.resolve(pending);
+    const existing = this.steamLaunches.get(app.id);
+    if (existing) return existing;
+    const task = this.launchInternal(app, settings, homeDirectory);
+    this.steamLaunches.set(app.id, task);
+    return task.catch((error: Error): RuntimeSession | null => {
+      hilog.error(DOMAIN, '[SESS]', 'Steam request failed: %{public}s', error.message);
+      throw error;
+    }).finally((): void => { this.steamLaunches.delete(app.id); });
+  }
+
+  private async launchInternal(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
+    if (!app.available && !app.steam) return null;
     // PC/2-in-1 融合 或 平板多窗口: 每个 Wine 程序独立窗口, 桌面 root 目标不适用。
     // 虚拟桌面模式 (VIRTUAL, isDesktopMode=true) 与平板同逻辑 — 放行桌面。
     if (app.launchTarget.kind === LaunchKind.WINE_DESKTOP &&
@@ -163,18 +200,11 @@ export class AppSessionService {
       if (!ready) return null;
       const currentDesktop = this.syncDesktopSessionFromNative();
       if (currentDesktop && currentDesktop.toplevelId > 0) {
-        // The root event already starts the singleton DesktopAbility. Calling
-        // startAbility again here creates a visible PC desktop pop-up on every
-        // first launch; only explicitly restore a stopped/background ability.
-        if (!WineWindowManager.getInstance().isDesktopAbilityForeground(currentDesktop.toplevelId)) {
-          await this.resume(currentDesktop);
-        } else {
-          // The singleton DesktopAbility is already the visible host for this
-          // root. Calling startAbility again on PC creates a second mission/
-          // popup even though the Wine session is unchanged.
-          try { testNapi.activateWineSession(currentDesktop.sessionId); } catch (_) {}
-          try { testNapi.raiseToplevel(currentDesktop.toplevelId); } catch (_) {}
-        }
+        // Explicit Desktop-card activation must raise the pinned carrier even
+        // when PC reports it FOREGROUND underneath the home window. Root
+        // events still use the deduplicated initial-creation path; this never
+        // creates another Wine shell or changes the carrier root identity.
+        await this.resume(currentDesktop);
         return currentDesktop;
       }
       // 首次启动时 native launch thread 正在创建 explorer，不能抢跑出第二个 shell。
@@ -186,8 +216,9 @@ export class AppSessionService {
       if (!restarted || restarted.pid <= 0) return null;
       return this.ensureDesktopSession();
     }
-    let existing = this.findByAppId(app.id);
-    if (!existing) {
+    // Opening a silent/background Steam must send a new command to the client.
+    let existing = app.steam && !app.steam.appId ? null : this.findByAppId(app.id);
+    if (!existing && !app.steam) {
       existing = this.findByExecutable(app.launchTarget.executable);
       // The desktop shell is also explorer.exe, but it is not a File Explorer
       // window.  Do not let path-singleton reuse turn the system Explorer card
@@ -215,6 +246,16 @@ export class AppSessionService {
     return this.deferLaunchUntilReady(app, settings, mode, presentationMode, homeDirectory);
   }
 
+  /** A stale portable default may point at the game root while the exe is nested. */
+  private launchWorkingDirectory(app: AppDescriptor): string {
+    const configured = app.launchTarget.workingDirectory;
+    const executable = app.launchTarget.executable.replace(/\\/g, '/');
+    const slash = executable.lastIndexOf('/');
+    if (!app.directory || slash <= 0) return configured;
+    const executableDir = executable.substring(0, slash);
+    return configured === app.directory && executableDir !== app.directory ? executableDir : configured;
+  }
+
   private async launchReady(app: AppDescriptor, settings: GlobalSettings,
     mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string): Promise<RuntimeSession | null> {
@@ -230,7 +271,8 @@ export class AppSessionService {
     if (engine.needsHostGraphicsRestart()) {
       hilog.info(DOMAIN, '[SESS]', 'launch: graphics host restart app=%{public}s backend=%{public}s',
         app.id, hostGraphicsBackend);
-      this.sessions.clear();
+      this.pendingSteamGames.clear();
+    this.sessions.clear();
       this.pendingToplevels = [];
       try {
         await InputOverlayWindowCoordinator.getInstance().setVisible(false);
@@ -282,32 +324,72 @@ export class AppSessionService {
     const appSettings = AppSettingsStore.getInstance().getAppSettings(app.id);
     const presetId = appSettings.box64Preset !== BOX64_PRESET_DEFAULT
       ? appSettings.box64Preset : settings.box64Preset;
-    const envOverrides = resolveBox64PresetEnv(presetId).concat(resolveMfCompatEnv(appSettings));
+    const cpuEngine = resolveAppWineTranslationEngine(settings.wineTranslationEngine, appSettings.wineTranslationEngine);
+    const useBox64 = cpuEngine === WineTranslationEngine.BOX64;
+    const envOverrides = resolveWineCpuEnvironment(cpuEngine, presetId)
+      .concat(resolveFexCompatEnv(cpuEngine, appSettings), resolveMfCompatEnv(appSettings));
+    if (appSettings.dxvkFloatControls === false) {
+      const documents = `${wineDriveCForContainer(DEFAULT_GAME_CONTAINER_ID)}/users/steamuser/Documents`;
+      try {
+        try { fs.mkdirSync(documents, true); } catch (_) {}
+        const configPath = `${documents}/vpp-float-controls.conf`;
+        const file = fs.openSync(configPath,
+          fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+        fs.writeSync(file.fd, 'd3d11.floatControls = False\n');
+        fs.closeSync(file);
+        envOverrides.push('DXVK_CONFIG_FILE=C:\\users\\steamuser\\Documents\\vpp-float-controls.conf');
+        hilog.info(DOMAIN, '[SESS]', 'launch: floatControls disabled app=%{public}s', app.id);
+      } catch (err) {
+        hilog.warn(DOMAIN, '[SESS]', 'launch: floatControls config failed app=%{public}s err=%{public}s',
+          app.id, JSON.stringify(err));
+      }
+    }
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
     // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。
     // settings.arguments 是自定义参数的权威来源（目录扫描写入 launchTarget，
     // 但改设定后可能尚未 rescan）；再与 launchTarget 去重合并。
-    const launchArguments = mergeLaunchArguments(
-      graphicsLaunchPresetArgs(appSettings.graphicsLaunchPreset),
-      mergeLaunchArguments(app.launchTarget.arguments, appSettings.arguments));
+    let launchArguments = resolveGraphicsLaunchArguments(appSettings.graphicsLaunchPreset,
+      app.launchTarget.arguments, appSettings.arguments);
     hilog.info(DOMAIN, '[SESS]', 'launch: argv=%{public}s gfx=%{public}s',
       JSON.stringify(launchArguments), appSettings.graphicsLaunchPreset);
     // Unity 兼容档：自动追加 -force-gfx-direct（跳过 GDI 间接渲染），
     // 已存在同名参数时不重复注入；只对选中 Unity 档的游戏生效。
-    if (isUnityCompatPreset(presetId)) {
+    if (useBox64 && isUnityCompatPreset(presetId)) {
       for (const extra of UNITY_COMPAT_LAUNCH_ARGS) {
         if (!launchArguments.some((arg: string) => arg.toLowerCase() === extra.toLowerCase())) {
           launchArguments.push(extra);
         }
       }
     }
+    let launchExecutable = app.launchTarget.executable;
+    if (app.steam) {
+      if (!SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
+      await SteamLocalService.getInstance().ensureGpuDependencies();
+      await SteamLocalService.getInstance().prepareRuntimeHelper();
+      await SteamLocalService.getInstance().prepareLibraryPerformance();
+      const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
+        app.steam.appId ? 'play' : 'open';
+      launchArguments = steamLaunchArguments(action, app.steam.appId,
+        SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : [],
+        app.steam.clientAction ?? 'library');
+      if (action === 'open') {
+        // Keep cold and warm launches on the same managed argument policy.
+        // Imported batch files can discard the library URI and leave startup
+        // waiting on the remote store instead of opening the local library.
+        // Re-resolve the executable so cached cards cannot restore that path.
+        launchExecutable = SteamLocalService.getInstance().getClientDirectory() + '/steam.exe';
+      }
+      // Do not let old per-process diagnostics reintroduce conflicting GPU flags.
+      envOverrides.push('WINEHUA_CEF_FORCE_GPU=0', 'WINEHUA_CEF_FORCE_SOFTWARE=0', 'WINEHUA_CEF_STEAM_DISABLE_GPU=0');
+    }
+    if (app.steam && !SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
     const result = WineEngineService.getInstance().launchExecutable(
-      app.launchTarget.executable, launchArguments,
-      app.launchTarget.workingDirectory, envOverrides) as NativeLaunchResult;
+      launchExecutable, launchArguments,
+      this.launchWorkingDirectory(app), envOverrides) as NativeLaunchResult;
     if (!result || result.pid <= 0) {
       hilog.error(DOMAIN, '[SESS]', 'launch: runWineExe FAILED app=%{public}s exe=%{public}s state=%{public}s',
-        app.id, app.launchTarget.executable, engine.getState());
+        app.id, launchExecutable, engine.getState());
       return null;
     }
     hilog.info(DOMAIN, '[SESS]', 'launch: spawned app=%{public}s pid=%{public}d session=%{public}s',
@@ -315,7 +397,7 @@ export class AppSessionService {
     const session: RuntimeSession = {
       sessionId: result.sessionId || 'wine-' + result.pid,
       appId: app.id,
-      executable: app.launchTarget.executable,
+      executable: launchExecutable,
       pid: result.pid,
       displayMode: mode,
       presentationMode: presentationMode,
@@ -323,6 +405,14 @@ export class AppSessionService {
       toplevelId: 0,
       startedAt: Date.now()
     };
+    if (app.steam?.appId) {
+      // This PID is a command sender, not the game. The real child may be
+      // spawned by an already running Steam and have a different process tree.
+      session.state = SessionState.STARTING;
+      session.pid = 0;
+      if (app.steam.state === 'installed') this.pendingSteamGames.set(app.id, session);
+      return session;
+    }
     if (result.reused) {
       const nativeSession = testNapi.getWineSession(result.sessionId) as NativeWineSessionInfo | null;
       if (nativeSession) session.toplevelId = nativeSession.toplevelId;
@@ -358,16 +448,24 @@ export class AppSessionService {
   registerDiagnosticLaunch(executable: string, result: NativeLaunchResult,
     mode: DisplayMode, presentationMode: WinePresentationMode): RuntimeSession | null {
     if (!result || result.pid <= 0) return null;
+    return this.registerExternalLaunch('diagnostic-' + result.pid, executable, result, mode, presentationMode);
+  }
+
+  registerExternalLaunch(appId: string, executable: string, result: NativeLaunchResult,
+    mode: DisplayMode, presentationMode: WinePresentationMode, automaticForeground: boolean = true): RuntimeSession | null {
+    if (!result || result.pid <= 0 || !result.sessionId) return null;
+    const existing = this.sessions.get(result.sessionId);
+    if (existing) return existing;
     const session: RuntimeSession = {
-      sessionId: result.sessionId || 'wine-' + result.pid,
-      appId: 'diagnostic-' + result.pid,
+      sessionId: result.sessionId,
+      appId: appId,
       executable: executable,
       pid: result.pid,
       displayMode: mode,
       presentationMode: presentationMode,
       state: SessionState.RUNNING,
       toplevelId: 0,
-      startedAt: Date.now()
+      startedAt: Date.now(), automaticForeground
     };
     this.sessions.set(session.sessionId, session);
     this.resolvePendingToplevel(session);
@@ -378,9 +476,12 @@ export class AppSessionService {
       } catch (_) {
       }
     }
-    if (session.toplevelId > 0) this.promoteDesktopSession(session);
+    if (session.toplevelId > 0) {
+      HostWindowTasks.getInstance().associateSession(session.toplevelId, session.sessionId);
+      this.promoteDesktopSession(session);
+    }
     hilog.info(DOMAIN, '[SESS]',
-      'diagnostic launch registered sid=%{public}s pid=%{public}d tl=%{public}d',
+      'external launch registered sid=%{public}s pid=%{public}d tl=%{public}d',
       session.sessionId, session.pid, session.toplevelId);
     return session;
   }
@@ -411,11 +512,18 @@ export class AppSessionService {
     mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string): Promise<RuntimeSession | null> {
     return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void): void => {
-      this.pendingLaunches.push({ app, settings, mode, presentationMode, homeDirectory, resolve });
+      const request: PendingLaunchRequest = { app, settings, mode, presentationMode, homeDirectory, resolve };
+      this.pendingLaunches.push(request);
+      const fail = (): void => {
+        const index = this.pendingLaunches.indexOf(request);
+        if (index >= 0) this.pendingLaunches.splice(index, 1);
+        resolve(null);
+      };
 
       this.ensurePendingLaunchListener();
       // 触发引擎启动（不 await）；引擎 READY 事件会驱动队列真正执行。
-      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory).catch(() => {});
+      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory)
+        .then((ready: boolean): void => { if (!ready) fail(); }).catch(fail);
       // 竞态兜底：若已经就绪立即排水。
       if (WineEngineService.getInstance().isReady()) this.drainPendingLaunches();
     });
@@ -447,6 +555,7 @@ export class AppSessionService {
   }
 
   async switchModeAndLaunch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
+    this.pendingSteamGames.clear();
     this.sessions.clear();
     this.pendingToplevels = [];
     await WineEngineService.getInstance().switchDisplaySession();
@@ -455,6 +564,10 @@ export class AppSessionService {
 
   async resume(session: RuntimeSession): Promise<void> {
     if (!this.context) return;
+    if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
+      const task = HostWindowTasks.getInstance().snapshot().find((item): boolean => item.sessionId === session.sessionId);
+      if (task && await HostWindowTasks.getInstance().activate(task.key)) return;
+    }
     try { testNapi.activateWineSession(session.sessionId); } catch (_) {}
     if (session.toplevelId <= 0) {
       // ArkTS 侧关联可能因 created 事件缺 sessionId 而丢失，从 native 会话补回。
@@ -472,22 +585,9 @@ export class AppSessionService {
       try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
     }
     if (session.presentationMode === WinePresentationMode.DESKTOP) {
-      if (session.toplevelId <= 0) return;
-      // 浮窗模式: 桌面由 Index 承载 (DesktopLayer floating 切换), 不启动 DesktopAbility。
-      // 激活/提升程序窗口到桌面 root 合成, 并通知 Index 进全屏显示 (auto-promote
-      // 依赖本方法, 否则窗口不出现且 schedulePromoteRetry 无限重试)。
-      if (AppSettingsStore.getInstance().getGlobalSettings().desktopWindowMode === DesktopWindowMode.FLOATING) {
-        try { testNapi.activateWineSession(session.sessionId); } catch (_) {}
-        try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
-        AppStorage.setOrCreate('desktopEnterFullscreen', true);
-        return;
-      }
-      const want: Want = {
-        bundleName: 'com.vintage.pomelopro',
-        abilityName: 'DesktopAbility',
-        parameters: { toplevelId: session.toplevelId }
-      };
-      await this.context.startAbility(want);
+      // The root's pinned carrier owns presentation. FLOATING on PC/Edge
+      // still uses DesktopAbility; a game child is never its host identity.
+      await WineWindowManager.getInstance().resumeDesktopHost();
     } else if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
       if (session.toplevelId <= 0) return;
       const managedWindow = WineWindowManager.getInstance().getWindow(session.toplevelId);
@@ -504,19 +604,40 @@ export class AppSessionService {
     }
   }
 
-  stop(session: RuntimeSession): void {
-    if (session.pid > 0 && !testNapi.stopWineSession(session.sessionId)) testNapi.killProcess(session.pid);
-    session.state = SessionState.STOPPED;
-    this.sessions.delete(session.sessionId);
+  stop(session: RuntimeSession): boolean {
+    let accepted = false;
+    const steamGame = SteamLocalService.getInstance().getCards().find((card: AppDescriptor): boolean =>
+      card.id === session.appId && !!card.steam?.appId);
+    try {
+      if (steamGame) accepted = this.stopApp(steamGame);
+      else if (session.appId.startsWith('steam-default-')) {
+        if (session.pid > 0) accepted = testNapi.killProcess(session.pid);
+      } else if (session.pid > 0) {
+        // A session handle is an exact process incarnation. Falling back to a
+        // recycled PID could terminate another launch after a stale stop.
+        accepted = testNapi.stopWineSession(session.sessionId);
+      }
+    } catch (_) { accepted = false; }
+    // The normal native process/window reconciliation publishes STOPPED only
+    // after authoritative exit. A rejected request keeps the running card.
+    return accepted;
   }
 
   /** Stop a card even when its ArkTS session was lost but native Wine still
    * reports the process. This is also the fallback used by the running filter. */
   stopApp(app: AppDescriptor): boolean {
+    if (app.steam?.appId) {
+      let stopped = false;
+      SteamLocalService.getInstance().processesFor(app, this.getNativeProcesses()).forEach((process: NativeProcessInfo): void => {
+        // Never stopWineSession here: the client and other games share it.
+        try { stopped = testNapi.killProcess(process.pid) || stopped; } catch (_) {}
+      });
+      this.pendingSteamGames.delete(app.id);
+      return stopped;
+    }
     const session = this.findByAppId(app.id);
     if (session) {
-      this.stop(session);
-      return true;
+      return this.stop(session);
     }
     const expectedPath = normalizeCatalogLaunchIdentity(app.launchTarget.executable);
     if (expectedPath.length === 0) return false;
@@ -532,7 +653,7 @@ export class AppSessionService {
       } catch (_) {
         processStopped = false;
       }
-      if (!processStopped) {
+      if (!process.sessionId || process.sessionId.length === 0) {
         try { processStopped = testNapi.killProcess(process.pid); } catch (_) { processStopped = false; }
       }
       stopped = processStopped || stopped;
@@ -541,6 +662,7 @@ export class AppSessionService {
   }
 
   async stopAll(): Promise<void> {
+    this.pendingSteamGames.clear();
     this.sessions.clear();
     this.pendingToplevels = [];
     await InputOverlayWindowCoordinator.getInstance().setVisible(false);
@@ -548,6 +670,7 @@ export class AppSessionService {
   }
 
   async restartEngine(mode: DisplayMode, homeDirectory: string): Promise<boolean> {
+    this.pendingSteamGames.clear();
     this.sessions.clear();
     this.pendingToplevels = [];
     await InputOverlayWindowCoordinator.getInstance().setVisible(false);
@@ -557,6 +680,7 @@ export class AppSessionService {
   }
 
   async resetPrefix(): Promise<void> {
+    this.pendingSteamGames.clear();
     this.sessions.clear();
     this.pendingToplevels = [];
     await InputOverlayWindowCoordinator.getInstance().setVisible(false);
@@ -578,30 +702,32 @@ export class AppSessionService {
   }
 
   getRunningPaths(): Set<string> {
-    const result: Set<string> = new Set<string>();
-    this.reconcile();
-    this.sessions.forEach((session: RuntimeSession) => {
-      if (session.state !== SessionState.STOPPED && session.state !== SessionState.ERROR) {
-        result.add(normalizeLaunchPath(session.executable));
-      }
-    });
-    this.getNativeProcesses().forEach((process: NativeProcessInfo) => {
-      if (process.state === 'running' && !isWineInfrastructurePath(process.path)) {
-        result.add(normalizeLaunchPath(process.path));
-      }
-    });
-    return result;
+    return this.getRunningSnapshot().paths;
   }
 
   getRunningAppIds(): Set<string> {
-    const result: Set<string> = new Set<string>();
-    this.reconcile();
+    return this.getRunningSnapshot().appIds;
+  }
+
+  // Reconcile and resolve both views from the same fresh process list. No TTL
+  // cache: exits and desktop-root lifecycle changes are visible on every call.
+  getRunningSnapshot(): RunningAppSnapshot {
+    const processes = this.getNativeProcesses();
+    this.reconcile(processes);
+    const appIds: Set<string> = new Set<string>();
+    const paths: Set<string> = new Set<string>();
     this.sessions.forEach((session: RuntimeSession) => {
       if (session.state !== SessionState.STOPPED && session.state !== SessionState.ERROR) {
-        result.add(session.appId);
+        appIds.add(session.appId);
+        paths.add(normalizeLaunchPath(session.executable));
       }
     });
-    return result;
+    processes.forEach((process: NativeProcessInfo) => {
+      if (process.state === 'running' && !isWineInfrastructurePath(process.path)) {
+        paths.add(normalizeLaunchPath(process.path));
+      }
+    });
+    return { appIds, paths };
   }
 
   findByAppId(appId: string): RuntimeSession | null {
@@ -639,6 +765,7 @@ export class AppSessionService {
       matched = this.upsertDesktopSession(toplevelId, clientPid);
     }
     if (matched) {
+      HostWindowTasks.getInstance().associateSession(toplevelId, matched.sessionId);
       const wasUnmapped = matched.toplevelId <= 0;
       if (matched.pid <= 0 && clientPid > 0) matched.pid = clientPid;
       if (sessionId === DESKTOP_SESSION_ID || matched.toplevelId === 0) matched.toplevelId = toplevelId;
@@ -673,7 +800,7 @@ export class AppSessionService {
   }
 
   private promoteDesktopSession(session: RuntimeSession): void {
-    if (session.presentationMode !== WinePresentationMode.DESKTOP ||
+    if (session.automaticForeground === false || session.presentationMode !== WinePresentationMode.DESKTOP ||
       !WineEngineService.getInstance().isReady() || session.toplevelId <= 0) return;
     hilog.info(DOMAIN, '[SESS]', 'auto-promote session=%{public}s tl=%{public}d',
       session.sessionId, session.toplevelId);
@@ -757,12 +884,24 @@ export class AppSessionService {
     let session = this.syncDesktopSessionFromNative();
     if (session && session.toplevelId > 0) return session;
     return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void): void => {
+      let completed = false;
+      let poll = -1;
+      let timeout = -1;
       const finish = (result: RuntimeSession | null): void => {
+        if (completed) return;
+        completed = true;
+        if (poll >= 0) clearInterval(poll);
+        if (timeout >= 0) clearTimeout(timeout);
         const index = this.desktopRootWaiters.indexOf(finish);
         if (index >= 0) this.desktopRootWaiters.splice(index, 1);
         resolve(result);
       };
       this.desktopRootWaiters.push(finish);
+      timeout = setTimeout(() => finish(null), 20000);
+      poll = setInterval(() => {
+        const current = this.syncDesktopSessionFromNative();
+        if (current && current.toplevelId > 0) finish(current);
+      }, 250);
       // 订阅后再查一次，避免 root 在“检查”与“订阅”之间注册而漏掉事件。
       const recheck = this.syncDesktopSessionFromNative();
       if (recheck && recheck.toplevelId > 0) {
@@ -823,7 +962,9 @@ export class AppSessionService {
     setTimeout((): void => {
       const session = this.sessions.get(sessionId);
       if (!session || session.toplevelId !== tl) return;
-      if (WineWindowManager.getInstance().isDesktopAbilityForeground(tl)) return;
+      const windows = WineWindowManager.getInstance();
+      const rootId = windows.getDesktopRootId();
+      if (rootId <= 0 || windows.usesEmbeddedDesktopHost() || windows.isDesktopAbilityForeground(rootId)) return;
       hilog.info(DOMAIN, '[SESS]', 'auto-promote retry #%{public}d sid=%{public}s tl=%{public}d',
         attempt + 1, sessionId, tl);
       this.resume(session).catch((err: Error) => {
@@ -858,7 +999,23 @@ export class AppSessionService {
     return session;
   }
 
-  private reconcile(): void {
+  private reconcile(processes: NativeProcessInfo[] = this.getNativeProcesses()): void {
+    const steam = SteamLocalService.getInstance();
+    steam.getCards().forEach((card: AppDescriptor): void => {
+      steam.processesFor(card, processes).forEach((process: NativeProcessInfo): void => {
+        const id = 'steam-process-' + process.pid;
+        if (this.sessions.has(id) || Array.from(this.sessions.values()).some((item: RuntimeSession): boolean => item.pid === process.pid)) return;
+        const session: RuntimeSession = { sessionId: id, appId: card.id, executable: process.path,
+          pid: process.pid, displayMode: DisplayMode.DESKTOP,
+          presentationMode: WineEngineService.getInstance().getPresentationMode() ?? WinePresentationMode.DESKTOP,
+          state: SessionState.RUNNING, toplevelId: 0, startedAt: Date.now() };
+        this.sessions.set(id, session);
+        this.resolvePendingToplevel(session);
+        if (session.toplevelId > 0) this.promoteDesktopSession(session);
+        this.pendingSteamGames.delete(card.id);
+        if (card.steam?.appId) void AppSettingsStore.getInstance().recordRecentLaunch(card.id);
+      });
+    });
     const engineState = WineEngineService.getInstance().getState();
     if (engineState === EngineState.READY &&
       WineEngineService.getInstance().getPresentationMode() === WinePresentationMode.DESKTOP) {
@@ -871,12 +1028,15 @@ export class AppSessionService {
     if (engineState === EngineState.PREPARING) {
       try { preparingRootId = testNapi.getDesktopRootId() as number; } catch (_) {}
     }
-    const processes = this.getNativeProcesses();
     const activePids: Set<number> = new Set<number>();
-    processes.forEach((process: NativeProcessInfo) => activePids.add(process.pid));
+    processes.forEach((process: NativeProcessInfo): void => { if (process.state === 'running') activePids.add(process.pid); });
     const removed: string[] = [];
     this.sessions.forEach((session: RuntimeSession, id: string) => {
       if (session.pid > 0 && !activePids.has(session.pid)) removed.push(id);
+      if (session.sessionId.startsWith('wine-')) {
+        const native = processes.find((process: NativeProcessInfo): boolean => process.pid === session.pid);
+        if (native?.sessionId && native.sessionId !== session.sessionId) removed.push(id);
+      }
       const awaitingReadyWithRoot = id === DESKTOP_SESSION_ID && preparingRootId > 0 &&
         session.toplevelId === preparingRootId;
       if (session.pid === 0 && engineState !== EngineState.READY && !awaitingReadyWithRoot) removed.push(id);

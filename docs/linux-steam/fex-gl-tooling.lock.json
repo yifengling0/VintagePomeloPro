@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "platform": "Ubuntu 22.04 amd64 build host",
+  "purpose": "Build tools and link inputs only; no host package installation or bundled LLVM",
+  "packages": [
+    {
+      "file": "libclang-15-dev_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-15/libclang-15-dev_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "bytes": 26475844,
+      "sha256": "8d2b06ef95be0c45574f511135a03dbb9411d06f3c194078b4e519e0ae581119"
+    },
+    {
+      "file": "llvm-15-dev_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-15/llvm-15-dev_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "bytes": 41237092,
+      "sha256": "acc2d74b093193b8250f43fc5b20dd6ab296b8dfe785ab3062b75c9df6d5c77a"
+    },
+    {
+      "file": "libclang-cpp15_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-15/libclang-cpp15_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "bytes": 12578084,
+      "sha256": "e9bbe3180e2969fdf28603718bfc2c928bba637f2995ad304bc0dd9c6d90b93b"
+    },
+    {
+      "file": "libclang-common-15-dev_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-15/libclang-common-15-dev_15.0.7-0ubuntu0.22.04.3_amd64.deb",
+      "bytes": 5987890,
+      "sha256": "4e8bee56deed58a1c3da8354c6cb352b9b82a8bf9cfe44bfae5cc0ba34eade60"
+    },
+    {
+      "file": "lib32stdc++-11-dev_11.4.0-1ubuntu1~22.04.3_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/g/gcc-11/lib32stdc++-11-dev_11.4.0-1ubuntu1~22.04.3_amd64.deb",
+      "bytes": 989228,
+      "sha256": "56302c0ceb3fd7d2c4a57a7bb9f20d8b0cc070e4878a0a21572ea2f0b0a3cf10"
+    },
+    {
+      "file": "libx11-6_1.7.5-1ubuntu0.4_i386.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libx11/libx11-6_1.7.5-1ubuntu0.4_i386.deb",
+      "bytes": 693652,
+      "sha256": "3e1a1be5253d7107859b3ba7f6d0d4a4d2d95a1a44ee840e357099277fb5b08d"
+    },
+    {
+      "file": "libx11-6_1.7.5-1ubuntu0.4_amd64.deb",
+      "url": "https://archive.ubuntu.com/ubuntu/pool/main/libx/libx11/libx11-6_1.7.5-1ubuntu0.4_amd64.deb",
+      "bytes": 667500,
+      "sha256": "6fcad3c4020a87caad67cc4141a82372ed474c050e6eeb9d434594590760430e"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "changed": [
+    "FEXCore/Source/Interface/Context/Context.h",
+    "FEXCore/Source/Interface/Core/Core.cpp",
+    "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"
+  ],
+  "filesVerified": 20622,
+  "exactBaselineAfterReverse": true
+}

@@ -147,12 +147,21 @@ static void write_result(const struct probe_state *state, const char *status,
             "  \"message\": \"%s\",\n"
             "  \"pid\": %d,\n"
             "  \"heartbeatTimestampMs\": %llu,\n"
+#ifdef __aarch64__
+            "  \"architecture\": {\"peArchitecture\":\"not-applicable\","
+            "\"wineUnixArchitecture\":\"aarch64\","
+            "\"vulkanLoaderArchitecture\":\"aarch64\","
+            "\"venusIcdArchitecture\":\"aarch64\","
+            "\"hostArchitecture\":\"%s\","
+            "\"wow64ThunkEnabled\":false,\"box64Enabled\":false},\n"
+#else
             "  \"architecture\": {\"peArchitecture\":\"not-applicable\","
             "\"wineUnixArchitecture\":\"not-applicable\","
             "\"vulkanLoaderArchitecture\":\"x86_64\","
             "\"venusIcdArchitecture\":\"x86_64\","
             "\"hostArchitecture\":\"%s\","
             "\"wow64ThunkEnabled\":false,\"box64Enabled\":true},\n"
+#endif
             "  \"transport\": {\"renderer\":\"venus-vtest\","
             "\"vtestSocket\":\"%s\",\"box64HostVulkanWrapperDisabled\":true},\n"
             "  \"capabilities\": {\"loaderApiVersion\":\"%s\","
@@ -649,6 +658,16 @@ int main(int argc, char **argv)
     state.vkd3d_bindless_device_create_result = VK_NOT_READY;
     dxvk26_requirements = !strcmp(argument_value(argc, argv, "--dxvk26-requirements", "0"), "1");
     vkd3d_capability = argument_present(argc, argv, "--vkd3d-capability");
+#ifdef __aarch64__
+    /* arm64 原生 wine: guest Vulkan (aarch64 ELF) 直接 dlopen, 无 box64。
+     * 只需 venus/vtest 基础 env。 */
+    if (!getenv("VN_DEBUG") || !strstr(getenv("VN_DEBUG"), "vtest") ||
+        !getenv("VTEST_SOCKET_NAME") || !getenv("VK_DRIVER_FILES")) {
+        write_result(&state, "FAIL", "startup", "Venus vtest/ICD isolation environment is incomplete");
+        return 2;
+    }
+#else
+    /* x86_64 box64 时代: guest venus ELF 经 box64 加载, 需 box64 拦截 vulkan */
     if (!getenv("VN_DEBUG") || !strstr(getenv("VN_DEBUG"), "vtest") ||
         !getenv("VTEST_SOCKET_NAME") || !getenv("VK_DRIVER_FILES") ||
         !getenv("BOX64_EMULATED_LIBS") ||
@@ -657,6 +676,7 @@ int main(int argc, char **argv)
         write_result(&state, "FAIL", "startup", "Venus vtest/ICD isolation environment is incomplete");
         return 2;
     }
+#endif
     write_result(&state, "started", "venus", "Guest Vulkan offscreen probe started");
 
     {
