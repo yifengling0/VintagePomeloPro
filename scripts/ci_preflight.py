@@ -29,6 +29,7 @@ SUITES = (
     'host_tests/virgl_patch_overlap_test.py',
     'host_tests/fex_simd_runtime_test.py',
     'scripts/test_check_runtime_components.py',
+    'host_tests/wine_gecko_test.py',
 )
 
 
@@ -65,6 +66,7 @@ def runtime_inputs(root, tracked):
         'entry/src/main/ets/steam/SteamLocalService.ets',
         'entry/src/main/ets/service/WineEngineService.ets',
         'scripts/prepare_windows_steam_runtime.py', 'scripts/v2_product_contract.py',
+        'scripts/wine_gecko.py', 'scripts/wine_gecko.lock.json',
         'scripts/test_windows_steam.sh', 'scripts/test_game_runtime.sh',
     )
     missing = [name for name in required if name not in tracked or not (root / name).is_file()]

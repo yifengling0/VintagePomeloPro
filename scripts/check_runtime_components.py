@@ -17,6 +17,7 @@ from wined3d_runtime_contract import validate_runtime as validate_wined3d_runtim
 from package_texture_compat_runtime import validate as validate_texture_runtime
 from runtime_core_contract import validate_core
 from stamp_wine_builtin_identity import validate_archive as validate_builtin_identity
+from wine_gecko import validate_payload as validate_gecko_payload
 
 
 from gstreamer_inventory import (VERSION as GSTREAMER_VERSION, PLUGINS,
@@ -605,9 +606,10 @@ def validate_runtime_payload(archive: Archive, candidate=None) -> RuntimeInfo:
     gecko = manifest.get("gecko")
     if not isinstance(gecko, dict):
         raise ValidationError("component manifest has no gecko object")
-    require_equal(gecko.get("status"), "not-bundled", "Wine Gecko status")
-    if not isinstance(gecko.get("reason"), str) or not gecko["reason"]:
-        raise ValidationError("Wine Gecko omission must have a reason")
+    try:
+        validate_gecko_payload(archive.name_set, archive.read, gecko)
+    except (ValueError, KeyError) as error:
+        raise ValidationError("Wine Gecko runtime invalid: " + str(error)) from error
 
     return RuntimeInfo(wine_arch=wine_arch, component_names=archive.name_set)
 

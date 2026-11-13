@@ -116,6 +116,8 @@ GUEST_GFX_SENTINEL := $(BUILD_DIR)/guest_gfx/$(GUEST_ARCH)/winehua-guest-gfx.env
 MESA_OHOS_PATCH_INPUTS := $(SCRIPTS)/apply_mesa_ohos_patches.sh $(wildcard $(ROOT)/patches/mesa/*.patch)
 GUEST_VULKAN_SENTINEL := $(BUILD_DIR)/guest_vulkan/$(GUEST_ARCH)/manifest.json
 WINE_MONO_SENTINEL := $(BUILD_DIR)/wine-mono/wine-mono-10.4.1-x86.msi
+WINE_GECKO_MANIFEST := $(BUILD_DIR)/wine-gecko/manifest.json
+WINE_GECKO_INPUTS := $(SCRIPTS)/wine_gecko.py $(SCRIPTS)/wine_gecko.lock.json
 HOST_VULKAN_SOURCE := $(ROOT)/smoke/venus_heaven_material_replay.c
 
 # ============================================================
@@ -273,7 +275,14 @@ $(foreach a,arm64-v8a x86_64,$(eval $(call host_vulkan_rule,$(a))))
 .PHONY: deps
 deps: $(STAMPS)/deps
 
-$(STAMPS)/deps: $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/build_gstreamer.sh \
+# Always verify both Gecko directories before accepting dependency caches. The
+# manifest mtime changes only when its pinned inputs change.
+.PHONY: wine-gecko
+wine-gecko: $(WINE_GECKO_MANIFEST)
+$(WINE_GECKO_MANIFEST): $(WINE_GECKO_INPUTS) FORCE
+	python3 $(SCRIPTS)/wine_gecko.py --cache $(BUILD_DIR)/wine-gecko --wine-source $(WINE_SRC)
+
+$(STAMPS)/deps: $(WINE_GECKO_MANIFEST) $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build_gnutls.sh $(SCRIPTS)/build_gstreamer.sh \
 	$(SCRIPTS)/build_zlib_runtime.sh \
 	$(MESA_OHOS_PATCH_INPUTS) \
 	$(SCRIPTS)/build_ohos_guest_gfx.sh \
@@ -569,6 +578,7 @@ define assemble_rule
 assemble-$(1): $$(STAMPS)/$(1)/assemble
 
 $$(STAMPS)/$(1)/assemble: $(SCRIPTS)/assemble.sh $(SCRIPTS)/env.sh \
+	$(WINE_GECKO_INPUTS) $(WINE_GECKO_MANIFEST) \
 	$(SCRIPTS)/stamp_wine_builtin_identity.py \
 	$(SCRIPTS)/source_build_contract.py $(SCRIPTS)/normalize_runtime_identity.py \
 	$(ROOT)/docs/graphics/runtime-core.lock.json $(ROOT)/docs/graphics/texture-compat-runtime.lock.json \

@@ -135,10 +135,7 @@ assemble_pad() {
   "fonts": {
     "ttfCount": $font_count
   },
-  "gecko": {
-    "status": "not-bundled",
-    "reason": "not part of the direct-game runtime profile"
-  }
+  "gecko": $(cat "$BUILD_DIR/wine-gecko/manifest.json")
 }
 EOF
         log "  runtime component verification: GStreamer=$plugin_count plugins, Mono=$mono_status, fonts=$font_count"
@@ -935,6 +932,10 @@ PYDXVK
     cp "$wine_build_dir/nls/"*.nls "$wine_data/share/wine/nls/"
     # winmd
     cp "$wine_build_dir/include/"*.winmd "$wine_data/share/wine/winmd/"
+    # Wine's WINEDATADIR loader finds the pre-extracted directories directly;
+    # no per-prefix MSI install, network access or appwiz.cpl is needed.
+    python3 "$SCRIPT_DIR/wine_gecko.py" --cache "$BUILD_DIR/wine-gecko" \
+        --wine-source "$WINE_SRC" --check-only --package-to "$wine_data/share/wine/gecko"
     # Wine Mono (.NET runtime) is retained for explicit experiments only.
     # The direct-game default omits it and appwiz.cpl because Wine's first-run
     # installer is interactive and blocks wineboot without a device-side flow.

@@ -79,6 +79,10 @@ fi
 # Native compositor 依赖 (wayland-server for HAP) 在 build.sh 中按架构单独调用:
 #   bash scripts/build_native.sh
 
+# Gecko is shared by all prefixes and ships in both guest architectures. This
+# also covers direct script invocations outside Make's dependency graph.
+python3 "$SCRIPT_DIR/wine_gecko.py" --cache "$BUILD_DIR/wine-gecko" --wine-source "$WINE_SRC"
+
 # Wine Mono (.NET runtime) is opt-in. Its first-launch installer requires a
 # device-side interaction flow, so the direct-game package leaves it out.
 if [ "${BUILD_WINE_MONO:-0}" = "1" ]; then
