@@ -30,7 +30,46 @@
         "debugSymbol": {
           "strip": true,
           // Preserve validated plugin identities and the identical top/nested ICD.
-          "exclude": ["**/libgst*.so", "**/winegstreamer.so", "**/libvulkan_virtio.so"]
+          // Selected upstream libraries are already stripped and hash qualified.
+          // Preserve those exact bytes instead of applying the SDK strip a second time.
+          "exclude": [
+            "**/libgst*.so",
+            "**/winegstreamer.so",
+            "**/libvulkan_virtio.so",
+            "**/avicap32.so",
+            "**/bcrypt.so",
+            "**/crypt32.so",
+            "**/ctapi32.so",
+            "**/dnsapi.so",
+            "**/dwrite.so",
+            "**/kerberos.so",
+            "**/libarm64ecfex.so",
+            "**/libwineserver.so",
+            "**/libwow64fex.so",
+            "**/localspl.so",
+            "**/mountmgr.so",
+            "**/msv1_0.so",
+            "**/netapi32.so",
+            "**/nsiproxy.so",
+            "**/ntdll.so",
+            "**/odbc32.so",
+            "**/opencl.so",
+            "**/opengl32.so",
+            "**/qcap.so",
+            "**/secur32.so",
+            "**/win32u.so",
+            "**/windows.media.speech.so",
+            "**/winebth.so",
+            "**/winebus.so",
+            "**/winedmo.so",
+            "**/wineohos.so",
+            "**/wineps.so",
+            "**/winevulkan.so",
+            "**/winewayland.so",
+            "**/winex11.so",
+            "**/winspool.so",
+            "**/ws2_32.so"
+          ]
         }
       }
     },
