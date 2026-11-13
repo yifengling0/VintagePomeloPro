@@ -13,7 +13,8 @@
     "upstream": {
       "repo": "FEX-Emu/FEX",
       "commit": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
-      "tree": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d"
+      "tree": "54c4a5a48a3cc260c9d8765e11c2fab87d5d825a",
+      "treeReconstructed": true
     },
     "scope": "sparse-text-replay-only; no pin/source/build/device changes",
     "sourceFiles": [
@@ -463,6 +464,23 @@
       "text replay does not establish semantic equivalence",
       "later patches may depend on earlier conflicts",
       "committed fork changes and full build remain separate gates"
+    ],
+    "upstreamFixEvidence": [
+      {
+        "patch": "scripts/patches/fex-smc-block-state.patch",
+        "originalUpstreamCommit": "b21c49352ea56f23ececbe3c87f0fc681be8024b",
+        "targetIncludesOriginalCommit": true,
+        "comparison": {
+          "status": "ahead",
+          "ahead": 1051,
+          "behind": 0,
+          "mergeBase": "b21c49352ea56f23ececbe3c87f0fc681be8024b"
+        },
+        "sourceFile": "FEXCore/Source/Interface/Core/Core.cpp",
+        "verifiedBehavior": "both CodeWasChangedBlock and NextOpBlock call StartNewBlock after SetCurrentCodeBlock",
+        "disposition": "upstream-implementation-present; retire duplicate only after candidate regression",
+        "candidateRegressionPassed": false
+      }
     ]
   },
   "wine": {
@@ -470,7 +488,7 @@
     "scope": "committed-tree-assessment; overlays and generated files inventoried separately",
     "originalValveBase": {
       "commit": "dc26e61847081a1b5cb0733dc30feba6ee575482",
-      "tree": "dc26e61847081a1b5cb0733dc30feba6ee575482"
+      "tree": "da4b1eb3b7f209eb4a971d4b5929fcda08ff6b4e"
     },
     "currentFork": {
       "commit": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
@@ -478,7 +496,7 @@
     },
     "target": {
       "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
-      "tree": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
+      "tree": "8ef394afdf44f3d55c8ed79ecfc26dbf32a454df"
     },
     "summary": {
       "committedLocalPaths": 209,
@@ -4145,6 +4163,13 @@
       "path overlap is not a Git merge-conflict or semantic verdict",
       "78 build overlays and generated inputs are not part of committed-fork tree",
       "no source, parent history, pin, build or device was changed"
-    ]
+    ],
+    "treeProof": {
+      "originalTreeReconstructed": true,
+      "targetTreeReconstructed": true,
+      "baselinePlusRecordedChangesEqualsCurrentForkTree": true,
+      "recordedLocalChanges": 209,
+      "scope": "Git tree object identities; not effective-source replay or runtime verification"
+    }
   }
 }
