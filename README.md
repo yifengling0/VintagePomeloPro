@@ -6,6 +6,9 @@ FEX 为默认转译器，Box64 保留为 WOW64 兼容选项。Linux Steam、GNU 
 GitHub 默认分支为 `main`。2.0.0 冻结标签为 `rc-2.0.0`；后续完整上游同步在 `feature/fex-proton-upstream-sync` 推进，
 见 [FEX / Proton 同步计划](docs/upstream-sync/plan.zh-CN.md)。
 
+2.0.1 发布构建使用已在 Mini 短测的 Wine `098ece0e` / FEX `c3b2b230`，
+常规打包入口强制校验这组组件，旧运行时不得交付；见 [2.0.1 构建与组件选择](docs/upstream-sync/release-2.0.1.zh-CN.md)。
+
 ![运行效果](docs/images/run_wine_example.jpg)
 
 ## 架构

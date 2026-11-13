@@ -1,0 +1,177 @@
+{
+  "schemaVersion": 1,
+  "selection": "branch-release-upstream-pair",
+  "selectedForVersion": "2.0.1",
+  "components": "Full adapted Proton Wine core and FEX; independent DXVK/VKD3D/media pins retained",
+  "qualification": {
+    "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
+    "recordSha256": "5043c7386a7170e6553ac8c9e94f5f09ab0f51dda0d732c45951696b07ad52f4",
+    "testedPackageSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
+    "scope": "User accepted the bounded Mini game and Steam UI checks; recorded known failures remain open."
+  },
+  "wine": {
+    "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
+    "lockSha256": "43adfdd8108186b4e17739953a3c3ab29d3dbfd91d628b2adc447f076cb077ea",
+    "adaptedCommit": "098ece0eedff40bea426d2d57b215bb81411e239",
+    "upstreamCommit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
+  },
+  "fex": {
+    "lockFile": "docs/upstream-sync/fex-candidate.lock.json",
+    "lockSha256": "ecd1abd5f147096ca103bdcc21298ce37db9ef9832cb17a8fa04155d0d886d62",
+    "adaptedCommit": "c3b2b2306347e16da04e512a52432cb9c921d221",
+    "upstreamCommit": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
+    "packageLockFile": "docs/upstream-sync/validation/fex-mini-input.lock.json",
+    "packageLockSha256": "ce29ad31e899d03dfd504bc19ef1f2a9baddbf1537ae0a331983da13381d0877",
+    "sourceReverification": "docs/upstream-sync/validation/fex-reverified-build.json"
+  },
+  "members": {
+    "libs/arm64-v8a/avicap32.so": {
+      "bytes": 9064,
+      "sha256": "ac0729146f507f05c07b9b585ddeb0d4fc12761cc652e953fbd93aabca7fc616"
+    },
+    "libs/arm64-v8a/bcrypt.so": {
+      "bytes": 63296,
+      "sha256": "6fe8ffc5017a4efddf2fd2258fabf848cf2fa7c4e0a2766f0525d6a965f460e1"
+    },
+    "libs/arm64-v8a/crypt32.so": {
+      "bytes": 22032,
+      "sha256": "ca10198a52e302008073634c7b34767a8de781c9f35b9fb1e8cd308e06a2465f"
+    },
+    "libs/arm64-v8a/ctapi32.so": {
+      "bytes": 7984,
+      "sha256": "66f94ead6390cb7dc8803daf988b73455c69c2338231220293da54d83a4f4859"
+    },
+    "libs/arm64-v8a/dnsapi.so": {
+      "bytes": 17872,
+      "sha256": "e340cba929c0f9240e157b71c16a7ac0e26b3c0d9e4e40f2c1581aa9b2d19914"
+    },
+    "libs/arm64-v8a/dwrite.so": {
+      "bytes": 19632,
+      "sha256": "54eb43b7f0ffd9f963fc84d1eb11d7dde47de5f65c714ee5064289d9b20c9aa3"
+    },
+    "libs/arm64-v8a/kerberos.so": {
+      "bytes": 5808,
+      "sha256": "8d8cdfa9d3fff11236bdbebb9f27de419cf675a5d0e613e4047009b2cf9184d2"
+    },
+    "libs/arm64-v8a/libarm64ecfex.so": {
+      "bytes": 17448,
+      "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+    },
+    "libs/arm64-v8a/libwineserver.so": {
+      "bytes": 907872,
+      "sha256": "3678b0f2e639793c314ca7276b059928c61333ed8054cdc7f305c9f1ca036e88"
+    },
+    "libs/arm64-v8a/libwow64fex.so": {
+      "bytes": 17448,
+      "sha256": "72f612bb004021127b7cc99a7de03c38eaa01789ced4cef668622f14738b4eb4"
+    },
+    "libs/arm64-v8a/localspl.so": {
+      "bytes": 11680,
+      "sha256": "02dc9a8de30fae8ae448585048dc05d3c0f8f95d7158aefe7c1b22bad843509a"
+    },
+    "libs/arm64-v8a/mountmgr.so": {
+      "bytes": 20888,
+      "sha256": "076dff64a135ed6d0eb290dbd27e1954659592b6f313dc108a03b8bc9bd725f6"
+    },
+    "libs/arm64-v8a/msv1_0.so": {
+      "bytes": 12024,
+      "sha256": "f248dcec9cc2ad867dcce07e9d738b55da73051d97a945e0e9e04ae6c095471b"
+    },
+    "libs/arm64-v8a/netapi32.so": {
+      "bytes": 5808,
+      "sha256": "32b235026fc1662bca0d65ec58c151c2276c59b669834aee323551b67277fee6"
+    },
+    "libs/arm64-v8a/nsiproxy.so": {
+      "bytes": 70600,
+      "sha256": "f7be336ea442658b0529bb1d27df52257a72054d8f06e2fe7365d0d1bf16378f"
+    },
+    "libs/arm64-v8a/ntdll.so": {
+      "bytes": 723920,
+      "sha256": "0cb486f74ca513c7a9d607068f4c0fd38add4777c491c02453cbe45680bb930b"
+    },
+    "libs/arm64-v8a/odbc32.so": {
+      "bytes": 63728,
+      "sha256": "dc94c41c85bfeba9f7476d1b986277c9788182bf9d012ee4a17fec127c1f0a74"
+    },
+    "libs/arm64-v8a/opencl.so": {
+      "bytes": 17864,
+      "sha256": "f73d68aaeb11caab2c65929f682ae73ce842415bc3b5fb7f7cc19701518607c6"
+    },
+    "libs/arm64-v8a/opengl32.so": {
+      "bytes": 1847128,
+      "sha256": "a36671759456c83a2c0090bc5447c74a3059375689d283c23548397e57c07fef"
+    },
+    "libs/arm64-v8a/qcap.so": {
+      "bytes": 73144,
+      "sha256": "8de048e5ebafd41e359e2764dc8c29cb1278f00c20fef878f4d11d706fa6b6e6"
+    },
+    "libs/arm64-v8a/secur32.so": {
+      "bytes": 41824,
+      "sha256": "3f421a48c2fe65d45fb965ef0bbfe50f35bbf38ca02e90c55db3ec1a974affa1"
+    },
+    "libs/arm64-v8a/win32u.so": {
+      "bytes": 2252824,
+      "sha256": "c7a184079e82385e704f9099e0e5d6ebacb08388228330acf5f170da2370c454"
+    },
+    "libs/arm64-v8a/windows.media.speech.so": {
+      "bytes": 8496,
+      "sha256": "3d28f5a5a5800e147f0f3730c7071fbad565ff92a9c6fab19f91f1bc18158656"
+    },
+    "libs/arm64-v8a/winebth.so": {
+      "bytes": 15480,
+      "sha256": "e1b8f1c2be80f85f068065984bc0c4dd7171fa03571a29fb107e93ad2fcdfa48"
+    },
+    "libs/arm64-v8a/winebus.so": {
+      "bytes": 51104,
+      "sha256": "2bb488014e6322047f0ddbf750c5a92113dab04d7a7fce753aa4d2701d88622d"
+    },
+    "libs/arm64-v8a/winedmo.so": {
+      "bytes": 126912,
+      "sha256": "cef476a897aa3f8ac72dc35768393c3f1118c09cd1fe9d3462ae4d70cef8f09f"
+    },
+    "libs/arm64-v8a/winegstreamer.so": {
+      "bytes": 320872,
+      "sha256": "b0650f6ff40c9b6ae40dd38faba15616b922f33980190879fafdd4c7a7f51932"
+    },
+    "libs/arm64-v8a/wineohos.so": {
+      "bytes": 81840,
+      "sha256": "98c305c14a3be32a5b5028b84551bbe7e0fd70a062ce9839d8acc51e7d5c4048"
+    },
+    "libs/arm64-v8a/wineps.so": {
+      "bytes": 36376,
+      "sha256": "b86e91668042b742ea94b626919f3cdcf0303fd86891835e695b89eafad28d66"
+    },
+    "libs/arm64-v8a/winevulkan.so": {
+      "bytes": 791896,
+      "sha256": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc"
+    },
+    "libs/arm64-v8a/winewayland.so": {
+      "bytes": 204640,
+      "sha256": "c5082ac0a2665014d9b866aeca8910b03391a81b56b6506611fec8d3f1bc730c"
+    },
+    "libs/arm64-v8a/winex11.so": {
+      "bytes": 482784,
+      "sha256": "e7b9e3d360fa528d7ca010b08edcebfcad05c41dae9a67f8f01ea258665002ba"
+    },
+    "libs/arm64-v8a/winspool.so": {
+      "bytes": 9584,
+      "sha256": "0bec11b7814ed803ba035056b8f29b71c69e36a8ce31808e04191c0cc0bd2a16"
+    },
+    "libs/arm64-v8a/ws2_32.so": {
+      "bytes": 21928,
+      "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
+    },
+    "resources/rawfile/wine-data.zip": {
+      "bytes": 451932867,
+      "sha256": "2bbaa641415d9f51271b5a94031928ed2bb0507d572ada92b42d6ca402000b48"
+    },
+    "resources/rawfile/wine-runtime-manifest.json": {
+      "bytes": 7496,
+      "sha256": "47488730c79ae7ccc8a8175d898d8a0d3488e52b92dad9eff2cae6b8b6bb62a0"
+    },
+    "resources/rawfile/wine_runtime.version": {
+      "bytes": 136,
+      "sha256": "92eb4900fa003b554f560fb7fa63bdfccfbe70307cae5f819da3aee9aaad3a9c"
+    }
+  }
+}

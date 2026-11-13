@@ -3,7 +3,9 @@
 核验日期：2026-11-13。产品基线已汇合到 `main@c5fc06ed`，对应不可移动标签 `rc-2.0.0`。
 后续工作分支为 `feature/fex-proton-upstream-sync`；发布 CI 使用冻结标签，升级评估在本分支独立推进。
 本分支已登记生产补丁、完成当前有效 Wine 在真实 Valve 父系上的等价重建，并默认随包提供 x86/x64 Gecko。
-FEX 与 Proton Wine 完整候选均已迁移、成组构建并在 Mini 完成局部界面、双架构探针和经典程序短测；生产 pin 保持不变。
+FEX 与 Proton Wine 完整候选均已迁移、成组构建并在 Mini 完成局部界面、双架构探针和经典程序短测。
+用户认可本轮短测后，2.0.1 发布选择固定为 Wine `098ece0e` / FEX `c3b2b230`；
+原子模块 pin 保留为独立组件和旧版本对照基线，ARM64 发布由 [发布锁与打包入口](release-2.0.1.zh-CN.md) 强制使用新组合。
 Steam 库内选择已记录数秒级响应，启动、重开后首次进入库仍慢；偶发退出异常仍未结案。Gecko 双架构已包含在本次候选包。
 产品路线继续为 Windows Steam、OHOS Wine、HmosDeck，默认 FEX，Box64 保留为兼容选项。
 
@@ -120,7 +122,7 @@ Steam 选 Banana 三轮观测为 3.6 / 1.5 / 1.6 秒，库主页为 5.6 / 5.6 / 
 这些是含 HDC/截图开销的离散观测上界，没有旧、新运行时 A/B，不能宣称升级提速。
 Steam 早先出现过商店 -118 和退出调试器，本轮首次正常退出返回 0，但偶发异常未结案。
 新仙剑一次 SIGTRAP、Heaven 退出残留、CPU-Z 初始化慢也保留为待查问题。
-**生产 FEX/Wine 尚未提升；性能、异常退出、Steam 游戏启动及完整功能最终验收仍待完成**。
+**2.0.1 已选择这组新 FEX/Wine；性能、异常退出、Steam 游戏启动及完整功能仍存在上述验收限制**。
 本轮结果和边界见 [Mini 游戏与 Steam 短测](validation/mini-games-and-steam.zh-CN.md) 及 [机器记录](validation/mini-games-and-steam.json)。
 详细结果见 [首轮评估](initial-assessment.zh-CN.md)、[逐文件证据](initial-assessment.json) 和
 [适配台账](adaptation-ledger.json)。`rc-2.0.0` 仅发布冻结的现有运行时，升级候选不混入该版本。

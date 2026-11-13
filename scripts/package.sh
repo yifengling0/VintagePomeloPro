@@ -4,6 +4,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
+# This branch ships the qualified full upstream pair. The old component build
+# remains available as an independent baseline, but may never become a release
+# merely because a legacy assemble/cache was reused.
+if [ -f "$SCRIPT_DIR/../docs/upstream-sync/release-runtime.lock.json" ] && \
+   [ "$NATIVE_ARCH" = arm64-v8a ] && [ "$WINE_ARCH" = aarch64 ]; then
+    case "${1:-}" in
+        hap|hap-unsigned|app|app-unsigned)
+            exec python3 "$SCRIPT_DIR/package_selected_upstream.py" "$1"
+            ;;
+    esac
+fi
+
 # ============================================================
 # 工具函数: 从用户挂载目录导入 build-profile.json5 + 签名材料
 # 挂载约定 (二者需同时存在, 否则回退到项目自带模板):
