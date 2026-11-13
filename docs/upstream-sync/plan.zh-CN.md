@@ -1,8 +1,9 @@
 # VPP 2.0.0：FEX / Proton 完整上游同步方案
 
-核验日期：2026-11-13。当前产品基线 `feature/v2-ohos-wine-winsteam@9f84d92b`。
-本次完成版本核验、本地差异保全、现有补丁重放审计；尚未升级源码、构建候选、安装设备或推送。
-产品路线继续为 Windows Steam、OHOS Wine、HmosDeck。
+核验日期：2026-11-13。产品基线已汇合到 `main@c5fc06ed`，对应不可移动标签 `rc-2.0.0`。
+后续工作分支为 `feature/fex-proton-upstream-sync`；发布 CI 使用冻结标签，升级评估在本分支独立推进。
+本分支已登记生产补丁、核对完整 Wine fork 差异并评估 FEX 文本重放；尚未更换生产 pin、构建升级候选或安装设备。
+产品路线继续为 Windows Steam、OHOS Wine、HmosDeck，默认 FEX，Box64 保留为兼容选项。
 
 ## 上游基线
 
@@ -97,9 +98,10 @@
 
 ## 本次交付边界
 
-当前完成的是迁移前审计与保全，**没有完成上游升级，也没有新的性能实测结论**。
-工作分支仍为 `feature/v2-ohos-wine-winsteam@9f84d92b`，本地领先远端 3 个提交；
-本次未提交、推送、移动标签或触发 CI。现有安装包保持原样。
+本分支完成初步迁移评估，**没有完成上游升级，也没有新的性能实测结论**。
+详细结果见 [首轮评估](initial-assessment.zh-CN.md)、[逐文件证据](initial-assessment.json) 和
+[适配台账](adaptation-ledger.json)。`rc-2.0.0` 仅发布冻结的现有运行时，升级候选不混入该版本。
+发布构建结果另由 GitHub Actions 和 Release 的来源记录确认，不能将本评估视为发布通过证据。
 
 ## 官方来源
 

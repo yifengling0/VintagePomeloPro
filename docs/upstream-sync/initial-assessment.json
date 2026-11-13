@@ -1,0 +1,4150 @@
+{
+  "schema": 1,
+  "checkedAt": "2026-11-13",
+  "branch": "feature/fex-proton-upstream-sync",
+  "releaseBaseline": {
+    "branch": "main",
+    "tag": "rc-2.0.0",
+    "commit": "c5fc06edf915f01ff12b102f0bf0087d488c8c4f"
+  },
+  "status": "initial-assessment-only; production pins unchanged",
+  "fex": {
+    "schema": 1,
+    "upstream": {
+      "repo": "FEX-Emu/FEX",
+      "commit": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
+      "tree": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d"
+    },
+    "scope": "sparse-text-replay-only; no pin/source/build/device changes",
+    "sourceFiles": [
+      {
+        "path": "FEXCore/Source/Common/JitSymbols.cpp",
+        "gitBlob": "e10a1cec05cf285126d9026d0c2401b126f09a4a",
+        "bytes": 4462,
+        "sha256": "4e0f90c38a51e0f283fce87e102672ecd11709ae6522301cc70c27eeb7dadd8b"
+      },
+      {
+        "path": "FEXCore/Source/Common/SoftFloat.h",
+        "gitBlob": "0613b47a6bea8787125f84edbd9a990eb3e417b7",
+        "bytes": 17796,
+        "sha256": "be82ba6b9b736aceac4384b25baf63e3440f495383a270294a863ef2ceb88049"
+      },
+      {
+        "path": "FEXCore/Source/Common/StringConv.h",
+        "gitBlob": "52ba07315d7e0a6939e4803b464b7c605e0ba7cf",
+        "bytes": 798,
+        "sha256": "3dd16c7eb2900902c15fc4a717dda58274a7942ea49763026f69e8b2ddd37773"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Config/Config.cpp",
+        "gitBlob": "7398a02329b8ec644426a46d34e53621d5b08109",
+        "bytes": 21454,
+        "sha256": "1dc627e40102b309017263ab52517115a20cfb452304af395cfe53b2e36eb04d"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Context/Context.h",
+        "gitBlob": "9b91055bd084b0b15137eca8a2414faf1894afa7",
+        "bytes": 19686,
+        "sha256": "663c0f560a1d1ad727345d38611eaf5cd4475fdb3619e19918d253cba879896f"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/Core.cpp",
+        "gitBlob": "1946dc946ff56f49fec9403f55fa0f326763d437",
+        "bytes": 51110,
+        "sha256": "715ad540b7f85f088574308ab1e8868d84095b861f8a4fd6cd89572e54e06ca0"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+        "gitBlob": "c903d3ba4552c3386b19ddf411d2dd3d5ff2d56e",
+        "bytes": 103145,
+        "sha256": "6f6f21989e2f88609204458c5968b4ba42ff3354b36a7dd70627d064ea22e148"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/Frontend.cpp",
+        "gitBlob": "94e4ac522637ca2bf36d204221d20f9ff9fb82e1",
+        "bytes": 73976,
+        "sha256": "8a1986bc5ecbb692dd8c04e775ba1bb54ba6ef30e52a1e72e17770c5fbf0ca4a"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/Frontend.h",
+        "gitBlob": "ade14bc445a99e9ed566b02747c41ba2eb40e551",
+        "bytes": 7180,
+        "sha256": "882f23739536fd94f4b414334ea1e48829aca27068b18b42013587034b775e21"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/LookupCache.cpp",
+        "gitBlob": "0b230306f038539587cf7ca1e390fa516a520829",
+        "bytes": 4306,
+        "sha256": "93338457a4d2cc8701f697af97244f58d94ca614251add174ee98f8c4532d113"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/LookupCache.h",
+        "gitBlob": "391d48560dfd7dce7ab5c92307f83c27860376c5",
+        "bytes": 18603,
+        "sha256": "0c5825c7153e98ae3bb7bee95dac07e7a8253720196813fa0eb68174ef973384"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp",
+        "gitBlob": "901a922872ca3e8ca0912f5ec91ce6da78797da9",
+        "bytes": 194999,
+        "sha256": "f01e73d513f60c5025632697fdff5a08f754717f27140585a6df68ca48fd07d5"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/OpcodeDispatcher.h",
+        "gitBlob": "4477c7266c85e92cd7377b374b0fcbb7f8a44bfa",
+        "bytes": 106186,
+        "sha256": "1c07497d1cee36a655578fa50f6e8face0cd825ad311e6473f76ff9ff4525f3f"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/OpcodeDispatcher/AVX_128.cpp",
+        "gitBlob": "f97811500955cdfeb433de99b3474b57bb45de7e",
+        "bytes": 98886,
+        "sha256": "70f9c523e6681751c634141b56aade134674103b97ebd63ec47cb1a839f14461"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/OpcodeDispatcher/Vector.cpp",
+        "gitBlob": "08b53ef5d975556bc6a26301079c0ed1ac0f52cf",
+        "bytes": 250947,
+        "sha256": "0279d7f5f7ce87addf63bb6148a8e8863d552b596c8f707c67297873539cb538"
+      },
+      {
+        "path": "FEXCore/Source/Interface/Core/X86Tables/X86Tables.h",
+        "gitBlob": "8a06c846326e13bf92a2ede9dfd7ced716810d40",
+        "bytes": 20934,
+        "sha256": "8963047a7a381fcc07c6a1978c32b42b3b07466204e7a1816505e523fe9f07f9"
+      },
+      {
+        "path": "FEXCore/Source/Utils/FileLoading.cpp",
+        "gitBlob": "d6a569bf30e65924b860ab530c772e5c70e1d4fb",
+        "bytes": 2926,
+        "sha256": "b48d58a6c285a7b80e14e09f7849691ec0630870fdd07eb7003fabeef4740966"
+      },
+      {
+        "path": "FEXCore/include/FEXCore/Debug/InternalThreadState.h",
+        "gitBlob": "42feabb1cdd15c45eb2fe0980ef5ae7007961715",
+        "bytes": 3832,
+        "sha256": "94b1806d1ba08b0c3fef1f02b21dd83eec256c0062084f8912868151bbd0563d"
+      },
+      {
+        "path": "FEXCore/include/FEXCore/HLE/SyscallHandler.h",
+        "gitBlob": "0ba0218e31cc6e95cc13174fd334d0a1f8de7570",
+        "bytes": 1527,
+        "sha256": "c498b61077dee3fa09c885250b1cc0ac7668ca4578cf1d5bd320aba1c979c08b"
+      },
+      {
+        "path": "Source/Common/Config.cpp",
+        "gitBlob": "8d72358bc9fb24c36e2812d1a52e1988014a5456",
+        "bytes": 26008,
+        "sha256": "cdc802417356e0e17ea5118a337d76bd2eab5b58feb4990af234ae661136edc8"
+      },
+      {
+        "path": "Source/Windows/ARM64EC/Module.cpp",
+        "gitBlob": "c9f0d7402a670b0ee764c26c92798ef36afb8d12",
+        "bytes": 56454,
+        "sha256": "cf32d850e77800a47e9d81028aed394fb76aba8183bbfc7c6c2677840c8b0bee"
+      },
+      {
+        "path": "Source/Windows/Common/CRT/Alloc.cpp",
+        "gitBlob": "0e11be2fb2318a6953d1a0d3019823acc3394916",
+        "bytes": 663,
+        "sha256": "7c0bc604ce2df812b7895c81bf1f17febc9791f687829b0a21315c42062645e2"
+      },
+      {
+        "path": "Source/Windows/Common/CRT/IO.cpp",
+        "gitBlob": "16aa1d7cbe60762c8b92d409cdd3d4e127628654",
+        "bytes": 11932,
+        "sha256": "d2ad42474dbdf9875dd634121979ed3429ea3412cf9832770b2bc6c81088e69e"
+      },
+      {
+        "path": "Source/Windows/Common/CallRetStack.h",
+        "gitBlob": "215591b39fdd11fd3a25b69d9241d16a745a38fc",
+        "bytes": 2668,
+        "sha256": "a11fd59bd62186bc6ddcd4c9a37d660c425c3828276be1f78d98b76a31f203ce"
+      },
+      {
+        "path": "Source/Windows/Common/InvalidationTracker.cpp",
+        "gitBlob": "155403d35bd689d0cc4fc8c028e5fcc8d56d3407",
+        "bytes": 14150,
+        "sha256": "a1ed5939fbaa007153ed71a3e26f8c5a6523b9ea891c4d95ed64e763069f2dbe"
+      },
+      {
+        "path": "Source/Windows/Common/InvalidationTracker.h",
+        "gitBlob": "d2a80bcaaab8d52b5d736ca48d9744af14621746",
+        "bytes": 3267,
+        "sha256": "fd505046ab295706376ca91d919579a9bff1639969324d7664073fdd944c5428"
+      },
+      {
+        "path": "Source/Windows/Common/WinAPI/Misc.cpp",
+        "gitBlob": "9ba98a8f93d19ad662178cb07791b13c402a0d7e",
+        "bytes": 6319,
+        "sha256": "5efce9d5fc26ea8d0bb28490e02c0ab869c778a52b08d5c016e876f7bca9019f"
+      },
+      {
+        "path": "Source/Windows/WOW64/Module.cpp",
+        "gitBlob": "b998af8d6c55e44fd26d38be3aeb511bde8c1225",
+        "bytes": 36590,
+        "sha256": "dbb67fecd40e65c0490bcd797a09382f04438117463cc3f82a7f7df459abf2f5"
+      },
+      {
+        "path": "Source/Windows/WOW64/libwow64fex.def",
+        "gitBlob": "5fff39032763d01c937fdd05dfd710ad55cd3fcc",
+        "bytes": 613,
+        "sha256": "b2894fe31fc6dc2f9914a37728303c9f135e55693c96cbe9dcb77c26246c4a24"
+      },
+      {
+        "path": "Source/Windows/include/winnt.h",
+        "gitBlob": "33bee6fe0e29abbf359b625fcec396a2736b66e5",
+        "bytes": 6574,
+        "sha256": "b7104674fd123401692a720f306f0828c9b1d8550284d14ce4ce8f201603de9f"
+      }
+    ],
+    "missingPaths": [
+      "FEXCore/Source/Common/StrictMul24.h",
+      "FEXCore/include/FEXCore/Utils/JITCompileDiagnostics.h"
+    ],
+    "patches": [
+      {
+        "path": "scripts/patches/fex-missing-includes.patch",
+        "sha256": "c1eebabd4eb05c8ae5c5df52bdb23f21865809817b94d2a83a694f43576e1771",
+        "paths": [
+          "FEXCore/Source/Common/StringConv.h",
+          "Source/Windows/Common/CRT/Alloc.cpp",
+          "Source/Windows/Common/CRT/IO.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "reverse-text-match-needs-semantic-review",
+        "detail": "checking file FEXCore/Source/Common/StringConv.h\nHunk #1 FAILED at 4.\n1 out of 1 hunk FAILED\nchecking file Source/Windows/Common/CRT/Alloc.cpp\nHunk #1 FAILED at 2.\n1 out of 1 hunk FAILED\nchecking file Source/Windows/Common/CRT/IO.cpp\nHunk #1 FAILED at 14.\n1 out of 1 hunk FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-winapi-locale-stubs.patch",
+        "sha256": "c6d15f50e97075c93c6fc60de576cd6b93b664eaea2f6046d635a914dd7f786b",
+        "paths": [
+          "Source/Windows/Common/WinAPI/Misc.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "reverse-text-match-needs-semantic-review",
+        "detail": "checking file Source/Windows/Common/WinAPI/Misc.cpp\nHunk #1 FAILED at 188.\n1 out of 1 hunk FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-wow64-lookup-cache-commit.patch",
+        "sha256": "4b86fc2eaeee92d008a5895ceb4c7cc4d1be9fcb5c4e9df024c435be5230a210",
+        "paths": [
+          "FEXCore/Source/Interface/Core/LookupCache.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Core/LookupCache.cpp\nHunk #2 FAILED at 90.\n1 out of 2 hunks FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-wow64-dynamic-l1-recommit.patch",
+        "sha256": "1746da57573b77b91cdbb3f66abf7c677679bd48c758dd8a0df0c9211a411872",
+        "paths": [
+          "FEXCore/Source/Interface/Core/LookupCache.h"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "text-applies-after-replayed-predecessors"
+      },
+      {
+        "path": "scripts/patches/fex-arm64ec-lookup-cache-commit.patch",
+        "sha256": "43a33e8417cacdefd5ee90964a888fc1bbdb98448f58aed10ee37eebefea83aa",
+        "paths": [
+          "FEXCore/Source/Interface/Core/LookupCache.cpp",
+          "FEXCore/Source/Interface/Core/LookupCache.h"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "FEXCore/Source/Interface/Core/LookupCache.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Core/LookupCache.cpp\nHunk #1 FAILED at 38.\nHunk #2 FAILED at 90.\nHunk #3 FAILED at 103.\n3 out of 3 hunks FAILED\nchecking file FEXCore/Source/Interface/Core/LookupCache.h\nHunk #1 succeeded at 266 (offset 9 lines).\n"
+      },
+      {
+        "path": "scripts/patches/fex-arm64ec-unaligned-diagnostics.patch",
+        "sha256": "2a9ae7c10cf362790a31bba5096f36dc9f40ac4ee0782646dd41e095a12a4809",
+        "paths": [
+          "Source/Windows/ARM64EC/Module.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file Source/Windows/ARM64EC/Module.cpp\nHunk #1 succeeded at 50 (offset 3 lines).\nHunk #2 succeeded at 362 (offset 67 lines).\nHunk #3 succeeded at 374 (offset 67 lines).\nHunk #4 FAILED at 723.\n1 out of 4 hunks FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-windows-unaligned-stderr.patch",
+        "sha256": "06c068f1eb75798c53db824a256b27f68b54a46a368d3894c1b14b9b909bd50a",
+        "paths": [
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file Source/Windows/WOW64/Module.cpp\nHunk #1 succeeded at 55 (offset 7 lines).\nHunk #2 FAILED at 335.\n1 out of 2 hunks FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-wow64-exact-store.patch",
+        "sha256": "78157572a389bfdd63a40f559b2d8c45b7308209e54ee7f91b5bd11c5e3bf371",
+        "paths": [
+          "FEXCore/Source/Interface/Context/Context.h",
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Context/Context.h\nHunk #1 FAILED at 273.\n1 out of 1 hunk FAILED\nchecking file FEXCore/Source/Interface/Core/Core.cpp\nHunk #1 succeeded at 63 (offset 1 line).\nHunk #2 FAILED at 103.\n1 out of 2 hunks FAILED\nchecking file FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp\nHunk #1 succeeded at 2448 (offset 606 lines).\nHunk #2 succeeded at 2498 (offset 606 lines).\nHunk #3 succeeded at 2557 (offset 606 lines).\n"
+      },
+      {
+        "path": "scripts/patches/fex-simd-zero.patch",
+        "sha256": "778fd618c516295ea2443001a3f1d3d0502cb82017f01bfe7418303e932b7145",
+        "paths": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher/AVX_128.cpp",
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher/Vector.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Core/OpcodeDispatcher/Vector.cpp\nHunk #1 FAILED at 258.\nHunk #2 succeeded at 308 (offset 26 lines).\n1 out of 2 hunks FAILED\nchecking file FEXCore/Source/Interface/Core/OpcodeDispatcher/AVX_128.cpp\n"
+      },
+      {
+        "path": "scripts/patches/fex-smc-block-state.patch",
+        "sha256": "86602d07e8cb4eab602a333a8653c2c50ed9d3198bbe30904f75188daba7bc87",
+        "paths": [
+          "FEXCore/Source/Interface/Core/Core.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "FEXCore/Source/Interface/Core/Core.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Core/Core.cpp\nHunk #1 FAILED at 684.\nHunk #2 FAILED at 691.\n2 out of 2 hunks FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-wow64-synthetic-return.patch",
+        "sha256": "aba3b803fb25ae5d1e971792a9539cd60f48a1391a9e79cc0845737b16fde401",
+        "paths": [
+          "Source/Windows/Common/CallRetStack.h",
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file Source/Windows/Common/CallRetStack.h\nchecking file Source/Windows/WOW64/Module.cpp\nHunk #1 succeeded at 490 (offset 56 lines).\nHunk #2 FAILED at 460.\n1 out of 2 hunks FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-windows-native-callret-fault.patch",
+        "sha256": "6cafc52b00f7b67c3f94e0089a193cdacc7522a8bcedf81fd7baf8dd9687a4bb",
+        "paths": [
+          "Source/Windows/ARM64EC/Module.cpp",
+          "Source/Windows/Common/CallRetStack.h",
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "Source/Windows/ARM64EC/Module.cpp",
+          "Source/Windows/Common/CallRetStack.h",
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file Source/Windows/Common/CallRetStack.h\nHunk #1 FAILED at 61.\n1 out of 1 hunk FAILED\nchecking file Source/Windows/WOW64/Module.cpp\nHunk #1 succeeded at 798 (offset -106 lines).\nchecking file Source/Windows/ARM64EC/Module.cpp\nHunk #1 succeeded at 862 (offset 169 lines).\n"
+      },
+      {
+        "path": "scripts/patches/fex-windows-crt-file-open.patch",
+        "sha256": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+        "paths": [
+          "Source/Windows/Common/CRT/IO.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "Source/Windows/Common/CRT/IO.cpp"
+        ],
+        "result": "text-applies-after-replayed-predecessors"
+      },
+      {
+        "path": "scripts/patches/fex-windows-jit-symbols.patch",
+        "sha256": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+        "paths": [
+          "FEXCore/Source/Common/JitSymbols.cpp",
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Common/JitSymbols.cpp\nHunk #2 FAILED at 18.\nHunk #3 succeeded at 127 (offset -5 lines).\n1 out of 3 hunks FAILED\nchecking file Source/Windows/WOW64/Module.cpp\nHunk #1 FAILED at 513.\n1 out of 1 hunk FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-windows-jit-cost.patch",
+        "sha256": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+        "paths": [
+          "FEXCore/Source/Interface/Context/Context.h",
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "FEXCore/include/FEXCore/Debug/InternalThreadState.h",
+          "FEXCore/include/FEXCore/Utils/JITCompileDiagnostics.h"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "FEXCore/Source/Interface/Context/Context.h",
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/include/FEXCore/Utils/JITCompileDiagnostics.h\nchecking file FEXCore/include/FEXCore/Debug/InternalThreadState.h\nchecking file FEXCore/Source/Interface/Context/Context.h\nHunk #1 FAILED at 274.\n1 out of 1 hunk FAILED\nchecking file FEXCore/Source/Interface/Core/Core.cpp\nHunk #2 succeeded at 80 (offset 1 line).\nHunk #3 succeeded at 464 (offset 13 lines).\nHunk #4 succeeded at 529 (offset 12 lines).\nHunk #5 FAILED at 813.\nHunk #6 FAILED at 842.\nHunk #7 FAILED at 858.\nHunk #8 succeeded at 917 (offset 48 lines).\nHunk #9 succeeded at 971 (offset 89 lines).\nHunk #10 FAILED at 958.\nHunk #11 succeeded at 1089 (offset 110 lines).\n4 out of 11 hunks FAILED\nchecking file FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp\nHunk #1 succeeded at 28 (offset 1 line).\nHunk #2 FAILED at 510.\nHunk #3 FAILED at 546.\nHunk #4 succeeded at 766 (offset 166 lines).\n2 out of 4 hunks FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-windows-file-loading.patch",
+        "sha256": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+        "paths": [
+          "FEXCore/Source/Interface/Config/Config.cpp",
+          "FEXCore/Source/Utils/FileLoading.cpp",
+          "Source/Common/Config.cpp",
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Utils/FileLoading.cpp\nchecking file Source/Common/Config.cpp\nHunk #1 succeeded at 22 (offset 2 lines).\nHunk #2 succeeded at 46 (offset 2 lines).\nchecking file Source/Windows/WOW64/Module.cpp\nHunk #1 succeeded at 134 (offset 10 lines).\nHunk #2 FAILED at 515.\nHunk #3 succeeded at 640 (offset 13 lines).\nHunk #4 FAILED at 635.\nHunk #5 FAILED at 658.\nHunk #6 FAILED at 709.\nHunk #7 FAILED at 905.\n5 out of 7 hunks FAILED\nchecking file FEXCore/Source/Interface/Config/Config.cpp\nHunk #1 succeeded at 115 (offset 19 lines).\nHunk #2 succeeded at 126 (offset 19 lines).\n"
+      },
+      {
+        "path": "scripts/patches/fex-wow64-strict-mul24.patch",
+        "sha256": "02489f11b5c49261d49d6225bd4df39879373cd4f25090df54ab9b444647f2b4",
+        "paths": [
+          "FEXCore/Source/Common/SoftFloat.h",
+          "FEXCore/Source/Common/StrictMul24.h"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "text-applies-after-replayed-predecessors"
+      },
+      {
+        "path": "scripts/patches/fex-pop-memory-precise-stack.patch",
+        "sha256": "1a1000e9bd80590880ec3c86cd089939f6005693338bdfbd7aead829d72ea7cd",
+        "paths": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp",
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.h"
+        ],
+        "earlierConflictsOnSameFiles": [],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp\nHunk #1 succeeded at 401 (offset -33 lines).\nHunk #2 FAILED at 4238.\nHunk #3 succeeded at 4472 (offset 214 lines).\nHunk #4 succeeded at 4508 (offset 225 lines).\nHunk #5 succeeded at 4521 (offset 225 lines).\n1 out of 5 hunks FAILED\nchecking file FEXCore/Source/Interface/Core/OpcodeDispatcher.h\nHunk #1 FAILED at 1590.\n1 out of 1 hunk FAILED\n"
+      },
+      {
+        "path": "scripts/patches/fex-memory-offset-fault-boundary.patch",
+        "sha256": "3862b70c808b67a627ccab51ea8e0c056bb94f31af9834c173919b74cd5515b8",
+        "paths": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.h"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.h"
+        ],
+        "result": "text-applies-after-replayed-predecessors"
+      },
+      {
+        "path": "scripts/patches/fex-windows-vm-contract.patch",
+        "sha256": "e3b6d9ca3e7a5639d61e49e54a7ddd1d208f0246bbc60edb7e8071a168ef4634",
+        "paths": [
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Frontend.cpp",
+          "FEXCore/Source/Interface/Core/Frontend.h",
+          "FEXCore/Source/Interface/Core/X86Tables/X86Tables.h",
+          "FEXCore/include/FEXCore/HLE/SyscallHandler.h",
+          "Source/Windows/ARM64EC/Module.cpp",
+          "Source/Windows/Common/InvalidationTracker.cpp",
+          "Source/Windows/Common/InvalidationTracker.h",
+          "Source/Windows/WOW64/Module.cpp",
+          "Source/Windows/WOW64/libwow64fex.def"
+        ],
+        "earlierConflictsOnSameFiles": [
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "Source/Windows/ARM64EC/Module.cpp",
+          "Source/Windows/WOW64/Module.cpp"
+        ],
+        "result": "requires-review-or-rewrite",
+        "detail": "checking file FEXCore/Source/Interface/Core/Core.cpp\nHunk #1 FAILED at 673.\n1 out of 1 hunk FAILED\nchecking file FEXCore/Source/Interface/Core/Frontend.cpp\nHunk #1 FAILED at 89.\nHunk #2 FAILED at 110.\nHunk #3 FAILED at 135.\nHunk #4 FAILED at 146.\nHunk #5 FAILED at 1076.\nHunk #6 succeeded at 1156 (offset 47 lines).\n5 out of 6 hunks FAILED\nchecking file FEXCore/Source/Interface/Core/Frontend.h\nHunk #1 FAILED at 123.\n1 out of 1 hunk FAILED\nchecking file FEXCore/Source/Interface/Core/X86Tables/X86Tables.h\nHunk #1 succeeded at 225 (offset 16 lines).\nchecking file FEXCore/include/FEXCore/HLE/SyscallHandler.h\nHunk #1 succeeded at 21 (offset -23 lines).\nchecking file Source/Windows/ARM64EC/Module.cpp\nHunk #1 succeeded at 63 (offset 2 lines).\nHunk #2 succeeded at 360 (offset 66 lines).\nHunk #3 succeeded at 727 (offset 169 lines).\nHunk #4 succeeded at 851 (offset 169 lines).\nHunk #5 FAILED at 699.\nHunk #6 succeeded at 881 (offset 165 lines).\nHunk #7 succeeded at 940 (offset 149 lines).\n1 out of 7 hunks FAILED\nchecking file Source/Windows/Common/InvalidationTracker.cpp\nHunk #1 FAILED at 31.\nHunk #2 succeeded at 75 (offset 24 lines).\nHunk #3 succeeded at 139 (offset 71 lines).\nHunk #4 succeeded at 195 (offset 71 lines).\nHunk #5 FAILED at 149.\nHunk #6 FAILED at 169.\nHunk #7 succeeded at 257 (offset 74 lines).\nHunk #8 FAILED at 252.\nHunk #9 succeeded at 371 (offset 88 lines).\nHunk #10 FAILED at 306.\n5 out of 10 hunks FAILED\nchecking file Source/Windows/Common/InvalidationTracker.h\nHunk #1 FAILED at 25.\nHunk #2 succeeded at 33 (offset 1 line).\nHunk #3 succeeded at 60 (offset 7 lines).\n1 out of 3 hunks FAILED\nchecking file Source/Windows/WOW64/Module.cpp\nHunk #1 succeeded at 598 (offset 37 lines).\nHunk #2 FAILED at 905.\nHunk #3 FAILED at 929.\nHunk #4 succeeded at 892 (offset -103 lines).\n2 out of 4 hunks FAILED\nchecking file Source/Windows/WOW64/libwow64fex.def\n"
+      }
+    ],
+    "currentOnlyTextChecks": {
+      "arm64ecIdentityStringPresent": false,
+      "wow64IdentityStringPresent": false,
+      "oldLoadConfigHeaderStillPresent": true
+    },
+    "limits": [
+      "text replay does not establish semantic equivalence",
+      "later patches may depend on earlier conflicts",
+      "committed fork changes and full build remain separate gates"
+    ]
+  },
+  "wine": {
+    "schema": 1,
+    "scope": "committed-tree-assessment; overlays and generated files inventoried separately",
+    "originalValveBase": {
+      "commit": "dc26e61847081a1b5cb0733dc30feba6ee575482",
+      "tree": "dc26e61847081a1b5cb0733dc30feba6ee575482"
+    },
+    "currentFork": {
+      "commit": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+      "tree": "5a66334dac226ba8032dcb80f24ec5fa0caf8eba"
+    },
+    "target": {
+      "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
+      "tree": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
+    },
+    "summary": {
+      "committedLocalPaths": 209,
+      "upstreamChangedPaths": 280,
+      "overlappingPaths": 37,
+      "identicalTargetPaths": 0,
+      "overlappingDifferentPaths": 37
+    },
+    "localChanges": [
+      {
+        "path": ".gitignore",
+        "original": null,
+        "current": {
+          "sha": "618d00bd30efb67b424a7dcb052dc7e4149f21c6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "configure",
+        "original": null,
+        "current": {
+          "sha": "c7b9bd774a567c5ff716d87c0d9d29559d172a24",
+          "mode": "100755",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "configure.ac",
+        "original": {
+          "sha": "370857c1e5a1dce7f73c554d6894fe62a9c7c621",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "57228466c0f71e60747d9e0671bb71413b2ee2ba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "be6e92be50d40e428f2950f194624c5b1b57414c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/d3dcompiler_43/compiler.c",
+        "original": {
+          "sha": "f5c259191b4d14e4ea3c039a4c1fc545b738b7e4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2ae5e7f2c5d6ec556abfcbcfc25640fe0c2fb8ad",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "f5c259191b4d14e4ea3c039a4c1fc545b738b7e4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/d3dcompiler_43/tests/hlsl_d3d11.c",
+        "original": {
+          "sha": "087bcc22da2f90256efa07e2d09915d90783ba61",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "826c7850e76f58e898021cc67e4ee8551fe7ba85",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "087bcc22da2f90256efa07e2d09915d90783ba61",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/dnsapi/Makefile.in",
+        "original": {
+          "sha": "6cf1a92205accdf27380829b420b291bac43523d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "7d577256f9b85721cf604199509de95ae56c3db8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6cf1a92205accdf27380829b420b291bac43523d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/dnsapi/libresolv_musl.c",
+        "original": null,
+        "current": {
+          "sha": "abfe86775b0b5c87c88bd3358ce9a9943edc85f6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/dwrite/analyzer.c",
+        "original": {
+          "sha": "ebad42655c362eb37ffd06ca4d9f9457b1b81013",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "aa922f3af0d94c659a3d760f61e056ad0faf7787",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ebad42655c362eb37ffd06ca4d9f9457b1b81013",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/iphlpapi/iphlpapi_main.c",
+        "original": {
+          "sha": "03b43b16d3e03e943d5bf99740f600e0ccfadf46",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "3b9a8fd0840094f8fe48f2a663b3b14471fd60db",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "03b43b16d3e03e943d5bf99740f600e0ccfadf46",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernel32/kernel32.spec",
+        "original": {
+          "sha": "1a3f5576f6d52a14bfffa497e0153a7d7aa3485a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "756f087f0da9c71d3a0e617b96abf17c539b4fd9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "911bb2f79047dfc4d2e0e3c4596598226dcad210",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/Makefile.in",
+        "original": {
+          "sha": "2e33b6b5801dfb75e84bae0a38940b56b547c149",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2d99067e29446f3eb8ea47971ab1b9c41c3eb58c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "2e33b6b5801dfb75e84bae0a38940b56b547c149",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/file.c",
+        "original": {
+          "sha": "6a821d788e6a8ef9a8a90050ddc685402d958419",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "db6608d1c10d59b7652e19bf1cd41c2208017a0a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6a821d788e6a8ef9a8a90050ddc685402d958419",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/memory.c",
+        "original": {
+          "sha": "fa385da56f3daa448322f74ba12a0bc8482dd536",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "175703d4610b366f165a337d6b712356843b60ee",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "8c2d35420519fd88f92d1077adcea03094959701",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/process.c",
+        "original": {
+          "sha": "20dbf1382b8532c7bd1f34ff7dfb6812ce3233cd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "b3090b4e84c0ee7b787e148cfe1e5ebc95422d1d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "fe337dcfff8e922ad7fd0def41a6e200870ae6d3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/sync.c",
+        "original": {
+          "sha": "ad9c769410b9dbf1720826ddb80a25c5e0329d20",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "50da55b543f924ef556f77fe1f8ef847fa228538",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "86b4ed8cf89dc4b65356a5b548b1bf5f95f243a9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/winehua_ipc_trace.c",
+        "original": null,
+        "current": {
+          "sha": "a0cdfe4c7333d33f5458d74f21b240e1e46e366b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/kernelbase/winehua_ipc_trace.h",
+        "original": null,
+        "current": {
+          "sha": "2a7db6aa0573775868a13a776f530eba3162f74c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_background.bmp",
+        "original": {
+          "sha": "e968d93f3f0875788f4920c77d9eeece3de4a0fb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "0a0de0c66812d9f4269a645eb7feafe6741dba5d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "e968d93f3f0875788f4920c77d9eeece3de4a0fb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_13px.bmp",
+        "original": {
+          "sha": "6ce57306a217a4d6d4bc02eab11e93f5165cc16a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "bcd0e0554832e716532f726d820a13bf81bdb8da",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6ce57306a217a4d6d4bc02eab11e93f5165cc16a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_19px.bmp",
+        "original": {
+          "sha": "1ec76b1501bee687c7eb4db28b0e869cab4c1fe2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "6ef8fe04c52ab51721a10217f296f4cec914a7d1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "1ec76b1501bee687c7eb4db28b0e869cab4c1fe2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_23px.bmp",
+        "original": {
+          "sha": "945f88f014782285be25e386c79817067f8fbc9f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f07ddc9243323b1aa09552cf726a62f4b2f5ff72",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "945f88f014782285be25e386c79817067f8fbc9f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_26px.bmp",
+        "original": {
+          "sha": "57e6d08c6b03c38f0c2c3e2c0ae85e3a4b670eed",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "50eef3ebda47c8c92a5ce534b1ba0970d80274ba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "57e6d08c6b03c38f0c2c3e2c0ae85e3a4b670eed",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_32px.bmp",
+        "original": {
+          "sha": "cfb0e755ee34a1a035b44b62839167fc5d2dd1e2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "cddc12af619ee3602b64ca9021c940c0f832e70a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "cfb0e755ee34a1a035b44b62839167fc5d2dd1e2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_39px.bmp",
+        "original": {
+          "sha": "ff5d491b1c6d9cdbe8cce2d82ee998919efad422",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f0144c4b4ca6cc31441ed46983d1ecc30e7f54a9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ff5d491b1c6d9cdbe8cce2d82ee998919efad422",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_close_button_glyph_52px.bmp",
+        "original": {
+          "sha": "7f27fac87a53e029dbef296d14c0562f41958e4a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "56440e2a1aad71ac59b2ab7cafecf02c09de1cd5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7f27fac87a53e029dbef296d14c0562f41958e4a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_background.bmp",
+        "original": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "36011b31f37e0ac79e11f98157d737006b698e55",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_13px.bmp",
+        "original": {
+          "sha": "561042616427fd6ca49dc0267d35e015d82ec5ae",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "6178d5769f021dc2da05d6dbd97809112179ac99",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "561042616427fd6ca49dc0267d35e015d82ec5ae",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_19px.bmp",
+        "original": {
+          "sha": "97aee66be5245add943252d3efd76c77b9561c54",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "9b87a28d86f73b4256a24e6ad1aac61c5f48246d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "97aee66be5245add943252d3efd76c77b9561c54",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_23px.bmp",
+        "original": {
+          "sha": "9992bc0ed8742ecad4c7815a3a5bd5ad7884cac3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "07ed550687c8aec2c573921f6be3343ef56476c2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "9992bc0ed8742ecad4c7815a3a5bd5ad7884cac3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_26px.bmp",
+        "original": {
+          "sha": "15034c3bf58a17011440070e4350382984dd0b6d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "6e8fe347b0419208b9ab56ae4d9217fb2434062f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "15034c3bf58a17011440070e4350382984dd0b6d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_32px.bmp",
+        "original": {
+          "sha": "f7d5906e127b9f8007a07b1bd554185ed23e5ca4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8ca8181a524bea61191bbf51da1ccfaf81c8486a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "f7d5906e127b9f8007a07b1bd554185ed23e5ca4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_39px.bmp",
+        "original": {
+          "sha": "2706f755b8d1accb1c8ca18fafdb5bd11748146c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "cc512e5a18b952a3f392db907c70016c44c82cec",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "2706f755b8d1accb1c8ca18fafdb5bd11748146c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_help_button_glyph_52px.bmp",
+        "original": {
+          "sha": "c733253551feeada220763a049171f6f378556f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "317b6be8dc1b4a7ec912cb302cfc366c1e7a23df",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "c733253551feeada220763a049171f6f378556f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_background.bmp",
+        "original": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "36011b31f37e0ac79e11f98157d737006b698e55",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_13px.bmp",
+        "original": {
+          "sha": "23da908a0746bf69833e43d57363508c66ef6a60",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1c4dd8451c083b683e41980e704730b5084b4de6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "23da908a0746bf69833e43d57363508c66ef6a60",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_19px.bmp",
+        "original": {
+          "sha": "a57e7aa7428fcdc9bc141fe79053ab3441894b3f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "73685303019bb95b24203566944751467c5919d9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "a57e7aa7428fcdc9bc141fe79053ab3441894b3f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_23px.bmp",
+        "original": {
+          "sha": "87c6ec4aadf96fa417cc0e0ba308f7531dca940e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "b4817ecb087a92f87cfdf0409aee4d36d75f99a0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "87c6ec4aadf96fa417cc0e0ba308f7531dca940e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_26px.bmp",
+        "original": {
+          "sha": "29e4ab88542f42c19008e746969604d57fdeba6b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "c3211f4ef33b0baedd8dd0abd425f09b44efabc6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "29e4ab88542f42c19008e746969604d57fdeba6b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_32px.bmp",
+        "original": {
+          "sha": "4a05c084747ac6c657b74e73959239c9b3552922",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "4850bc1bc5a28926528ebe0838ea1880515937a7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "4a05c084747ac6c657b74e73959239c9b3552922",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_39px.bmp",
+        "original": {
+          "sha": "f0c33cf633664d2214370d4dfcc5636c0af54d14",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "84a21fb199264de718887087fb46ec8634ce8eaa",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "f0c33cf633664d2214370d4dfcc5636c0af54d14",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_max_button_glyph_52px.bmp",
+        "original": {
+          "sha": "e6130551b82a39b9ca79b336b2e3126ce8488317",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "5cc5a654d47999540e5b06519dead900b3dbb662",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "e6130551b82a39b9ca79b336b2e3126ce8488317",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_mdi_close_button_background.bmp",
+        "original": {
+          "sha": "7b6cf627541c3ba8c886fd273c980db12563c22a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f46789c9d51b507ce4f4be41857feb937ce121d0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7b6cf627541c3ba8c886fd273c980db12563c22a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_mdi_min_button_background.bmp",
+        "original": {
+          "sha": "030624cca548158379ccf68bc1df5cb0045d317f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "5ba6d608818cb237c0fa073f8ec3f997e783884b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "030624cca548158379ccf68bc1df5cb0045d317f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_mdi_restore_button_background.bmp",
+        "original": {
+          "sha": "030624cca548158379ccf68bc1df5cb0045d317f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "5ba6d608818cb237c0fa073f8ec3f997e783884b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "030624cca548158379ccf68bc1df5cb0045d317f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_background.bmp",
+        "original": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "36011b31f37e0ac79e11f98157d737006b698e55",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_13px.bmp",
+        "original": {
+          "sha": "6391845ecb94731f52e356b7d70711488a482ffc",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "12174a3b08ca91689d39c7e226c5a2d97276f4dc",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6391845ecb94731f52e356b7d70711488a482ffc",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_19px.bmp",
+        "original": {
+          "sha": "5c29b506a246059164530c0e6c9e96db3a054a78",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2e6da44725b7866be06b6ad2e640d16ee65f09e0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "5c29b506a246059164530c0e6c9e96db3a054a78",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_23px.bmp",
+        "original": {
+          "sha": "539ab383b7140dffaa2da75b28073830d6b5230c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "5f4adb50db5991c349b2c2086adfb40a060ac548",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "539ab383b7140dffaa2da75b28073830d6b5230c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_26px.bmp",
+        "original": {
+          "sha": "63f6ef31ab9fbf034d80461a5d60a57f554d28e3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "5624f2c10e6ce3bd9e48cab2fbe03ef4c3ee77b0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "63f6ef31ab9fbf034d80461a5d60a57f554d28e3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_32px.bmp",
+        "original": {
+          "sha": "4bb6b024a7e9743fc4fbb85ff00efcd9aaad59d5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "737801a847be79400aa3844f57b7c6d72bb623c9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "4bb6b024a7e9743fc4fbb85ff00efcd9aaad59d5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_39px.bmp",
+        "original": {
+          "sha": "3252304f1b42c5a741cde6bfc74145c5819d7d0d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "a95571cb6fe35fb9f009bf70e62307b17dd4f7b2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3252304f1b42c5a741cde6bfc74145c5819d7d0d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_min_button_glyph_52px.bmp",
+        "original": {
+          "sha": "76241aa25e1f4fd0fcab724535f326a35a6e2c06",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "a8f0e6ca7fee84b36154185bfccab00296e0b3f9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "76241aa25e1f4fd0fcab724535f326a35a6e2c06",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_background.bmp",
+        "original": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "36011b31f37e0ac79e11f98157d737006b698e55",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3584b0131e2e74b69c733045559c3df2972685f0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_13px.bmp",
+        "original": {
+          "sha": "00ea5c2006b26a5852f181567606bad8f63d0a62",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "007eb8d3bbd3fe2b6faf3c3cde556bd3e011c0ea",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "00ea5c2006b26a5852f181567606bad8f63d0a62",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_19px.bmp",
+        "original": {
+          "sha": "22fda72769500e8c1618f4b8442e1cdbcc7c69ff",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "89a76933a50be5f9eaea60eec2ca4fb3add805e7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "22fda72769500e8c1618f4b8442e1cdbcc7c69ff",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_23px.bmp",
+        "original": {
+          "sha": "cb58e4acc8b8e3c603333e283ba555c124a7fcb3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "cc1b932108636672e4e2dd3eab6cebe1efc25b05",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "cb58e4acc8b8e3c603333e283ba555c124a7fcb3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_26px.bmp",
+        "original": {
+          "sha": "eceed81b24d9e740f5a1f52f0dc6532bb9deb5da",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "98fbe544a8b89ee4d68b3e8a86ff454e0f2208d5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "eceed81b24d9e740f5a1f52f0dc6532bb9deb5da",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_32px.bmp",
+        "original": {
+          "sha": "223a618cec1fc808698ce91c77fee4f538bf8349",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "9e77f185d075fc72b74635cf3b2b32d3d678a7eb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "223a618cec1fc808698ce91c77fee4f538bf8349",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_39px.bmp",
+        "original": {
+          "sha": "bb689cbb2b9d9991e8a552f2f4682d6d5c9ed389",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "10d6fb81e77b2529ca0c2f1f4ffea5cf706efe3f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "bb689cbb2b9d9991e8a552f2f4682d6d5c9ed389",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_restore_button_glyph_52px.bmp",
+        "original": {
+          "sha": "b302bb5e518c13d1cec08914c6f41492c99922b2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "c5f1b1c31a5d60471a41982d244776eab43bed1a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "b302bb5e518c13d1cec08914c6f41492c99922b2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/blue_window_small_close_button_background.bmp",
+        "original": {
+          "sha": "61cec9559dcacb849e28d5eabd78374395930560",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "162e55de1df5aeb41c75d790b5e1e2ba71a19bad",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "61cec9559dcacb849e28d5eabd78374395930560",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/light.msstyles/light.rc",
+        "original": {
+          "sha": "84b8a0476385b6648d91186d53d73a26bdd0818c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2ac45429426da63b356505a97fb1041899710626",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "84b8a0476385b6648d91186d53d73a26bdd0818c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mciqtz32/Makefile.in",
+        "original": {
+          "sha": "84028d18e2f35ec93481fc60dd27472a333dc8a1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "bd43136c2160500e16226310dc05e5e894481d60",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "84028d18e2f35ec93481fc60dd27472a333dc8a1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mciqtz32/mciqtz.c",
+        "original": {
+          "sha": "6fb9c2f43b42d242fcf11d470163e8ac1cdc5106",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "e9676aa56064348e94fd3ae46f2158dafdfad260",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6fb9c2f43b42d242fcf11d470163e8ac1cdc5106",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mciqtz32/mciqtz_private.h",
+        "original": {
+          "sha": "9206a88b3fa09d1649ead1b42d8571cd6099fba8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "d7688e18d3c846fe1c5317a2f542d4fbc1fff7ce",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "9206a88b3fa09d1649ead1b42d8571cd6099fba8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mciqtz32/mciqtz_waveout.c",
+        "original": null,
+        "current": {
+          "sha": "b8ecbcbb581891ec57e4f3632790cd4ad5fd6cdd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mciqtz32/mciqtz_waveout.h",
+        "original": null,
+        "current": {
+          "sha": "7c1e44fd6c50d7f62707b75010b8781f75c60dc4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mciqtz32/minimp3.h",
+        "original": null,
+        "current": {
+          "sha": "86ac1a3e17ed405bf6220a7ee814661c6ee02a46",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mmdevapi/client.c",
+        "original": {
+          "sha": "92a33fede5e3350d8c185d772723825bf268a7c6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "49bfed931986a3ac5bf5715bd9dc6446d7bf6043",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "92a33fede5e3350d8c185d772723825bf268a7c6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mmdevapi/main.c",
+        "original": {
+          "sha": "66a63275f51869b4bdc93204ca34aeb5d1eee2c4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "a90abfe8fa4134d979cd5c253dd00eb8aeb4ec5d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "66dae85f5f797ff4e4dd61c236b2505573b40e13",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/mountmgr.sys/unixlib.c",
+        "original": {
+          "sha": "bcc36383834b44c5948f1198b7323a08c3894b4c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "37b4763127a7d49022ca48a860775bff37e26d59",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "bcc36383834b44c5948f1198b7323a08c3894b4c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/Makefile.in",
+        "original": {
+          "sha": "38c865b3611818a8053a510d24f457feac9baf3a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "40c4dfbaabf066f1966a2473f987109df06f43fe",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "1469e3acd87a060dbc2aa71776c34927a7c332ba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/loader.c",
+        "original": {
+          "sha": "113310a30753296a1dc869c1cf84c87c1dbc4dc1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "ff44021b4a839f7c24448262ad8d6ebe19de840d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "52b6e70585c2a01b957f5328db6b833121739878",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/ntsyscalls.h",
+        "original": null,
+        "current": {
+          "sha": "4980d1bd7cd642861ed3c210507ce8ecb3a6c859",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/process.c",
+        "original": {
+          "sha": "bff471dea17ee1b995c0a4d953e75602de5f1820",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "b5a90d8bc15bbc6728424489215c3d9f27d41710",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "38ead602a8564933b488b19bfaa8624a89b1011c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/signal_arm64.c",
+        "original": {
+          "sha": "7eddc572d7a22b113808103014b532c714dcd77e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "c47435b82dc30e974f47522c2213355710fac8eb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "80a9466d439d732f945ca0a5174d069b80f9616b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/signal_arm64ec.c",
+        "original": {
+          "sha": "8790f070948dcbed3eda40e463d5e9c2f8946187",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "73fe617f42c2e22ba5bb79cf0b73f88262e0bab9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "712d7f417790c61f0919c9e229cbc38076e3e3b3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/signal_x86_64.c",
+        "original": {
+          "sha": "d028d2ba13dfdc3da0cbdce24583c9fa2778f35d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "40e5294c2e1fea889619d68512e89b14d6d15071",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6fbcbd148aaaaed91cba1164454c2a191c5ed853",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/thread.c",
+        "original": {
+          "sha": "0869b3b4f6489a3ce485599256eb25e8a51a1eb4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "ea694ff4fa86b4cc0c46d2991cfbcca87d4c81db",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "0869b3b4f6489a3ce485599256eb25e8a51a1eb4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/env.c",
+        "original": {
+          "sha": "042daa27ac7a28a586b7d60ec803c27d714e07d3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1a2166f31a8cdcaf52e91c593cf990adf5f75b33",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3145868e4ba23b11be2782ba6a608a66c0a2b6c3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/file.c",
+        "original": {
+          "sha": "964752cbc81929147cc84df11dc8e251a098a862",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "69bdae98f89db72cbdae8aa397f3433d6ecefbcd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "964752cbc81929147cc84df11dc8e251a098a862",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/fsync.c",
+        "original": {
+          "sha": "25d41cac79358b8425f4b4c8ba5692e21158582f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8d7e05aa74a9cba6ca437dbff9e925f6e4e1cb95",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "25d41cac79358b8425f4b4c8ba5692e21158582f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/loader.c",
+        "original": {
+          "sha": "f8aa468a3ab34bcce44e2a12003994f6940b7544",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "707db1d82d3a86bd641a9cc7dadc98bfdc26da79",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "2cc53c36bf5119fedcff75cd3408c82daba03b34",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/ohos_broker.c",
+        "original": null,
+        "current": {
+          "sha": "12297549668c829e0c8dfbe8449d8107d2e1379d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/ohos_broker.h",
+        "original": null,
+        "current": {
+          "sha": "277456ca12ec6af519efebfc13c04b523f9f7285",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/ohos_file.c",
+        "original": null,
+        "current": {
+          "sha": "7726e26c3dc9105976cf28867fbaa3ed3e155e43",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/ohos_file.h",
+        "original": null,
+        "current": {
+          "sha": "d75ec94e0433b8b0e6eed88ca08dfa954229c64d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/ohos_virtual.c",
+        "original": null,
+        "current": {
+          "sha": "aa900ec681a37ecd77d0dd06bfcd391dd5902789",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/ohos_virtual.h",
+        "original": null,
+        "current": {
+          "sha": "2f3acfc0bc8989891649d625e42d586b179482d4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/process.c",
+        "original": {
+          "sha": "ef1ab9602d03e53eb1ad60ce402e828a4106d261",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "d5511bcf15a4d157cf23f4f7e675eae8d201d78a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ef1ab9602d03e53eb1ad60ce402e828a4106d261",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/server.c",
+        "original": {
+          "sha": "112157b0dd702ffabb121502ec7ca3573069ba90",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "068c95331b9e65efa17f4f7ba92adc87002f337d",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "61b9b30f8d25ca87e32c3f43529c7ebcf4b09be9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/signal_arm64.c",
+        "original": {
+          "sha": "c18e6507f6cc40b268e729be6521dbdf192ec180",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1b771ee0f2ef210ceaeff84b3737ed80784ecbf2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "27e129e9872091ee59f941eeb4863eb4d3aafd5b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/sync.c",
+        "original": {
+          "sha": "67ab945cef86a20f8a7126f1347a6092e38a6544",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "4c0f9ed8773375297842019372150c3cd64c3fe9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "67ab945cef86a20f8a7126f1347a6092e38a6544",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/system.c",
+        "original": {
+          "sha": "1821c6eb3cae85131b0b54cfe0447a294c14397c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8ddf2566e10317c2fc4f27f6c3c21919a62b208e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3a21539f66cb689dadbd1c7d70d8ee1f2b4d3f76",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/thread.c",
+        "original": {
+          "sha": "9ee9239947f873f4661b47fc6bf94e1cb236c537",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "bf5582b8de8e56b72e2d4fca573e4ba981f15988",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "764d444fc56ab6afa2a41125c834a0f6eb6ec598",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/unix_private.h",
+        "original": {
+          "sha": "2f649ca399e93a3dd9b59a9a14239a44a967a13c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "398be4da03baf7c0a1def74f69783ea550fefb85",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "fe0c0cb594027c55a500b7c84fd00475a944f318",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unix/virtual.c",
+        "original": {
+          "sha": "d5b93415c2a6514c5edf3cfec585247651b1953c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f2d46f36b2ce2ccd9f958d1d329260ac4281b25a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3efac71e1909dfa0d2073512b1a1327c25684a92",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/unixlib.h",
+        "original": {
+          "sha": "7621cef312a24667eb7f4c065f5642daa5b4f393",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8458f2a1394c66a627570527628d5e58065f1b81",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7621cef312a24667eb7f4c065f5642daa5b4f393",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/ntdll/version.c",
+        "original": {
+          "sha": "5a11a6fc634f8513e766cc2544f7fb0b750ac2a6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "d1f468f937964340b4e3b0ed1fef1f87fafcf1e9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "5a11a6fc634f8513e766cc2544f7fb0b750ac2a6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/opengl32/unix_wgl.c",
+        "original": {
+          "sha": "28152c5a9cdf533bb278d6fb96a786f5fd147fa7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1eb2889a5926a4d80a081bf4c6cf8287b262d03e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "5f6449b70a82c5ecca7d2c5fbdd6b885fa78683e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/secur32/schannel_gnutls.c",
+        "original": {
+          "sha": "49e5b2cf03c072a88aef7b5e43bf1690094f9378",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8708a1fc026b10bd8d0eb8b2a4232e5ee6fcb107",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "49e5b2cf03c072a88aef7b5e43bf1690094f9378",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/setupapi/queue.c",
+        "original": {
+          "sha": "bea68177b896f6ee713789c6ace5d3d4cc6dab66",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8861f2c0dbfe781ac7397c3477601414a450a019",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "bea68177b896f6ee713789c6ace5d3d4cc6dab66",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/shell32/shlfolder.c",
+        "original": {
+          "sha": "ea44f86222227a84109b526384e6b102ddeff17f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "b126924664c311d9847f7bf9a23edf4ffb69b783",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ea44f86222227a84109b526384e6b102ddeff17f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/uxtheme/window.c",
+        "original": {
+          "sha": "d059a85b297ded3a5dfa241796214b310f7c03bf",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f7c406b5bfe2886b3324ea153ba447f41a923402",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "d059a85b297ded3a5dfa241796214b310f7c03bf",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/vulkan-1/vulkan-1.spec",
+        "original": null,
+        "current": {
+          "sha": "7a49ad30a7a0b7495b609add02074e88cfe26cf2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/Makefile.in",
+        "original": {
+          "sha": "454fb2555bc8afa89431184eb8f877159dade48b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "36da1e814a28f33325f472e8b719d1c86cd95793",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "454fb2555bc8afa89431184eb8f877159dade48b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/defwnd.c",
+        "original": {
+          "sha": "9404a87664d65c4978c03656feee82b2e74bf7b4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "d6efd156eefae491a1a33a6af0166d593ea87bf6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "d520f642dc7486578edc9adb84b6cf491c40332f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/driver.c",
+        "original": {
+          "sha": "3c1286b1fdd2bad415c1ca2071e514c8d1e9c157",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "a33aa48ca1d58ecb450a5dcb6e576a4f20fc7c2b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3c1286b1fdd2bad415c1ca2071e514c8d1e9c157",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/font.c",
+        "original": {
+          "sha": "836bcbe23eaf2181d01c2065c59341596cbaa3c8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "3f29e0d85126797f3546fba68202d62d06e14796",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "836bcbe23eaf2181d01c2065c59341596cbaa3c8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/freetype.c",
+        "original": {
+          "sha": "1b8fb80fee654329e0bf3eadc384f291516a308f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "6c50aa82d70452b6b9ef092e391d7a887cc4d5a9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "1b8fb80fee654329e0bf3eadc384f291516a308f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/opengl.c",
+        "original": {
+          "sha": "03346f5b5f6a211be2944707edd29768ddebe817",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f514d3204af3cddbe357a20d090cffc778c5ffa7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "c7aeea130b8d00a7e0506e4bb76f5bc870d0c6e4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/opengl_diag.c",
+        "original": null,
+        "current": {
+          "sha": "a105ec0b240a91a5365469bcb419743ea9159918",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/opengl_diag.h",
+        "original": null,
+        "current": {
+          "sha": "1d4bea8bc0f86270b68c3bb94f90950d0e552fe4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/sysparams.c",
+        "original": {
+          "sha": "83685fa58823aaafd164cd9cee1910f5aae85f76",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2b30b778be4262e6336dc9744f231c318da6ef50",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "b2d38fd18780860d11e707e70cca3120132e0e73",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/vulkan.c",
+        "original": {
+          "sha": "911db797e490836132e55e7e99095cf71ce83726",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1c85deda9b0053666b9ea0adc36c1ae981953c5b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "5401c56d3930b63ab29bb48000911e9ed801b1c9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/win32syscalls.h",
+        "original": null,
+        "current": {
+          "sha": "312c1dbc58bf9aa52e3b7c1b5f193c94c25df5e8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/window.c",
+        "original": {
+          "sha": "da1d31d0450c4e8313762fdd6823d45a7fc6c186",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "cbc3bb98b50fdeed032b676e42294101a53e71cc",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7a1b799fcda9c12dfd59e2cf9888128e5ece48e0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/winehua_gl_proc_trace.c",
+        "original": null,
+        "current": {
+          "sha": "75e5c8fadbc6d4784566104b9c6aebc3507971d8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/winehua_gl_proc_trace.h",
+        "original": null,
+        "current": {
+          "sha": "81a1f2fcc10b83cd98c897bbb6733f84204747e6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/win32u/winstation.c",
+        "original": {
+          "sha": "508ecbc53b2d36dc5676235bbf66db07da00a3a8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f28195cb585d3187b9e9cc42b86daa124518eeaa",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "508ecbc53b2d36dc5676235bbf66db07da00a3a8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/windows.ui/uisettings.c",
+        "original": {
+          "sha": "c52bff8b90deb465470069e9a86bc324e370d363",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "8f37207063a4b3f5ffc2b1faed2741c4b9f920d9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "c52bff8b90deb465470069e9a86bc324e370d363",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/Makefile.in",
+        "original": {
+          "sha": "db32faee5b382136e06c3068dd9436cc01c2f472",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "bb7d961490b2cae13f36e7364e25c247c73972f4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "db32faee5b382136e06c3068dd9436cc01c2f472",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/bus_ohos.c",
+        "original": null,
+        "current": {
+          "sha": "7bd79abf1d87dff9658a95b7d30f5d682733d692",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/bus_sdl.c",
+        "original": {
+          "sha": "fbea0cb00b9767eef185fbd3321765fd3a2a93d2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "627bf81e4ef89021aa535f2e4251c13f59eed23c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "fbea0cb00b9767eef185fbd3321765fd3a2a93d2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/main.c",
+        "original": {
+          "sha": "4bc967176ab48589050771e952765b2cdccf1dd9",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "aa3c27562bdd2a0d18874fe29f71421f4171f255",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "9d26eefebc31d4b660af065ac01f8d5188b40f62",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/unix_private.h",
+        "original": {
+          "sha": "ba36971df489f1d1982fd1d100f1695dd4ffd249",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "abd163498cfee3d59b0b3f87c52c3df26d9737ed",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ba36971df489f1d1982fd1d100f1695dd4ffd249",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/unixlib.c",
+        "original": {
+          "sha": "bd4351f059c928d20eb141ad5da9039eec61f432",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "e213b346cf50f1a754d9363ce3948c3c292eaf01",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "bd4351f059c928d20eb141ad5da9039eec61f432",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/unixlib.h",
+        "original": {
+          "sha": "ad3b268b0b679e9c3d612e1fca2a8ef921a0fb70",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f960cded50e08b0b811573775f14b06ac8ccf30f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ad3b268b0b679e9c3d612e1fca2a8ef921a0fb70",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winebus.sys/winehua_gamepad_protocol.h",
+        "original": null,
+        "current": {
+          "sha": "f1c1a995c99835018007bb5f6429c486a9b25262",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winedmo/Makefile.in",
+        "original": {
+          "sha": "bee5d80f242336bb0a410f6bb8a11f30c3fc8a2c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "cd961e3b2e0db2a50781db016deacd81842c7859",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "bee5d80f242336bb0a410f6bb8a11f30c3fc8a2c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winedmo/unix_demuxer.c",
+        "original": {
+          "sha": "24681e2d5df521caa66ba398e4e89056259c088e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "3b098d056f2c951a2d86079600cf3dd36c7c02db",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7b749cd3e257fa9be526a24af377949712c4051e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winegstreamer/media-converter/media-converter.h",
+        "original": {
+          "sha": "3dd8864d54f8acb80bb911315b2dd0b14a8c70fd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "d37c942e771835238bb434c5e540cc7fe749cad5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3dd8864d54f8acb80bb911315b2dd0b14a8c70fd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winegstreamer/unixlib.c",
+        "original": {
+          "sha": "b259388026b116ababbc1f0b62da0ed9557c5c97",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "de1fe41f4e054f3970b34b3d96869bbcaa86af19",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "b259388026b116ababbc1f0b62da0ed9557c5c97",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winegstreamer/wg_parser.c",
+        "original": {
+          "sha": "074f3f1487279dee8a34248474b3db5e7d998343",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "c85f638f3e30eff91309d7dabf57de09a8015c9f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "074f3f1487279dee8a34248474b3db5e7d998343",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "bce72ea4dc0caca6a8bde3b85594853ce371fd50",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/audio_ipc_protocol.h",
+        "original": null,
+        "current": {
+          "sha": "63cefbe74a5e71d8e790e681435db415263dfba5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/ohos.c",
+        "original": null,
+        "current": {
+          "sha": "47b08ce3ddc64b757bed4c7af1d82f18c5ba58b2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/ohos_audio_client.c",
+        "original": null,
+        "current": {
+          "sha": "9221df6f3cc7aa9d241113e3b2e6a7ba40e8bef7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/ohos_audio_client.h",
+        "original": null,
+        "current": {
+          "sha": "fb3e39944224a2cfebe061f61e7e6d6f6916dcc2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/ohos_midi.c",
+        "original": null,
+        "current": {
+          "sha": "8f74560175bd3486fafe3c22b504ade22eca01f5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/ohos_midi.h",
+        "original": null,
+        "current": {
+          "sha": "fd98d1a6b9c969e7d01b2d4879a1f9c57810ab8b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/tml.h",
+        "original": null,
+        "current": {
+          "sha": "cd64994991cd9e9bdda266fb3d2c5d5f44a72113",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/tsf.h",
+        "original": null,
+        "current": {
+          "sha": "15d2ae5fd48ad4bcf998ed7e5b6fc7f68bec56f5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wineohos.drv/wineohos.spec",
+        "original": null,
+        "current": {
+          "sha": "b16365d0c9fc216f15ba2cbb479440656177b77e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/loader.c",
+        "original": {
+          "sha": "11a7b60e47cc566111b6eb2a9edd09ef34a3a752",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "da2acfb2cc4b163c4d57c220d5baecc548c6cc77",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "11a7b60e47cc566111b6eb2a9edd09ef34a3a752",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/loader_thunks.c",
+        "original": null,
+        "current": {
+          "sha": "9827de3d147ce3b8303940b524ed76181df19c80",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/loader_thunks.h",
+        "original": null,
+        "current": {
+          "sha": "3c49f635f72a1e42dae57cd265e2a1729f9f1345",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/make_vulkan",
+        "original": {
+          "sha": "3c8c15e12944f2a433b5fa76e55e047b0de599c0",
+          "mode": "100755",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1213f8033af4b993df55a437759cdeeeecab3c9b",
+          "mode": "100755",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "3395f22d3e1f5b77bdb95440621bb91ec9e60087",
+          "mode": "100755",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/vulkan.c",
+        "original": {
+          "sha": "681be44cbc44e73ce396dab32bec5deed96102b4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "3f3e5270352ea2d1255f8dbcc91da60c2ba626e6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "681be44cbc44e73ce396dab32bec5deed96102b4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/vulkan_thunks.c",
+        "original": null,
+        "current": {
+          "sha": "4025876c135e9ba55acfe3b9a4cf06f9df6a7865",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/vulkan_thunks.h",
+        "original": null,
+        "current": {
+          "sha": "327d95974d2923b33ade53ce0aa8a6a95f5664bb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/winevulkan.json",
+        "original": null,
+        "current": {
+          "sha": "23c35331e5a6e2f7ad04b3ea166fc1bf665b7bba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winevulkan/winevulkan.spec",
+        "original": null,
+        "current": {
+          "sha": "a565652509ee5419d0042ebcc8c66be44ddaf82c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/Makefile.in",
+        "original": {
+          "sha": "10915b103344dbe3add5b5b79af5d2dc241ade0b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "562b928a5ae4f385688344759499cc608d10b368",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "10915b103344dbe3add5b5b79af5d2dc241ade0b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/modal.c",
+        "original": null,
+        "current": {
+          "sha": "41fc3c2bb0269fae16a8d872cf6c0b3d5831619e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/opengl.c",
+        "original": {
+          "sha": "8a47f3d3e4b749079a404ebc5bf82114871c2420",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "b55c94b9956d7e64de4f916160cad2a94685aa78",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "8a47f3d3e4b749079a404ebc5bf82114871c2420",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/opengl_diag.c",
+        "original": null,
+        "current": {
+          "sha": "5a21913e8f2dcdffd87ef4916cbb87d84fcb20e2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/opengl_diag.h",
+        "original": null,
+        "current": {
+          "sha": "82b223cf54b3fc0527c46a48b01b5a5d1004719c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/opengl_readback.c",
+        "original": null,
+        "current": {
+          "sha": "51047dc05daa22d52eb8d1c7bf36a0abed45a047",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/opengl_readback.h",
+        "original": null,
+        "current": {
+          "sha": "2e349b57ceacb260dda569ef78a3a4577f9f24b5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/vulkan.c",
+        "original": {
+          "sha": "543d2b4284d22f5074b6b57b93246f98460c7cc2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "bf5ee785224ca39ce59afd42179cbb18875f11fc",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "543d2b4284d22f5074b6b57b93246f98460c7cc2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/wayland.c",
+        "original": {
+          "sha": "acc340d98c7995b25eb38637c1a79c348a2e5431",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "63213b3186013669efd62ef833c75791affbd109",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "acc340d98c7995b25eb38637c1a79c348a2e5431",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/wayland_pointer.c",
+        "original": {
+          "sha": "c4fdb33a7661c122022e3ee8a851224e35fd9fba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "3ab090c524d773b26a9d40787bfbee91edd12b70",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "c4fdb33a7661c122022e3ee8a851224e35fd9fba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/wayland_surface.c",
+        "original": {
+          "sha": "b0b51212ec650d0da09cd14b3b39c82bd2ae4bc6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f2855da09f6f1d134948ad935a60708e2341bebc",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "b0b51212ec650d0da09cd14b3b39c82bd2ae4bc6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/wayland_surface_ohos.c",
+        "original": null,
+        "current": {
+          "sha": "ae23fbe73ab483b16c3eaef85d73d6182618924e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/wayland_surface_ohos.h",
+        "original": null,
+        "current": {
+          "sha": "7e9a28946d06a2f35eb7cea99db5125f4d098fce",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/waylanddrv.h",
+        "original": {
+          "sha": "9452d237fa36930918fade99c19c23d6426ddac0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "70c157de62df7fdc3685469decd0a190bd16a805",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "9452d237fa36930918fade99c19c23d6426ddac0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/window.c",
+        "original": {
+          "sha": "07e0858fb39a9f7b1fbde2a2b508ab9a37cbc488",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2a7710dd764f4b28d40338b0256589d1aaac2290",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "07e0858fb39a9f7b1fbde2a2b508ab9a37cbc488",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/window_surface.c",
+        "original": {
+          "sha": "e7595b7ccb03fa548d4ed6aa709f592f1c399044",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "db049954282bc9b826829d43ce9814d74845d9e2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "e7595b7ccb03fa548d4ed6aa709f592f1c399044",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/winewayland.drv/winehua-toplevel.xml",
+        "original": null,
+        "current": {
+          "sha": "0f8a2d64e0b6bf728c88971d0a3f6d44e883631c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "dlls/wow64/syscall.c",
+        "original": {
+          "sha": "0508f4aab36250cc9cbe9ab4e1a64c48f48dfe69",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "2f5d80738fd3ee7ab535bfd2c64b36c0ea58f3c7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "04382a816e4abb4f66b46389bc4e6068b90a0412",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "include/config.h.in",
+        "original": null,
+        "current": {
+          "sha": "b05ab92b4e6b5baa2aae459653dcaa2807f0bc1e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "include/wine/opengl_driver.h",
+        "original": {
+          "sha": "a5f4ad65c02fb45bcfb51019e7b6fdf16019544b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1c03e77749ce7f7bea8b6e3d6db2cb5ad5acc9ea",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "a5f4ad65c02fb45bcfb51019e7b6fdf16019544b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "include/wine/server_protocol.h",
+        "original": {
+          "sha": "d9087179099354062f0811a0cf60777f171cb00b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "45e7f15eb535a0894621f88ca88990f2cdafc3f2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "d9087179099354062f0811a0cf60777f171cb00b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "include/wine/vulkan.h",
+        "original": null,
+        "current": {
+          "sha": "2b1414747c12b31f5a82ff9b71cd5f440b414554",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "include/wine/vulkan_driver.h",
+        "original": {
+          "sha": "1ad27af2ed52dcd720c5052388fa2046257dcf2e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1ed58a12c42c4665d62f0377ccc9d03b0c881d9e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "9aa0ab7deafaf312617e8417d65415dd099a7d38",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "libs/vkd3d/libs/vkd3d-shader/hlsl_codegen.c",
+        "original": {
+          "sha": "f1368b151aa5c614360ea4c694d3fceee3698b90",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "7aba9ef188748510277253685359993814ec91e2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "f1368b151aa5c614360ea4c694d3fceee3698b90",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "loader/wine.inf.in",
+        "original": {
+          "sha": "56e3af73d53f4d600078e715f344e8fcf1dc1fb0",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "585670c02ef2f78736325298bb0ec2e299710e14",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "91ced6e8085fa11bd60630b31d1d42e2feb23c63",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "po/zh_CN.po",
+        "original": {
+          "sha": "ec6ccce80605b2f0ce018ddda88c71a07df85500",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "87899f8937e6290130b07d8311d48e059f0aeb01",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "ec6ccce80605b2f0ce018ddda88c71a07df85500",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/explorer/desktop.c",
+        "original": {
+          "sha": "1a2b1e2f5759fd520ba88c7201f80aa2cba370f8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "75be86afa685620f496b8ed372f8567091053cab",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "c4189cb042e4b0a7c5e8d2ce2e4b580c8f9e076b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/explorer/systray.c",
+        "original": {
+          "sha": "02fe50787063e5fa14bf563413cbddf618e5e402",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "777a56a31f0e3a9cbd1e2450c790f34f2fdff6bb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "02fe50787063e5fa14bf563413cbddf618e5e402",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/wineboot/wineboot.c",
+        "original": {
+          "sha": "6b5d3d26f85ea9afce9304573bd280462e7f321f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "97b6f300148d153ff286b1fefa39afb30cf2836e",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "6b5d3d26f85ea9afce9304573bd280462e7f321f",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_audio_smoke/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "f0542364b0d0986392d4457734a307890c6df9c3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_audio_smoke/main.c",
+        "original": null,
+        "current": {
+          "sha": "a5399526e614af7eace3d84d594bad46a6c0b5d6",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_d3d11_smoke/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "48558912840b6e041bb3fc2ef366a9758080bdf7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_d3d11_smoke/main.c",
+        "original": null,
+        "current": {
+          "sha": "42a95d3cacd973579419a451a7f80f320129f4c4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_dinput_probe/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "a3b4ef9d9d5c6ff367014bc668508a8ab574eae8",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_dinput_probe/main.c",
+        "original": null,
+        "current": {
+          "sha": "cda9b498943005e1c205d4867b79c7d779493756",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_graphics_smoke/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "fbe629cf7d739b527daf8d6301d301578cc5331a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_graphics_smoke/graphics_runtime_env.h",
+        "original": null,
+        "current": {
+          "sha": "434693323fd976235469748c8b31f7629cc9fecf",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_graphics_smoke/main.c",
+        "original": null,
+        "current": {
+          "sha": "2044e575f452ad4d773cc141d4904061e9362b3b",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_keep/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "6f66a31164972c8534b73b5dd401a51d5cceb1e3",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_keep/main.c",
+        "original": null,
+        "current": {
+          "sha": "c10e04c113a3142edfa588def02e13644bcdfefd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_platform_process_smoke/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "ed471cb94383627b8b1676061aa0b684d3c433f5",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_platform_process_smoke/main.c",
+        "original": null,
+        "current": {
+          "sha": "50a2d2e4bc8317cc232821e1f3ca829bb778b674",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_smoke_protocol.h",
+        "original": null,
+        "current": {
+          "sha": "86da6a43ff1a42fd3c4ec774d71caf3f0173d313",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_vulkan_smoke/Makefile.in",
+        "original": null,
+        "current": {
+          "sha": "425ad8aac02f2c24eebfc58e567505e4fb2cf1eb",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "programs/winehua_vulkan_smoke/main.c",
+        "original": null,
+        "current": {
+          "sha": "398418c07c5cbc0964e6166162436179df70234c",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/Makefile.in",
+        "original": {
+          "sha": "d9ac607f66f439be21478436a6eaf47fd6a67644",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "024e0ff16c6af4911ef96ca77b7baca53536ae94",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "d9ac607f66f439be21478436a6eaf47fd6a67644",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/directory.c",
+        "original": {
+          "sha": "c56c216d6d595736eda466cab5d06f409f587eaf",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "1d6456489c76d8f12b20283f288c98a9a60f89b1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "c56c216d6d595736eda466cab5d06f409f587eaf",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/fsync.c",
+        "original": {
+          "sha": "7d3ec646f9e5caf526dfb189b7ae0992e2f7e925",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "7c1fe8b00003dfb180101e3e306bfb5bb2a66a73",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7d3ec646f9e5caf526dfb189b7ae0992e2f7e925",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/main.c",
+        "original": {
+          "sha": "7f6912bc01bcf23d7ea67fafffbda0a89a8ffac2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "dcbc1b99dcbb7120c4e3168cc2ad06272e50f460",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7f6912bc01bcf23d7ea67fafffbda0a89a8ffac2",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/mapping.c",
+        "original": {
+          "sha": "2b3ebd1826c58fd6d318490f3245d70b0140a7bd",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "429fda03fd698b24b1ecf54bd359818294d05776",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "b9b1b630512642aa5140264dcca0c0575a848036",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/musl_compat.c",
+        "original": null,
+        "current": {
+          "sha": "2509291f59a9f50f6d1f46f96e7ecad2fed12cbe",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": null,
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/process.c",
+        "original": {
+          "sha": "287718adc6640ee00656b0fc2b29656024d413b1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "c80170143f70c51b61de88efbac098ad7b706cda",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "287718adc6640ee00656b0fc2b29656024d413b1",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/request_handlers.h",
+        "original": {
+          "sha": "42eb7daeab135e9e1b4f3f1fd90a16ec413994e7",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "b4e772d673cda73e656bdefaf8d1ebaff928ba15",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "f54963f56b907efc31addcb88611f8ddbcecbf11",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/request_trace.h",
+        "original": {
+          "sha": "5e94ddf90efe3a22154e6900ff7bb97d87ad7696",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "be41c079b66ebb2d8470c079c594a1aa93c9cabf",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "7f379c2a80701fd738ef8d97c87aa674b2c322ba",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "server/winstation.c",
+        "original": {
+          "sha": "8eaf15ec635590043b7aa300693c9a06ada2f8b4",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "f7b4d51169bcc6742f2954f89b8f6a7f3e312053",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "2c8f6fc4b23b5f69fb50f1f2e8cb695fdf7bc816",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": true,
+        "sameAsTarget": false
+      },
+      {
+        "path": "tools/makedep.c",
+        "original": {
+          "sha": "a4ed58b11b1abc20d37b8e1ecaf0f26fbc97c42a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "current": {
+          "sha": "6f031addacd878b193a09fe57c53648d993eef63",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "target": {
+          "sha": "a4ed58b11b1abc20d37b8e1ecaf0f26fbc97c42a",
+          "mode": "100644",
+          "type": "blob"
+        },
+        "upstreamAlsoChanged": false,
+        "sameAsTarget": false
+      }
+    ],
+    "limits": [
+      "path overlap is not a Git merge-conflict or semantic verdict",
+      "78 build overlays and generated inputs are not part of committed-fork tree",
+      "no source, parent history, pin, build or device was changed"
+    ]
+  }
+}

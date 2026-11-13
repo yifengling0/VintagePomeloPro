@@ -1,12 +1,15 @@
 {
   "schema": 1,
   "checkedAt": "2026-11-13",
-  "status": "audited-not-migrated",
+  "status": "initial-assessment-complete-not-migrated",
   "product": {
-    "branch": "feature/v2-ohos-wine-winsteam",
-    "head": "9f84d92b39f488631ace8b10522d66b10ed72029",
+    "branch": "feature/fex-proton-upstream-sync",
+    "baseBranch": "main",
+    "baseTag": "rc-2.0.0",
+    "baseCommit": "c5fc06edf915f01ff12b102f0bf0087d488c8c4f",
     "route": "Windows Steam + OHOS Wine + HmosDeck",
-    "localAhead": 3
+    "defaultCpuTranslator": "FEX",
+    "compatibilityCpuTranslator": "Box64"
   },
   "fex": {
     "current": "86ff33bbe299cd8959a6610198c169b67ec419db",
@@ -252,5 +255,17 @@
     "policy": "full fixed upstream snapshots with separately ordered OHOS adaptations; stage FEX and Wine changes separately; release qualification required",
     "migrationNotStarted": true,
     "buildOrDeviceVerification": false
+  },
+  "assessment": {
+    "report": "docs/upstream-sync/initial-assessment.json",
+    "ledger": "docs/upstream-sync/adaptation-ledger.json",
+    "committedWinePaths": 209,
+    "overlappingWinePaths": 37,
+    "fexTextApplies": 4,
+    "fexReverseTextMatches": 2,
+    "fexReviewOrRewrite": 14,
+    "productionPinsChanged": false,
+    "candidateBuilt": false,
+    "deviceTested": false
   }
 }

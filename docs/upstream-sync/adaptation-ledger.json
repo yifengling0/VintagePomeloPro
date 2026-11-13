@@ -1,0 +1,931 @@
+{
+  "schema": 1,
+  "releaseBaseline": "c5fc06edf915f01ff12b102f0bf0087d488c8c4f",
+  "state": "inventory; per-item migration dispositions pending",
+  "orderedProductionOverlays": {
+    "fex": [
+      {
+        "path": "scripts/patches/fex-missing-includes.patch",
+        "sha256": "c1eebabd4eb05c8ae5c5df52bdb23f21865809817b94d2a83a694f43576e1771",
+        "bytes": 1065,
+        "paths": [
+          "FEXCore/Source/Common/StringConv.h",
+          "Source/Windows/Common/CRT/Alloc.cpp",
+          "Source/Windows/Common/CRT/IO.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-winapi-locale-stubs.patch",
+        "sha256": "c6d15f50e97075c93c6fc60de576cd6b93b664eaea2f6046d635a914dd7f786b",
+        "bytes": 565,
+        "paths": [
+          "Source/Windows/Common/WinAPI/Misc.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-wow64-lookup-cache-commit.patch",
+        "sha256": "4b86fc2eaeee92d008a5895ceb4c7cc4d1be9fcb5c4e9df024c435be5230a210",
+        "bytes": 2597,
+        "paths": [
+          "FEXCore/Source/Interface/Core/LookupCache.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-wow64-dynamic-l1-recommit.patch",
+        "sha256": "1746da57573b77b91cdbb3f66abf7c677679bd48c758dd8a0df0c9211a411872",
+        "bytes": 1205,
+        "paths": [
+          "FEXCore/Source/Interface/Core/LookupCache.h"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-arm64ec-lookup-cache-commit.patch",
+        "sha256": "43a33e8417cacdefd5ee90964a888fc1bbdb98448f58aed10ee37eebefea83aa",
+        "bytes": 5165,
+        "paths": [
+          "FEXCore/Source/Interface/Core/LookupCache.cpp",
+          "FEXCore/Source/Interface/Core/LookupCache.h"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-arm64ec-unaligned-diagnostics.patch",
+        "sha256": "2a9ae7c10cf362790a31bba5096f36dc9f40ac4ee0782646dd41e095a12a4809",
+        "bytes": 3515,
+        "paths": [
+          "Source/Windows/ARM64EC/Module.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-unaligned-stderr.patch",
+        "sha256": "06c068f1eb75798c53db824a256b27f68b54a46a368d3894c1b14b9b909bd50a",
+        "bytes": 3866,
+        "paths": [
+          "Source/Windows/WOW64/Module.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-wow64-exact-store.patch",
+        "sha256": "78157572a389bfdd63a40f559b2d8c45b7308209e54ee7f91b5bd11c5e3bf371",
+        "bytes": 6861,
+        "paths": [
+          "FEXCore/Source/Interface/Context/Context.h",
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-simd-zero.patch",
+        "sha256": "778fd618c516295ea2443001a3f1d3d0502cb82017f01bfe7418303e932b7145",
+        "bytes": 1606,
+        "paths": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher/AVX_128.cpp",
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher/Vector.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-smc-block-state.patch",
+        "sha256": "86602d07e8cb4eab602a333a8653c2c50ed9d3198bbe30904f75188daba7bc87",
+        "bytes": 1231,
+        "paths": [
+          "FEXCore/Source/Interface/Core/Core.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-wow64-synthetic-return.patch",
+        "sha256": "aba3b803fb25ae5d1e971792a9539cd60f48a1391a9e79cc0845737b16fde401",
+        "bytes": 2556,
+        "paths": [
+          "Source/Windows/Common/CallRetStack.h",
+          "Source/Windows/WOW64/Module.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-native-callret-fault.patch",
+        "sha256": "6cafc52b00f7b67c3f94e0089a193cdacc7522a8bcedf81fd7baf8dd9687a4bb",
+        "bytes": 2729,
+        "paths": [
+          "Source/Windows/ARM64EC/Module.cpp",
+          "Source/Windows/Common/CallRetStack.h",
+          "Source/Windows/WOW64/Module.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-crt-file-open.patch",
+        "sha256": "d8a4bb640d8cf534e8c3213f96ab87ca367573d678103e5c7a66e7ab78c7a63c",
+        "bytes": 929,
+        "paths": [
+          "Source/Windows/Common/CRT/IO.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-jit-symbols.patch",
+        "sha256": "1769aa1547880535e8659be52db3b149fe4b37cc0a13bffafc9a834369336119",
+        "bytes": 2600,
+        "paths": [
+          "FEXCore/Source/Common/JitSymbols.cpp",
+          "Source/Windows/WOW64/Module.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-jit-cost.patch",
+        "sha256": "e0e589966d395e534f0d6880d3f8b4eff2065ba30e16baa9cc89e1756391818e",
+        "bytes": 14487,
+        "paths": [
+          "FEXCore/Source/Interface/Context/Context.h",
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp",
+          "FEXCore/include/FEXCore/Debug/InternalThreadState.h",
+          "FEXCore/include/FEXCore/Utils/JITCompileDiagnostics.h"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-file-loading.patch",
+        "sha256": "32b6c09eb8ae342d7d072ff14f349d8b3402b3a0868e60e280376eeee80a608b",
+        "bytes": 8042,
+        "paths": [
+          "FEXCore/Source/Interface/Config/Config.cpp",
+          "FEXCore/Source/Utils/FileLoading.cpp",
+          "Source/Common/Config.cpp",
+          "Source/Windows/WOW64/Module.cpp"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-wow64-strict-mul24.patch",
+        "sha256": "02489f11b5c49261d49d6225bd4df39879373cd4f25090df54ab9b444647f2b4",
+        "bytes": 2777,
+        "paths": [
+          "FEXCore/Source/Common/SoftFloat.h",
+          "FEXCore/Source/Common/StrictMul24.h"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-pop-memory-precise-stack.patch",
+        "sha256": "1a1000e9bd80590880ec3c86cd089939f6005693338bdfbd7aead829d72ea7cd",
+        "bytes": 4443,
+        "paths": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp",
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.h"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-memory-offset-fault-boundary.patch",
+        "sha256": "3862b70c808b67a627ccab51ea8e0c056bb94f31af9834c173919b74cd5515b8",
+        "bytes": 636,
+        "paths": [
+          "FEXCore/Source/Interface/Core/OpcodeDispatcher.h"
+        ]
+      },
+      {
+        "path": "scripts/patches/fex-windows-vm-contract.patch",
+        "sha256": "e3b6d9ca3e7a5639d61e49e54a7ddd1d208f0246bbc60edb7e8071a168ef4634",
+        "bytes": 31109,
+        "paths": [
+          "FEXCore/Source/Interface/Core/Core.cpp",
+          "FEXCore/Source/Interface/Core/Frontend.cpp",
+          "FEXCore/Source/Interface/Core/Frontend.h",
+          "FEXCore/Source/Interface/Core/X86Tables/X86Tables.h",
+          "FEXCore/include/FEXCore/HLE/SyscallHandler.h",
+          "Source/Windows/ARM64EC/Module.cpp",
+          "Source/Windows/Common/InvalidationTracker.cpp",
+          "Source/Windows/Common/InvalidationTracker.h",
+          "Source/Windows/WOW64/Module.cpp",
+          "Source/Windows/WOW64/libwow64fex.def"
+        ]
+      }
+    ],
+    "wine-valve": [
+      {
+        "path": "patches/wine/0001-win32u-repair-external-font-registration.patch",
+        "sha256": "156df4179268f661af52ec08fac39747a614d6a977a00bfd1905b51bae876101",
+        "bytes": 3169,
+        "paths": [
+          "dlls/win32u/font.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0002-ntdll-ohos-signal-safe-stack-read.patch",
+        "sha256": "91be7161f5746c9dea58bc8ad304cebccd59e672ea684a519633b084779345e1",
+        "bytes": 2749,
+        "paths": [
+          "dlls/ntdll/unix/ohos_virtual.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0006-app-managed-desktop-lifetime.patch",
+        "sha256": "0486883bc1eb4ffb1965db5c3a0d279dd712867eee2326cad71a22a854fe87b3",
+        "bytes": 3421,
+        "paths": [
+          "dlls/win32u/winstation.c",
+          "programs/explorer/desktop.c",
+          "server/winstation.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0007-client-only-window-state.patch",
+        "sha256": "dad2636aaf0095c3c4e1d84cbcc1b529f8bed1969572d3f7b14e1a855fb021f1",
+        "bytes": 922,
+        "paths": [
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0008-win32u-surface-region-lock-order.patch",
+        "sha256": "eb3258cd8c50d1c074ce5e1294ae76a7735b88f9ded2aa2ecb6feef34dda784d",
+        "bytes": 3105,
+        "paths": [
+          "dlls/win32u/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0009-direct-ohos-wsi-and-resize-smoke.patch",
+        "sha256": "d0c75baa4ee98dcca30f47f0a76e05e4a696cea1c0c4ece8fa1317b04db10cdc",
+        "bytes": 22386,
+        "paths": [
+          "dlls/win32u/vulkan.c",
+          "dlls/winewayland.drv/vulkan.c",
+          "dlls/winewayland.drv/wayland_surface.c",
+          "dlls/winewayland.drv/waylanddrv.h",
+          "programs/winehua_d3d11_smoke/main.c",
+          "programs/winehua_vulkan_smoke/main.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0010-winewayland-decoration-owner-floating.patch",
+        "sha256": "3670c294dad4dd9dae34f66d230e46da69b370a7e083721a3e55652c67a41144",
+        "bytes": 2846,
+        "paths": [
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0011-wineboot-durable-prefix-completion.patch",
+        "sha256": "57a6fb2799b64f6ff62389bce5a98d0a7e1c9c49553feb3deba4953e118a3585",
+        "bytes": 5765,
+        "paths": [
+          "dlls/ntdll/unix/env.c",
+          "programs/wineboot/wineboot.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0067-wineboot-single-managed-initialization.patch",
+        "sha256": "8efa0d33adcaee6c65403d9914909b3be708c8720c509dd3d8bb07f1edb9dc91",
+        "bytes": 1432,
+        "paths": [
+          "programs/wineboot/wineboot.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0012-wineserver-locked-registry-migration.patch",
+        "sha256": "a1ad8075c7e7442e93e2097d1fef03b8b13258a67993bcd895db18f20bc1f403",
+        "bytes": 926,
+        "paths": [
+          "server/main.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0013a-ntdll-ohos-rpgxp-diagnostics.patch",
+        "sha256": "0073927d692c6562524c1b04561f97337b750bdb57fae314d0d42305ad6e7b04",
+        "bytes": 21308,
+        "paths": [
+          "dlls/ntdll/unix/ohos_virtual.c",
+          "dlls/ntdll/unix/thread.c",
+          "dlls/ntdll/unix/unix_private.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0014-win32u-font-aa-override.patch",
+        "sha256": "6e9dbbfa811a782cf4aa1154381f74b4103a7e2287124dcff18e5481603c425a",
+        "bytes": 3055,
+        "paths": [
+          "dlls/win32u/font.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0015-ohos-exec-section-eof-pread.patch",
+        "sha256": "b9bfb7af698c54a4637e7735950b707b7b53c9b3f2e38a69d684c01673b05a42",
+        "bytes": 2055,
+        "paths": [
+          "dlls/ntdll/unix/ohos_virtual.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0016-ntdll-honor-pe-large-address-aware-default.patch",
+        "sha256": "4af10fcfccf6187b08c4a7d1650f19a91bdaf0e0838bf83728a343006f661d39",
+        "bytes": 1240,
+        "paths": [
+          "dlls/ntdll/unix/virtual.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0017-wayland-configure-window-lifetime.patch",
+        "sha256": "b1de0d78400e54f209001d76629a106f9b26d76db24a9c66881287d0ca6b6934",
+        "bytes": 904,
+        "paths": [
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0018-private-vulkan-present-validation.patch",
+        "sha256": "60ec5ff8980feb7b7c278f3cb2f33afeb49ad092af0b38bce39e1af41e4d9513",
+        "bytes": 5335,
+        "paths": [
+          "dlls/win32u/vulkan.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0019-ntdll-broker-log-metadata.patch",
+        "sha256": "2b73fc3c26af1a41f25c76d75bc051beafdc2a0971b0d812eb43ea8478b85bc2",
+        "bytes": 2883,
+        "paths": [
+          "dlls/ntdll/unix/process.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0020-broker-v2-startup-contract.patch",
+        "sha256": "25382039baff19633325b1493a2b6d2a513f0a2fb3dc75fccf12e0cb50987545",
+        "bytes": 28150,
+        "paths": [
+          "dlls/ntdll/unix/ohos_broker.c",
+          "dlls/ntdll/unix/ohos_broker.h",
+          "dlls/ntdll/unix/ohos_spawn_protocol.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0021-wayland-shm-state-cache.patch",
+        "sha256": "819591439c6f7da98819276622ea128354488bcdb945c867039b3a7d556ccb3a",
+        "bytes": 8359,
+        "paths": [
+          "dlls/winewayland.drv/wayland_surface.c",
+          "dlls/winewayland.drv/waylanddrv.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0022-private-vulkan-signal-only-acquire.patch",
+        "sha256": "5da0e67fb007d70049231df8519cb18cc81c78eec77cbe6432a35978de91a3c8",
+        "bytes": 3163,
+        "paths": [
+          "dlls/win32u/vulkan.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0023-ohos-default-grayscale-font-aa.patch",
+        "sha256": "714c12a82be80c6044f29615deda769b2601b78908e7f85cead864448d3622f0",
+        "bytes": 1260,
+        "paths": [
+          "dlls/win32u/freetype.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0024-ohos-scan-prefix-fonts.patch",
+        "sha256": "3d1e1d06662fdcec9519d44dc6df7fee08bffb94249ba443ca1b3c2366df71f2",
+        "bytes": 1448,
+        "paths": [
+          "dlls/win32u/freetype.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0025-ohos-locale-font-fallback.patch",
+        "sha256": "168e678c8c1ff2e5345cf8a4c21f686a1e903ebc88056f771a9d1f5b2328ca78",
+        "bytes": 6681,
+        "paths": [
+          "dlls/win32u/font.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0026-ohos-musl-selected-locale.patch",
+        "sha256": "b16edde1cc7e4df9b4277a25a19f7fb515ddcc479285f2dccffad58e68bf7bce",
+        "bytes": 4420,
+        "paths": [
+          "dlls/ntdll/unix/env.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0027-arm64ec-seh-exit-thunk.patch",
+        "sha256": "f37e26b4a5210259adf1378e549158e56d0d5c9738fbb0773238a1fa6fa201a9",
+        "bytes": 2259,
+        "paths": [
+          "dlls/winecrt0/arm64ec.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0028-ohos-child-winedebug-environment.patch",
+        "sha256": "a98b2d68581a2885758ae9847fb9ab91dbca256a24f917aded570d5ce880b442",
+        "bytes": 504,
+        "paths": [
+          "dlls/ntdll/unix/process.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0029-wayland-minimize-restore-handshake.patch",
+        "sha256": "391b4a9192791e79e7eeb7c7ea61fe5b499c29654030b35ab24c0973f604ae5e",
+        "bytes": 3507,
+        "paths": [
+          "dlls/winewayland.drv/wayland_surface.c",
+          "dlls/winewayland.drv/waylanddrv.h",
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0030-ohos-transient-activation-return.patch",
+        "sha256": "2973fa9a5d368629fcb3c7cd3659e9f702f0af765c8e2b22534ba95a64fd984f",
+        "bytes": 8787,
+        "paths": [
+          "dlls/win32u/input.c",
+          "dlls/win32u/win32u_private.h",
+          "dlls/win32u/window.c",
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0031-wayland-client-only-remap.patch",
+        "sha256": "50df8ec1f1d39aacfcdfbd85e9c6d727e80e1cd3c2ff3edd675e677756269061",
+        "bytes": 1444,
+        "paths": [
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0032-wayland-readback-content-diagnostics.patch",
+        "sha256": "60c368e950a55bd232ffc64792ceb25594245d78cc72921083ae109c63534c0b",
+        "bytes": 2070,
+        "paths": [
+          "dlls/winewayland.drv/opengl_readback.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0033-ohos-fshack-context-capability.patch",
+        "sha256": "74c5266540312f1a58c431bea98f3fb57cd011e163e096030ffb80619236631c",
+        "bytes": 11292,
+        "paths": [
+          "dlls/opengl32/unix_wgl.c",
+          "dlls/win32u/opengl.c",
+          "include/wine/opengl_driver.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0034-opengl-zero-texture-not-reserved.patch",
+        "sha256": "4b7cfae2be182f6ed48237573849750642391a7b990045da3625308a9eb79730",
+        "bytes": 418,
+        "paths": [
+          "dlls/opengl32/unix_wgl.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0035-opengl-wow64-explicit-buffer-flush.patch",
+        "sha256": "7777bf55e87a0d2a351dd440678815a6b7ea505b81d51f628ead1c86465e3520",
+        "bytes": 1780,
+        "paths": [
+          "dlls/opengl32/unix_wgl.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0036-wined3d-pixel-format-id-lookup.patch",
+        "sha256": "da66983ac6e652034abf40f8c8a88f5906ec6344876a540ce980904c2d8d9e04",
+        "bytes": 1465,
+        "paths": [
+          "dlls/wined3d/swapchain.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0037-wine-opengl-performance-summary.patch",
+        "sha256": "f24331031b68edbcb8b9a98a8efef47c74e397b790b5ea89eaae3dadc0bc3933",
+        "bytes": 34936,
+        "paths": [
+          "dlls/opengl32/make_opengl",
+          "dlls/opengl32/unix_thunks.c",
+          "dlls/opengl32/unix_thunks.h",
+          "dlls/opengl32/unix_wgl.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0038-wined3d-discard-map-invalidation.patch",
+        "sha256": "9ddda1ab4e282bc01a63e19476b0f027fb832700af44193e517b15f258550dec",
+        "bytes": 660,
+        "paths": [
+          "dlls/wined3d/resource.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0039-wined3d-opt-in-dynamic-buffer-sysmem.patch",
+        "sha256": "434ba19629951d5d61242aa33f44ef83592ae086ab729beb44690402e209d829",
+        "bytes": 2719,
+        "paths": [
+          "dlls/wined3d/buffer.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0068-wined3d-ohos-command-event-wake.patch",
+        "sha256": "86912fe809cf2d1b8edb4ba25cca7c8aeae157d19514a156989f82b88503d5e5",
+        "bytes": 2443,
+        "paths": [
+          "dlls/wined3d/cs.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0040-ntdll-owned-virgl-shared-low-map.patch",
+        "sha256": "18a22c06ae3030bd99d3f3fb549fd259add0753122b1baeb255b7805963fd70e",
+        "bytes": 3964,
+        "paths": [
+          "dlls/ntdll/unix/env.c",
+          "dlls/ntdll/unix/virtual.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0041-winebus-ohos-poll-progress.patch",
+        "sha256": "01979647c7024baa0727ffdf51579d3d4134b56bf8a19e7606161e08eafc57ac",
+        "bytes": 2024,
+        "paths": [
+          "dlls/winebus.sys/bus_ohos.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0042-opengl-opt-in-wgl-lock-wait.patch",
+        "sha256": "a864277b2f2f872903bb1e0e0219b984eaf578cafb885fc01413e87b2b052d1b",
+        "bytes": 2550,
+        "paths": [
+          "dlls/opengl32/unix_wgl.c",
+          "dlls/opengl32/winehua_wgl_lock_perf.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0043-winebus-canonical-whgp-v2.patch",
+        "sha256": "f883f96449550e8b61f7901fd1e2a9772572cc69c0e00ba8e2ba05228d8c4657",
+        "bytes": 5490,
+        "paths": [
+          "dlls/winebus.sys/bus_ohos.c",
+          "dlls/winebus.sys/winehua_gamepad_protocol.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0044-wayland-input-thread-desktop.patch",
+        "sha256": "d9ea72cdf327b702a0ff3d6b2db712c159508e31a253b5bae982df0e7f1ee249",
+        "bytes": 3044,
+        "paths": [
+          "dlls/winewayland.drv/wayland.c",
+          "dlls/winewayland.drv/wayland_keyboard.c",
+          "dlls/winewayland.drv/wayland_pointer.c",
+          "dlls/winewayland.drv/waylanddrv.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0045-ntdll-arm64-invalid-leaf-unwind.patch",
+        "sha256": "00316f0058759d5efaa05d88962436f857635fa4817f73467cf232f109248dd0",
+        "bytes": 777,
+        "paths": [
+          "dlls/ntdll/unwind.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0046-ntdll-ohos-process-exit.patch",
+        "sha256": "36a4958e4b978cf3d556d86451da8420936ff90f50bd46cfd8e1cc1724bd4c7b",
+        "bytes": 398,
+        "paths": [
+          "dlls/ntdll/unix/server.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0047-win32u-wow64-vulkan-map-safety.patch",
+        "sha256": "8c8c181cc258c78711c2360f83d140c8b2085a0fb8069bf085261e4a71db1c06",
+        "bytes": 15506,
+        "paths": [
+          "dlls/win32u/vulkan.c",
+          "dlls/winevulkan/make_vulkan",
+          "include/wine/vulkan_driver.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0048-ntdll-opt-in-server-request-timing.patch",
+        "sha256": "f74e3b5942ee50447b8e98a2146a28b0d48604d42cccbf256e09ff22b39b5e8d",
+        "bytes": 4384,
+        "paths": [
+          "dlls/ntdll/unix/server.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0049-wined3d-require-srgb-write-control-for-shared-storage.patch",
+        "sha256": "a8b20b06c7c667ef114f943d6fdbdcdfc0caa83a1e1996f82fe7b029db4355e3",
+        "bytes": 1198,
+        "paths": [
+          "dlls/wined3d/adapter_gl.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0050-wayland-explicit-gpu-front-present.patch",
+        "sha256": "675741fee77fc9ba871481c8f0f92e7483f7c84063d5287f61bca426b07c3589",
+        "bytes": 2381,
+        "paths": [
+          "dlls/winewayland.drv/opengl_readback.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0051-opengl-preserve-pbuffer-front-storage.patch",
+        "sha256": "65173fe3315d691283a7525f06ab114acc99815476b358b50806f6aa15cc1470",
+        "bytes": 1933,
+        "paths": [
+          "dlls/opengl32/unix_wgl.c",
+          "dlls/winewayland.drv/opengl_readback.c",
+          "include/wine/opengl_driver.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0052-ntdll-default-virgl-shared-low-map.patch",
+        "sha256": "44b9e6699c7c250812e02db388e28fffbdb845cbf94b3d0d559177dc16506d74",
+        "bytes": 1014,
+        "paths": [
+          "dlls/ntdll/unix/env.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0053-wined3d-restore-legacy-alpha-test-state.patch",
+        "sha256": "3ff4ad1d4cfb6fe0b9eae9111ed80382475319c8984f91cf8ea8dc89665aaa04",
+        "bytes": 1030,
+        "paths": [
+          "dlls/wined3d/glsl_shader.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0054-ntdll-broker-preserve-resolved-image-path.patch",
+        "sha256": "8f632a08d23c27bcc532f6514bc3b82349590ad846f3789d8c2357401f95aff9",
+        "bytes": 771,
+        "paths": [
+          "dlls/ntdll/unix/process.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0055-layered-child-screen-coordinates-and-root.patch",
+        "sha256": "3a3bb1795895c73dd973af378b61527ef21e990f1e5d1f8f65771ee1da162aab",
+        "bytes": 3315,
+        "paths": [
+          "dlls/win32u/window.c",
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0056-wayland-direct-wsi-before-show.patch",
+        "sha256": "748a156cedeedb0b87990167e787992e1ee090501a0019810b2b1d1d2ff773c2",
+        "bytes": 6804,
+        "paths": [
+          "dlls/winewayland.drv/vulkan.c",
+          "dlls/winewayland.drv/wayland_surface.c",
+          "dlls/winewayland.drv/waylanddrv.h",
+          "dlls/winewayland.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0057-wayland-direct-drawable-identity.patch",
+        "sha256": "dcb2792c46e8e193f59233404f0527a5258090d74a89e65ab0b51bcf8f4f9ec1",
+        "bytes": 5109,
+        "paths": [
+          "dlls/winewayland.drv/vulkan.c",
+          "dlls/winewayland.drv/wayland.c",
+          "dlls/winewayland.drv/wayland_surface.c",
+          "dlls/winewayland.drv/waylanddrv.h",
+          "dlls/winewayland.drv/winehua-toplevel.xml"
+        ]
+      },
+      {
+        "path": "patches/wine/0058-ohos-shared-wasapi-float32.patch",
+        "sha256": "627228b4338bf10d721e52b9df4d2bef6ad62c043bc3dee8ac3c9a0557d927a7",
+        "bytes": 805,
+        "paths": [
+          "dlls/wineohos.drv/ohos.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0062-wineohos-shared-audio-format-contract.patch",
+        "sha256": "21cc2cddbf8aad24aef8c5c51436abd7f39cdb435e527cf690c4cf87ac392b26",
+        "bytes": 1506,
+        "paths": [
+          "dlls/wineohos.drv/ohos.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0064-mfplat-opt-in-nonshared-texture-retry.patch",
+        "sha256": "0465ebe4c88ba6747cb2fd30c4623dce7942e701d226451d1c9b70d2b1abfe58",
+        "bytes": 1284,
+        "paths": [
+          "dlls/mfplat/sample.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0063-ntdll-ohos-thread-exit-signal-stack.patch",
+        "sha256": "b8791c8f40ad906de21503619122a83aae71f7ac50ed9873ac339af057ba5acb",
+        "bytes": 5562,
+        "paths": [
+          "dlls/ntdll/unix/signal_arm64.c",
+          "dlls/ntdll/unix/thread.c",
+          "dlls/ntdll/unix/unix_private.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0065-wow64-self-context-no-suspend.patch",
+        "sha256": "74e47ec9210a01b3a4767e8f7411b719bce95bdacbaa19e1e07907273316623e",
+        "bytes": 875,
+        "paths": [
+          "dlls/wow64/syscall.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0060-ntdll-vm-protect-diagnostics.patch",
+        "sha256": "2677e16ef33ab12b2de41d60505cfe74f859bb050a784c730d6f0cbb1eb326a9",
+        "bytes": 4705,
+        "paths": [
+          "dlls/ntdll/unix/virtual.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0061-iphlpapi-native-network-contract.patch",
+        "sha256": "e4884a64923e67864904425d20eb52ad0808cfce10629f352bbeeb19897f1803",
+        "bytes": 13046,
+        "paths": [
+          "dlls/iphlpapi/iphlpapi_main.c",
+          "dlls/nsiproxy.sys/Makefile.in",
+          "dlls/nsiproxy.sys/ip.c",
+          "dlls/nsiproxy.sys/ndis.c",
+          "dlls/nsiproxy.sys/network-route-linux.c",
+          "dlls/nsiproxy.sys/network-route-linux.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0066-winhttp-wininet-bounded-connect.patch",
+        "sha256": "25ab30597eaa02b1243ef19d7f48671f9489fe168c12d53ae7b88adcf4c0abd8",
+        "bytes": 15462,
+        "paths": [
+          "dlls/winhttp/net.c",
+          "dlls/winhttp/request.c",
+          "dlls/winhttp/winhttp_private.h",
+          "dlls/wininet/utility.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0067-dnsapi-musl-transport-safety.patch",
+        "sha256": "102fbb2d39ab5ff1e3c61fc581cef8c3a680002cf4789bc3b7b557463c35b76a",
+        "bytes": 12288,
+        "paths": [
+          "dlls/dnsapi/libresolv_musl.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0066-ohos-native-gstreamer-plugins.patch",
+        "sha256": "3077d1a1a2a796a1cfb2e708bd24af9e2e815cc4621dd7092ae108db91c2bf0e",
+        "bytes": 1130,
+        "paths": [
+          "dlls/winegstreamer/unixlib.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0070-ddraw-clip-surface-bounds.patch",
+        "sha256": "14632b06cee1944db1b7ea9134e43a6469a8c161c828d0c660ab48e94d1367c3",
+        "bytes": 1738,
+        "paths": [
+          "dlls/ddraw/surface.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0071-ime-key-scancode.patch",
+        "sha256": "c077d47c6a4035da3961d021bea1d00e029657aed76339f4785a097aaefe53f9",
+        "bytes": 505,
+        "paths": [
+          "dlls/imm32/ime.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0072-ohos-x11-nativebuffer-display.patch",
+        "sha256": "406712534168a527026c1fd630eee801e0c6d70fe77d58c45c3aaf56a656fe55",
+        "bytes": 50457,
+        "paths": [
+          "configure.ac",
+          "dlls/win32u/Makefile.in",
+          "dlls/win32u/driver.c",
+          "dlls/win32u/vulkan.c",
+          "dlls/win32u/win32u_private.h",
+          "dlls/win32u/winehua_present.c",
+          "dlls/winex11.drv/Makefile.in",
+          "dlls/winex11.drv/mouse.c",
+          "dlls/winex11.drv/opengl.c",
+          "dlls/winex11.drv/opengl_winehua.c",
+          "dlls/winex11.drv/vulkan.c",
+          "dlls/winex11.drv/window.c",
+          "dlls/winex11.drv/x11drv.h",
+          "dlls/winex11.drv/x11drv_main.c",
+          "include/Makefile.in",
+          "include/wine/winehua_present.h",
+          "include/wine/winehua_vulkan.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0073-x11-desktop-role.patch",
+        "sha256": "1776ac42494b92d3da578e653d9bed859e47fb2134e4faa019306b3365fb0795",
+        "bytes": 814,
+        "paths": [
+          "dlls/winex11.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0074-x11-child-window-identity.patch",
+        "sha256": "2b44588189dbc45e89795c569ce6a6bdcde95580cfd212530db8bbbad403bfb2",
+        "bytes": 786,
+        "paths": [
+          "dlls/winex11.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0075-x11-thread-cleanup-diagnostics.patch",
+        "sha256": "57b4cb7eb59fb97a83432a6bc76fed4827cd6e7e852af6e57d808d385cf58815",
+        "bytes": 2651,
+        "paths": [
+          "dlls/win32u/sysparams.c",
+          "dlls/win32u/window.c",
+          "dlls/winex11.drv/x11drv_main.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0076-x11-egl-default-visual.patch",
+        "sha256": "94fb38c3c6d7e74259a7940db05f54a7497c095fbc24181ccc7d2674575db093",
+        "bytes": 996,
+        "paths": [
+          "dlls/winex11.drv/opengl_winehua.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0077-x11-ohos-client-decorations.patch",
+        "sha256": "71a41de6527749cb547a92e40ff313a89b405cab1ade01aa0617f9ac33416762",
+        "bytes": 1081,
+        "paths": [
+          "dlls/winex11.drv/window.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0078-ohos-single-blit-caption.patch",
+        "sha256": "4317a1e00931438248f579293e919205cb404b41040902a833b9df2ba5bb5952",
+        "bytes": 3410,
+        "paths": [
+          "dlls/win32u/defwnd.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0079-x11-ohos-text-only-caption-refresh.patch",
+        "sha256": "844c4086b7a6e78e1c2e5519d931b9193d2181839232fdfc35cb3dc4bd2b43f5",
+        "bytes": 10769,
+        "paths": [
+          "dlls/win32u/defwnd.c"
+        ]
+      },
+      {
+        "path": "patches/wine/0080-wineohos-shared-multichannel-downmix.patch",
+        "sha256": "e03426fb91d393d9abb06d2e26494723cd7b31473460ef8d30fde4ac5fe2472f",
+        "bytes": 9104,
+        "paths": [
+          "dlls/wineohos.drv/ohos.c",
+          "dlls/wineohos.drv/ohos_audio_mix.h"
+        ]
+      },
+      {
+        "path": "patches/wine/0081-wineohos-render-event-pacing.patch",
+        "sha256": "35668bf7592859a42084795242b302148d68bbcd8c3876816977f4ae2a2de9eb",
+        "bytes": 1291,
+        "paths": [
+          "dlls/wineohos.drv/ohos.c"
+        ]
+      }
+    ]
+  },
+  "fexCurrentOnlyCommits": [
+    {
+      "commit": "58483310a7a18e9a99eb252ab97aaac485c5f86f",
+      "purpose": "WOW64/ARM64EC emulator identity output",
+      "disposition": "review-and-preserve-required-behavior"
+    },
+    {
+      "commit": "86ff33bbe299cd8959a6610198c169b67ec419db",
+      "purpose": "Windows 32-bit load-config CodeIntegrity type",
+      "disposition": "review-and-preserve-required-behavior"
+    }
+  ],
+  "replayEvidence": {
+    "fexProductionReplayPassed": true,
+    "overlayCount": {
+      "fex": 20,
+      "wine": 78
+    },
+    "recheckedAgainstEffectiveSources": true
+  },
+  "additionalEffectiveChanges": [
+    {
+      "path": "dlls/kernelbase/registry.c",
+      "disposition": "exclude-retired-linux-steam-bridge",
+      "scope": "development-tree-only; absent from effective 2.0.0 build"
+    },
+    {
+      "path": "dlls/winevulkan/vulkan_thunks.c",
+      "disposition": "verify-adapted-generator-reproduction",
+      "scope": "generated output; do not silently drop"
+    }
+  ],
+  "rules": [
+    "every overlay and committed platform change requires an explicit disposition",
+    "text reverse-match is not proof of upstream semantic equivalence",
+    "first rebuild current effective Wine from true Valve parent and compare before upgrading",
+    "keep optional diagnostics and experiments separate from enabled production behavior"
+  ]
+}
