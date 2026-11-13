@@ -1,0 +1,256 @@
+{
+  "schema": 1,
+  "checkedAt": "2026-11-13",
+  "status": "audited-not-migrated",
+  "product": {
+    "branch": "feature/v2-ohos-wine-winsteam",
+    "head": "9f84d92b39f488631ace8b10522d66b10ed72029",
+    "route": "Windows Steam + OHOS Wine + HmosDeck",
+    "localAhead": 3
+  },
+  "fex": {
+    "current": "86ff33bbe299cd8959a6610198c169b67ec419db",
+    "latestRelease": {
+      "tag": "FEX-2611.1",
+      "commit": "4f9c1f1e36443d22d7655477e34f51b95b685bf1",
+      "publishedAt": "2026-11-11T19:23:54Z"
+    },
+    "latestMain": {
+      "commit": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
+      "date": "2026-11-12T01:20:16Z"
+    },
+    "releaseComparison": {
+      "upstreamCommitsAhead": 1260,
+      "currentOnlyCommits": 2,
+      "mergeBase": "a04b0241c2fe3911729842205cd8643981108aad"
+    },
+    "currentOnlyCommits": [
+      "58483310a7a18e9a99eb252ab97aaac485c5f86f",
+      "86ff33bbe299cd8959a6610198c169b67ec419db"
+    ],
+    "productionOverlayCount": 20,
+    "productionReplayMatchesEffectiveSource": true
+  },
+  "proton": {
+    "currentWineFork": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
+    "originalValveWineBase": "dc26e61847081a1b5cb0733dc30feba6ee575482",
+    "latestStableRelease": "proton-11.0-2",
+    "stableBranch": {
+      "proton": "1f089f5610a882c8bfcb4b58a3c86ee88bb4b9f1",
+      "wine": "e60892cc2398b0a83c332a2078c7b85e47bdb42b",
+      "wineCommitsAhead": 1,
+      "components": [
+        {
+          "path": "FEX",
+          "commit": "1cc4b93e7a71c883ec021b71359f136394dc1f3c"
+        },
+        {
+          "path": "OpenXR-SDK",
+          "commit": "8899a91c17ce9618f565f42408b47db1d6e9ccc7"
+        },
+        {
+          "path": "SPIRV-Headers",
+          "commit": "6cae8216a6ea19ff3f237af01e54378c1ff81fcd"
+        },
+        {
+          "path": "Vulkan-Headers",
+          "commit": "31aa7f634b052d87ede4664053e85f3f4d1d50d3"
+        },
+        {
+          "path": "dav1d",
+          "commit": "8a6f054ef1e0f7886bc6e53e6be97c427154fe85"
+        },
+        {
+          "path": "dxvk",
+          "commit": "a6764047e587178283fcde4073ae6e1410af594f"
+        },
+        {
+          "path": "dxvk-nvapi",
+          "commit": "f9fdf268e888d17ae9875a4f01908164ff05f740"
+        },
+        {
+          "path": "ffmpeg",
+          "commit": "a77521cd5d27e955b16e8097eecefc779ffdcb6d"
+        },
+        {
+          "path": "glslang",
+          "commit": "df7fec2cfa966919172ee83bfcae6c9c9b3f91b8"
+        },
+        {
+          "path": "graphene",
+          "commit": "4e2578450809c2099400cf85caf18eafcd7100aa"
+        },
+        {
+          "path": "gst-orc",
+          "commit": "7d5bbada3f1c6cf34182abccf47a34d79b83fa97"
+        },
+        {
+          "path": "gst-plugins-rs",
+          "commit": "0205aa43d6d8c5d0c9d4e4f83e0a3aaa94acef89"
+        },
+        {
+          "path": "gstreamer",
+          "commit": "bf6ce1d64a0697e7910826147b48f8f658366a5a"
+        },
+        {
+          "path": "kaldi",
+          "commit": "a25f216f5ce4eec5e45a6ab7651e20c9840a05cd"
+        },
+        {
+          "path": "libsoup",
+          "commit": "25eac153004f777581ca2d95e31a02ca96844332"
+        },
+        {
+          "path": "openfst",
+          "commit": "18e94e63870ebcf79ebb42b7035cd3cb626ec090"
+        },
+        {
+          "path": "openvr",
+          "commit": "91825305130f446f82054c1ec3d416321ace0072"
+        },
+        {
+          "path": "piper",
+          "commit": "9d06b74959570772e8bcbe7a3f696664d2421167"
+        },
+        {
+          "path": "vkd3d",
+          "commit": "1128125fbaf133e120b7ddfec99a10bf20a2eb25"
+        },
+        {
+          "path": "vkd3d-proton",
+          "commit": "212991fc2c266bc0d59f4c4ce8f80f7126508d71"
+        },
+        {
+          "path": "vosk-api",
+          "commit": "12f29a3415e4967e088ed09202bfb0007e5a1787"
+        },
+        {
+          "path": "wine",
+          "commit": "e60892cc2398b0a83c332a2078c7b85e47bdb42b"
+        }
+      ]
+    },
+    "experimental": {
+      "proton": "0764d2920a128cee74555afcab0819919ddf416d",
+      "wine": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
+      "wineCommitsAhead": 477,
+      "components": [
+        {
+          "path": "FEX",
+          "commit": "eff9f459d8a13dc80aa9edb331c3da0e98334a38"
+        },
+        {
+          "path": "OpenXR-SDK",
+          "commit": "f2448a8797c85814aa892efc1ab8707900fbcc78"
+        },
+        {
+          "path": "SPIRV-Headers",
+          "commit": "6cae8216a6ea19ff3f237af01e54378c1ff81fcd"
+        },
+        {
+          "path": "Vulkan-Headers",
+          "commit": "31aa7f634b052d87ede4664053e85f3f4d1d50d3"
+        },
+        {
+          "path": "dav1d",
+          "commit": "8a6f054ef1e0f7886bc6e53e6be97c427154fe85"
+        },
+        {
+          "path": "dxvk",
+          "commit": "cf0a0d90f8965147741ad17dcd0b263817572ab3"
+        },
+        {
+          "path": "dxvk-igdext",
+          "commit": "a2aa5a2efc39c299dc95968e15786db0cef62acc"
+        },
+        {
+          "path": "dxvk-nvapi",
+          "commit": "9c0f214cb66b543ed6604ef04c29fde98832dc77"
+        },
+        {
+          "path": "ffmpeg",
+          "commit": "a77521cd5d27e955b16e8097eecefc779ffdcb6d"
+        },
+        {
+          "path": "glslang",
+          "commit": "df7fec2cfa966919172ee83bfcae6c9c9b3f91b8"
+        },
+        {
+          "path": "graphene",
+          "commit": "4e2578450809c2099400cf85caf18eafcd7100aa"
+        },
+        {
+          "path": "gst-orc",
+          "commit": "7d5bbada3f1c6cf34182abccf47a34d79b83fa97"
+        },
+        {
+          "path": "gst-plugins-rs",
+          "commit": "0205aa43d6d8c5d0c9d4e4f83e0a3aaa94acef89"
+        },
+        {
+          "path": "gstreamer",
+          "commit": "bf6ce1d64a0697e7910826147b48f8f658366a5a"
+        },
+        {
+          "path": "kaldi",
+          "commit": "a25f216f5ce4eec5e45a6ab7651e20c9840a05cd"
+        },
+        {
+          "path": "libsoup",
+          "commit": "25eac153004f777581ca2d95e31a02ca96844332"
+        },
+        {
+          "path": "openfst",
+          "commit": "18e94e63870ebcf79ebb42b7035cd3cb626ec090"
+        },
+        {
+          "path": "openvr",
+          "commit": "91825305130f446f82054c1ec3d416321ace0072"
+        },
+        {
+          "path": "piper",
+          "commit": "9d06b74959570772e8bcbe7a3f696664d2421167"
+        },
+        {
+          "path": "vkd3d",
+          "commit": "dbf16ed20775bfefacb29cace14320c8cb12dd5a"
+        },
+        {
+          "path": "vkd3d-proton",
+          "commit": "563eb6caaa8fb1386cbc629e7527c6522f5bfde8"
+        },
+        {
+          "path": "vosk-api",
+          "commit": "12f29a3415e4967e088ed09202bfb0007e5a1787"
+        },
+        {
+          "path": "wine",
+          "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
+        }
+      ]
+    },
+    "localImportSnapshot": "c0cc03e377efe88763892496a45016dfc2946fc5",
+    "originalBaseNotConnectedToLocalImportHistory": true,
+    "registeredOverlayCount": 78,
+    "managedReplayMatchesBothLocalSources": true,
+    "additionalChanges": [
+      {
+        "path": "dlls/kernelbase/registry.c",
+        "location": "development tree only",
+        "classification": "legacy-linux-steam-bridge; preserve record, exclude from v2 OHOS route"
+      },
+      {
+        "path": "dlls/winevulkan/vulkan_thunks.c",
+        "location": "both source trees",
+        "classification": "generated Vulkan thunks; verify regeneration from adapted generator"
+      }
+    ]
+  },
+  "proposal": {
+    "candidateFex": "ab135df091d005cc98dfddc56c3dc9c9e4bd501d",
+    "candidateProton": "0764d2920a128cee74555afcab0819919ddf416d",
+    "policy": "full fixed upstream snapshots with separately ordered OHOS adaptations; stage FEX and Wine changes separately; release qualification required",
+    "migrationNotStarted": true,
+    "buildOrDeviceVerification": false
+  }
+}

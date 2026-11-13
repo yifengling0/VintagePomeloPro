@@ -11,6 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 SUITES = (
     'host_tests/windows_steam_runtime_test.py',
+    'host_tests/windows_steam_offline_test.py',
     'host_tests/ci_submodule_checkout_test.py',
     'host_tests/ci_preflight_test.py',
     'host_tests/ci_release_test.py',

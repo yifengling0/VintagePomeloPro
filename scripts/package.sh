@@ -353,7 +353,7 @@ package_app() {
     [ "${#apps[@]}" -gt 0 ] || err "App missing after assembleApp"
     if [ "$NATIVE_ARCH" = "arm64-v8a" ]; then
         for app in "${apps[@]}"; do
-            python3 "$SCRIPT_DIR/prepare_release_offline_packages.py" --verify-only \
+            python3 "$SCRIPT_DIR/prepare_windows_steam_offline.py" --verify-only \
                 --output-dir "${RELEASE_OFFLINE_DIR:-$BUILD_DIR/release-offline}" --app "$app"
         done
     fi

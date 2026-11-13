@@ -55,7 +55,9 @@ def verify_hap(path):
                 for symbol in (b'probeLinuxSteam', b'startLinuxProtonGame', b'prepareLinuxSteamDisplay', b'isLinuxSteamProcess'):
                     if symbol in data: raise ValueError('Retired Linux NAPI in ' + member)
         # Keep memory bounded; do not expand an entire runtime tree for auditing.
-        with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as payload:
+        # TemporaryFile exposes seekable() on Python 3.10 as well as newer CI
+        # Python versions, and keeps large nested runtimes out of memory.
+        with tempfile.TemporaryFile() as payload:
             with archive.open('resources/rawfile/wine-data.zip') as source:
                 shutil.copyfileobj(source, payload, length=1024 * 1024)
             payload.seek(0)

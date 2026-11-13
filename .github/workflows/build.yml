@@ -3,7 +3,7 @@ name: Build VintagePomeloPro HAP (arm64-v8a, unsigned)
 
 on:
   push:
-    branches: [master, main, main_proton_steamarm64, feature/v2-ohos-wine-winsteam]
+    branches: [main]
     tags:
       - 'dev-*'                 # 开发版 (直接发布, 不占 Latest 徽章)
       - 'rc-*'                  # RC 版 (占 Latest 徽章)
@@ -12,7 +12,7 @@ on:
       - '.gitignore'
       - 'LICENSE*'
   pull_request:
-    branches: [master, main, main_proton_steamarm64, feature/v2-ohos-wine-winsteam]
+    branches: [main]
   workflow_dispatch:
     inputs:
       release_tag:
@@ -60,8 +60,8 @@ jobs:
           node scripts/run_value_added_service_tests.cjs --source "$ts"
           node scripts/run_membership_checkout_ui_tests.cjs "$ts"
 
-  gnu-components:
-    name: Verify GNU dependencies from a clean checkout
+  source-checks:
+    name: Verify OHOS Wine and Windows Steam source inputs
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
@@ -70,8 +70,7 @@ jobs:
           ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
           submodules: false
           fetch-depth: 1
-      # GNU companion provenance includes the exact pinned Vulkan registry
-      # and headers. The first job otherwise has no initialized submodules.
+      # Source-contract tests need the exact pinned Mesa and DXVK inputs.
       - name: Restore pinned provenance and DXVK overlay test inputs
         run: |
           git -c url."https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf=git@github.com: \
@@ -80,38 +79,17 @@ jobs:
       - name: Test provenance and dependency restore
         run: |
           python3 scripts/ci_preflight.py --report ci-artifacts/ci-preflight.json
-      - name: Restore verified GNU source archive cache
-        id: gnu-source-cache
-        uses: actions/cache/restore@v4
-        continue-on-error: true
-        with:
-          path: |
-            build/linux-runtime-downloads/*.zip
-            build/linux-runtime-downloads/*.tar.gz
-          key: gnu-sources-v1-${{ runner.os }}-${{ hashFiles('docs/linux-steam/build-components.lock.json', 'docs/linux-steam/gnu-proton-modules.lock.json') }}
-      - name: Fetch and verify published GNU dependency bytes
-        run: python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-clean-checkout.json
-      - name: Save verified GNU source archives
-        if: steps.gnu-source-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        continue-on-error: true
-        with:
-          path: |
-            build/linux-runtime-downloads/*.zip
-            build/linux-runtime-downloads/*.tar.gz
-          key: gnu-sources-v1-${{ runner.os }}-${{ hashFiles('docs/linux-steam/build-components.lock.json', 'docs/linux-steam/gnu-proton-modules.lock.json') }}
       - uses: actions/upload-artifact@v4
         with:
-          name: gnu-clean-checkout-${{ github.sha }}
+          name: source-preflight-${{ github.sha }}
           path: |
-            ci-artifacts/gnu-clean-checkout.json
             ci-artifacts/ci-preflight.json
           if-no-files-found: error
           retention-days: 14
 
   build:
     name: make NATIVE_ARCH=arm64-v8a hap-unsigned
-    needs: [gnu-components, membership-checks]
+    needs: [source-checks, membership-checks]
     runs-on: ubuntu-26.04
     timeout-minutes: 180
     outputs:
@@ -363,20 +341,6 @@ jobs:
           test -f "$sentinel" || { echo "Hvigor deleted the native build directory" >&2; exit 1; }
           rm -f "$sentinel"
 
-      - name: Restore pinned GNU source archive cache
-        uses: actions/cache/restore@v4
-        continue-on-error: true
-        with:
-          path: |
-            build/linux-runtime-downloads/*.zip
-            build/linux-runtime-downloads/*.tar.gz
-          key: gnu-sources-v1-${{ runner.os }}-${{ hashFiles('docs/linux-steam/build-components.lock.json', 'docs/linux-steam/gnu-proton-modules.lock.json') }}
-
-      - name: Verify restored Linux Steam and GNU Proton components
-        run: |
-          set -euo pipefail
-          python3 scripts/prepare_linux_runtime_components.py --report ci-artifacts/gnu-components.json
-
       # Replay first, before the hour-long native dependency build. This uses
       # small fixtures and leaves the verified checkout untouched.
       - name: Restore verified native source archives
@@ -445,12 +409,11 @@ jobs:
             --sdk /apps/harmony/sdk/default/openharmony --report ci-artifacts/native-preflight.json
           git diff --exit-code HEAD --ignore-submodules=all
 
-      - name: Reuse pinned official Steam download archives
+      - name: Reuse the pinned Windows Steam offline archive
         uses: actions/cache@v4
         with:
-          path: build/cache/steam-official
-          key: steam-official-${{ hashFiles('entry/src/main/resources/rawfile/linux-steam/deployment.json', 'docs/linux-steam/native-sdk.lock.json') }}
-          restore-keys: steam-official-
+          path: build/release-offline/*.zip
+          key: windows-steam-offline-${{ hashFiles('docs/windows-steam/offline-package.lock.json') }}
 
       - name: Build HAP
         env:
@@ -486,16 +449,16 @@ jobs:
           test -s "$hap"
           python3 scripts/verify_ci_release.py artifact --manifest ci-artifacts/ci-source.json \
             --hap "$hap" --output ci-artifacts/ci-artifact.json
-          python3 scripts/prepare_linux_runtime_components.py --hap "$hap" --report ci-artifacts/gnu-components-hap.json
-          python3 scripts/prepare_release_offline_packages.py --verify-only --output-dir build/release-offline --hap "$hap"
+          python3 scripts/v2_product_contract.py --hap "$hap"
+          python3 scripts/prepare_windows_steam_offline.py --output-dir build/release-offline --hap "$hap"
           python3 - <<'PY'
           import json, os
           from pathlib import Path
           folder = Path('build/release-offline')
           report = json.loads((folder / 'release-offline-packages.json').read_text())
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              for key, item in zip(('steam_offline', 'proton_offline'), report['packages']):
-                  output.write(f"{key}={folder / item['fileName']}\n")
+              item, = report['packages']
+              output.write(f"steam_offline={folder / item['fileName']}\n")
           PY
           echo "hap=$hap" >> "$GITHUB_OUTPUT"
 
@@ -507,8 +470,6 @@ jobs:
             ${{ steps.art.outputs.hap }}
             ci-artifacts/ci-source.json
             ci-artifacts/ci-artifact.json
-            ci-artifacts/gnu-components.json
-            ci-artifacts/gnu-components-hap.json
           if-no-files-found: error
           retention-days: 14
 
@@ -518,7 +479,6 @@ jobs:
           name: VintagePomeloPro-offline-${{ steps.source.outputs.commit }}
           path: |
             ${{ steps.art.outputs.steam_offline }}
-            ${{ steps.art.outputs.proton_offline }}
             build/release-offline/release-offline-packages.json
             build/release-offline/SHA256SUMS-current.txt
             build/release-offline/OFFLINE-IMPORT.txt
@@ -612,13 +572,18 @@ jobs:
           path: ./release-assets
 
       - name: Verify offline packages match the published HAP
-        run: python3 scripts/prepare_release_offline_packages.py --verify-only --output-dir release-assets --hap "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
+        run: python3 scripts/prepare_windows_steam_offline.py --verify-only --output-dir release-assets --hap "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
 
-      # A successful source build is not hardware regression approval. RC
-      # publication still requires the reviewed final-byte compatibility locks.
-      - name: Verify reviewed runtime before RC publication
-        if: startsWith(steps.tag.outputs.tag, 'rc-')
-        run: python3 scripts/check_runtime_components.py --hap "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
+      # 2.0 publishes clean source-built artifacts. Bind every rebuilt module
+      # to the verified source receipt and retain the explicit deviceValidated=false
+      # policy; the old 1.4.9 binary hashes are not new-build hardware approval.
+      - name: Verify source-built runtime before publication
+        run: |
+          hap="release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-arm64-v8a-unsigned.hap"
+          python3 scripts/verify_ci_release.py artifact --manifest release-assets/ci-artifacts/ci-source.json \
+            --hap "$hap" --output "release-assets/VintagePomeloPro-${{ steps.tag.outputs.tag }}-artifact.json"
+          python3 scripts/check_runtime_components.py --hap "$hap" \
+            --source-build-manifest release-assets/ci-artifacts/ci-source.json
 
       - name: Generate changelog
         env:

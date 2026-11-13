@@ -598,12 +598,12 @@ STEAM_ARCHIVE_CACHE ?= $(BUILD_DIR)/cache/steam-official
 export RELEASE_OFFLINE_DIR STEAM_ARCHIVE_CACHE
 .PHONY: release-offline-packages verify-release-offline-packages
 release-offline-packages:
-	python3 $(SCRIPTS)/prepare_release_offline_packages.py --output-dir "$(RELEASE_OFFLINE_DIR)" --downloads "$(STEAM_ARCHIVE_CACHE)"
+	python3 $(SCRIPTS)/prepare_windows_steam_offline.py --output-dir "$(RELEASE_OFFLINE_DIR)"
 
 # For store App packaging through DevEco/direct Hvigor, run this final gate
 # with RELEASE_HAP=/path/to/output.hap RELEASE_APP=/path/to/output.app.
 verify-release-offline-packages:
-	python3 $(SCRIPTS)/prepare_release_offline_packages.py --verify-only --output-dir "$(RELEASE_OFFLINE_DIR)" $(if $(RELEASE_HAP),--hap "$(RELEASE_HAP)") $(if $(RELEASE_APP),--app "$(RELEASE_APP)")
+	python3 $(SCRIPTS)/prepare_windows_steam_offline.py --verify-only --output-dir "$(RELEASE_OFFLINE_DIR)" $(if $(RELEASE_HAP),--hap "$(RELEASE_HAP)") $(if $(RELEASE_APP),--app "$(RELEASE_APP)")
 
 .PHONY: app app-unsigned
 app: assemble
