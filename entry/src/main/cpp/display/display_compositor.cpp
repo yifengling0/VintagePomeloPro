@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 /*
  * display_compositor.cpp — 显示路线 M0 bring-up (spec: x11-wlroots 设计)
  *
@@ -7,7 +8,7 @@
  *
  * Xwayland 启动链 (R-SPAWN):
  *   wlroots server.c (补丁) → wlr_ohos_spawn_xwayland (本文件实现)
- *   → OH_Ability_StartNativeChildProcess("libxwayland_child.so:Main")
+ *   → WineHua_StartNativeChildProcess("libxwayland_child.so:Main")
  *   → 命名 fd 五连 (x_fd0/x_fd1/wl_fd/wm_fd/displayfd) 随 args.fdList 下发
  *   → shim 在子进程内 dlopen libxwayland_ohos.so 调 main()
  *
@@ -186,7 +187,7 @@ static int32_t SpawnDisplayChild(const char* entry, NativeChildProcess_Args args
     if (!fds.Valid()) return NCP_ERR_INTERNAL;
     args.fdList.head = fds.Head();
     const bool phone = PhoneAdapter_IsPhoneMode();
-    const auto code = OH_Ability_StartNativeChildProcess(entry, args, options, pid);
+    const auto code = WineHua_StartNativeChildProcess(entry, args, options, pid);
     // Legacy phone adapter closes its private copies after both successful and
     // failed handshakes. Earlier setup failures retain them for this RAII scope.
     if (phone && (code == NCP_NO_ERROR || code == NCP_ERR_LIB_LOADING_FAILED)) fds.Consumed();

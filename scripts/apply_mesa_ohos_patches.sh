@@ -19,6 +19,7 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0007-virgl-gpu-srgb-surface-storage.patch"
     "$SCRIPT_DIR/../patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch"
     "$SCRIPT_DIR/../patches/mesa/0009-venus-order-shadow-export-after-ring.patch"
+    "$SCRIPT_DIR/../patches/mesa/0010-venus-check-after-final-present-backoff.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {
@@ -26,6 +27,20 @@ PATCHES=(
     exit 1
 }
 MESA_SOURCE="$(cd "$MESA_SOURCE" && pwd)"
+# A later reviewed overlay may change an earlier hunk's context. Prove the
+# complete stack on a small disposable copy of touched files before accepting
+# an incremental tree; never reverse or reset the caller's source.
+if python3 - "$MESA_SOURCE" "$SCRIPT_DIR" "${PATCHES[@]}" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from apply_dxvk_compat_patches import stack_applied
+sys.exit(0 if stack_applied(Path(sys.argv[1]), [Path(p) for p in sys.argv[3:]]) else 1)
+PY
+then
+    echo "Mesa: complete reviewed overlay already applied"
+    exit 0
+fi
 for PATCH in "${PATCHES[@]}"; do
     [ -f "$PATCH" ] || {
         echo "Mesa OHOS patch is missing: $PATCH" >&2

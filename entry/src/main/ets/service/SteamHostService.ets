@@ -495,7 +495,7 @@ export class SteamHostService {
         windowsExePath: record.launchExePath,
         containerId: record.containerId,
         argv: [],
-        environment: {},
+        environment: env.getGraphicsCompatibilityEnvironment(),
         workingDirectory: record.workingDirectory,
         d3dBackend: env.getD3dBackend(),
         dxvkBackend: env.getDxvkBackend()

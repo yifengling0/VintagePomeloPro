@@ -78,16 +78,19 @@ export struct WineEngineBlockingOverlay {
   }
 
   private panelTitle(): string {
+    if (this.isBusy()) return this.title();
     return this.launch && this.state !== EngineState.ERROR ? this.launch.title : this.title();
   }
 
   private panelMessage(): string {
+    if (this.isBusy()) return this.message;
     return this.launch && this.state !== EngineState.ERROR ? this.launch.message : this.message;
   }
 
   private panelDetail(): string {
     if (this.state === EngineState.ERROR) return '可重新启动，或返回主页检查 Wine 设置';
-    if (this.launch) return '请稍候，游戏窗口即将出现';
+    if (this.isBusy()) return this.detail();
+    if (this.launch) return 'Wine 已就绪，正在等待游戏创建窗口';
     return this.detail();
   }
 

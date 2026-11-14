@@ -121,6 +121,10 @@ def validate_library(data, label):
         functions = exported_functions(data)
     except (IndexError, struct.error, ValueError) as error:
         raise RuntimeLibraryError(f'{label}: {error}') from error
+    if Path(label).name == 'libentry.so':
+        sdk_overrides = {'OH_Ability_StartNativeChildProcess', 'OH_Ability_CreateNativeChildProcess'}
+        if sdk_overrides.intersection(functions):
+            raise RuntimeLibraryError(f'{label}: SDK NCP symbol overrides can bypass phone dispatch; rebuild the host')
     # OHOS SDK link stubs alias their exported functions to one placeholder.
     if len(functions) >= 4 and len(set(functions.values())) == 1:
         raise RuntimeLibraryError(f'{label}: SDK-style link stub, not a runtime library')

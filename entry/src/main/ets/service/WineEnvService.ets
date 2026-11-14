@@ -1,3 +1,4 @@
+import { AppSettingsStore } from './AppSettingsStore';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
@@ -182,6 +183,7 @@ export class WineEnvService {
 
   // -- 启动参数 (EntryAbility 发布的 AppStorage 生效值, init 时读取) --
   private d3dBackend: string = 'dxvk_legacy';
+  private activeDxvkDepthD32: boolean = false;
   private dxvkBackend: string = 'dxvk_legacy';
   // Wine locale 语言 (zh_CN / zh_TW / ja_JP / en_US), 重启引擎后生效。
   // 持久化走 preferences API (同 DisplaySettingsService) — 不用 PersistentStorage:
@@ -274,6 +276,10 @@ export class WineEnvService {
   }
 
   // 环境页渲染策略/开发者分区展示当前生效值 (updateLaunchRequest 写入)
+  getGraphicsCompatibilityEnvironment(): Record<string, string> {
+    return { WINEHUA_DXVK_D24_STORAGE_D32:
+      this.activeDxvkDepthD32 && this.d3dBackend === 'dxvk_legacy' ? '1' : '0' };
+  }
   getD3dBackend(): string { return this.d3dBackend; }
   getDxvkBackend(): string { return this.dxvkBackend; }
   getActiveContainerId(): string { return this.activeContainerId; }
@@ -1002,9 +1008,12 @@ export class WineEnvService {
     // wine unix 子目录按 HAP 实际方案探测 (方案①②=x86_64-unix, ③=aarch64-unix)。
     // 注意 native BuildWineEnv 已忽略 libPath 形参 (void), 此处仅为语义/日志正确。
     const wineUnixSubdir = pathExists(`${WINE_BIN}/aarch64-unix`) ? 'aarch64-unix' : 'x86_64-unix';
+    this.activeDxvkDepthD32 = AppSettingsStore.getInstance().getDxvkDepthD32();
+    const depthStorage = this.getGraphicsCompatibilityEnvironment();
     testNapi.launchClient(BOX64, [], socketPath, `${BIN_DIR}:${WINE_BIN}/${wineUnixSubdir}`, this.zHome,
       this.d3dBackend, this.dxvkBackend, this.wineLang, this.activeContainerId,
-      this.directNcpSession, this.desktopVulkanCompositor, this.desktopStallSeconds);
+      this.directNcpSession, this.desktopVulkanCompositor, this.desktopStallSeconds,
+      ['WINEHUA_DXVK_D24_STORAGE_D32=' + depthStorage.WINEHUA_DXVK_D24_STORAGE_D32]);
   }
 
   // 停止会话原语: 编排 stopAll 并等 native state:stopped (注册表进程全死

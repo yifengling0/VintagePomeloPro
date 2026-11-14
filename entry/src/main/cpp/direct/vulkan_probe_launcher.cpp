@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 #include "vulkan_probe_launcher.h"
 #include "vulkan_probe_protocol.h"
 #include "phone_adapter/phone_adapter.h"
@@ -166,7 +167,7 @@ bool StartProbe(ProbeWork& work)
     int32_t childPid = -1;
     work.ncpStatus = work.forkServer ?
         Phone_StartViaDirectForkServer("libdirect_vulkan_probe.so:Main", args, &childPid) :
-        OH_Ability_StartNativeChildProcess("libdirect_vulkan_probe.so:Main", args, options, &childPid);
+        WineHua_StartNativeChildProcess("libdirect_vulkan_probe.so:Main", args, options, &childPid);
     if (work.ncpStatus != NCP_NO_ERROR || childPid <= 0) {
         char stagesSeen[64];
         const ssize_t stageCount = recv(stages[0], stagesSeen, sizeof(stagesSeen), MSG_DONTWAIT);
@@ -328,14 +329,14 @@ void ExecuteCreateProbe(napi_env, void* data)
         g_createWork = &work;
     }
     if (work.systemCreate) {
-        // A phone normally interposes Create with its fork adapter. This
+        // The app routes phone Create requests to its fork adapter. This
         // diagnostic calls the OS implementation explicitly so its result
         // cannot be mistaken for the adapter's dummy proxy.
         static void* systemLibrary = dlopen("libchild_process.so", RTLD_NOW | RTLD_LOCAL);
         auto systemCreate = systemLibrary ?
-            reinterpret_cast<decltype(&OH_Ability_CreateNativeChildProcess)>(
+            reinterpret_cast<decltype(&WineHua_CreateNativeChildProcess)>(
                 dlsym(systemLibrary, "OH_Ability_CreateNativeChildProcess")) : nullptr;
-        if (!systemCreate || systemCreate == &OH_Ability_CreateNativeChildProcess) {
+        if (!systemCreate || systemCreate == &WineHua_CreateNativeChildProcess) {
             std::lock_guard<std::mutex> lock(g_createMutex);
             g_createWork = nullptr;
             g_createPending = false;
@@ -345,7 +346,7 @@ void ExecuteCreateProbe(napi_env, void* data)
         }
         work.ncpStatus = systemCreate("libdirect_vulkan_probe.so", OnCreateProbeStarted);
     } else {
-        work.ncpStatus = OH_Ability_CreateNativeChildProcess(
+        work.ncpStatus = WineHua_CreateNativeChildProcess(
             "libdirect_vulkan_probe.so", OnCreateProbeStarted);
     }
     if (work.ncpStatus != NCP_NO_ERROR) {

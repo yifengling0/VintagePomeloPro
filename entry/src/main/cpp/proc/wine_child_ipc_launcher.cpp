@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 #include "spawn_codec.h"
 #include "wine_child_ipc_launcher.h"
 #include "wine_child_ipc.h"
@@ -174,7 +175,7 @@ int32_t StartWineChildViaIpc(const NativeChildProcess_Args& args, int32_t* child
         g_callbackPending = true;
         g_activeWork = &work;
     }
-    int32_t code = OH_Ability_CreateNativeChildProcess("libwine_child.so", OnChildStarted);
+    int32_t code = WineHua_CreateNativeChildProcess("libwine_child.so", OnChildStarted);
     if (code != NCP_NO_ERROR) {
         std::lock_guard<std::mutex> lock(g_callbackMutex);
         g_activeWork = nullptr;

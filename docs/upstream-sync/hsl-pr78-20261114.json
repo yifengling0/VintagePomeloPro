@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-14",
+  "status": "host-validated-device-pending",
+  "branch": "feature/fex-proton-upstream-sync",
+  "baseCommit": "e58cb6e51539f9762e5227bee3c6a42316c11fdf",
+  "sourceMode": "preserved-existing-worktree-plus-reviewed-overlays",
+  "pr": {
+    "url": "https://github.com/winehua/WineHua/pull/78",
+    "head": "56c6a472140921d874f4e7a4993377ceacba6a19",
+    "base": "3eecbd732d79bf6d306fdb48eee734771eb58147",
+    "commits": 250,
+    "files": 371,
+    "ci": "FAILURE",
+    "wholeMerge": false
+  },
+  "hsl": {
+    "head": "5543074a51a795ea51d87199eabd91d961801cca",
+    "publicFixes": "11c14d95bede922b6b60217eb01a62056e0bdb6e",
+    "uncommittedChangesExcluded": true
+  },
+  "componentBuild": {
+    "dxvk-x86": {
+      "exitCode": 0,
+      "seconds": 3.29,
+      "logBytes": 2513
+    },
+    "dxvk-arm64x": {
+      "exitCode": 0,
+      "seconds": 293.38,
+      "logBytes": 598
+    },
+    "venus": {
+      "exitCode": 0,
+      "seconds": 4.51,
+      "logBytes": 31801
+    },
+    "renderer": {
+      "exitCode": 0,
+      "seconds": 10.2,
+      "logBytes": 18945
+    }
+  },
+  "appCompile": {
+    "arkts": {
+      "exitCode": 0,
+      "seconds": 12.44,
+      "logBytes": 150010
+    },
+    "native-entry": {
+      "exitCode": 0,
+      "seconds": 3.32,
+      "logBytes": 11897
+    }
+  },
+  "packageCheck": {
+    "exitCode": 0,
+    "seconds": 10.04,
+    "logBytes": 152886,
+    "artifact": {
+      "schemaVersion": 1,
+      "sourceCommit": "e58cb6e51539f9762e5227bee3c6a42316c11fdf",
+      "runtimeLockSha256": "bfe49d61666b7db261a4c5dbf2d8814b83236aca839cbdfdfcb237ebb60b0bfa",
+      "components": {
+        "wine": "098ece0eedff40bea426d2d57b215bb81411e239",
+        "fex": "c3b2b2306347e16da04e512a52432cb9c921d221"
+      },
+      "hap": {
+        "path": "/data/src/winehua/workspace_temp/source-integrity/checkout/entry/build/default/outputs/default/entry-default-unsigned.hap",
+        "bytes": 623616876,
+        "sha256": "aa131895e1ba86f86d3685b3169a7bee1e08a28c72aae4fc895b71866cfe62cd"
+      },
+      "app": null
+    }
+  },
+  "nativeStripProof": {
+    "libvirglrenderer.so.1": {
+      "buildSha256": "cd52ac73c628147fb1d93ee4c0a46b7caafd6a7bd4883c161c1ed48d378ebc88",
+      "packagedSha256": "e70dd77e556d84d09659f6be3f65a202d3deedd52fb4025eebb4ac9ad3e8a49c",
+      "loadableSha256": "4c6245a1da91a3e573297d60990ed8e8592cbfa9b57077ebe73d381f6ce13618"
+    },
+    "libwinehua_vtest_server.so": {
+      "buildSha256": "592e993353e36d77fd6f49a2e9d8b147e88eed06efa24dc33dbe69b6b785bb88",
+      "packagedSha256": "d7f54252785b11488e0d82b0ed2d23c3112dd036d959f7891291ea9718bb2175",
+      "loadableSha256": "fb920793c76e57ee58c2343efc7e470003c4cd7950afc7a8a000030c58d8b576"
+    },
+    "libvulkan_virtio.so": {
+      "buildSha256": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49",
+      "packagedSha256": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49",
+      "loadableSha256": "0bc9372f2b1e30c4c8e938a46dbb439cffbddf0847eff5b2ba2cddb6bbfa4ffa"
+    }
+  },
+  "payloadProof": {
+    "status": "PASS",
+    "comparison": "SHA-256 of every nested member",
+    "basePayloadSha256": "2bbaa641415d9f51271b5a94031928ed2bb0507d572ada92b42d6ca402000b48",
+    "payloadSha256": "97add0f7cc1b83236baa59c0cf6f70872d86461f6b9436c53be5a5c1bd8631d7",
+    "totalNestedMembers": 2968,
+    "changedNestedMembers": {
+      "dxvk/manifest.json": {
+        "before": "f36b27543af6e07e4c8a550fe717b482865281212b58224994731552d109c9f7",
+        "after": "777021568c81f378393e5731b4aecd38e08c64d9e4bc004c18a521c8915f448c"
+      },
+      "dxvk/legacy/arm64x/dxgi.dll": {
+        "before": "02e96fff96d65c694c18ee38c390da6898b4f8f6a340f63c954c3d56fcf2f4b0",
+        "after": "6af2001f22de897f43c895b70530205bb153a89939c355964fe7da7e1bb4732e"
+      },
+      "dxvk/legacy/arm64x/d3d11.dll": {
+        "before": "2d4d930ca1dc4d91078d8e908896138e62e31e5f8e6e3091ffeca1a8a1492f06",
+        "after": "106bb9de20fe3b1289526992badc838f45c48c010dfe44f5fea8f3ad477e4b6d"
+      },
+      "dxvk/legacy/x64/dxgi.dll": {
+        "before": "02e96fff96d65c694c18ee38c390da6898b4f8f6a340f63c954c3d56fcf2f4b0",
+        "after": "6af2001f22de897f43c895b70530205bb153a89939c355964fe7da7e1bb4732e"
+      },
+      "dxvk/legacy/x64/d3d11.dll": {
+        "before": "2d4d930ca1dc4d91078d8e908896138e62e31e5f8e6e3091ffeca1a8a1492f06",
+        "after": "106bb9de20fe3b1289526992badc838f45c48c010dfe44f5fea8f3ad477e4b6d"
+      },
+      "dxvk/legacy/x86/dxgi.dll": {
+        "before": "f601a411b1919c4e8ff8b41e7b23d70c360cb904fd87b8eeab86fafe4430be97",
+        "after": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73"
+      },
+      "dxvk/legacy/x86/d3d10_1.dll": {
+        "before": "c18789d90ba93b62c9bd8799bc6ef77686a6bba3bfe6dce769977bf53120b8b4",
+        "after": "16dc92f1ae862a9cb912a75e21b9b8f6cddaf693c7f89d07b42bed93693dba7e"
+      },
+      "dxvk/legacy/x86/d3d10core.dll": {
+        "before": "2807a34f21ffcf5c6956c185212c7b152d3fb51117518ab5d8761d72b3de2616",
+        "after": "20222943401ba558776a8226c23c6f408e1440daf46c51e02bbe87edcfc01d82"
+      },
+      "dxvk/legacy/x86/d3d10.dll": {
+        "before": "ad0d999f751455b9bbe8b343c00561aae4c172184da1de26884ad16bdd735ce0",
+        "after": "fdc8e1972b276420a06707398600a722155cde96016fcf75743ac5381419f2ed"
+      },
+      "dxvk/legacy/x86/d3d11.dll": {
+        "before": "ddf655ee88d79e5a6209ccea3a6d73b97805d1e9d008b514edf979c2e33f494a",
+        "after": "f66a873600cb16d0a135b6e5c14a6883ad05c94ec759bc8f09e475aea37ba7b6"
+      },
+      "bin/guest_vulkan/lib/libvulkan_virtio.so": {
+        "before": "ef4c426b19970c8686461e3a9b12115b9aaf644510752ac11395bfabb7b80d19",
+        "after": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49"
+      },
+      "bin/guest_vulkan/manifest.json": {
+        "before": "dd25d9f22a74ca426217b3c7fc00b174713b59872c5b27c1b383f9fde159d8dc",
+        "after": "a71b21f45e4e8b7854d5db8f3b4c74f64558da75a540cab058d4ab2fc05dd936"
+      }
+    },
+    "unchangedNestedMembers": 2956,
+    "unchangedInventorySha256": "7367728cc846fd02e1921f9d2f124897182d1c045c060f0459ff4bc562617a29",
+    "components": {
+      "wine": "098ece0eedff40bea426d2d57b215bb81411e239",
+      "fex": "c3b2b2306347e16da04e512a52432cb9c921d221",
+      "verifiedMembers": 40
+    },
+    "graphics": {
+      "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
+      "sourceLockSha256": "529d1bbbaf45f224b2b0a42aa23d0e4bcf4de401d104467fa77b7b6d49e71e55",
+      "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
+      "textureLockSha256": "18a1b7af428a34dab6b9667665b570f81c13d0fdb1628af8f8d9cb163c728453",
+      "qualification": "host-validated-device-pending",
+      "report": "docs/upstream-sync/hsl-pr78-20261114.zh-CN.md"
+    }
+  },
+  "checks": {
+    "hslPr78HostSuite": "PASS",
+    "selectedGraphicsPackageAndSevenNegativeControls": "PASS",
+    "ncpDispatch": "PASS",
+    "runtimeLibraryGuard": "PASS",
+    "brokerStartup": "PASS",
+    "classicProgress": "PASS",
+    "selectedUpstreamBoundary": "PASS"
+  },
+  "device": {
+    "tested": false,
+    "installed": false,
+    "pending": [
+      "Tomb Raider same-scene depth comparison",
+      "foreground/background, exit/relaunch",
+      "same-scene performance measurement",
+      "rapid multi-client Vulkan stability"
+    ]
+  },
+  "delivery": {
+    "committed": false,
+    "pushed": false,
+    "onlineCiTriggered": false,
+    "existing202PatchUnchanged": true,
+    "temporaryValidationHapRemoved": true
+  },
+  "inputSha256": {
+    "Makefile": "de8cd01870b203a9bc654c8012cb528506a9debb269fea99094d3daf312f259b",
+    "scripts/upstream_release_runtime.py": "3d3692c7eda5833df910d8cb9ab2557d2b35a0a4eb973e1005ecd8ffb2ea372b",
+    "scripts/package_texture_compat_runtime.py": "84b4538955230eb9c657348057832e5b5d572052d07b39f793ca89584404278d",
+    "docs/graphics/graphics-stack.lock.yaml": "529d1bbbaf45f224b2b0a42aa23d0e4bcf4de401d104467fa77b7b6d49e71e55",
+    "docs/graphics/texture-compat-runtime.lock.json": "18a1b7af428a34dab6b9667665b570f81c13d0fdb1628af8f8d9cb163c728453",
+    "docs/graphics/dxvk-runtime.lock.json": "4d0fdbd3bed164a462e8f278d5efa6b16409603af9a2303c09bce481ee79f015",
+    "docs/upstream-sync/release-runtime.lock.json": "bfe49d61666b7db261a4c5dbf2d8814b83236aca839cbdfdfcb237ebb60b0bfa",
+    "entry/src/main/cpp/graphics/virgl_surface_presenter.cpp": "f526427e6780533b5e259ab94914bf24144deb4f5211d8b613dbd4ac12e4368a",
+    "entry/src/main/cpp/graphics/surface_queue_recovery.h": "16048cb280b00a79a5635584bf7b7e3c0ec60a2ad85c2fac676d193df1989ec8",
+    "entry/src/main/ets/service/WineEngineService.ets": "2652031a5a2fb71eef3f49743a37ff49bed29bd311c442e6d4305823a2e9bb9b",
+    "entry/src/main/ets/service/WineEnvService.ets": "4fba08c23b2a9a931edee4513fe65f710e61594fbb701c1c864f301ed698ba66",
+    "entry/src/main/ets/game/GameHook.ets": "69f93e4ce134dc55d631a070739d7bb98f5f1c98d2bf5836780d31b97fef1e17",
+    "entry/src/main/ets/service/SteamHostService.ets": "2a2dd0b0460bd605badb19395691f6549f33843289d79c49c6fde8f9453f749e",
+    "entry/src/main/ets/service/AppSettingsStore.ets": "049d4f929ccc78c89dfb337a395dd510f1358081365bf53a49178c258f7b1f6c",
+    "entry/src/main/ets/pages/SystemSettings.ets": "daa507e40c5025c12e609969ee3918a94fb4f0362294c6408a04937e551048e4",
+    "host_tests/selected_graphics_runtime_test.py": "4355ed2603ccc039684fc9263ac2caf4937160d4c7f3415ea171c7151ef564b5",
+    "host_tests/surface_queue_rebuild_test.py": "a6be95a85a5a49bd5661934bf62f3bbac949e839d81d900d0a2672f57d856e91"
+  },
+  "buildInputInventorySha256": "5db93ce3b6ecb56544239d7f0a8a48233b26aae0705fa46dc528a2e2fa827788",
+  "storage": {
+    "manualTemporaryHapReclaimedBytes": 623616876,
+    "maintenanceScript": "workspace/scripts/maintain-storage.ps1 -Apply -CompactLogs",
+    "maintenanceActions": 0,
+    "maintenanceIssues": 0,
+    "retained": "Incremental build, selected graphics runtime, source and small evidence; original v2.0.2 delivery preserved"
+  }
+}

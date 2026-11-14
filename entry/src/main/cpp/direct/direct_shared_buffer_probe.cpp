@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 #include "direct_shared_buffer_probe.h"
 #include "native_buffer_socket.h"
 #include "direct_buffer_import_probe.h"
@@ -39,7 +40,7 @@ void OnSystemExit(int32_t pid, int32_t signal) {
 }
 struct SystemObserver {
     void* library = dlopen("libchild_process.so", RTLD_NOW | RTLD_LOCAL);
-    decltype(&OH_Ability_StartNativeChildProcess) start = nullptr;
+    decltype(&WineHua_StartNativeChildProcess) start = nullptr;
     decltype(&OH_Ability_UnregisterNativeChildProcessExitCallback) unregister = nullptr;
     bool registered = false;
     SystemObserver() {
@@ -186,7 +187,7 @@ void Run(Work& w) {
     } else if (w.systemStart) {
         { std::lock_guard<std::mutex> lock(systemExitMutex); systemExits.clear(); }
         w.observer.reset(new SystemObserver());
-        if (!w.observer->start || w.observer->start == &OH_Ability_StartNativeChildProcess) {
+        if (!w.observer->start || w.observer->start == &WineHua_StartNativeChildProcess) {
             w.stage = "system_start_symbol"; w.launchCode = NCP_ERR_NOT_SUPPORTED; return;
         }
         NativeChildProcess_Options options{};

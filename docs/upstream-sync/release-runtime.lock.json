@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "selection": "branch-release-upstream-pair",
-  "selectedForVersion": "2.0.1",
+  "selectedForVersion": "2.0.2",
   "components": "Full adapted Proton Wine core and FEX; independent DXVK/VKD3D/media pins retained",
   "qualification": {
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
     "recordSha256": "5043c7386a7170e6553ac8c9e94f5f09ab0f51dda0d732c45951696b07ad52f4",
     "testedPackageSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
-    "scope": "User accepted the bounded Mini game and Steam UI checks; recorded known failures remain open."
+    "scope": "Historical Wine/FEX baseline checks only; the graphics sync has host validation and requires separate VPP device acceptance."
   },
   "wine": {
     "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
@@ -162,16 +162,36 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 451932867,
-      "sha256": "2bbaa641415d9f51271b5a94031928ed2bb0507d572ada92b42d6ca402000b48"
+      "bytes": 451878390,
+      "sha256": "97add0f7cc1b83236baa59c0cf6f70872d86461f6b9436c53be5a5c1bd8631d7"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 7496,
-      "sha256": "47488730c79ae7ccc8a8175d898d8a0d3488e52b92dad9eff2cae6b8b6bb62a0"
+      "bytes": 8167,
+      "sha256": "71451d7783efbe991132bd400e8ea8abe4bb32c58ad54d1ec87bb4ee9ec0f309"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 136,
-      "sha256": "92eb4900fa003b554f560fb7fa63bdfccfbe70307cae5f819da3aee9aaad3a9c"
+      "sha256": "132c6aeab509d93f72b9d843983f6acd9f20096c4efbd67e120306b92066e2ee"
+    },
+    "libs/arm64-v8a/libvulkan_virtio.so": {
+      "bytes": 1303416,
+      "sha256": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49"
+    },
+    "libs/arm64-v8a/libvirglrenderer.so.1": {
+      "bytes": 2938240,
+      "sha256": "e70dd77e556d84d09659f6be3f65a202d3deedd52fb4025eebb4ac9ad3e8a49c"
+    },
+    "libs/arm64-v8a/libwinehua_vtest_server.so": {
+      "bytes": 146680,
+      "sha256": "d7f54252785b11488e0d82b0ed2d23c3112dd036d959f7891291ea9718bb2175"
     }
+  },
+  "graphics": {
+    "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
+    "sourceLockSha256": "529d1bbbaf45f224b2b0a42aa23d0e4bcf4de401d104467fa77b7b6d49e71e55",
+    "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
+    "textureLockSha256": "18a1b7af428a34dab6b9667665b570f81c13d0fdb1628af8f8d9cb163c728453",
+    "qualification": "host-validated-device-pending",
+    "report": "docs/upstream-sync/hsl-pr78-20261114.zh-CN.md"
   }
 }

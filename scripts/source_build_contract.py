@@ -126,8 +126,10 @@ def source_identity(manifest):
         path = ROOT / patch['path']
         if sha(path.read_bytes().replace(b'\r\n', b'\n')) != patch['sha256']:
             raise ValueError('candidate Mesa overlay changed: ' + patch['path'])
-        subprocess.run(['git', '-C', str(ROOT / 'thirdparty/mesa'), 'apply', '--reverse', '--check', str(path)],
-                       check=True, capture_output=True)
+    from apply_dxvk_compat_patches import stack_applied
+    if not stack_applied(ROOT / 'thirdparty/mesa',
+                         [ROOT / p['path'] for p in texture['venus']['patches']]):
+        raise ValueError('candidate Mesa reviewed patch stack is missing or has drifted')
     return {'checkout': manifest, 'dxvk': dxvk,
             'wineD3D': source_contract(ROOT / 'thirdparty/wine-valve')}
 

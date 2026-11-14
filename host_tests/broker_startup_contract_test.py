@@ -30,6 +30,7 @@ struct NativeChildProcess_Fd { char* fdName; int32_t fd; NativeChildProcess_Fd* 
 struct NativeChildProcess_FdList { NativeChildProcess_Fd* head; };
 struct NativeChildProcess_Args { char* entryParams; NativeChildProcess_FdList fdList; };
 struct NativeChildProcess_Options { int isolationMode; };
+using OH_Ability_OnNativeChildProcessStarted = void (*)(int, void*);
 #define NCP_ISOLATION_MODE_NORMAL 0
 int32_t OH_Ability_StartNativeChildProcess(char*, NativeChildProcess_Args, NativeChildProcess_Options, int32_t*);
 '''
@@ -118,8 +119,8 @@ static int NativeLaunch(NativeChildProcess_Args args, int32_t* pid, int kind) {
     assert(delivered.env.back() == "WINEPREFIX=/prefix|with\nseparator");
     route=kind; ++launches; *pid=nativeStatus ? -1 : 123; return nativeStatus;
 }
-int32_t OH_Ability_StartNativeChildProcess(char*, NativeChildProcess_Args args, NativeChildProcess_Options, int32_t* pid) {
-    return NativeLaunch(args, pid, 0);
+Ability_NativeChildProcess_ErrCode WineHua_StartNativeChildProcess(const char*, NativeChildProcess_Args args, NativeChildProcess_Options, int32_t* pid) {
+    return static_cast<Ability_NativeChildProcess_ErrCode>(NativeLaunch(args, pid, 0));
 }
 int32_t StartWineChildViaIpc(const NativeChildProcess_Args& args, int32_t* pid) {
     OHIPCParcel request, reply;

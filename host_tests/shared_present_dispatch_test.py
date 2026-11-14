@@ -73,7 +73,7 @@ int main() {
     uint64_t deadline = 0;
     // Simulate the shared dispatch order: unresolved background Vulkan
     // windows alternate with an attached foreground GL client.
-    assert(manager.Attach(Key(100, 47), 16666667, 0, &window) == 0);
+    assert(manager.Attach(Key(100, 47), 16666667, 0, &window, -1) == 0);
     for (uint32_t surface = 1; surface <= 64; ++surface) {
         const uint64_t started = NowUs();
         assert(Vk(manager, 200, surface) == -EAGAIN);
@@ -88,13 +88,13 @@ int main() {
     assert(glFrames == 64);
     assert(manager.Present(300, 48, 1, 800, 600, 0, 1, &deadline) == kPresentNoTarget);
     // A miss must remain query-visible and recover when the consumer attaches.
-    assert(manager.Attach(Key(300, 48), 16666667, 0, &window) == 0);
+    assert(manager.Attach(Key(300, 48), 16666667, 0, &window, -1) == 0);
     assert(manager.Present(300, 48, 1, 800, 600, 0, 2, &deadline) == 0);
-    assert(manager.Attach(Key(200, 64), 16666667, virgl_ipc::kSurfaceVulkan, &window) == 0);
+    assert(manager.Attach(Key(200, 64), 16666667, virgl_ipc::kSurfaceVulkan, &window, -1) == 0);
     assert(Vk(manager, 200, 64) == 0);
     assert(manager.Present(200, 64, 1, 800, 600, 0, 1, &deadline) == kPresentInvalid);
     assert(manager.Detach(Key(200, 64)) == 0);
-    assert(manager.Attach(Key(200, 64), 16666667, 0, &window) == 0);
+    assert(manager.Attach(Key(200, 64), 16666667, 0, &window, -1) == 0);
     assert(manager.Present(200, 64, 1, 800, 600, 0, 2, &deadline) == 0);
     assert(Vk(manager, 200, 64) == kPresentInvalid);
     assert(manager.Detach(Key(300, 48)) == 0);

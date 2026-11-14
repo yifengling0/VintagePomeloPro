@@ -37,6 +37,7 @@ const PLAY_TIME_KEY = 'play_time_v1';
 const SGDB_KEY = 'sgdb_api_key_v1';
 const DECK_MOTION_KEY = 'deck_motion_v1';
 const BENTO_STATE_KEY = 'console_bento_state_v1';
+const DXVK_DEPTH_STORAGE_KEY = 'winehua_dxvk_depth_d32_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
@@ -91,6 +92,7 @@ export class AppSettingsStore {
   private bentoWriteChain: Promise<void> = Promise.resolve();
   private libraryPath: string = '';
   private renderMode: string = 'dxvk_1_10';
+  private dxvkDepthD32: boolean = false;
 
   static getInstance(): AppSettingsStore {
     if (!AppSettingsStore.instance) AppSettingsStore.instance = new AppSettingsStore();
@@ -108,6 +110,7 @@ export class AppSettingsStore {
     this.sgdbApiKey = this.store.getSync(SGDB_KEY, '') as string;
     this.loadBentoState();
     this.loadRenderMode();
+    this.dxvkDepthD32 = this.store.getSync(DXVK_DEPTH_STORAGE_KEY, false) === true;
     this.loadDeckMotion();
   }
 
@@ -211,6 +214,15 @@ export class AppSettingsStore {
         void this.store?.flush();
       });
     }
+  }
+
+  getDxvkDepthD32(): boolean { return this.dxvkDepthD32; }
+
+  async setDxvkDepthD32(enabled: boolean): Promise<void> {
+    if (!this.store) throw new Error('设置尚未加载，请稍后重试');
+    await this.store.put(DXVK_DEPTH_STORAGE_KEY, enabled);
+    await this.store.flush();
+    this.dxvkDepthD32 = enabled;
   }
 
   getRenderMode(): string {

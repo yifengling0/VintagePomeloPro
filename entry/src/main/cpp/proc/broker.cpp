@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 /* Broker v2: bounded readers feed one serialized NCP dispatcher. */
 #include "broker.h"
 #include "spawn_codec.h"
@@ -146,9 +147,10 @@ static void LaunchJob(BrokerJob& job) {
     const int32_t status = direct ? (PhoneAdapter_IsPhoneMode() ? NCP_ERR_NOT_SUPPORTED :
         StartWineChildViaIpc(args, &childPid)) : phoneFork ?
         Phone_StartViaDirectForkServer("libwine_child.so:Main", args, &childPid) :
-        OH_Ability_StartNativeChildProcess(const_cast<char*>("libwine_child.so:Main"), args, options, &childPid);
+        WineHua_StartNativeChildProcess(const_cast<char*>("libwine_child.so:Main"), args, options, &childPid);
     OH_LOG_INFO(LOG_APP, "[PROC-SPAWN] brokerHostPid=%{public}d creatorHostPid=%{public}d childHostPid=%{public}d createStatus=%{public}d mode=%{public}s",
-                getpid(), job.peerPid, childPid, status, direct ? "create-ipc" : phoneFork ? "phone-fork-server" : "start");
+                getpid(), job.peerPid, childPid, status, direct ? "create-ipc" : phoneFork ? "phone-fork-server" :
+                PhoneAdapter_IsPhoneMode() ? "phone-fork" : "system-start");
     if (!status && childPid > 0) {
         AddProcess(childPid, winehua::spawn::ProcessPath(request), -1,
             !direct && !phoneFork && PhoneAdapter_IsPhoneMode()

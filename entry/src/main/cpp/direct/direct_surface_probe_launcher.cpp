@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 #include "direct_surface_probe_launcher.h"
 #include "direct_buffer_import_probe.h"
 #include "direct_output_probe.h"
@@ -464,7 +465,7 @@ void ExecuteSurfaceProbe(napi_env, void* data)
             g_callbackPending = true;
             g_activeWork = &work;
         }
-        work.launchCode = OH_Ability_CreateNativeChildProcess(
+        work.launchCode = WineHua_CreateNativeChildProcess(
             work.gpuMode ? "libdirect_gpu_surface_probe.so" : "libdirect_surface_probe.so",
             OnChildStarted);
         if (work.launchCode != NCP_NO_ERROR) {

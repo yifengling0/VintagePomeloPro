@@ -4,7 +4,15 @@
     "main_commit": "5383b7849190c563c0e79007fb9c33da64b326e4",
     "integration_commit": "09ca128c1fd738a32b2303c50c4f7bff82305c1a",
     "audited_on": "2026-10-16",
-    "runtime_validation": "pending-device"
+    "runtime_validation": "pending-device",
+    "hsl_pr78_sync": {
+      "date": "2026-11-14",
+      "vppBase": "e58cb6e51539f9762e5227bee3c6a42316c11fdf",
+      "winehuaPr78Head": "56c6a472140921d874f4e7a4993377ceacba6a19",
+      "hslHead": "5543074a51a795ea51d87199eabd91d961801cca",
+      "hslPublicFixes": "11c14d95bede922b6b60217eb01a62056e0bdb6e",
+      "qualification": "host-validated-device-pending"
+    }
   },
   "architecture": {
     "native": "arm64-v8a",
@@ -396,6 +404,14 @@
       {
         "path": "patches/virglrenderer/0013-shadow-upload-retirement-and-failure.patch",
         "sha256": "0a62a33826b425a1e00a328ef5edbfe3e5fb55cfd612748df77f2c2da18ff5dd"
+      },
+      {
+        "path": "patches/virglrenderer/0014-proxy-fence-notifications.patch",
+        "sha256": "06c3bc4073aebb73541c45b39f93fcde9f36127a1d1be9d16abed6c0776f58cc"
+      },
+      {
+        "path": "patches/virglrenderer/0015-explicit-invalidate-readback.patch",
+        "sha256": "c50d0125d74571969cfcf2a41975dfb11f885535a0e74c319fd6b54ac987551f"
       }
     ],
     "mesa": [
@@ -448,12 +464,16 @@
         "sha256": "2338ac0f63422de0d26b706d4dd6bcd263cbf61b23a2fdfd9189dcc3dd712eb4"
       },
       {
+        "path": "patches/mesa/0010-venus-check-after-final-present-backoff.patch",
+        "sha256": "660c480f7e08046e06c6e8806aaaa1fc9f1f9f73c6b32fc806641e89f4b1c345"
+      },
+      {
         "path": "patches/mesa/0010-venus-ohos-native-memory-context.patch",
         "sha256": "d14f394ca3b00a2b2353988a4b366f3d100858a15ec0d0c2b3d93ea6f0c92dc6"
       },
       {
         "path": "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch",
-        "sha256": "05e0ed9df5a9ecbd4f75e06c07de1b5e95956803e614bc152e2913619127bc7f"
+        "sha256": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb"
       }
     ],
     "vkd3d-proton": [
@@ -606,6 +626,14 @@
       {
         "path": "patches/dxvk/0005-share-instance-between-factories.patch",
         "sha256": "8f5dd58a4a673773e066fc0f5f55bf75d9b4f47f47e06fcd804a865606e32ffa"
+      },
+      {
+        "path": "patches/dxvk/0006-publish-single-use-deferred-buffer-maps.patch",
+        "sha256": "86f61fa3a984970c01f0be961239e8e0380f6774d00422ff44d5e9429862140e"
+      },
+      {
+        "path": "patches/dxvk/0007-explicit-d24-d32s8-storage.patch",
+        "sha256": "05a11800b0b6c87878fffc3d988def036a1d2b7d4a23936fa206fb13d7ee9055"
       }
     ]
   },
@@ -698,7 +726,7 @@
       "vtest/vtest_renderer.c": "e8504bf51a6e8180d47f773417bb239352cacac92b25443c951150a5ddb41a1e",
       "server/render_context.c": "95696c32b639ba4f16aef9c648f1aaa0d80f1342558aa285ffd3703754977527",
       "src/venus/vkr_buffer.c": "32ba505a7b4c0e3fb67c050da4346e094a9d97e19d3c3efc68081b3396de4b3a",
-      "src/venus/vkr_device_memory.c": "f51c405e2800bd7e1e7addfa414eafe4267e3406216de61e94db5ec494167ea9",
+      "src/venus/vkr_device_memory.c": "5cefdbdff40fd75d9c94ac6c8c4314fe45b533bf3dfd36ef6facc4e9140286b7",
       "src/venus/vkr_device.c": "8fb694ad2ed01259e0cb35ddff25f6abef07e340a8a624cd295a5cb0df4dcf8c",
       "src/virglrenderer.h": "6ec183c8de6d7c5ffc5105385373d26eb0e651a39a7d02e6345a2e5a93b026fa",
       "vtest/vtest_protocol.h": "37c0eb24269e0203e4f981533927f66dcc8576c892ee49e505db09b7ab026c10",
@@ -719,7 +747,8 @@
       "src/venus/vkr_physical_device.h": "5888201316c046a2edbe0592251a5f13191627a2d239505124416cf38ebc43c6",
       "src/virgl_resource.h": "a3d31be53cadaa6836713a3a38da8964e30cdd35fe77f4f03db8ea3cffe948ab",
       "src/virglrenderer.c": "3302226f94c97adf470e33ee26f673eed00ba7ced5535596bc7bf4e7b82bcc8d",
-      "src/venus/vkr_queue.c": "dc00fd5d0f6c9eed125f435dea060e2f5dac06dd4eabdec882f5a14a229beafa"
+      "src/venus/vkr_queue.c": "dc00fd5d0f6c9eed125f435dea060e2f5dac06dd4eabdec882f5a14a229beafa",
+      "src/proxy/proxy_renderer.c": "50b71794c943914426331c565275f3544ff32dac28def04caf198b142f5ff00f"
     }
   },
   "capability_decisions": {

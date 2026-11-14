@@ -2,6 +2,7 @@
 """Enforce the branch's selected, tested upstream Wine/FEX bytes at packaging."""
 import argparse
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -44,7 +45,46 @@ def load_lock():
             previous = json.loads(original.read_text())
             if any(previous[k] != source[k] for k in ('adaptedCommit', 'adaptedTree')):
                 raise ValueError('Reverified source differs from packaged source: ' + component)
+    graphics = lock.get('graphics')
+    if graphics:
+        for key in ('source', 'texture'):
+            path = ROOT / graphics[key + 'LockFile']
+            if file_sha(path) != graphics[key + 'LockSha256']:
+                raise ValueError('Selected graphics source lock changed: ' + key)
+        source = json.loads((ROOT / graphics['sourceLockFile']).read_text())
+        texture = json.loads((ROOT / graphics['textureLockFile']).read_text())
+        patches = [row for rows in source['managed_patches'].values() for row in rows]
+        patches += texture['venus']['patches']
+        patches += texture['runtimes']['legacy']['patches']
+        for row in patches:
+            data = (ROOT / row['path']).read_bytes()
+            # Historical pins used raw bytes; newer overlays normalize LF.
+            if row['sha256'] not in {hashlib.sha256(data).hexdigest(),
+                    hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest()}:
+                raise ValueError('Selected graphics patch changed: ' + row['path'])
     return lock
+
+
+def verify_graphics(open_member, manifest, graphics):
+    record = manifest.get('graphicsSync', {})
+    for key in ('sourceLockSha256', 'textureLockSha256', 'qualification'):
+        if record.get(key) != graphics[key]:
+            raise ValueError('Unpaired graphics runtime metadata: ' + key)
+    from package_texture_compat_runtime import validate
+    from source_build_contract import elf_identity
+    texture = json.loads((ROOT / graphics['textureLockFile']).read_text())
+    with open_member(RAW + 'wine-data.zip') as stream:
+        payload = stream.read()
+    with ZipFile(io.BytesIO(payload)) as runtime:
+        guest = runtime.read('bin/guest_vulkan/lib/libvulkan_virtio.so')
+        validate(runtime, guest, texture)
+        dxvk = json.loads(runtime.read('dxvk/manifest.json'))
+    with open_member('libs/arm64-v8a/libvulkan_virtio.so') as stream:
+        if elf_identity(stream.read()) != elf_identity(guest):
+            raise ValueError('Unpaired top-level and nested graphics ICD')
+    with open_member('libs/arm64-v8a/libvirglrenderer.so.1') as stream:
+        if digest(stream) != dxvk['venusRuntime']['hostVirglrendererSha256']:
+            raise ValueError('Unpaired graphics host renderer')
 
 
 def verify(open_member, names, lock):
@@ -64,6 +104,8 @@ def verify(open_member, names, lock):
         expected_lock = lock[component].get('packageLockSha256', lock[component]['lockSha256'])
         if actual.get('lockSha256') != expected_lock:
             raise ValueError('Upstream runtime source lock mismatch: ' + component)
+    if lock.get('graphics'):
+        verify_graphics(open_member, manifest, lock['graphics'])
     return dict(wine=lock['wine']['adaptedCommit'], fex=lock['fex']['adaptedCommit'],
                 verifiedMembers=len(lock['members']))
 

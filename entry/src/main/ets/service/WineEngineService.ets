@@ -660,6 +660,7 @@ export class WineEngineService {
   // Broker/Spawner prefix is session-scoped; smoke clean must switch the whole
   // engine session rather than only overriding one child process environment.
   private activePrefixMode: string = 'reuse';
+  private activeDxvkDepthD32: boolean = false;
   private activeWineLanguage: WineLanguage = WineLanguage.CHINESE;
   private hostGraphicsBackend: string = 'dxvk_legacy';
   // Product sessions derive Host and Guest from the same D3D backend. Only
@@ -877,6 +878,7 @@ export class WineEngineService {
       await this.stopSession();
     }
 
+    this.activeDxvkDepthD32 = AppSettingsStore.getInstance().getDxvkDepthD32();
     this.mode = mode;
     this.presentationMode = presentationMode;
     this.d3dBackend = requestedD3DBackend;
@@ -998,7 +1000,7 @@ export class WineEngineService {
       const launched = testNapi.launchClient(BOX64, [], socket, WINE_BIN + ':' + WINE_BIN + '/' + wineUnixSubdir,
         homeDirectory, this.d3dBackend, this.d3dBackend, this.activeWineLanguage,
         this.activePrefixMode === 'clean' ? 'clean' : 'default', false, false, 0,
-        resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset));
+        resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset).concat(this.depthStorageEnvironment()));
       if (launched !== 0) {
         this.failStartup(generation, 'Wine 启动请求未被接受，请重试');
         return;
@@ -1103,7 +1105,8 @@ export class WineEngineService {
     // the Guest half from the same policy authority that configured Host;
     // product sessions add no experiment override.
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
-    const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset).concat(envOverrides);
+    const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset)
+      .concat(this.depthStorageEnvironment(), envOverrides);
     // App overrides are last, matching native environment application. Validate
     // the selected module even when the already-running desktop uses FEX.
     let launchCpuEngine = settings.wineTranslationEngine;
@@ -1137,6 +1140,11 @@ export class WineEngineService {
       launchEnvironment,
       this.activeWineLanguage
     ) as NativeLaunchResult;
+  }
+
+  private depthStorageEnvironment(): string[] {
+    return ['WINEHUA_DXVK_D24_STORAGE_D32=' +
+      (this.activeDxvkDepthD32 && this.d3dBackend === 'dxvk_legacy' ? '1' : '0')];
   }
 
   private selectedD3DBackend(): string {

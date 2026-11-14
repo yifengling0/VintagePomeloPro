@@ -48,6 +48,8 @@ def validate(runtime, icd, lock=None, candidate=None):
         if pin.get('patches') and (record.get('managedPatches') != pin['patches']
                                    or record.get('effectiveSourceSha256') != pin['patchedSourceSha256']):
             raise ValueError('stale DXVK managed overlay metadata: ' + profile)
+        if pin.get('qualification') and record.get('textureCompatibility') != pin['qualification']:
+            raise ValueError('unpaired DXVK validation status: ' + profile)
     expected = lock['venus']['sha256']
     guest = json.loads(runtime.read('bin/guest_vulkan/manifest.json'))
     top_matches = sha(icd) == expected
@@ -95,7 +97,8 @@ def package(rawfile, profiles, icd_path, host_path):
         for profile, pin in lock['runtimes'].items():
             record = manifest['runtimes'][profile]
             record['commit'] = pin['commit']
-            record['textureCompatibility'] = 'bounded-device-tested-candidate'
+            record['textureCompatibility'] = pin.get('qualification',
+                record.get('textureCompatibility', 'host-validated-device-pending'))
             if pin.get('patches'):
                 record['managedPatches'] = pin['patches']
                 record['effectiveSourceSha256'] = pin['patchedSourceSha256']

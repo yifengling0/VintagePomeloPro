@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 #include "proc/spawn_protocol.h"
 #include "direct_wine_ipc_probe.h"
 #include "proc/wine_child_ipc.h"
@@ -83,7 +84,7 @@ void Execute(napi_env, void* data)
         g_pending = true;
         g_active = &work;
     }
-    work.launchCode = OH_Ability_CreateNativeChildProcess("libwine_child.so", OnStarted);
+    work.launchCode = WineHua_CreateNativeChildProcess("libwine_child.so", OnStarted);
     if (work.launchCode != NCP_NO_ERROR) {
         std::lock_guard<std::mutex> lock(g_mutex);
         g_active = nullptr;

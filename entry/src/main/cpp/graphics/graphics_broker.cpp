@@ -1,3 +1,4 @@
+#include "proc/ncp_dispatch.h"
 #include "graphics_broker.h"
 
 #include "common/fs_utils.h"
@@ -1402,7 +1403,7 @@ void GraphicsBroker::StartVirglSocketServerLocked()
         }
         else
         {
-            const int32_t ret = OH_Ability_CreateNativeChildProcess(
+            const int32_t ret = WineHua_CreateNativeChildProcess(
                 "libvirgl_child.so", &GraphicsBroker::OnVirglIpcProcessStarted);
             if (ret != NCP_NO_ERROR)
             {

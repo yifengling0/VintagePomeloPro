@@ -58,16 +58,17 @@ static void check(unsigned retries, int result, bool perf, bool tracing) {
     count = calls = delays = drained = waited = 0;
     same_request = NULL;
     transient = retries; final_result = result; trace = tracing;
-    assert(run(perf) == (retries >= 8 ? -EAGAIN : result));
+    assert(run(perf) == (retries >= 9 ? -EAGAIN : result));
     assert(drained == 1 && waited == 1);
     assert(events[0] == 'D' && events[1] == 'W' && events[2] == 'P');
-    assert(calls == (retries >= 8 ? 8 : retries + 1));
+    assert(calls == (retries >= 9 ? 9 : retries + 1));
     assert(delays == (retries >= 8 ? 8 : retries));
 }
 int main(void) {
     check(0, 0, false, false);
     check(6, 0, false, false); /* exact target attaches on the seventh request */
-    check(8, 0, false, false); /* bounded retry exhaustion */
+    check(8, 0, false, false); /* target attaches after the final 128ms wait */
+    check(9, 0, false, false); /* bounded retry exhaustion */
     check(0, -EIO, false, false); /* permanent errors are not retried */
     check(3, -EIO, true, true);
     puts("Venus production retry: ordering, one drain, same request, bounds and permanent errors PASS");

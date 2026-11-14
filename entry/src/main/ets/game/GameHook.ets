@@ -240,7 +240,8 @@ export class GameHook {
   private buildEnvironment(req: GameRequest): Record<string, string> {
     // Product DXVK_LOG / WINEDEBUG come from native AppendStableDxvkEnv
     // (same as Index.doRun). Want may still overlay explicit D3D keys.
-    const environment: Record<string, string> = {};
+    const environment: Record<string, string> = this.env ?
+      this.env.getGraphicsCompatibilityEnvironment() : {};
     const n = Math.min(req.d3dEnvKeys.length, req.d3dEnvValues.length);
     for (let i = 0; i < n; ++i) {
       environment[req.d3dEnvKeys[i]] = req.d3dEnvValues[i];

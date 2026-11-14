@@ -298,6 +298,7 @@ struct SystemSettingsPage {
   @State private gpuSupportDxvk26: boolean = true;
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
+  @State private dxvkDepthD32: boolean = false;
   @State private fontImporting: boolean = false;
   @State private sgdbKeyDraft: string = '';
   @State private fontImportStage: string = '';
@@ -396,6 +397,7 @@ struct SystemSettingsPage {
     this.loadInputProfiles();
     this.loadApplicationVersion();
     this.loadGpuInfo();
+    this.dxvkDepthD32 = AppSettingsStore.getInstance().getDxvkDepthD32();
     this.renderMode = AppSettingsStore.getInstance().getRenderMode()
       || AppStorage.get<string>('winehua.render.mode')
       || 'dxvk_1_10';
@@ -2355,6 +2357,25 @@ struct SystemSettingsPage {
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
+
+          if (this.renderMode === 'dxvk_1_10') {
+            Row({ space: 8 }) {
+              Text('深度画面兼容').fontSize(12).layoutWeight(1)
+                .fontColor(skinColor('text_secondary'))
+              Toggle({ type: ToggleType.Switch, isOn: this.dxvkDepthD32 })
+                .id('dxvk-depth-d32')
+                .onChange((enabled: boolean): void => {
+                  void AppSettingsStore.getInstance().setDxvkDepthD32(enabled).then((): void => {
+                    this.dxvkDepthD32 = enabled;
+                    promptAction.showToast({ message: '已保存，完整退出 Steam 和 Wine 后重新启动生效' });
+                  }).catch((): void => {
+                    promptAction.showToast({ message: '保存失败，请稍后重试' });
+                  });
+                })
+            }.width('100%')
+            Text('用于部分游戏的方形黑块或深度画面异常。默认关闭；设备不支持时会报告错误。')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+          }
 
           Text('窗口后端').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')

@@ -1,7 +1,7 @@
 '''Execute the production ArkTS phase clocks and blocking overlay text.
 
 Uses the SDK TypeScript compiler, a controlled clock, and the actual overlay
-detail method. No device/render claims: HAP and screenshots verify those.
+panel methods. No device/render claims: HAP and screenshots verify those.
 '''
 from pathlib import Path
 import argparse
@@ -31,7 +31,10 @@ preparationStartedAt = 0; readySafetyTimer = -1; prefixRefreshRequired = false;
 listeners = new Set(); waiters = []; pendingPrefixVersion = new Uint8Array(0);
 resetReadySafetyNet() {} finishWaiters() {} syncManagedSmokePayload() {}
 writeVersionMarker() { return true; } failReasonText(x) { return x; }
-''' + methods + '\n}\nclass Overlay {\nstate; phaseText; elapsedSec;\n' + method(overlay, 'private detail(') + '\n}\nglobalThis.Service = Service; globalThis.Overlay = Overlay;'
+''' + methods + '\n}\nclass Overlay {\nstate; message; phaseText; elapsedSec; launch = null;\n' + '\n'.join(method(overlay, name) for name in [
+    'private isBusy(', 'private title(', 'private detail(',
+    'private panelTitle(', 'private panelMessage(', 'private panelDetail('
+]) + '\n}\nglobalThis.Service = Service; globalThis.Overlay = Overlay;'
 javascript = '''const ts = require(TS_MODULE);
 const assert = require('assert');
 global.EngineState = { STOPPED:'stopped', PREPARING:'preparing', SWITCHING:'switching', READY:'ready', ERROR:'error' };
@@ -50,6 +53,22 @@ assert.strictEqual(s.getPhaseElapsedMs(), 3000);
 const overlay = new Overlay();
 overlay.state=EngineState.PREPARING; overlay.phaseText=''; overlay.elapsedSec=3;
 assert(overlay.detail().includes('已 3 秒'), 'pre-native extraction has a clock');
+overlay.launch={classic:true, title:'Game', message:'正在准备游戏窗口…'};
+overlay.message='正在解压运行组件';
+assert.strictEqual(overlay.panelTitle(), '正在初始化 Wine');
+assert.strictEqual(overlay.panelMessage(), '正在解压运行组件', 'classic launch cannot hide engine status');
+assert(overlay.panelDetail().includes('已 3 秒'), 'classic launch cannot hide elapsed time');
+overlay.phaseText='初始化 Wine 环境'; overlay.elapsedSec=12;
+assert.strictEqual(overlay.panelDetail(), '当前阶段：初始化 Wine 环境（已 12 秒）');
+overlay.state=EngineState.READY;
+assert.strictEqual(overlay.panelTitle(), 'Game');
+assert.strictEqual(overlay.panelMessage(), overlay.launch.message);
+assert.strictEqual(overlay.panelDetail(), 'Wine 已就绪，正在等待游戏创建窗口');
+overlay.state=EngineState.ERROR; overlay.message='Wine 初始化失败';
+assert.strictEqual(overlay.panelTitle(), 'Wine 启动未完成');
+assert.strictEqual(overlay.panelMessage(), 'Wine 初始化失败');
+assert.strictEqual(overlay.panelDetail(), '可重新启动，或返回主页检查 Wine 设置');
+overlay.launch=null;
 s.handleEnginePhase('wineserver');
 assert.strictEqual(observedPhase, '启动 Wine 服务');
 now += 2000;
@@ -73,6 +92,11 @@ assert.strictEqual(s.getPhaseText(), '');
 now += 4000;
 overlay.state=EngineState.SWITCHING; overlay.phaseText=''; overlay.elapsedSec=4;
 assert(overlay.detail().includes('已 4 秒'), 'rebuild has a visible clock');
+overlay.launch={classic:true, title:'Game', message:'正在准备游戏窗口…'};
+overlay.message='正在重建 Wine 桌面';
+assert.strictEqual(overlay.panelTitle(), '正在重建 Wine 桌面');
+assert.strictEqual(overlay.panelMessage(), '正在重建 Wine 桌面');
+assert(overlay.panelDetail().includes('已 4 秒'), 'classic rebuild keeps elapsed time');
 s.setState(EngineState.STOPPED, 'stop');
 now += 1000;
 s.handleEnginePhase('graphics');

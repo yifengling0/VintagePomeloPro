@@ -1,4 +1,5 @@
 #include "virgl_surface_presenter.h"
+#include "surface_queue_recovery.h"
 #include "venus_surface_presenter.h"
 #include "native_window_lease.h"
 #include "present_target.h"
@@ -148,6 +149,11 @@ public:
         if (!windowLease_) return kPresentNoTarget;
         if (!sourceVisible) return kPresentSourceInvisible;
         const uint64_t nowNs = NowNs();
+        if (sourceDisplay == display_ && sourceContext == sourceContext_ && recovery_.Deferred(nowNs)) {
+            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = recovery_.RetryAfterNs();
+            ++throttled_;
+            return kPresentThrottled;
+        }
         if (const auto retry = failureBackoff_.PendingDeadline(nowNs)) {
             if (nextPresentDeadlineNs) *nextPresentDeadlineNs = retry;
             ++throttled_;
@@ -179,8 +185,11 @@ public:
         }
         if (eglMakeCurrent(display_, surface_, surface_, context_) != EGL_TRUE)
         {
-            eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
+            const EGLint error = eglGetError();
+            const EGLBoolean restored = eglMakeCurrent(sourceDisplay, sourceDraw, sourceRead, sourceContext);
             glDeleteSync(sourceReady);
+            if (restored == EGL_TRUE && (error == EGL_BAD_SURFACE || error == EGL_BAD_ALLOC))
+                recovery_.Request(NowNs());
             ++failures_;
             return failed(kPresentMakeCurrentFailed);
         }
@@ -240,6 +249,10 @@ public:
         if (!sourceConsumed || swapped != EGL_TRUE || restored != EGL_TRUE)
         {
             ++failures_;
+            if (restored == EGL_TRUE &&
+                (glError == GL_OUT_OF_MEMORY || glError == GL_INVALID_FRAMEBUFFER_OPERATION ||
+                 eglError == EGL_BAD_SURFACE || eglError == EGL_BAD_ALLOC))
+                recovery_.Request(NowNs());
             if (failures_ == 1 || failures_ % 120 == 0)
                 OH_LOG_WARN(LOG_APP,
                             "[VIRGL-ZC][NCP] blit dropped serial=%{public}u gl=0x%{public}x "
@@ -299,6 +312,27 @@ private:
     bool EnsureGlLocked(EGLDisplay sourceDisplay, EGLContext sourceContext,
                         uint32_t width, uint32_t height)
     {
+        if (recovery_.Pending() && display_ == sourceDisplay && sourceContext_ == sourceContext &&
+            context_ != EGL_NO_CONTEXT && config_) {
+            // Only the failed producer surface is rebuilt. Keep shared GL
+            // objects and the NativeImage consumer; source context was restored
+            // before Request, and Present bounds retries to one per cooldown.
+            if (surface_ != EGL_NO_SURFACE) eglDestroySurface(display_, surface_);
+            surface_ = EGL_NO_SURFACE;
+            if (OH_NativeWindow_NativeWindowHandleOpt(windowLease_.Get(), SET_BUFFER_GEOMETRY,
+                    static_cast<int32_t>(width), static_cast<int32_t>(height)) != 0) {
+                recovery_.Request(NowNs());
+                return false;
+            }
+            surface_ = eglCreateWindowSurface(display_, config_,
+                reinterpret_cast<EGLNativeWindowType>(windowLease_.Get()), nullptr);
+            if (surface_ == EGL_NO_SURFACE) {
+                recovery_.Request(NowNs());
+                return false;
+            }
+            width_ = width; height_ = height;
+            recovery_.Reset();
+        }
         if (display_ == sourceDisplay && sourceContext_ == sourceContext &&
             context_ != EGL_NO_CONTEXT && surface_ != EGL_NO_SURFACE &&
             (width_ != width || height_ != height)) {
@@ -333,14 +367,14 @@ private:
             windowLease_.Get(), SET_USAGE,
             static_cast<uint64_t>(NATIVEBUFFER_USAGE_HW_RENDER | NATIVEBUFFER_USAGE_HW_TEXTURE));
         const int32_t timeoutResult = OH_NativeWindow_NativeWindowHandleOpt(
-            windowLease_.Get(), SET_TIMEOUT, static_cast<int32_t>(0));
+            windowLease_.Get(), SET_TIMEOUT, winehua::kSurfaceBufferTimeoutMs);
         int32_t queueSize = 0;
         OH_NativeWindow_NativeWindowHandleOpt(
             windowLease_.Get(), GET_BUFFERQUEUE_SIZE, &queueSize);
         OH_LOG_INFO(LOG_APP,
                     "[VIRGL-ZC][NCP] window configured size=%{public}ux%{public}u "
-                    "queue=%{public}d timeout_ms=0 timeout_ret=%{public}d",
-                    width, height, queueSize, timeoutResult);
+                    "queue=%{public}d timeout_ms=%{public}d timeout_ret=%{public}d",
+                    width, height, queueSize, winehua::kSurfaceBufferTimeoutMs, timeoutResult);
 
         const EGLint configAttributes[] = {
             EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -418,6 +452,7 @@ private:
         glSamplerParameteri(sampler, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         eglSwapInterval(sourceDisplay, 0);
 
+        config_ = config;
         display_ = sourceDisplay;
         sourceContext_ = sourceContext;
         context_ = context;
@@ -453,6 +488,8 @@ private:
             if (surface_ != EGL_NO_SURFACE) eglDestroySurface(display_, surface_);
             if (context_ != EGL_NO_CONTEXT) eglDestroyContext(display_, context_);
         }
+        recovery_.Reset();
+        config_ = nullptr;
         display_ = EGL_NO_DISPLAY;
         sourceContext_ = EGL_NO_CONTEXT;
         context_ = EGL_NO_CONTEXT;
@@ -481,6 +518,8 @@ private:
     std::mutex mutex_;
     winehua::NativeWindowLease windowLease_;
     uint64_t surfaceKey_ = 0;
+    winehua::SurfaceQueueRecovery recovery_;
+    EGLConfig config_ = nullptr;
     EGLDisplay display_ = EGL_NO_DISPLAY;
     EGLContext sourceContext_ = EGL_NO_CONTEXT;
     EGLContext context_ = EGL_NO_CONTEXT;

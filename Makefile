@@ -673,6 +673,24 @@ test-venus-native-present:
 test-venus-present-retry:
 	python3 $(ROOT)/host_tests/venus_present_retry_test.py
 
+VIRGL_TEST_SOURCE ?= $(ROOT)/thirdparty/virglrenderer
+
+.PHONY: test-hsl-pr78
+test-hsl-pr78:
+	@mkdir -p $(HOST_TEST_DIR)
+	python3 $(ROOT)/host_tests/dxvk_compat_patches_test.py
+	python3 $(ROOT)/host_tests/hsl_dxvk_publication_test.py
+	python3 $(ROOT)/host_tests/venus_present_retry_test.py
+	python3 $(ROOT)/host_tests/venus_present_deadline_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/venus-deadline
+	python3 $(ROOT)/host_tests/venus_proxy_notification_test.py --source $(VIRGL_TEST_SOURCE) --build-dir $(HOST_TEST_DIR)/venus-proxy
+	WINEHUA_VIRGL_MEMORY_SOURCE=$(VIRGL_TEST_SOURCE)/src/venus/vkr_device_memory.c python3 $(ROOT)/host_tests/virgl_explicit_readback_test.py
+	python3 $(ROOT)/host_tests/virgl_present_sync_test.py
+	python3 $(ROOT)/host_tests/shared_present_dispatch_test.py
+	python3 $(ROOT)/host_tests/virgl_patch_application_test.py --source $(VIRGL_TEST_SOURCE)
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/surface_queue_recovery_test.cpp -o $(HOST_TEST_DIR)/surface_queue_recovery_test
+	$(HOST_TEST_DIR)/surface_queue_recovery_test
+	python3 $(ROOT)/host_tests/surface_queue_rebuild_test.py
+
 test-direct-session:
 	@mkdir -p $(HOST_TEST_DIR)
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/host_tests/stubs -I $(ROOT)/entry/src/main/cpp \
@@ -1355,3 +1373,8 @@ test-windows-steam:
 
 test-game-runtime:
 	bash $(ROOT)/scripts/test_game_runtime.sh
+
+.PHONY: test-ncp-dispatch
+test: test-ncp-dispatch
+test-ncp-dispatch:
+	python3 host_tests/ncp_dispatch_linkage_test.py

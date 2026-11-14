@@ -80,5 +80,15 @@ class RuntimeLibraryGuardTest(unittest.TestCase):
         self.assertLess(package.index('runtime_library_guard.py" "$unsigned_hap"'),
                         package.index('if [ "$mode" = unsigned ]; then', package.index('hvigorw assembleHap')))
 
+    def test_packaged_host_cannot_override_system_ncp_symbols(self):
+        for name in ('OH_Ability_StartNativeChildProcess', 'OH_Ability_CreateNativeChildProcess'):
+            source = self.root / 'entry.c'
+            library = self.root / 'libentry.so'
+            source.write_text(f'int {name}(void) {{ return 0; }}\n')
+            subprocess.run(['cc', '-shared', '-fPIC', str(source), '-o', str(library)], check=True)
+            with self.assertRaisesRegex(RuntimeLibraryError, 'bypass phone dispatch'):
+                validate_library(library.read_bytes(), str(library))
+        validate_library(self.real, str(library))
+
 
 if __name__ == '__main__': unittest.main()

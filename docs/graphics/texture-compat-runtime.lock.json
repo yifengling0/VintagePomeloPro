@@ -5,15 +5,15 @@
       "commit": "5dff1d7b3dc3c2cd7f51356b99213bcc427b1af9",
       "sourceSha256": "5d51aa800baffd4c13d74aa7ccb816b8ad37cf0d68b84ffa4953d3d60124df52",
       "files": {
-        "arm64x/d3d11.dll": "f5a2bcd943ce6176905b86d319df204bc58eccd3f4b4e70bca0605c12f94cffa",
-        "arm64x/dxgi.dll": "57c8a1af71974572920de15a204ff21d0218821a0cd790f58422bd2e6ec4af77",
-        "x64/d3d11.dll": "f5a2bcd943ce6176905b86d319df204bc58eccd3f4b4e70bca0605c12f94cffa",
-        "x64/dxgi.dll": "57c8a1af71974572920de15a204ff21d0218821a0cd790f58422bd2e6ec4af77",
-        "x86/d3d10.dll": "46418d17575851359813dd27cb8176814db63f4e32b78b8cfb0384cf07b4c5e4",
-        "x86/d3d10_1.dll": "b5749edfa658eb1936d3aa2055a1c3707a6b17d36762b8aad8d300c421ae7caf",
-        "x86/d3d10core.dll": "e6dfcc4506f081b53f2b9b76577949623dd4f5f0629a53c06489506c6af3d377",
-        "x86/d3d11.dll": "6a9915261cb6da168d39ab0b3085794d3fc8b73a920c3d935d86d1b93ee83396",
-        "x86/dxgi.dll": "7f40d002b1675e64f312900738e6aad791c946c64aaa4333244b2f744a298c4d"
+        "arm64x/d3d11.dll": "106bb9de20fe3b1289526992badc838f45c48c010dfe44f5fea8f3ad477e4b6d",
+        "arm64x/dxgi.dll": "6af2001f22de897f43c895b70530205bb153a89939c355964fe7da7e1bb4732e",
+        "x64/d3d11.dll": "106bb9de20fe3b1289526992badc838f45c48c010dfe44f5fea8f3ad477e4b6d",
+        "x64/dxgi.dll": "6af2001f22de897f43c895b70530205bb153a89939c355964fe7da7e1bb4732e",
+        "x86/d3d10.dll": "fdc8e1972b276420a06707398600a722155cde96016fcf75743ac5381419f2ed",
+        "x86/d3d10_1.dll": "16dc92f1ae862a9cb912a75e21b9b8f6cddaf693c7f89d07b42bed93693dba7e",
+        "x86/d3d10core.dll": "20222943401ba558776a8226c23c6f408e1440daf46c51e02bbe87edcfc01d82",
+        "x86/d3d11.dll": "f66a873600cb16d0a135b6e5c14a6883ad05c94ec759bc8f09e475aea37ba7b6",
+        "x86/dxgi.dll": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73"
       },
       "patches": [
         {
@@ -35,26 +35,35 @@
         {
           "path": "patches/dxvk/0005-share-instance-between-factories.patch",
           "sha256": "8f5dd58a4a673773e066fc0f5f55bf75d9b4f47f47e06fcd804a865606e32ffa"
+        },
+        {
+          "path": "patches/dxvk/0006-publish-single-use-deferred-buffer-maps.patch",
+          "sha256": "86f61fa3a984970c01f0be961239e8e0380f6774d00422ff44d5e9429862140e"
+        },
+        {
+          "path": "patches/dxvk/0007-explicit-d24-d32s8-storage.patch",
+          "sha256": "05a11800b0b6c87878fffc3d988def036a1d2b7d4a23936fa206fb13d7ee9055"
         }
       ],
-      "patchedSourceSha256": "6a30bf2d4e980ba47bf2e7ed617f1fb6057e514d08cfc5a291faaa5444f853cc"
+      "patchedSourceSha256": "e08c7f474e588b9982b38a9e2c1aa0837c4c98cf198ba9413f74ff13083cc535",
+      "qualification": "host-validated-device-pending"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
       "sourceSha256": "6047450311643f2b992fd2154d2563327ffffda7fa587d1713232025917c0c59",
       "files": {
-        "arm64x/d3d11.dll": "47625387eefb3a039ee1d535134d70db915d39dc10e76d9e748a8c4a28f92127",
-        "arm64x/dxgi.dll": "383a3256f051f1f380d992febc3715ab5d630b37dd015473c15ec5f6adac551e",
-        "x64/d3d11.dll": "47625387eefb3a039ee1d535134d70db915d39dc10e76d9e748a8c4a28f92127",
-        "x64/dxgi.dll": "383a3256f051f1f380d992febc3715ab5d630b37dd015473c15ec5f6adac551e",
-        "x86/d3d11.dll": "eb5be7e70d3262058312be8233dfd845f4ea447dd080f647feb7a53076617576",
-        "x86/dxgi.dll": "5631eb512eb4409386ceca0458a17e70a411d75d677f6122b77b75a5d42120ef"
+        "arm64x/d3d11.dll": "8f2c14e2c1adc370f252f39cf7cbdd508bfc8937abf77ebc0eb8bea22cb06361",
+        "arm64x/dxgi.dll": "89bd194bedc4ba0cc85c04c00a120e35f01f24c3345a68c563b194c10f27a302",
+        "x64/d3d11.dll": "8f2c14e2c1adc370f252f39cf7cbdd508bfc8937abf77ebc0eb8bea22cb06361",
+        "x64/dxgi.dll": "89bd194bedc4ba0cc85c04c00a120e35f01f24c3345a68c563b194c10f27a302",
+        "x86/d3d11.dll": "74c287e2662b18ca9f3f90b8d113eb7cf99f77a81ce8615f913753d8438c16ca",
+        "x86/dxgi.dll": "9f94ff4d213aa9d340e19d6986e1353230cbf7fbc9f109d56c2ddcb5bd857f61"
       }
     }
   },
   "venus": {
     "commit": "557fa3e781ea6e78fcff3ee759c25f60c3055064",
-    "sha256": "0519fc902f06b4f96029c2070d5914b3788d48f3e7bca6b6ca9e2df746755437",
+    "sha256": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49",
     "patches": [
       {
         "path": "patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch",
@@ -91,6 +100,10 @@
       {
         "path": "patches/mesa/0009-venus-order-shadow-export-after-ring.patch",
         "sha256": "2338ac0f63422de0d26b706d4dd6bcd263cbf61b23a2fdfd9189dcc3dd712eb4"
+      },
+      {
+        "path": "patches/mesa/0010-venus-check-after-final-present-backoff.patch",
+        "sha256": "660c480f7e08046e06c6e8806aaaa1fc9f1f9f73c6b32fc806641e89f4b1c345"
       }
     ]
   }
