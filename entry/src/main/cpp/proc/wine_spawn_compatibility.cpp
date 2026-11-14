@@ -21,6 +21,10 @@ FreshWineGraphics ConfigureFreshWineGraphics(Request& request, bool fresh,
         ImageEnvironment(request, "WINEHUA_D3D_BACKEND") == "dxvk_legacy" &&
         ImageEnvironment(request, "DXVK_WINEHUA_PRECISE_SHADOW") == "1" &&
         ImageEnvironment(request, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED") == "1";
+    // Preserve the route while observing the existing rate-limited ring
+    // counters. LAB observation profiles may otherwise rebuild that route.
+    const bool ringPerf =
+        ImageEnvironment(request, "WINEHUA_FRESH_VENUS_PERF_SUMMARY") == "1";
     auto environment = request.env;
     // Start NCP has a clean low address space but no verified native Vulkan
     // driver/producer IPC. Keep GPU work in the existing renderer process.
@@ -32,6 +36,8 @@ FreshWineGraphics ConfigureFreshWineGraphics(Request& request, bool fresh,
     UpsertEnvLine(environment, "WINEHUA_VULKAN_BACKEND=venus");
     UpsertEnvLine(environment, preciseMaps ? "WINEHUA_VK_PRECISE_MAP=1"
                                          : "WINEHUA_VK_PRECISE_MAP=0");
+    UpsertEnvLine(environment, ringPerf ? "VN_WINEHUA_PERF_SUMMARY=1"
+                                      : "VN_WINEHUA_PERF_SUMMARY=0");
     UpsertEnvLine(environment, "WINEHUA_PRESENT_BACKEND=venus_broker_present");
     UpsertEnvLine(environment, "WINEHUA_VULKAN_PRESENT=1");
     request.env = std::move(environment);

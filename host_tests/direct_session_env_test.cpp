@@ -59,6 +59,7 @@ static void TestCleanProcessGraphics() {
     assert(Has(request.env, "VN_WINEHUA_STRONG_RING_BARRIER=1"));
     assert(Has(request.env, "VN_WINEHUA_ALWAYS_NOTIFY_RING=1"));
     assert(Has(request.env, "DXVK_WINEHUA_PRECISE_SHADOW=1"));
+    assert(Has(request.env, "VN_WINEHUA_PERF_SUMMARY=0"));
     assert(Has(request.env, "FEX_SMCCHECKS=1") && Has(request.env, "FEX_X87REDUCEDPRECISION=0"));
     assert(Has(request.env, "WINEPREFIX=/kept-prefix"));
     const auto resolved = request.env;
@@ -94,6 +95,28 @@ static void TestCleanProcessGraphics() {
     reject("WINEHUA_D3D_BACKEND=vkd3d_limited_500k");
     reject("WINEHUA_FRESH_VENUS_PRECISE_MAP=0");
     reject("WINEHUA_FRESH_VENUS_PRECISE_MAP=10");
+    auto observed = experiment;
+    UpsertEnvLine(observed.env, "WINEHUA_FRESH_VENUS_PERF_SUMMARY=1");
+    const auto observation = observed;
+    assert(ConfigureFreshWineGraphics(observed, true, runtime) == FreshWineGraphics::Venus);
+    assert(Has(observed.env, "VN_WINEHUA_PERF_SUMMARY=1"));
+    auto withoutCounters = precise.env;
+    auto withCounters = observed.env;
+    const auto removeCounterKeys = [](auto& env) {
+        env.erase(std::remove_if(env.begin(), env.end(), [](const auto& line) {
+            return line.rfind("WINEHUA_FRESH_VENUS_PERF_SUMMARY=", 0) == 0 ||
+                   line.rfind("VN_WINEHUA_PERF_SUMMARY=", 0) == 0;
+        }), env.end());
+    };
+    removeCounterKeys(withoutCounters);
+    removeCounterKeys(withCounters);
+    assert(withoutCounters == withCounters);
+    for (const char* value : {"0", "10", ""}) {
+        observed = observation;
+        UpsertEnvLine(observed.env, std::string("WINEHUA_FRESH_VENUS_PERF_SUMMARY=") + value);
+        assert(ConfigureFreshWineGraphics(observed, true, runtime) == FreshWineGraphics::Venus);
+        assert(Has(observed.env, "VN_WINEHUA_PERF_SUMMARY=0"));
+    }
     const int callsBeforeMissing = runtimeEnvironmentCalls;
     std::filesystem::remove(icd);
     request = original;
