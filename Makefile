@@ -1392,3 +1392,11 @@ test-virgl-vtest-write:
 .PHONY: test-virgl-busy-timing
 test-virgl-busy-timing:
 	python3 $(ROOT)/host_tests/virgl_busy_timing_test.py --source $(VIRGL_TEST_SOURCE)
+
+.PHONY: test-virgl-command-timing
+test-virgl-command-timing:
+	python3 $(ROOT)/host_tests/virgl_command_timing_test.py --source $(VIRGL_TEST_SOURCE)
+
+.PHONY: test-virgl-poll-context
+test-virgl-poll-context:
+	python3 $(ROOT)/host_tests/virgl_poll_context_test.py --source $(VIRGL_TEST_SOURCE)
