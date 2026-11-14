@@ -1384,3 +1384,7 @@ test-ncp-dispatch:
 .PHONY: test-venus-vtest-submit
 test-venus-vtest-submit:
 	python3 $(ROOT)/host_tests/venus_vtest_submit_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/venus-vtest-submit
+
+.PHONY: test-virgl-vtest-write
+test-virgl-vtest-write:
+	python3 $(ROOT)/host_tests/virgl_vtest_write_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/virgl-vtest-write

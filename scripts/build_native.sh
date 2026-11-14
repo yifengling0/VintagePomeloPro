@@ -103,7 +103,19 @@ copy_soname_with_linker_alias() {
 remove_native_egl_linker_stubs() {
     # The Native SDK files are link-time stubs. OHOS host processes must load
     # the public runtime implementations from /system/lib64 instead.
-    rm -f "$NATIVE_LIBS/libEGL.so" "$NATIVE_LIBS/libEGL.so.1"
+    # assemble.sh also places the real guest Mesa EGL here for el1 dlopen.
+    # Keep that runtime; deleting every EGL file breaks WineD3D on tablets.
+    local reader="$OHOS_SDK/native/llvm/bin/llvm-readelf"
+    local egl
+    [ -x "$reader" ] || err "llvm-readelf required to distinguish guest EGL from SDK stubs"
+    for egl in "$NATIVE_LIBS/libEGL.so" "$NATIVE_LIBS/libEGL.so.1"; do
+        [ -e "$egl" ] || continue
+        if "$reader" -d "$egl" | grep -q 'Shared library: \[libgallium-'; then
+            log "Preserving guest Mesa EGL: $egl"
+        else
+            rm -f "$egl"
+        fi
+    done
 }
 
 build_native_freetype() {
