@@ -43,10 +43,19 @@
         {
           "path": "patches/dxvk/0007-explicit-d24-d32s8-storage.patch",
           "sha256": "05a11800b0b6c87878fffc3d988def036a1d2b7d4a23936fa206fb13d7ee9055"
+        },
+        {
+          "path": "patches/dxvk/0008-d3d9-opt-in-bc-upload-fallback.patch",
+          "sha256": "ff0ac0fc4173358c45ec9938cf556ef7d473c2ef6df4ff82a729f67a7081aba9"
+        },
+        {
+          "path": "patches/dxvk/0009-d3d9-opt-in-shadow-readback.patch",
+          "sha256": "13e1996386a4c42e2af39b6bb1238b64cdbbd53e422ca832cf4bbaef463200c7"
         }
       ],
-      "patchedSourceSha256": "e08c7f474e588b9982b38a9e2c1aa0837c4c98cf198ba9413f74ff13083cc535",
-      "qualification": "host-validated-device-pending"
+      "patchedSourceSha256": "91c303dcba4b3762cf1a26d3db7de998b4fa2985d9e63de6de241a60402d135a",
+      "qualification": "host-validated-device-pending",
+      "experimentalD3D9Qualification": "opt-in-only; clear readback validated; textured draw fails; not Heaven qualified"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
@@ -104,6 +113,26 @@
       {
         "path": "patches/mesa/0010-venus-check-after-final-present-backoff.patch",
         "sha256": "660c480f7e08046e06c6e8806aaaa1fc9f1f9f73c6b32fc806641e89f4b1c345"
+      },
+      {
+        "path": "patches/mesa/0012-venus-pack-small-vtest-submits.patch",
+        "sha256": "38daab1e0bd425ac906604ac35cfed820987808ff2aac1e71c591edc4202e501"
+      },
+      {
+        "path": "patches/mesa/0013-virgl-vtest-write-command-pair.patch",
+        "sha256": "b04dbde3a7c84f90052c5170447066d1ac0a49cac7309799fc00aaab2a782683"
+      },
+      {
+        "path": "patches/mesa/0014-zink-opt-in-instance-diagnostic.patch",
+        "sha256": "19f40d282a5d6e25b9ff994d0ff562681af76d6abdc0e0140143bbdf84deae88"
+      },
+      {
+        "path": "patches/mesa/0015-zink-opt-in-shadow-readback.patch",
+        "sha256": "4b8940be945c9197b96c69fd5d823b91342d5bc5dbc027d846a722c2e229b98f"
+      },
+      {
+        "path": "patches/mesa/0016-zink-opt-in-shadow-uploader.patch",
+        "sha256": "4aeb274f93de3f3d7150e36f6ebfae85a6d78843db2d227f2f79b8ef1bba00ea"
       }
     ]
   }

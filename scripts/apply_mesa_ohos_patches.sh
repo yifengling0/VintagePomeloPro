@@ -22,6 +22,9 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0010-venus-check-after-final-present-backoff.patch"
     "$SCRIPT_DIR/../patches/mesa/0012-venus-pack-small-vtest-submits.patch"
     "$SCRIPT_DIR/../patches/mesa/0013-virgl-vtest-write-command-pair.patch"
+    "$SCRIPT_DIR/../patches/mesa/0014-zink-opt-in-instance-diagnostic.patch"
+    "$SCRIPT_DIR/../patches/mesa/0015-zink-opt-in-shadow-readback.patch"
+    "$SCRIPT_DIR/../patches/mesa/0016-zink-opt-in-shadow-uploader.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

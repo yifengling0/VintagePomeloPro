@@ -2,6 +2,7 @@
 #include "stderr_hilog_budget.h"
 #include "stderr_file.h"
 #include "program_compat.h"
+#include "direct/vulkan_probe_protocol.h"
 /**
  * wine_child.cpp - Wine 子进程入口 (libwine_child.so)
  *
@@ -1993,6 +1994,29 @@ extern "C" void Main(NativeChildProcess_Args args)
     }
 
     start_stderr_capture(args.entryParams ? strlen(args.entryParams) : size_t{0}, argc, "wine");
+
+    // Explicit diagnostic only: run the existing native probe in this fresh
+    // child's environment/namespace, then return before loading Wine.
+    const char* nativeProbe = getenv("WINEHUA_NATIVE_VULKAN_PROBE");
+    if (nativeProbe && !strcmp(nativeProbe, "1")) {
+        void* probeLibrary = dlopen("libdirect_vulkan_probe.so", RTLD_NOW | RTLD_LOCAL);
+        using ProbeFn = void (*)(winehua::direct::VulkanProbeResult*);
+        auto probe = probeLibrary ? reinterpret_cast<ProbeFn>(
+            dlsym(probeLibrary, "DirectVulkanProbe_RunInline")) : nullptr;
+        if (probe) {
+            winehua::direct::VulkanProbeResult result{};
+            probe(&result);
+            OH_LOG_INFO(LOG_APP, "[WineChild-VulkanProbe] status=%{public}d stage=%{public}s "
+                        "vk=%{public}d loader=%{public}s loaderApi=%{public}u requestedApi=%{public}u "
+                        "deviceApi=%{public}u device=%{public}s pixels=%{public}u env=%{public}s",
+                        result.status, result.stage, result.vkResult, result.loaderPath,
+                        result.loaderVersion, result.requestedApiVersion, result.apiVersion,
+                        result.deviceName, result.pixelCheck, result.icdEnvironment);
+        } else {
+            OH_LOG_ERROR(LOG_APP, "[WineChild-VulkanProbe] probe library unavailable");
+        }
+        return;
+    }
 
     // 空闲卡死看门狗 (WINEHUA_STALL_DUMP=<秒> 才启动): 必须在 stderr 已重定向到
     // wine_stderr 之后启动, 这样 dump 才落在同一个文件里。
