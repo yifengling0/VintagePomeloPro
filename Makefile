@@ -1400,3 +1400,11 @@ test-virgl-command-timing:
 .PHONY: test-virgl-poll-context
 test-virgl-poll-context:
 	python3 $(ROOT)/host_tests/virgl_poll_context_test.py --source $(VIRGL_TEST_SOURCE)
+
+.PHONY: test-virgl-opcode-timing
+test-virgl-opcode-timing:
+	python3 $(ROOT)/host_tests/virgl_opcode_timing_test.py --source $(VIRGL_TEST_SOURCE)
+
+.PHONY: test-virgl-fbo-status
+test-virgl-fbo-status:
+	python3 $(ROOT)/host_tests/virgl_fbo_status_test.py --source $(VIRGL_TEST_SOURCE)

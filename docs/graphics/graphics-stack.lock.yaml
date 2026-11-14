@@ -424,6 +424,14 @@
       {
         "path": "patches/virglrenderer/0018-preserve-shared-context-during-fence-poll.patch",
         "sha256": "ef191bfc2f8cf8290e1557c131ab11c06719f17656486f9f948f20bf96c35ced"
+      },
+      {
+        "path": "patches/virglrenderer/0019-measure-decoder-opcodes.patch",
+        "sha256": "717b755fe219f6ab28d3d7edceb51faef65ab006efdf5693efb3029692515478"
+      },
+      {
+        "path": "patches/virglrenderer/0020-cache-immutable-framebuffer-completeness.patch",
+        "sha256": "57aca6e0b16df0f0fef20a7df96c558b90408dee5f3a7fa033048cb8fef0bcf9"
       }
     ],
     "mesa": [
@@ -732,7 +740,7 @@
       "dlls/wineohos.drv/ohos_audio_mix.h": "9c127f769482afd53df47bdde58c1be3477161acedb46a896677d392a9c8ba6c"
     },
     "virglrenderer": {
-      "src/vrend/vrend_renderer.c": "9b3aa81ffc605440f6ca06753a77f66615556d3ec5312a63888e46f37b66df47",
+      "src/vrend/vrend_renderer.c": "35bcf434d1882f83c42fcd79e086e2b6c307835287d3652f6e8ac92309702ee1",
       "src/vrend/vrend_shader.c": "ab200053b589e5381a58a5687c5cf38c8ceaf5a3fb587d3ab396ae8b9ea329aa",
       "src/vrend/vrend_shader.h": "f5122579e8a5d7c22f01da334a986e5571977990135cf74498bc4b65133b58b6",
       "vtest/vtest_renderer.c": "9bdb6045807a9369415b225ab714d9ff851428f5d6266640e0f44d9fb75d3e2a",
@@ -760,7 +768,8 @@
       "src/virgl_resource.h": "a3d31be53cadaa6836713a3a38da8964e30cdd35fe77f4f03db8ea3cffe948ab",
       "src/virglrenderer.c": "3302226f94c97adf470e33ee26f673eed00ba7ced5535596bc7bf4e7b82bcc8d",
       "src/venus/vkr_queue.c": "dc00fd5d0f6c9eed125f435dea060e2f5dac06dd4eabdec882f5a14a229beafa",
-      "src/proxy/proxy_renderer.c": "50b71794c943914426331c565275f3544ff32dac28def04caf198b142f5ff00f"
+      "src/proxy/proxy_renderer.c": "50b71794c943914426331c565275f3544ff32dac28def04caf198b142f5ff00f",
+      "src/vrend/vrend_decode.c": "d9b134d63bf516d6c1ca156b2bfb11dcd39bc59f99e7fa4f54babd052ef79872"
     }
   },
   "capability_decisions": {
