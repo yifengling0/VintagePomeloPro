@@ -678,6 +678,8 @@ VIRGL_TEST_SOURCE ?= $(ROOT)/thirdparty/virglrenderer
 .PHONY: test-hsl-pr78
 test-hsl-pr78:
 	@mkdir -p $(HOST_TEST_DIR)
+	g++ -std=c++17 -Wall -Wextra -Werror $(ROOT)/host_tests/wine_cpu_policy_test.cpp -o $(HOST_TEST_DIR)/wine_cpu_policy_test
+	$(HOST_TEST_DIR)/wine_cpu_policy_test
 	python3 $(ROOT)/host_tests/dxvk_compat_patches_test.py
 	python3 $(ROOT)/host_tests/hsl_dxvk_publication_test.py
 	python3 $(ROOT)/host_tests/venus_present_retry_test.py

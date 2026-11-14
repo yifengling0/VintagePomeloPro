@@ -461,7 +461,7 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
             std::vector<char> line(size + 1);
             valid = napi_get_value_string_utf8(env, item, line.data(), line.size(), &size) == napi_ok;
             const std::string value(line.data(), size);
-            valid = valid && winehua::IsWineCpuEnvironmentLine(value);
+            valid = valid && winehua::IsWineLaunchEnvironmentLine(value);
             if (valid) p->cpuEnvironment.push_back(value);
         }
         if (!valid) {

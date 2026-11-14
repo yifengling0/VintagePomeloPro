@@ -28,6 +28,15 @@ inline bool IsWineCpuEnvironmentLine(const std::string& line)
     return number <= 4096;
 }
 
+// launchClient has a restricted session environment, not an arbitrary
+// preload/graphics override channel. Keep CPU-only validation reusable.
+inline bool IsWineLaunchEnvironmentLine(const std::string& line)
+{
+    return IsWineCpuEnvironmentLine(line) ||
+        line == "WINEHUA_DXVK_D24_STORAGE_D32=0" ||
+        line == "WINEHUA_DXVK_D24_STORAGE_D32=1";
+}
+
 inline const char* WineWow64CpuModule(const char* selection)
 {
     return selection && std::string(selection) == "box" ? "wowbox64.dll" : "libwow64fex.dll";
