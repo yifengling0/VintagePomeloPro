@@ -111,7 +111,9 @@ static void LaunchJob(BrokerJob& job) {
         Reply(job.conn, -1, -ENOENT); return;
     }
     if (freshGraphics == winehua::spawn::FreshWineGraphics::Venus)
-        OH_LOG_INFO(LOG_APP, "[PROC-IMAGE] clean PE32 process uses Venus with the active desktop");
+        OH_LOG_INFO(LOG_APP, "[PROC-IMAGE] clean PE32 process uses Venus with the active desktop preciseMaps=%{public}s mappedFlush=%{public}s",
+            winehua::spawn::ImageEnvironment(request, "WINEHUA_VK_PRECISE_MAP").c_str(),
+            winehua::spawn::ImageEnvironment(request, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED").c_str());
     // Verify the final parameter budget before creating audio resources or a child.
     std::string entry;
     if (!winehua::spawn::EncodeEntry(request, entry)) {

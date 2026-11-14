@@ -68,10 +68,37 @@ static void TestCleanProcessGraphics() {
     assert(Encode(request, packet));
     Request decoded; assert(Decode(packet, decoded));
     assert(decoded.env == request.env && decoded.argv == original.argv && decoded.names == original.names);
+    // The copy-reduction experiment must retain the production Venus/ring
+    // route and require all legacy DXVK publication hooks, including coherent
+    // dynamic mappings. Unsupported clients keep their whole-map fallback.
+    auto precise = original;
+    UpsertEnvLine(precise.env, "WINEHUA_FRESH_VENUS_PRECISE_MAP=1");
+    UpsertEnvLine(precise.env, "DXVK_WINEHUA_PRECISE_SHADOW=1");
+    UpsertEnvLine(precise.env, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1");
+    const auto experiment = precise;
+    assert(ConfigureFreshWineGraphics(precise, true, runtime) == FreshWineGraphics::Venus);
+    assert(Has(precise.env, "WINEHUA_VK_PRECISE_MAP=1"));
+    assert(Has(precise.env, "WINEHUA_VULKAN_BACKEND=venus"));
+    assert(Has(precise.env, "VN_WINEHUA_STRONG_RING_BARRIER=1"));
+    assert(Has(precise.env, "VN_WINEHUA_ALWAYS_NOTIFY_RING=1"));
+    assert(precise.argv == original.argv && precise.names == original.names);
+    const auto reject = [&](const std::string& line) {
+        auto unsupported = experiment;
+        UpsertEnvLine(unsupported.env, line);
+        assert(ConfigureFreshWineGraphics(unsupported, true, runtime) == FreshWineGraphics::Venus);
+        assert(Has(unsupported.env, "WINEHUA_VK_PRECISE_MAP=0"));
+    };
+    reject("DXVK_WINEHUA_PRECISE_SHADOW=0");
+    reject("DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=0");
+    reject("WINEHUA_D3D_BACKEND=dxvk_modern_2_6");
+    reject("WINEHUA_D3D_BACKEND=vkd3d_limited_500k");
+    reject("WINEHUA_FRESH_VENUS_PRECISE_MAP=0");
+    reject("WINEHUA_FRESH_VENUS_PRECISE_MAP=10");
+    const int callsBeforeMissing = runtimeEnvironmentCalls;
     std::filesystem::remove(icd);
     request = original;
     assert(ConfigureFreshWineGraphics(request, true, runtime) == FreshWineGraphics::MissingRuntime);
-    assert(request.env == original.env && runtimeEnvironmentCalls == 1);
+    assert(request.env == original.env && runtimeEnvironmentCalls == callsBeforeMissing);
     std::filesystem::remove_all(runtime);
     winehua::SetProductDirectVulkanVerified(false);
 }
