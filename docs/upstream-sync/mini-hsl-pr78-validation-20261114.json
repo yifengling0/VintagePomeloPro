@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-14",
+  "scope": "Bounded USB Mini smoke test; no Steam games launched",
+  "branch": "feature/fex-proton-upstream-sync",
+  "sourceCommit": "ddb7deeca37a3998b63a393ce6588fe5b0af9726",
+  "codeCommits": [
+    "d161700a",
+    "ddb7deec"
+  ],
+  "device": {
+    "model": "MLR-AL10",
+    "connection": "USB",
+    "versionName": "2.0.2",
+    "versionCode": 2000020
+  },
+  "package": {
+    "file": "VintagePomeloPro-2.0.2-hsl-pr78-mini-internaltesting.hap",
+    "sourceCommit": "ddb7deeca37a3998b63a393ce6588fe5b0af9726",
+    "sourceSha256": "416059360005af8229accdabc4661bcbc560ead9a3afa925352014407eb8568a",
+    "signedSha256": "2f21afadffdd728e78bba43f8da8d813c7feed25a0a26abb85b9b39585851c71",
+    "signedBytes": 626565949,
+    "profile": "release/internaltesting",
+    "profileSha256": "7a54a6fc94318528462f6c44b9b5cd71a0f690704f8afe58c502e40b8b4a30d5",
+    "profileAndCertificateMatch": true,
+    "installedMiniCertificateMatches": true,
+    "jitEntitlementPresent": true,
+    "signatureVerified": true,
+    "payloadInventoryMatches": true,
+    "components": {
+      "wine": "098ece0eedff40bea426d2d57b215bb81411e239",
+      "fex": "c3b2b2306347e16da04e512a52432cb9c921d221"
+    }
+  },
+  "install": {
+    "mode": "upgrade-in-place",
+    "uninstall": false,
+    "clearData": false,
+    "bundleVersionConfirmed": true
+  },
+  "host": {
+    "compile": {
+      "arkts": {
+        "exitCode": 0,
+        "seconds": 1.88,
+        "logBytes": 1087
+      },
+      "native-entry": {
+        "exitCode": 0,
+        "seconds": 1.6,
+        "logBytes": 3638
+      }
+    },
+    "packageCheckExitCode": 0,
+    "targetedRegressions": "passed"
+  },
+  "checks": [
+    {
+      "id": "navigation",
+      "status": "pass",
+      "observation": "Classic and HmosDeck navigation operational"
+    },
+    {
+      "id": "wine-initialize",
+      "status": "pass",
+      "observation": "Classic phase/countdown visible; existing prefix updated without wiping user data"
+    },
+    {
+      "id": "d3d11",
+      "status": "pass",
+      "observation": "Built-in cube continuously rendered with FEX, DXVK Legacy and Direct"
+    },
+    {
+      "id": "background-resume",
+      "status": "pass",
+      "observation": "Home and return via running list resumed cube rendering"
+    },
+    {
+      "id": "cube-close",
+      "status": "pass-with-diagnostic-limit",
+      "observation": "Cube window/process/card disappeared; native exit=-1 source=ipc-death, not exit 0"
+    },
+    {
+      "id": "stop-all",
+      "status": "pass",
+      "observation": "Stop all Windows sessions reached ready -> stopped and destroyed desktop root"
+    },
+    {
+      "id": "steam-library",
+      "status": "partial",
+      "observation": "Library and Banana details rendered, but earlier long spinner and empty community page remain unresolved"
+    },
+    {
+      "id": "steam-select",
+      "status": "pass-with-latency-limit",
+      "observation": "Direct-touch Banana selection succeeded; absent at ~1 s capture, visible by ~16 s capture; sparse sampling, not exact response time"
+    },
+    {
+      "id": "steam-menu",
+      "status": "pass",
+      "observation": "Steam menu visible in first capture about 1 s after direct-touch click"
+    },
+    {
+      "id": "steam-exit",
+      "status": "pass",
+      "observation": "Menu Exit at 10:41:52, main window destroyed 10:41:55; later process snapshot had no Steam or webhelper process"
+    },
+    {
+      "id": "final-running-list",
+      "status": "pass",
+      "observation": "HmosDeck deck-no-tasks displayed after exit"
+    }
+  ],
+  "steamDiagnostics": {
+    "consoleStartupSeconds": [
+      41.4,
+      29.08,
+      54.3
+    ],
+    "startupMetricMeaning": "Steam console self-report; not time to interactive UI or a controlled performance comparison",
+    "boundedLogObservations": [
+      "LogonFailure No Connection",
+      "Store/Community web auth request failed: Auth error"
+    ],
+    "causality": "Network/authentication errors observed; not established as the sole cause of spinner or latency",
+    "inputCaveat": "Earlier coordinate clicks with virtual touchpad ON excluded; final selection/menu/exit verified with touchpad OFF",
+    "performanceAccepted": false
+  },
+  "notTested": [
+    "Steam game launch or gameplay",
+    "Tomb Raider rendering/FPS or SNORM issue",
+    "Long-session stability",
+    "Media playback",
+    "Membership purchase",
+    "Offline Steam/font import",
+    "Clean-install initialization",
+    "AppGallery acceptance"
+  ],
+  "privacy": "Only redacted observations committed; account-bearing screenshots/layout/raw logs remain local",
+  "delivery": {
+    "pushed": false,
+    "ciTriggered": false,
+    "historicalTagsMoved": false,
+    "existingReleaseArtifactReplaced": false
+  }
+}
