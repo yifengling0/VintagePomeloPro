@@ -20,6 +20,7 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch"
     "$SCRIPT_DIR/../patches/mesa/0009-venus-order-shadow-export-after-ring.patch"
     "$SCRIPT_DIR/../patches/mesa/0010-venus-check-after-final-present-backoff.patch"
+    "$SCRIPT_DIR/../patches/mesa/0012-venus-pack-small-vtest-submits.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

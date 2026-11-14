@@ -1380,3 +1380,7 @@ test-game-runtime:
 test: test-ncp-dispatch
 test-ncp-dispatch:
 	python3 host_tests/ncp_dispatch_linkage_test.py
+
+.PHONY: test-venus-vtest-submit
+test-venus-vtest-submit:
+	python3 $(ROOT)/host_tests/venus_vtest_submit_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/venus-vtest-submit
