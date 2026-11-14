@@ -45,6 +45,38 @@ def digest_member(archive: ZipFile, name: str) -> str:
     return digest.hexdigest()
 
 
+def verify_ui_payload(candidate: ZipFile, compiled: ZipFile) -> None:
+    """Keep compiled ABC, resource IDs, module metadata and UI assets together.
+
+    A native-runtime overlay may retain rawfile from a verified baseline, but
+    must never combine a new ABC with another compilation's resource index.
+    """
+    required = {"ets/modules.abc", "resources.index", "module.json"}
+
+    def ui_names(archive: ZipFile) -> set[str]:
+        names = [entry.filename for entry in archive.infolist()
+                 if not entry.is_dir() and (entry.filename in required or
+                     (entry.filename.startswith("resources/") and
+                      not entry.filename.startswith("resources/rawfile/")))]
+        if len(names) != len(set(names)):
+            raise ValidationError("HAP has duplicate compiled UI members")
+        missing = required - set(names)
+        if missing:
+            raise ValidationError(f"HAP is missing compiled UI members: {sorted(missing)}")
+        return set(names)
+
+    expected = ui_names(compiled)
+    actual = ui_names(candidate)
+    if actual != expected:
+        raise ValidationError(
+            f"compiled UI asset inventory mismatch: missing={sorted(expected - actual)} "
+            f"extra={sorted(actual - expected)}"
+        )
+    for name in sorted(expected):
+        if digest_member(candidate, name) != digest_member(compiled, name):
+            raise ValidationError(f"HAP UI member differs from the same compilation: {name}")
+
+
 def load_signature(label: str, data: bytes) -> tuple[object, ...]:
     if len(data) < ELF_HEADER.size:
         raise ValidationError(f"{label} is too short to be an ELF file")
@@ -110,6 +142,9 @@ def verify(args: argparse.Namespace) -> None:
     artifacts = list(NATIVE_ARTIFACTS)
     artifacts.append(WINE_SERVER_ARTIFACT)
     with ZipFile(hap) as archive:
+        if args.compiled_ui_hap is not None:
+            with ZipFile(args.compiled_ui_hap) as compiled:
+                verify_ui_payload(archive, compiled)
         payload_name = find_payload(archive)
         expected_payload = digest_path(payload)
         actual_payload = digest_member(archive, payload_name)
@@ -146,6 +181,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hap", type=Path, required=True, help="signed HAP to validate")
     parser.add_argument("--root", type=Path, default=root, help="Proton-OHOS worktree root")
+    parser.add_argument("--compiled-ui-hap", type=Path,
+                        help="HAP from the same UI compilation; validate ABC, index, module and UI assets")
     parser.add_argument("--native-arch", default="arm64-v8a", help="HAP native ABI")
     parser.add_argument("--wine-build", type=Path,
                         help="Wine build directory (default: <root>/build/wine-ohos-aarch64)")

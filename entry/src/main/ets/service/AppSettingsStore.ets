@@ -1,5 +1,6 @@
 import preferences from '@ohos.data.preferences';
 import { normalizePerformanceHud } from '../model/PerformanceHudSettings';
+import { normalizeAppGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { common } from '@kit.AbilityKit';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
@@ -393,6 +394,7 @@ export class AppSettingsStore {
       box64Preset: value.box64Preset ?? defaults.box64Preset,
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
+      graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
       dxvkFloatControls: value.dxvkFloatControls !== false,
       fexStrictPrecision: value.fexStrictPrecision === true,
       disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager ?? defaults.disableMfDxgiDeviceManager,

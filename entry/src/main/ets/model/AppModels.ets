@@ -1,5 +1,6 @@
 import { bindingToEvdevName, evdevNameToBinding } from '../common/EvdevKeyNames';
 import { PerformanceHudSettings, normalizePerformanceHud } from './PerformanceHudSettings';
+import { normalizeAppGraphicsBackend } from './GraphicsBackendSettings';
 export enum AppSource {
   BUILTIN = 'builtin',
   DOWNLOAD = 'download'
@@ -542,6 +543,8 @@ export interface AppSettings {
   box64Preset: string;
   /** 每游戏图形启动预设，只改 argv；默认不注入参数。 */
   graphicsLaunchPreset: string;
+  /** default inherits the system renderer when launching. */
+  graphicsBackend?: string;
   /** 每游戏 DXVK 浮点控制；关闭时向该游戏注入 d3d11.floatControls=False。默认开启。 */
   dxvkFloatControls: boolean;
   /** FEX 严格 x87 精度；仅影响此应用，默认保留性能策略。 */
@@ -569,6 +572,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     wineTranslationEngine: normalizeAppWineTranslationEngine(value.wineTranslationEngine),
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
+    graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
     dxvkFloatControls: value.dxvkFloatControls !== false,
     fexStrictPrecision: value.fexStrictPrecision === true,
     disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager === true,
@@ -1295,6 +1299,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     wineTranslationEngine: WINE_TRANSLATION_ENGINE_DEFAULT,
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
+    graphicsBackend: 'default',
     dxvkFloatControls: true,
     fexStrictPrecision: false,
     disableMfDxgiDeviceManager: false,

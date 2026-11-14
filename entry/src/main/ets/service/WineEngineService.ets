@@ -23,6 +23,7 @@ import {
   resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
+import { normalizeAppGraphicsBackend, resolveGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { syncManagedSmoke } from './ManagedSmokePayloadService';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
@@ -666,6 +667,7 @@ export class WineEngineService {
   // Product sessions derive Host and Guest from the same D3D backend. Only
   // the qualified VKD3D smoke path owns an explicit one-session override.
   private hostGraphicsBackendOverride: string = '';
+  private appGraphicsBackend: string = 'default';
   private appliedHostGraphicsBackend: string = 'dxvk_legacy';
   private hostGraphicsLabExperiment: string = '';
   private appliedHostGraphicsLabExperiment: string = '';
@@ -1149,8 +1151,8 @@ export class WineEngineService {
 
   private selectedD3DBackend(): string {
     const stored = AppSettingsStore.getInstance().getRenderMode();
-    const mode = stored.length > 0 ? stored :
-      (AppStorage.get<string>('winehua.render.mode') ?? 'dxvk_1_10');
+    const mode = resolveGraphicsBackend(stored.length > 0 ? stored :
+      (AppStorage.get<string>('winehua.render.mode') ?? 'dxvk_1_10'), this.appGraphicsBackend);
     let backend = 'dxvk_legacy';
     if (mode === 'virgl') {
       backend = 'wined3d';
@@ -1160,8 +1162,8 @@ export class WineEngineService {
     AppStorage.setOrCreate<string>('winehua.render.resolved', backend);
     try {
       const gpu = (testNapi.getHostGpuName() as string) ?? '';
-      hilog.info(DOMAIN, TAG, 'render adapt mode=%{public}s gpu=%{public}s backend=%{public}s',
-        mode, gpu, backend);
+      hilog.info(DOMAIN, TAG, 'render adapt mode=%{public}s gpu=%{public}s backend=%{public}s source=%{public}s',
+        mode, gpu, backend, this.appGraphicsBackend === 'default' ? 'system' : 'game');
     } catch (_) {
       hilog.info(DOMAIN, TAG, 'render adapt mode=%{public}s backend=%{public}s', mode, backend);
     }
@@ -1181,10 +1183,11 @@ export class WineEngineService {
     }
   }
 
-  selectHostGraphicsBackendForExecutable(executable: string): string {
+  selectHostGraphicsBackendForExecutable(executable: string, graphicsBackend: string = 'default'): string {
     // A normal product launch owns the next engine policy. LAB overrides are
     // scoped to the explicit automation session that selected them.
     this.hostGraphicsLabExperiment = '';
+    this.appGraphicsBackend = normalizeAppGraphicsBackend(graphicsBackend);
     this.hostGraphicsBackendOverride = executableUsesVkd3dGraphics(executable) ?
       'vkd3d_limited_500k' : '';
     this.hostGraphicsBackend = this.hostGraphicsBackendOverride.length > 0 ?

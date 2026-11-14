@@ -36,6 +36,7 @@
 #include "wine/wine_constants.h"
 #include "wine_scheme.h"
 #include "wine/wine_env.h"
+#include "wine/guest_gl_loader_policy.h"
 #include "wine/wine_cpu_policy.h"
 #include "wine/prefix_registry_io.h"
 #include "wine/steam_client_args.h"
@@ -1871,12 +1872,15 @@ extern "C" void Main(NativeChildProcess_Args args)
 #endif
     apply_process_font_aa_default(argc, argv);
     const char* vulkanBackend = getenv("WINEHUA_VULKAN_BACKEND");
-    if (vulkanBackend && strcmp(vulkanBackend, "direct") == 0) {
-        // Wine's Direct Vulkan loader must discover the system driver, not the
-        // guest Venus ICD installed by the default Wine environment.
+    const bool systemZink = winehua::UsesSystemZinkLoader(getenv("GALLIUM_DRIVER"),
+        getenv("WINEHUA_ZINK_VULKAN_LIBRARY"));
+    if ((vulkanBackend && strcmp(vulkanBackend, "direct") == 0) || systemZink) {
+        // Both explicitly selected system loaders must discover the system
+        // driver. Zink retains WineD3D and its own GL presentation path.
         unsetenv("VK_DRIVER_FILES");
         unsetenv("VK_ICD_FILENAMES");
-        OH_LOG_WARN(LOG_APP, "[WineChild] Direct Vulkan selected; guest ICD overrides cleared");
+        OH_LOG_WARN(LOG_APP, "[WineChild] system Vulkan loader=%{public}s; guest ICD overrides cleared",
+                    systemZink ? "zink" : "direct");
     }
     // entryParams 覆盖之后再选一次 WINEDEBUG 档位: 上一次调用发生在
     // apply_entry_param_env_overrides() 之前, 取不到 entryParams 里的覆盖。

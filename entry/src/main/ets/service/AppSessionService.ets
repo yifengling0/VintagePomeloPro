@@ -159,7 +159,18 @@ export class AppSessionService {
     return LaunchConflictKind.NONE;
   }
 
+  // Host graphics belongs to the Wine session. Serialize requests across the
+  // awaits in startup/restart so another game's override cannot replace it.
+  private launchTail: Promise<void> = Promise.resolve();
+
   launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
+    const request = this.launchTail.then((): Promise<RuntimeSession | null> =>
+      this.launchQueued(app, settings, homeDirectory));
+    this.launchTail = request.then((): void => {}, (): void => {});
+    return request;
+  }
+
+  private launchQueued(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
     if (!app.steam) return this.launchInternal(app, settings, homeDirectory);
     if (!SteamLocalService.getInstance().canLaunch()) return Promise.reject(new Error('Steam 正在更新，请稍候'));
     if (SteamLocalService.getInstance().hasForeignClient()) return Promise.reject(new Error('请先退出其他目录中的 Steam，再打开已导入的客户端'));
@@ -194,6 +205,8 @@ export class AppSessionService {
     if (app.launchTarget.kind === LaunchKind.WINE_DESKTOP &&
       presentationMode === WinePresentationMode.DESKTOP) {
       const engine = WineEngineService.getInstance();
+      engine.selectHostGraphicsBackendForExecutable(app.launchTarget.executable,
+        AppSettingsStore.getInstance().getAppSettings(app.id).graphicsBackend ?? 'default');
       const wasDesktopReady = engine.isReady() &&
         engine.getPresentationMode() === WinePresentationMode.DESKTOP;
       const ready = await engine.ensureReady(mode, presentationMode, homeDirectory);
@@ -239,7 +252,8 @@ export class AppSessionService {
     //   避免 ensureReady 返回后继续执行造成的竞态（桌面会话未入表、
     //   DesktopAbility startAbility 阻塞等）。
     const engine = WineEngineService.getInstance();
-    engine.selectHostGraphicsBackendForExecutable(app.launchTarget.executable);
+    engine.selectHostGraphicsBackendForExecutable(app.launchTarget.executable,
+      AppSettingsStore.getInstance().getAppSettings(app.id).graphicsBackend ?? 'default');
     if (engine.isReady() && engine.getPresentationMode() === presentationMode) {
       return this.launchReady(app, settings, mode, presentationMode, homeDirectory);
     }
@@ -267,7 +281,8 @@ export class AppSessionService {
     }
 
     const hostGraphicsBackend =
-      engine.selectHostGraphicsBackendForExecutable(app.launchTarget.executable);
+      engine.selectHostGraphicsBackendForExecutable(app.launchTarget.executable,
+        AppSettingsStore.getInstance().getAppSettings(app.id).graphicsBackend ?? 'default');
     if (engine.needsHostGraphicsRestart()) {
       hilog.info(DOMAIN, '[SESS]', 'launch: graphics host restart app=%{public}s backend=%{public}s',
         app.id, hostGraphicsBackend);

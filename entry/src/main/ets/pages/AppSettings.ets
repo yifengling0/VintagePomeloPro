@@ -30,6 +30,8 @@ import {
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { APP_GRAPHICS_BACKEND_IDS, normalizeAppGraphicsBackend,
+  resolveGraphicsBackend, graphicsBackendLabel } from '../model/GraphicsBackendSettings';
 import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -706,6 +708,15 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setGraphicsBackend(backend: string): void {
+    const selected = normalizeAppGraphicsBackend(backend);
+    if (selected === this.value.graphicsBackend) return;
+    const next = cloneAppSettings(this.value);
+    next.graphicsBackend = selected;
+    this.value = next;
+    void this.persist();
+  }
+
   private setDxvkFloatControls(enabled: boolean): void {
     if (enabled === this.value.dxvkFloatControls) return;
     const next = cloneAppSettings(this.value);
@@ -828,8 +839,28 @@ struct AppSettingsPage {
 
           Column({ space: 12 }) {
             Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
+            Text('游戏渲染后端').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+              ForEach(APP_GRAPHICS_BACKEND_IDS, (backend: string) => {
+                Button(graphicsBackendLabel(backend))
+                  .height(42).padding({ left: 12, right: 12 }).margin({ right: 8, bottom: 8 })
+                  .borderRadius(14).fontSize(12)
+                  .fontColor((this.value.graphicsBackend ?? 'default') === backend ?
+                    '#FFFFFFFF' : skinColor('text_primary'))
+                  .backgroundColor((this.value.graphicsBackend ?? 'default') === backend ?
+                    skinColor('accent') : skinColor('search_background'))
+                  .id('app-settings-renderer-' + backend)
+                  .onClick((): void => this.setGraphicsBackend(backend))
+              }, (backend: string): string => backend)
+            }.width('100%')
+            Text('当前选择：' + graphicsBackendLabel(resolveGraphicsBackend(
+              AppSettingsStore.getInstance().getRenderMode(), this.value.graphicsBackend ?? 'default')) +
+              '。设备不支持的 DXVK 2.6 会使用 1.10；D3D9 当前使用 VirGL / GLES。')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            Text('保存后下次启动生效。切换后端可能需要重启 Wine，会关闭其他 Windows 程序。')
+              .fontSize(11).fontColor('#C47A20').width('100%')
             Text('图形 API').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
-            Text('启动时追加命令行参数，让游戏选择 Direct3D 11 或 OpenGL。不改变系统设置中的 DXVK/VirGL 后端。')
+            Text('追加命令行参数，让游戏选择 Direct3D 11 或 OpenGL；与上方渲染后端分别设置。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
               ForEach(GRAPHICS_LAUNCH_PRESET_IDS, (preset: string) => {

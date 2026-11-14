@@ -2342,7 +2342,7 @@ struct SystemSettingsPage {
           Text('默认简体中文。切换后决定 Windows 程序的语言与代码页（简体 936 / 繁体 950 / 日语 932 / 英文 1252），重启 Wine 引擎生效；已有 Windows 程序会在重启时关闭。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
-          Text('渲染模式').fontSize(12).fontWeight(FontWeight.Medium)
+          Text('默认渲染后端').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 6 }) {
             this.RenderModeChip('DXVK 1.10', 'dxvk_1_10')
@@ -2357,6 +2357,8 @@ struct SystemSettingsPage {
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
+          Text('游戏设置可单独选择后端；选择“跟随系统”的游戏会使用这里的默认值。D3D9 当前使用 VirGL / GLES。')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
 
           if (this.renderMode === 'dxvk_1_10') {
             Row({ space: 8 }) {
