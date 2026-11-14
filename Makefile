@@ -1388,3 +1388,7 @@ test-venus-vtest-submit:
 .PHONY: test-virgl-vtest-write
 test-virgl-vtest-write:
 	python3 $(ROOT)/host_tests/virgl_vtest_write_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/virgl-vtest-write
+
+.PHONY: test-virgl-busy-timing
+test-virgl-busy-timing:
+	python3 $(ROOT)/host_tests/virgl_busy_timing_test.py --source $(VIRGL_TEST_SOURCE)

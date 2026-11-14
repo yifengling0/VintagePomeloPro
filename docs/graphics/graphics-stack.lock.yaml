@@ -412,6 +412,10 @@
       {
         "path": "patches/virglrenderer/0015-explicit-invalidate-readback.patch",
         "sha256": "c50d0125d74571969cfcf2a41975dfb11f885535a0e74c319fd6b54ac987551f"
+      },
+      {
+        "path": "patches/virglrenderer/0016-time-complete-busy-wait.patch",
+        "sha256": "56278bccb7b8b0a66803b4f5b3cfc1af60ce9376c00b8f2b0d274409b352e479"
       }
     ],
     "mesa": [
@@ -723,7 +727,7 @@
       "src/vrend/vrend_renderer.c": "c0f88e4f535655643e86f7a443c6e6c15ea122e445db9358d5ccda6f5ae03e51",
       "src/vrend/vrend_shader.c": "ab200053b589e5381a58a5687c5cf38c8ceaf5a3fb587d3ab396ae8b9ea329aa",
       "src/vrend/vrend_shader.h": "f5122579e8a5d7c22f01da334a986e5571977990135cf74498bc4b65133b58b6",
-      "vtest/vtest_renderer.c": "e8504bf51a6e8180d47f773417bb239352cacac92b25443c951150a5ddb41a1e",
+      "vtest/vtest_renderer.c": "7542276ecf279f7ee667d42894d803d524fd682a002358877fb6fddc1731cf0c",
       "server/render_context.c": "95696c32b639ba4f16aef9c648f1aaa0d80f1342558aa285ffd3703754977527",
       "src/venus/vkr_buffer.c": "32ba505a7b4c0e3fb67c050da4346e094a9d97e19d3c3efc68081b3396de4b3a",
       "src/venus/vkr_device_memory.c": "5cefdbdff40fd75d9c94ac6c8c4314fe45b533bf3dfd36ef6facc4e9140286b7",
