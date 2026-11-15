@@ -351,3 +351,8 @@
 ## Mini D3D9 EVENT 提交完成候选（2026-11-15）
 
 `WINEHUA_DXVK9_EVENT_FENCE=1`（默认关闭，0017）将D3D9 EVENT查询改用真实GPU提交完成通知；issued/submitted generation防止旧提交满足重新Issue，device lost不报告成功。Mini同DLL开关对照已解除Heaven启动EVENT停顿，最终无COM探针也进入动态场景。纹理/光照仍异常，完整游戏和性能未准入，VirGL/GLES继续默认。详见[适配记录](../graphics/mini-heaven-event-adaptation-20261115.zh-CN.md)。
+
+
+## Mini D3D9 mip链与backing并发修复（2026-11-15）
+
+`WINEHUA_DXVK9_MATCH_TOP_MIPS=1`（默认关闭，0018，上游bfd47ec8767e）允许相同顶层尺寸、截短尾部的UpdateTexture；底层匹配保留。0019修复API线程扩容backing vector与CS map操作无锁遍历的竞争，锁内只快照Vulkan范围，锁外执行API。四格式逐mip采样通过；最终无COM探针Heaven进入飞船/龙像场景，未观察到invalid call/CS fatal。产品原入口、完整游戏与性能benchmark仍待验收，不改变VirGL默认。详见[资源适配记录](../graphics/mini-heaven-texture-adaptation-20261115.zh-CN.md)。
