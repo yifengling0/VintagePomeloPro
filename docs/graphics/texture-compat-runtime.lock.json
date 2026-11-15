@@ -67,11 +67,15 @@
         {
           "path": "patches/dxvk/0013-d3d9-opt-in-hardware-constant-upload.patch",
           "sha256": "b07813c4b20e8d1a180973cc849e3e816cf13efc310efd9d5e05aaadbdea4e7e"
+        },
+        {
+          "path": "patches/dxvk/0014-d3d9-opt-in-buffer-upload.patch",
+          "sha256": "a80eeb43dd754a1559778016d14355ceb1017bd247f4df8dd50f4bb28a2f4c87"
         }
       ],
-      "patchedSourceSha256": "fedefe7d1d7746bdeeb0eec1fa4bbd281688cc14592dc9b4b2f10f4c5921b830",
+      "patchedSourceSha256": "df124b0814ec8ca22c91010e761bbfaf08c67d89dd8d8d1d804a98452506aea1",
       "qualification": "host-validated-device-pending",
-      "experimentalD3D9Qualification": "opt-in only; programmable texture and hardware shader constant draw-readback validated; fixed-function VS pipeline creation still fails; Heaven not qualified"
+      "experimentalD3D9Qualification": "opt-in only; programmable texture, hardware shader constants, ordinary VB/IB and dynamic direct/backed buffer draw-readback validated; fixed-function VS pipeline creation still fails; Heaven not qualified"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",

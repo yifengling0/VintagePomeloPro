@@ -329,3 +329,11 @@
 - 主机 `scripts/test_d3d9_push_constant_contract.py` 执行生产布局函数、元数据赋值和 mapper，核对 FF VS/PS、programmable VS/PS2/PS3 及六种组合，并要求旧赋值 mutation 失败。该修正没有解决 Mini 固定功能 VS 的管线创建失败。
 - `0013`：`WINEHUA_DXVK9_SHADOW_CONSTANTS=1` 默认关闭。硬件 VS/PS 常量在 `UploadConstantSet` 完成 CPU memcpy 和 shader-defined override 后，另行向 CS 入队发布捕获的物理 slice，复用 `flushMappedBuffer`。不能在先前可能已经运行的 invalidate lambda 中提前发布。
 - 此开关仅覆盖硬件 `UploadConstantSet`；SWVP、固定功能 VS/PS/共享常量、普通 VB/IB 等更新仍需独立适配和验收。与纹理/UP 的 `WINEHUA_DXVK9_SHADOW_UPLOAD=1` 分开验证，不能据小型探针通过推广为 Heaven 或全部 D3D9 通过。
+
+### D3D9 普通顶点/索引 buffer 发布
+
+- 0014：WINEHUA_DXVK9_SHADOW_BUFFERS=1 默认关闭，补齐普通 VB/IB 的 CPU→宿主 shadow 发布；与纹理/UP 的 SHADOW_UPLOAD、硬件常量的 SHADOW_CONSTANTS 分开控制。
+- backing-copy 在 FlushBuffer 的 CS copy 前解析并发布对应源 slice，遵守原 rename/copy 顺序。DIRECT 在最后一次 Unlock 后捕获 buffer 引用和物理 slice，限定 dirty range 后排队发布；后续 DISCARD 不能重定向已捕获的 slice。不提前放入 invalidate lambda，不增加全局等待。
+- scripts/test_d3d9_buffer_publication.py 执行生产 helper/UnlockBuffer，覆盖默认关闭、嵌套锁、延迟 CS、physical rename、非零部分范围、READONLY、backing 路由、越界及错误传播，ASAN/UBSAN 通过。mock 不执行真实 FlushBuffer 临时 staging fallback，也不是并发压力测试。
+- Mini managed 与默认 dynamic 同 DLL/EXE/profile 对照黑→红；部分更新绿、DISCARD/NOOVERWRITE 左红右绿、索引追加蓝、indexed UP 红均 PASS。动态 direct/backed 配置各由日志确认。初轮 dynamic-backed-on 配置路径错误，不作为 forced-backed 证据。
+- 固定功能 VS 管线、固定功能/共享/SWVP 常量及完整游戏仍未验收，不能宣称 Heaven 通过或帧率提升。范围详见 docs/graphics/mini-buffer-adaptation-20261115.zh-CN.md。
