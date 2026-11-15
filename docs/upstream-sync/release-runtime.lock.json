@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "selection": "branch-release-upstream-pair",
-  "selectedForVersion": "2.0.2",
+  "selectedForVersion": "2.0.3",
   "components": "Full adapted Proton Wine core and FEX; independent DXVK/VKD3D/media pins retained",
   "qualification": {
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
