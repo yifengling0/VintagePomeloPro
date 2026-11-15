@@ -346,3 +346,8 @@
 - 固定功能红纹理同 DLL/EXE/profile 对照：prune=1、常量开关关→黑且 pass=0，开→红色读回/Present PASS。补充 TFACTOR 绿色、D3DTSS_CONSTANT 蓝色、普通 FLOAT3 顶点+单位 World/View/Projection 矩阵红色及 FF DXT1/3/5 均 PASS。不等于非单位/动态矩阵、全部 mip、全部 fixed-function 或完整老游戏通过。
 - `scripts/test_d3d9_vertex_input_contract.py` 执行生产 attribute 压缩代码和常量 helper，覆盖 default-off、18→10、稀疏 location/非 identity binding map、31/32 安全边界、空输入、延迟 CS/旧物理 slice/引用捕获、flush 错误及三个最后写入调用点。ASAN/UBSAN 通过，移除过滤条件的 mutation 在真实 count assertion 上失败。
 - 上述最新结论更新了前两节的 FF 管线/常量未验收项。Heaven 后端接管与完整游戏验收单独记录，不从小型探针推导游戏通过或性能收益。详见 `docs/graphics/mini-fixed-function-adaptation-20261115.zh-CN.md`。
+
+
+## Mini D3D9 EVENT 提交完成候选（2026-11-15）
+
+`WINEHUA_DXVK9_EVENT_FENCE=1`（默认关闭，0017）将D3D9 EVENT查询改用真实GPU提交完成通知；issued/submitted generation防止旧提交满足重新Issue，device lost不报告成功。Mini同DLL开关对照已解除Heaven启动EVENT停顿，最终无COM探针也进入动态场景。纹理/光照仍异常，完整游戏和性能未准入，VirGL/GLES继续默认。详见[适配记录](../graphics/mini-heaven-event-adaptation-20261115.zh-CN.md)。

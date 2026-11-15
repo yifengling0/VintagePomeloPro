@@ -79,11 +79,15 @@
         {
           "path": "patches/dxvk/0016-d3d9-opt-in-fixed-function-constant-upload.patch",
           "sha256": "9f6ebfc92776329806db247b9ebc0eccd290ff5e54368107b87c94f5d05d116a"
+        },
+        {
+          "path": "patches/dxvk/0017-d3d9-opt-in-event-completion-fence.patch",
+          "sha256": "704c77b6a7819fb2a2007b36885537b28affcb3f520cb7ee7c7309189be41a10"
         }
       ],
-      "patchedSourceSha256": "52c887e727a1531451b7cd7c7d98f88300a143081d966bd4f3991820d4a370c5",
+      "patchedSourceSha256": "68c2b2cf8a8efdbf2cc9f0c2be77f90f16806c3c369e4537313c4bd9fd01b2e1",
       "qualification": "host-validated-device-pending",
-      "experimentalD3D9Qualification": "opt-in only; programmable and basic fixed-function texture draw/readback, hardware and fixed VS/PS/shared constants, ordinary/dynamic VB/IB validated; vertex blend/SWVP and Heaven not qualified"
+      "experimentalD3D9Qualification": "opt-in only; basic programmable/fixed-function draw and uploads validated; EVENT submission-completion fallback reaches real DXVK9 Heaven scenes; texture/lighting correctness, vertex blend/SWVP and full Heaven performance not qualified"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
