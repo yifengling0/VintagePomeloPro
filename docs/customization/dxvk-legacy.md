@@ -113,7 +113,7 @@
 #### freezeBoolSpecConstants / dxvkWineHuaFreezeBoolSpec
 - **为什么存在**：Venus/Maleoon 对 bool 特化常量（1.10.3 用其表达绑定掩码，SpecId=0..bindingCount-1）处理错误；在 SPIR-V 二进制上把 `OpSpecConstantTrue/False` 重写为 `OpConstantTrue/False`（值取自绑定掩码）、删掉 `SpecId` decoration。
 - **依赖的上游行为**：1.10.3 的 `DxvkShaderModule::createShaderModule` 阶段（此时绑定掩码已知）、`SpirvCodeBuffer` 指令遍历。
-- **不变式**：冻结必须发生在 vkCreateShaderModule 之前；仅 binding 类 specId（< bindingCount）用掩码值，其他 bool spec（固定功能遗留）保留 SPIR-V 默认值；冻结后绑定掩码变化 = 新管线实例（管线变体数上升是预期代价）。
+- **不变式**：冻结必须发生在 vkCreateShaderModule 之前；binding 类 specId（< bindingCount）用掩码值；pipeline 常量范围内的 bool 使用当前 pipeline 状态（含 D3D9 fog），其余 bool 保留 SPIR-V 默认值；冻结后绑定掩码变化 = 新管线实例（管线变体数上升是预期代价）。
 - **验证方法**：Venus/Maleoon 默认自动开启（deviceName 含 `Venus`/`Maleoon`）；`DXVK_WINEHUA_FREEZE_BOOL_SPEC=0` 复现采样错误、`WINEHUA_DXVK_QUIRKS=venus-bool-spec` 为新适配器强开。
 
 #### fsSecondaryOutput 双源输出重映射 + o0 追踪

@@ -51,11 +51,19 @@
         {
           "path": "patches/dxvk/0009-d3d9-opt-in-shadow-readback.patch",
           "sha256": "13e1996386a4c42e2af39b6bb1238b64cdbbd53e422ca832cf4bbaef463200c7"
+        },
+        {
+          "path": "patches/dxvk/0010-preserve-pipeline-specialization.patch",
+          "sha256": "9e031ebc5b2eb10b1c76631b9a70d8b17bffd168e0441d5174ef84669f78cdfa"
+        },
+        {
+          "path": "patches/dxvk/0011-d3d9-opt-in-shadow-upload.patch",
+          "sha256": "e8db747fec3595b04772f988b9ddfbdc463cea79f24b140cddfbd88df5cb25db"
         }
       ],
-      "patchedSourceSha256": "91c303dcba4b3762cf1a26d3db7de998b4fa2985d9e63de6de241a60402d135a",
+      "patchedSourceSha256": "953373491697a483ea22eaba5fd8ecbdc7f7c1f95548fe37238e99c1daeb89e4",
       "qualification": "host-validated-device-pending",
-      "experimentalD3D9Qualification": "opt-in-only; clear readback validated; textured draw fails; not Heaven qualified"
+      "experimentalD3D9Qualification": "opt-in only; programmable RGBA and DXT1/3/5 draw-readback-present pass with shadow upload; fixed-function VS pipeline creation fails; Heaven not qualified"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
