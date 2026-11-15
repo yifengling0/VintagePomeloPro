@@ -71,11 +71,19 @@
         {
           "path": "patches/dxvk/0014-d3d9-opt-in-buffer-upload.patch",
           "sha256": "a80eeb43dd754a1559778016d14355ceb1017bd247f4df8dd50f4bb28a2f4c87"
+        },
+        {
+          "path": "patches/dxvk/0015-opt-in-prune-unused-vertex-attributes.patch",
+          "sha256": "fe809cb77f18a4d887cd284a27e5c655651398ab9495181ecaddc175cb282cad"
+        },
+        {
+          "path": "patches/dxvk/0016-d3d9-opt-in-fixed-function-constant-upload.patch",
+          "sha256": "9f6ebfc92776329806db247b9ebc0eccd290ff5e54368107b87c94f5d05d116a"
         }
       ],
-      "patchedSourceSha256": "df124b0814ec8ca22c91010e761bbfaf08c67d89dd8d8d1d804a98452506aea1",
+      "patchedSourceSha256": "52c887e727a1531451b7cd7c7d98f88300a143081d966bd4f3991820d4a370c5",
       "qualification": "host-validated-device-pending",
-      "experimentalD3D9Qualification": "opt-in only; programmable texture, hardware shader constants, ordinary VB/IB and dynamic direct/backed buffer draw-readback validated; fixed-function VS pipeline creation still fails; Heaven not qualified"
+      "experimentalD3D9Qualification": "opt-in only; programmable and basic fixed-function texture draw/readback, hardware and fixed VS/PS/shared constants, ordinary/dynamic VB/IB validated; vertex blend/SWVP and Heaven not qualified"
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",

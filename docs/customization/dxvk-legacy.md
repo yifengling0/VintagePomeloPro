@@ -337,3 +337,12 @@
 - scripts/test_d3d9_buffer_publication.py 执行生产 helper/UnlockBuffer，覆盖默认关闭、嵌套锁、延迟 CS、physical rename、非零部分范围、READONLY、backing 路由、越界及错误传播，ASAN/UBSAN 通过。mock 不执行真实 FlushBuffer 临时 staging fallback，也不是并发压力测试。
 - Mini managed 与默认 dynamic 同 DLL/EXE/profile 对照黑→红；部分更新绿、DISCARD/NOOVERWRITE 左红右绿、索引追加蓝、indexed UP 红均 PASS。动态 direct/backed 配置各由日志确认。初轮 dynamic-backed-on 配置路径错误，不作为 forced-backed 证据。
 - 固定功能 VS 管线、固定功能/共享/SWVP 常量及完整游戏仍未验收，不能宣称 Heaven 通过或帧率提升。范围详见 docs/graphics/mini-buffer-adaptation-20261115.zh-CN.md。
+
+### D3D9 固定功能顶点输入与常量发布（0015/0016）
+
+- 0015：`WINEHUA_DXVK_PRUNE_VERTEX_INPUT=1` 默认关闭。创建 graphics pipeline 前依 VS 实际输入 mask 移除未消费的 vertex attributes；保留 location、format、offset 和既有 binding 顺序/映射，不重排 binding 或伪造设备 caps。Mini 的固定功能 ISGN 含 18 项，而 maxVertexInputAttributes=16；当前 VS 只消费 10 项。同 DLL 关/开实验将 submitted attributes 18→10，host vkCreateGraphicsPipelines -1→0，CS fatal 消失。即使把 shader 简化，未修输入布局也不能越过此错误。
+- 仅移除 inactive attributes，不能解决实际消费 location16/17 的组合；vertex blend 等仍待合法 location 重映射和独立验收。debug 日志 `WineHuaVertexInput` 记录实际提交参数与设备 limits，默认日志级别不输出。
+- 0016：`WINEHUA_DXVK9_SHADOW_FIXED_FUNCTION=1` 默认关闭。FF VS、FF PS、shared PS 三处在最后一次 CPU 写入之后，通过 `PublishFixedFunctionConstants` 向 CS 入队发布捕获的 buffer 引用和物理 slice；flush 失败传播错误，不加全局等待。尚未覆盖 `m_vsVertexBlend`、SWVP。
+- 固定功能红纹理同 DLL/EXE/profile 对照：prune=1、常量开关关→黑且 pass=0，开→红色读回/Present PASS。补充 TFACTOR 绿色、D3DTSS_CONSTANT 蓝色、普通 FLOAT3 顶点+单位 World/View/Projection 矩阵红色及 FF DXT1/3/5 均 PASS。不等于非单位/动态矩阵、全部 mip、全部 fixed-function 或完整老游戏通过。
+- `scripts/test_d3d9_vertex_input_contract.py` 执行生产 attribute 压缩代码和常量 helper，覆盖 default-off、18→10、稀疏 location/非 identity binding map、31/32 安全边界、空输入、延迟 CS/旧物理 slice/引用捕获、flush 错误及三个最后写入调用点。ASAN/UBSAN 通过，移除过滤条件的 mutation 在真实 count assertion 上失败。
+- 上述最新结论更新了前两节的 FF 管线/常量未验收项。Heaven 后端接管与完整游戏验收单独记录，不从小型探针推导游戏通过或性能收益。详见 `docs/graphics/mini-fixed-function-adaptation-20261115.zh-CN.md`。
