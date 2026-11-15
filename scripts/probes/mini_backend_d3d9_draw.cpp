@@ -64,9 +64,14 @@ int main(int argc,char** argv){
  D3DPRESENT_PARAMETERS pp={};pp.Windowed=TRUE;pp.SwapEffect=D3DSWAPEFFECT_DISCARD;pp.hDeviceWindow=win;pp.BackBufferWidth=64;pp.BackBufferHeight=64;pp.BackBufferFormat=D3DFMT_X8R8G8B8;pp.PresentationInterval=D3DPRESENT_INTERVAL_IMMEDIATE;
  IDirect3DDevice9* dev=nullptr;HRESULT hr=api->CreateDevice(0,D3DDEVTYPE_HAL,win,D3DCREATE_HARDWARE_VERTEXPROCESSING,&pp,&dev);result("createDevice",hr);if(FAILED(hr))return 5;
 
+ bool vsConstant=argc>1&&!strcmp(argv[1],"vs-constant");
+ bool psConstant=argc>1&&!strcmp(argv[1],"ps-constant");
+ bool fog=argc>1&&!strcmp(argv[1],"fog");
+ bool alpha=argc>1&&(!strcmp(argv[1],"alpha")||!strcmp(argv[1],"alpha-pass"));
+ unsigned expected=fog?0x00ff00:(alpha&&!strcmp(argv[1],"alpha")?0:0xff0000);
  bool shaderBC=argc>1&&!strcmp(argv[1],"shader-bc");
- bool customVS=argc>1&&(!strcmp(argv[1],"shader")||!strcmp(argv[1],"vertex")||shaderBC);
- bool customPS=argc>1&&(!strcmp(argv[1],"shader")||!strcmp(argv[1],"pixel")||shaderBC);
+ bool customVS=argc>1&&(!strcmp(argv[1],"shader")||!strcmp(argv[1],"vertex")||shaderBC||fog||alpha||vsConstant||psConstant);
+ bool customPS=argc>1&&(!strcmp(argv[1],"shader")||!strcmp(argv[1],"pixel")||shaderBC||fog||alpha||vsConstant||psConstant);
  bool rgba=!shaderBC&&((argc>1&&!strcmp(argv[1],"rgba"))||customVS||customPS);
  if(customVS||customPS){
   HMODULE compiler=LoadLibraryA("d3dcompiler_47.dll");
@@ -75,6 +80,11 @@ int main(int argc,char** argv){
   if(!assemble){result("assembler",GetLastError());return 22;}
   const char* vs="vs_2_0\ndcl_position v0\ndcl_texcoord v1\nmov oPos, v0\nmov oT0, v1\n";
   const char* ps="ps_2_0\ndcl t0.xy\ndcl_2d s0\ntexld r0, t0, s0\nmov oC0, r0\n";
+  if(vsConstant)vs="vs_2_0\ndcl_position v0\ndcl_texcoord v1\nmul oPos, v0, c0\nmov oT0, v1\n";
+  if(psConstant)ps="ps_2_0\ndcl t0.xy\ndcl_2d s0\ntexld r0, t0, s0\nmul oC0, r0, c0\n";
+  const float ones[]={1,1,1,1};
+  if(vsConstant){hr=dev->SetVertexShaderConstantF(0,ones,1);result("setVSConstant",hr);if(FAILED(hr))return 26;}
+  if(psConstant){hr=dev->SetPixelShaderConstantF(0,ones,1);result("setPSConstant",hr);if(FAILED(hr))return 27;}
   for(unsigned i=0;i<2;i++)if(i?customPS:customVS){
    const char* s=i?ps:vs;ID3DBlob *blob=NULL,*errors=NULL;
    hr=assemble(s,strlen(s),NULL,NULL,NULL,0,&blob,&errors);result(i?"assemblePS":"assembleVS",hr);
@@ -100,8 +110,8 @@ int main(int argc,char** argv){
   D3DLOCKED_RECT mapped={};hr=read->LockRect(&mapped,nullptr,D3DLOCK_READONLY);result("readLock",hr);
   if(FAILED(hr)||!mapped.pBits)return 16;
   unsigned pixel=*(unsigned*)((unsigned char*)mapped.pBits+32*mapped.Pitch+128);
-  fprintf(out,"pixel=%08x pass=%u\n",pixel,(pixel&0xffffff)==0xff0000);fflush(out);
-  read->UnlockRect();fprintf(out,"%s\n",(pixel&0xffffff)==0xff0000?"PASS":"PIXEL_FAIL");fclose(out);return 0;
+  fprintf(out,"pixel=%08x pass=%u\n",pixel,(pixel&0xffffff)==expected);fflush(out);
+  read->UnlockRect();fprintf(out,"%s\n",(pixel&0xffffff)==expected?"PASS":"PIXEL_FAIL");fclose(out);return 0;
  }
  std::initializer_list<D3DFORMAT> formats=rgba?std::initializer_list<D3DFORMAT>{D3DFMT_A8R8G8B8}:std::initializer_list<D3DFORMAT>{D3DFMT_DXT1,D3DFMT_DXT3,D3DFMT_DXT5};
  for(D3DFORMAT fmt:formats){
@@ -111,7 +121,7 @@ int main(int argc,char** argv){
   for(unsigned mip=0;mip<4;mip++){
    D3DLOCKED_RECT lock={};hr=tex->LockRect(mip,&lock,nullptr,0);result("lock",hr);if(FAILED(hr))return 7;
    unsigned size=8>>mip;if(!size)size=1;
-   if(rgba){for(unsigned y=0;y<size;y++)for(unsigned x=0;x<size;x++)*(unsigned*)((unsigned char*)lock.pBits+y*lock.Pitch+x*4)=0xffff0000;}
+   if(rgba){for(unsigned y=0;y<size;y++)for(unsigned x=0;x<size;x++)*(unsigned*)((unsigned char*)lock.pBits+y*lock.Pitch+x*4)=alpha?0x80ff0000:0xffff0000;}
    else for(unsigned y=0;y<(size+3)/4;y++)for(unsigned x=0;x<(size+3)/4;x++){
     unsigned char* block=(unsigned char*)lock.pBits+y*lock.Pitch+x*blockSize;memset(block,0,blockSize);unsigned char* color=block+(blockSize-8);color[0]=0x00;color[1]=0xf8;
     if(fmt==D3DFMT_DXT3)memset(block,0xff,8);if(fmt==D3DFMT_DXT5){block[0]=255;block[1]=255;}
@@ -126,9 +136,15 @@ int main(int argc,char** argv){
    IDirect3DVertexDeclaration9* declaration=NULL;hr=dev->CreateVertexDeclaration(elements,&declaration);result("declaration",hr);if(FAILED(hr))return 25;
    dev->SetVertexDeclaration(declaration);declaration->Release();
    for(unsigned i=0;i<4;i++){vertices[i].x=(i&1)?1.0f:-1.0f;vertices[i].y=(i&2)?-1.0f:1.0f;}
-  }dev->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0);dev->BeginScene();hr=dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP,2,vertices,sizeof(V));dev->EndScene();result("draw",hr);
+  }
+  if(fog){float start=-1.0f,end=0.0f;DWORD a,b;memcpy(&a,&start,4);memcpy(&b,&end,4);
+   dev->SetRenderState(D3DRS_FOGENABLE,TRUE);dev->SetRenderState(D3DRS_FOGCOLOR,0xff00ff00);
+   dev->SetRenderState(D3DRS_FOGTABLEMODE,D3DFOG_LINEAR);dev->SetRenderState(D3DRS_FOGSTART,a);dev->SetRenderState(D3DRS_FOGEND,b);
+  }
+  if(alpha){dev->SetRenderState(D3DRS_ALPHATESTENABLE,TRUE);dev->SetRenderState(D3DRS_ALPHAFUNC,D3DCMP_GREATER);dev->SetRenderState(D3DRS_ALPHAREF,!strcmp(argv[1],"alpha")?192:64);}
+  dev->Clear(0,nullptr,D3DCLEAR_TARGET,0xff000000,1,0);dev->BeginScene();hr=dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP,2,vertices,sizeof(V));dev->EndScene();result("draw",hr);
   IDirect3DSurface9 *back=nullptr,*read=nullptr;dev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&back);dev->CreateOffscreenPlainSurface(64,64,D3DFMT_X8R8G8B8,D3DPOOL_SYSTEMMEM,&read,nullptr);hr=dev->GetRenderTargetData(back,read);result("readback",hr);if(FAILED(hr))return 8;
-  fprintf(out,"enter_readLock tick=%lu\n",GetTickCount());fflush(out);D3DLOCKED_RECT lock={};hr=read->LockRect(&lock,nullptr,D3DLOCK_READONLY);result("readLock",hr);fprintf(out,"bits=%p pitch=%d\n",lock.pBits,(int)lock.Pitch);fflush(out);if(FAILED(hr)||!lock.pBits)return 9;unsigned pixel=*(unsigned*)((unsigned char*)lock.pBits+32*lock.Pitch+32*4);read->UnlockRect();fprintf(out,"pixel=%08x pass=%u\n",pixel,(pixel&0xffffff)==0xff0000);fflush(out);if((pixel&0xffffff)!=0xff0000)return 10;
+  fprintf(out,"enter_readLock tick=%lu\n",GetTickCount());fflush(out);D3DLOCKED_RECT lock={};hr=read->LockRect(&lock,nullptr,D3DLOCK_READONLY);result("readLock",hr);fprintf(out,"bits=%p pitch=%d\n",lock.pBits,(int)lock.Pitch);fflush(out);if(FAILED(hr)||!lock.pBits)return 9;unsigned pixel=*(unsigned*)((unsigned char*)lock.pBits+32*lock.Pitch+32*4);read->UnlockRect();fprintf(out,"pixel=%08x pass=%u\n",pixel,(pixel&0xffffff)==expected);fflush(out);if((pixel&0xffffff)!=expected)return 10;
   read->Release();back->Release();hr=dev->Present(nullptr,nullptr,nullptr,nullptr);result("present",hr);tex->Release();if(FAILED(hr))return 11;
  }
  fprintf(out,"PASS\n");captureStop=1;if(capture){WaitForSingleObject(capture,3000);CloseHandle(capture);}fclose(out);dev->Release();api->Release();DestroyWindow(win);return 0;

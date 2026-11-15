@@ -321,3 +321,11 @@
 - 上游行为依赖风险最高的三点（2.x 重写时必须先确认上游是否仍保留）：(1) 1.10.3 的绑定掩码 bool spec 常量机制（2.x 已改用其他描述符方案，冻结逻辑可整体删除）；(2) 1.10.3 的 `updateDescriptorSetWithTemplate` 描述符模板路径（split 配对依赖其槽位布局）；(3) `wine/dlls/d3dx9_36/bcdec.h` 相对包含路径（子模块布局耦合）。
 - 诊断类改动（约占 diff 一半）在 2.x 中应整体按"弃用-重写"处理，语义来源只有环境变量名与日志格式，不复用实现。
 - 未标注 [待确认] 的条目均经代码核实（2026-09-25 全量复核）；commit 数以 `v1.10.3..HEAD` 实测 33 为准。
+
+
+### D3D9 push constant 与硬件常量上传
+
+- `0012`：固定功能编译器和 DXSO 编译器必须把 `m_pushConstSize` 写入 `info.pushConstSize`。旧 offset-as-size 会令 offset=0 的 PS 范围变成零，漏报 fragment stage；PS3 则扩大了范围。共享 mapper 会把字节范围并到 offset=0，不能把 VS 的 offset 本身当成雾参数缺失的证明。
+- 主机 `scripts/test_d3d9_push_constant_contract.py` 执行生产布局函数、元数据赋值和 mapper，核对 FF VS/PS、programmable VS/PS2/PS3 及六种组合，并要求旧赋值 mutation 失败。该修正没有解决 Mini 固定功能 VS 的管线创建失败。
+- `0013`：`WINEHUA_DXVK9_SHADOW_CONSTANTS=1` 默认关闭。硬件 VS/PS 常量在 `UploadConstantSet` 完成 CPU memcpy 和 shader-defined override 后，另行向 CS 入队发布捕获的物理 slice，复用 `flushMappedBuffer`。不能在先前可能已经运行的 invalidate lambda 中提前发布。
+- 此开关仅覆盖硬件 `UploadConstantSet`；SWVP、固定功能 VS/PS/共享常量、普通 VB/IB 等更新仍需独立适配和验收。与纹理/UP 的 `WINEHUA_DXVK9_SHADOW_UPLOAD=1` 分开验证，不能据小型探针通过推广为 Heaven 或全部 D3D9 通过。
