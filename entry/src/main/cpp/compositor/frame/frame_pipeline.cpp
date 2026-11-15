@@ -366,6 +366,7 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
             }
             if (fsLayerFound) {
                 const SubsurfaceLayer* contentSub = nullptr;
+                size_t contentSubsurfaceCount = 0;
                 bool topOccluded = false;
                 for (const auto& layer : plan.layers) {
                     if (layer.zIndex <= fsZ) continue;  // 全屏窗口及其下: 被盖住
@@ -375,6 +376,7 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                         continue;
                     if (layer.type == CompositorLayer::Type::Subsurface &&
                         layer.toplevelId == plan.fullscreenId) {
+                        ++contentSubsurfaceCount;
                         // 本窗口的 sub 分两类 (判据见 SubsurfaceCoversContentRect):
                         // 覆盖窗口内容区 = 内容层 (游戏画面, 候选直传源); 不覆盖
                         // = 叠加其上的浮层 (菜单/提示) — 像素不在窗口帧里, 须判
@@ -387,15 +389,20 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                         }
                         if (!contentSub) {
                             const auto& sl = *layer.sub;
-                            // 注: 不再要求 (shmFormat!=0 || opaque) — GL
-                            // readback 类画面 (opengl_readback, ARGB 800x600)
-                            // 的 alpha 通道是 GL 帧缓冲残留 (未清区 0/绘制区
-                            // 255), opaque 全帧扫描被非 255 像素拦下, 害直传
-                            // 落到窗口黑帧 (20260822 黑屏实锤: 窗口帧 95%
-                            // black/alpha0)。ARGB sub 由渲染器 uForceOpaque
-                            // 强制不透明: alpha=255 区域与 CPU 混合分支逐
-                            // 像素一致, alpha=0 区域 CPU 保留黑底 (RGB 残留
-                            // 值通常亦黑) — 视觉等价。
+                            // An ARGB child without proven opacity still contributes
+                            // pixels. It needs composition; rejecting it as the direct
+                            // source must never allow the parent to bypass it.
+                            // Classification belongs to this commit. A whole-frame
+                            // alpha check is far cheaper than scaling an opaque
+                            // 720p child on the CPU, and keeps transparent children
+                            // on the normal blend path.
+                            if (sl.shmFormat == 0 &&
+                                sl.pixels.size() == static_cast<size_t>(sl.w) * sl.h * 4 &&
+                                sl.opaqueCheckedSerial != sl.shmCommitSerial) {
+                                auto* classified = const_cast<SubsurfaceLayer*>(&sl);
+                                classified->opaque = IsFullyOpaqueArgb(sl.pixels.data(), sl.w, sl.w, sl.h);
+                                classified->opaqueCheckedSerial = sl.shmCommitSerial;
+                            }
                             if ((sl.shmFormat != 0 || sl.opaque) &&
                                 layer.x == plan.fullscreenX && layer.y == plan.fullscreenY &&
                                 (sl.vpDstW <= 0 || sl.vpDstW == sl.w) &&
@@ -411,7 +418,7 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                 int directW = 0, directH = 0;
                 if (!topOccluded) {
                     // 直传源几何必须与全屏 fit 一致 (src = fsTop 内容尺寸)
-                    if (contentSub &&
+                    if (contentSubsurfaceCount == 1 && contentSub &&
                         contentSub->w == plan.transform.srcW &&
                         contentSub->h == plan.transform.srcH &&
                         contentSub->pixels.size() ==
@@ -419,15 +426,9 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                         directPixels = &contentSub->pixels;
                         directW = contentSub->w;
                         directH = contentSub->h;
-                    // 不再要求 shmFormat!=0 (XRGB): 20260822 实测红警2 类
-                    // 全屏游戏窗口帧是 ARGB (shmFormat=0) 但内容 alpha 全
-                    // 255 (游戏自绘不透明画面), 原 XRGB 条件把直传全部
-                    // 摁死 → 每帧 CPU BlitScaled 70-85ms。渲染器 context
-                    // 无 GL_BLEND + uForceOpaque 强制不透明: alpha=255 时
-                    // 与 CPU 合成输出逐像素一致 (黑边 glClear 同效
-                    // fillBlackRect); 半透明全屏内容 (预期无, 游戏用
-                    // XRGB/全不透明) 会丢失混合 — 容忍并看验收。
-                    } else if (!contentSub && fsTop->ShmFormat() != 0 &&
+                    // A parent-only direct pass is valid only when no visible
+                    // CPU child needs to be included above that parent.
+                    } else if (!contentSubsurfaceCount && fsTop->ShmFormat() != 0 &&
                                !plan.fullscreenContentCovered &&
                                fsTop->Width() == plan.transform.srcW &&
                                fsTop->Height() == plan.transform.srcH &&

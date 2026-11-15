@@ -1070,7 +1070,7 @@ struct SystemSettingsPage {
 
   /** 渲染模式: dxvk_1_10 / dxvk_2_6 / virgl。默认 1.10；2.6 仅 920+ 可选（实验）。 */
   private updateRenderMode(mode: string): void {
-    const selected = mode === 'dxvk_2_6' || mode === 'dxvk_1_10' || mode === 'virgl' ? mode : 'dxvk_1_10';
+    const selected = mode === 'dxvk_2_6' || mode === 'dxvk_1_10' || mode === 'virgl' || mode === 'dxvk9' || mode === 'zink' ? mode : 'dxvk_1_10';
     const current = AppSettingsStore.getInstance().getRenderMode()
       || AppStorage.get<string>('winehua.render.mode')
       || 'dxvk_1_10';
@@ -2351,13 +2351,17 @@ struct SystemSettingsPage {
             }
             this.RenderModeChip('VirGL', 'virgl')
           }.width('100%')
+          Row({ space: 6 }) {
+            this.RenderModeChip('DXVK9（32位实验）', 'dxvk9')
+            this.RenderModeChip('Zink（实验）', 'zink')
+          }.width('100%')
           Text(this.gpuSupportDxvk26
             ? '默认使用 DXVK 1.10。当前 GPU 支持开启 DXVK 2.6（实验）。'
             : `默认使用 DXVK 1.10。当前 GPU（${this.gpuName || '未知'}）低于 920，不提供 DXVK 2.6。`)
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
             .fontSize(11).fontColor('#C47A20').width('100%')
-          Text('游戏设置可单独选择后端；选择“跟随系统”的游戏会使用这里的默认值。D3D9 当前使用 VirGL / GLES。')
+          Text('游戏设置可单独选择后端；选择“跟随系统”的游戏会使用这里的默认值。D3D9 可选 DXVK9 或 Zink；画面异常时可切回 VirGL。')
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
 
           if (this.renderMode === 'dxvk_1_10') {

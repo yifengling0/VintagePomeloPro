@@ -855,7 +855,7 @@ struct AppSettingsPage {
             }.width('100%')
             Text('当前选择：' + graphicsBackendLabel(resolveGraphicsBackend(
               AppSettingsStore.getInstance().getRenderMode(), this.value.graphicsBackend ?? 'default')) +
-              '。设备不支持的 DXVK 2.6 会使用 1.10；D3D9 当前使用 VirGL / GLES。')
+              '。DXVK9 当前用于 32 位 D3D9 游戏；Zink 使用 WineD3D / Vulkan。实验后端出现画面异常时可切回 VirGL。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Text('保存后下次启动生效。切换后端可能需要重启 Wine，会关闭其他 Windows 程序。')
               .fontSize(11).fontColor('#C47A20').width('100%')

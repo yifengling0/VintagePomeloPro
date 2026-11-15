@@ -367,7 +367,8 @@ napi_value RunWineProgram(napi_env env, napi_callback_info info)
     options.containerId = GetString(env, args[0], "containerId");
     options.d3dBackend = GetString(env, args[0], "d3dBackend", "dxvk_legacy");
     if (options.d3dBackend != "dxvk_legacy" && options.d3dBackend != "dxvk_modern_2_6" &&
-        options.d3dBackend != "wined3d")
+        options.d3dBackend != "wined3d" && options.d3dBackend != "wined3d_zink" &&
+        options.d3dBackend != "dxvk_legacy_d3d9")
         options.d3dBackend = "dxvk_legacy";
     options.dxvkBackend = options.d3dBackend == "dxvk_modern_2_6" ?
         "dxvk_modern_2_6" : "dxvk_legacy";
@@ -478,6 +479,7 @@ napi_value RunWineExe(napi_env env, napi_callback_info info)
         const winehua::D3dBackendKind backend =
             winehua::ParseD3dBackend(requestedBackend);
         if (backend == winehua::D3dBackendKind::WineD3d ||
+            backend == winehua::D3dBackendKind::WineD3dZink ||
             winehua::IsDxvkBackend(backend)) {
             strncpy(d3dBackend, requestedBackend, sizeof(d3dBackend) - 1);
         } else {

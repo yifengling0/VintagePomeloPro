@@ -10,6 +10,15 @@ from v2_product_contract import verify_members, verify_source_layout, verify_hap
 class BoundaryTests(unittest.TestCase):
     def test_shared_ohos_dependencies_remain_allowed(self):
         verify_members(['bin/aarch64-windows/libarm64ecfex.dll', 'libvulkan.so', 'dxvk/modern/x64/d3d11.dll'])
+    def test_device_harnesses_cannot_reenter_product_archives(self):
+        for name in ['smoke/manifest.json', 'resources/rawfile/smoke/x86/game.exe',
+                     'libs/arm64-v8a/libsmoke_napi.so',
+                     'libs/arm64-v8a/libvenus_spirv_replay.so',
+                     'bin/guest_vulkan/bin/libvenus_sampled_image_probe.so',
+                     'bin/guest_vulkan/share/winehua/replay_frozen/input.spv',
+                     'bin/host_vulkan/manifest.json']:
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, 'Device test'):
+                verify_members([name])
     def test_all_retired_payload_layers_are_rejected(self):
         for name in ['resources/rawfile/linux-steam/client.zip', 'resources/rawfile/linux-proton/gnu-proton.zip',
                      'libs/arm64-v8a/libsteamohos_gnu_child.so', 'bin/i386-windows/lsteamclient.dll',
@@ -26,13 +35,14 @@ class BoundaryTests(unittest.TestCase):
     def test_final_hap_checks_nested_runtime_and_required_components(self):
         with tempfile.TemporaryDirectory() as d:
             path=Path(d)/'test.hap'
-            def write(extra=(), missing=None, registry=False, native=False):
+            def write(extra=(), missing=None, registry=False, native=False, device_test=False):
                 runtime=io.BytesIO()
                 with ZipFile(runtime,'w') as wine:
                     for name in (*REQUIRED_GUEST, *extra):
                         if name != missing: wine.writestr(name, 'HMOSDECK_STEAM_BRIDGE'.encode('utf-16le') if registry and name.endswith('kernelbase.dll') else b'component')
                 with ZipFile(path,'w') as hap:
                     for name in REQUIRED_HOST: hap.writestr('libs/arm64-v8a/'+name,b'probeLinuxSteamHost' if native and name == 'libentry.so' else b'component')
+                    if device_test: hap.writestr('ets/modules.abc', b'runAutomationLaunch')
                     hap.writestr('resources/rawfile/wine-data.zip',runtime.getvalue())
             write(); self.assertTrue(verify_hap(path))
             write(['bin/i386-windows/lsteamclient.dll'])
@@ -41,6 +51,10 @@ class BoundaryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'registry bridge'): verify_hap(path)
             write(native=True)
             with self.assertRaisesRegex(ValueError,'NAPI'): verify_hap(path)
+            write(device_test=True)
+            with self.assertRaisesRegex(ValueError,'Device test'): verify_hap(path)
+            write(['smoke/x86/probe.exe'])
+            with self.assertRaisesRegex(ValueError,'Device test'): verify_hap(path)
             write(missing=REQUIRED_GUEST[0])
             with self.assertRaisesRegex(ValueError,'Missing'): verify_hap(path)
 

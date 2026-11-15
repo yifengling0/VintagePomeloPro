@@ -22,10 +22,17 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0010-venus-check-after-final-present-backoff.patch"
     "$SCRIPT_DIR/../patches/mesa/0012-venus-pack-small-vtest-submits.patch"
     "$SCRIPT_DIR/../patches/mesa/0013-virgl-vtest-write-command-pair.patch"
-    "$SCRIPT_DIR/../patches/mesa/0014-zink-opt-in-instance-diagnostic.patch"
     "$SCRIPT_DIR/../patches/mesa/0015-zink-opt-in-shadow-readback.patch"
     "$SCRIPT_DIR/../patches/mesa/0016-zink-opt-in-shadow-uploader.patch"
     "$SCRIPT_DIR/../patches/mesa/0017-zink-shadow-image-staging-byte-range.patch"
+    "$SCRIPT_DIR/../patches/mesa/0018-zink-opt-in-full-texcoord.patch"
+    "$SCRIPT_DIR/../patches/mesa/0019-zink-opt-in-dynamic-extract.patch"
+    "$SCRIPT_DIR/../patches/mesa/0020-zink-opt-in-full-vertex-inputs.patch"
+    "$SCRIPT_DIR/../patches/mesa/0021-zink-opt-in-strip-debug-names.patch"
+    "$SCRIPT_DIR/../patches/mesa/0022-zink-opt-in-full-generic-varyings.patch"
+    "$SCRIPT_DIR/../patches/mesa/0023-zink-opt-in-slice-3d-pbo-upload.patch"
+    "$SCRIPT_DIR/../patches/mesa/0024-zink-opt-in-batch-private-uploads.patch"
+    "$SCRIPT_DIR/../patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

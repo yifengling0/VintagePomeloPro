@@ -49,6 +49,33 @@ test('one checkout capability serves ordinary users without exposing tester gate
   assert.equal(capabilities.configuration, false);
 });
 
+test('monthly and lifetime products coexist when reminders are unavailable; intents never grant membership', async () => {
+  const f = fixture(), session = await f.login();
+  assert.equal(f.domain.capabilities().renewalReminders, false);
+  for (const [productId, productType] of [['auto', 2], ['VIP', 1]]) {
+    const result = await f.request(session, '/v1/purchases/intent', { productId, productType });
+    assert.equal(result.httpStatus, 200);
+    assert.equal(f.domain.verifyBinding(result.developerPayload, session.userId, productId), true);
+    assert.equal(f.domain.verifyBinding(result.developerPayload, session.userId, productId === 'VIP' ? 'auto' : 'VIP'), false);
+    assert.equal((await f.request(session, '/v1/entitlement')).active, false);
+  }
+  assert.equal((await f.request(session, '/v1/purchases/intent', { productId: 'VIP', productType: 2 })).httpStatus, 400);
+  assert.equal((await f.request(session, '/v1/purchases/intent', { productId: 'auto', productType: 1 })).httpStatus, 400);
+  assert.equal(f.domain.capabilities().renewalReminders, false);
+  f.domain.config.membershipReleaseReady = false;
+  assert.equal((await f.request(session, '/v1/purchases/intent', { productId: 'auto', productType: 2 })).code, 'MEMBERSHIP_NOT_OPEN');
+});
+
+test('a verified lifetime member is protected from duplicate monthly and lifetime purchases', async () => {
+  const f = fixture(), session = await f.login();
+  assert.equal((await f.verify(session, await f.fact(session, 'NORMAL'))).httpStatus, 200);
+  for (const [productId, productType] of [['auto', 2], ['VIP', 1]]) {
+    const result = await f.request(session, '/v1/purchases/intent', { productId, productType });
+    assert.equal(result.httpStatus, 409);
+    assert.equal(result.code, 'MEMBERSHIP_ALREADY_ACTIVE');
+  }
+});
+
 test('legacy lifetime grants stay intact but cannot turn a fresh formal session into VIP', async () => {
   const f = fixture(), session = await f.login();
   const legacy = { orders: { old: { status: 'purchased', purchasedAt: now - 1000, verifiedAt: now,
@@ -124,15 +151,12 @@ test('sandbox subscriptions never schedule formal renewal notices or unlock form
     generationId: 'gen', subscriptionStatus: '1', autoRenew: true, billingRetry: false,
     signedAt: now, policyVersion: SUBSCRIPTION_POLICY, expiresAt: now + 86400000,
     nextRenewalAt: now + 86400000, nextRenewalPrice: 500, renewalCurrency: 'CNY' };
-  // The fixture needs an authentic binding for the selected SKU, with no intent
-  // bypass of reminder readiness in the public checkout path.
-  const noReadiness = Object.assign(Object.create(f.domain), { config: { ...f.domain.config, enforceCheckoutReadiness: false } });
-  fact.developerPayload = (await noReadiness.intent(session.userId, { productId: 'auto', productType: 2 })).developerPayload;
+  fact.developerPayload = (await f.request(session, '/v1/purchases/intent', { productId: 'auto', productType: 2 })).developerPayload;
   assert.equal((await f.verify(session, fact)).environment, 'SANDBOX');
   assert.equal((await f.store.list('renewal-jobs')).length, 0);
   assert.equal((await f.domain.entitlement(session.userId)).active, false);
   await assert.rejects(f.domain.requireMembership(session.userId), /NOT_CONFIGURED/);
-  await assert.rejects(f.domain.intent(session.userId, { productId: 'auto', productType: 2 }), /REMINDERS_UNAVAILABLE/);
+  assert.ok((await f.domain.intent(session.userId, { productId: 'auto', productType: 2 })).developerPayload);
   const normal = { ...fact, environment: 'NORMAL' };
   assert.equal((await f.verify(session, normal)).environment, 'NORMAL');
   assert.equal((await f.store.list('renewal-jobs')).length, 1);

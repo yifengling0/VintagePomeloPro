@@ -4,7 +4,6 @@ import { hilog } from './LogService';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { pointer } from '@kit.InputKit';
 import testNapi from 'libentry.so';
-import smokeNapi from 'libsmoke_napi.so';
 import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
 import { InputDispatcher } from './InputDispatcher';
 import {

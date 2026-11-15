@@ -15,7 +15,9 @@ inline constexpr std::string_view kProductVulkanRoute = "product-vulkan";
 enum class D3dBackendKind {
     Unknown,
     WineD3d,
+    WineD3dZink,
     DxvkLegacy,
+    DxvkLegacyD3d9,
     DxvkModern26,
     Vkd3dLimited500k,
 };
@@ -99,32 +101,13 @@ bool IsProductDirectVulkanVerified();
 // X11 uses the private Venus/XID presenter; OHOS Direct has no Xlib WSI.
 // Set before resolving Host and Guest, and hold for the complete session.
 void SetProductDirectPresentationSupported(bool supported);
-// A session owns both the guest transport and its desktop consumer. Explicit
-// LAB experiments remain separate from the automatically selected product.
-bool ResolveSessionGraphicsPolicy(std::string_view experiment,
-                                  D3dBackendKind backend,
-                                  ProductGraphicsPolicy* policy);
 // VKD3D uses DXVK 2.6.2's DXGI companion. WineD3D and unknown backends do
 // not resolve a DXVK runtime.
 bool ResolveDxvkRuntimeProfile(D3dBackendKind backend,
                                DxvkRuntimeProfile* profile);
 
-// Resolves one of the deliberately small LAB experiment deltas on top of the
-// selected product policy. Experiments are observations or single-variable
-// isolations; they are not additional product routes.
-bool ResolveLabGraphicsExperiment(std::string_view id,
-                                  D3dBackendKind backend,
-                                  ProductGraphicsPolicy* policy);
-
-// Serializes the common Guest policy for the selected DXVK generation. The
-// legacy-only mapped-flush switch is omitted for DXVK 2.6/VKD3D companion
-// sessions so modern runtimes remain free of legacy compatibility knobs.
-bool BuildLabGuestGraphicsEnvironment(std::string_view name,
-                                      D3dBackendKind backend,
-                                      std::vector<std::string>* environment);
-
 // Serializes the Guest half of a normal product route. This keeps product
-// operation independent from the historical LAB profile registry.
+// operation independent from process-level environment overrides.
 // Guest Venus contract for a child whose native process cannot use Direct.
 // The global Direct capability and the active desktop consumer stay intact.
 bool BuildVenusGuestGraphicsEnvironment(

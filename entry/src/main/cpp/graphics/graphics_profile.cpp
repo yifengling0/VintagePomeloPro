@@ -6,18 +6,6 @@
 namespace winehua {
 namespace {
 
-constexpr std::string_view kObserveProductSummary = "observe-product-summary";
-constexpr std::string_view kObserveFrameTimeline = "observe-frame-timeline";
-constexpr std::string_view kTraceFrameAssociation = "trace-frame-association";
-constexpr std::string_view kTracePresentImage = "trace-present-image";
-constexpr std::string_view kIsolateTransportNeutral = "isolate-transport-neutral";
-constexpr std::string_view kIsolateVenusNativeBuffer = "isolate-venus-native-buffer";
-constexpr std::string_view kIsolateVenusCpuUpload = "isolate-venus-cpu-upload";
-constexpr std::string_view kIsolateVulkanDirect = "isolate-vulkan-direct";
-constexpr std::string_view kIsolateVulkanDirectPrecise = "isolate-vulkan-direct-precise-map";
-constexpr std::string_view kIsolateVulkanDirectWhole = "isolate-vulkan-direct-whole-map";
-constexpr std::string_view kIsolateShadowBoundBuffers = "isolate-shadow-bound-buffers";
-constexpr std::string_view kIsolateProductEglDesktop = "isolate-product-egl-desktop";
 std::atomic<bool> productDirectVerified{false};
 std::atomic<bool> productDirectPresentationSupported{true};
 
@@ -33,8 +21,9 @@ bool SerializeGuestGraphicsEnvironment(
 {
     if (!environment) return false;
     environment->clear();
-    DxvkRuntimeProfile runtime;
-    if (!ResolveDxvkRuntimeProfile(backend, &runtime)) return false;
+    DxvkRuntimeProfile runtime{};
+    if (backend != D3dBackendKind::WineD3dZink &&
+        !ResolveDxvkRuntimeProfile(backend, &runtime)) return false;
 
     environment->emplace_back("WINEHUA_GRAPHICS_PROFILE=" +
                               std::string(policyName));
@@ -72,7 +61,7 @@ bool SerializeGuestGraphicsEnvironment(
                                  policy.preciseShadow);
 
     std::string vnPerf = "VN_PERF=no_fence_feedback,no_query_feedback";
-    if (runtime.disableSemaphoreFeedback)
+    if (runtime.disableSemaphoreFeedback || backend == D3dBackendKind::WineD3dZink)
         vnPerf += ",no_semaphore_feedback";
     switch (policy.submission) {
     case GuestSubmissionPolicy::SynchronousSubmit:
@@ -94,6 +83,8 @@ bool SerializeGuestGraphicsEnvironment(
 D3dBackendKind ParseD3dBackend(std::string_view backend)
 {
     if (backend == "wined3d") return D3dBackendKind::WineD3d;
+    if (backend == "wined3d_zink") return D3dBackendKind::WineD3dZink;
+    if (backend == "dxvk_legacy_d3d9") return D3dBackendKind::DxvkLegacyD3d9;
     if (backend == "dxvk_legacy") return D3dBackendKind::DxvkLegacy;
     if (backend == "dxvk_modern_2_6") return D3dBackendKind::DxvkModern26;
     if (backend == "vkd3d_limited_500k") return D3dBackendKind::Vkd3dLimited500k;
@@ -103,12 +94,14 @@ D3dBackendKind ParseD3dBackend(std::string_view backend)
 bool IsDxvkBackend(D3dBackendKind backend)
 {
     return backend == D3dBackendKind::DxvkLegacy ||
+        backend == D3dBackendKind::DxvkLegacyD3d9 ||
         backend == D3dBackendKind::DxvkModern26;
 }
 
 bool UsesVenusPresent(D3dBackendKind backend)
 {
-    return IsDxvkBackend(backend) || backend == D3dBackendKind::Vkd3dLimited500k;
+    return IsDxvkBackend(backend) || backend == D3dBackendKind::WineD3dZink ||
+        backend == D3dBackendKind::Vkd3dLimited500k;
 }
 
 static bool ResolveVenusProductGraphicsPolicy(D3dBackendKind backend,
@@ -122,6 +115,8 @@ static bool ResolveVenusProductGraphicsPolicy(D3dBackendKind backend,
         resolved.host = {resolved.route, "full", "0"};
         break;
     }
+    case D3dBackendKind::WineD3dZink:
+    case D3dBackendKind::DxvkLegacyD3d9:
     case D3dBackendKind::DxvkLegacy:
     case D3dBackendKind::DxvkModern26: {
         resolved.route = kProductVulkanRoute;
@@ -185,6 +180,7 @@ bool ResolveDxvkRuntimeProfile(D3dBackendKind backend,
 {
     if (!profile) return false;
     switch (backend) {
+    case D3dBackendKind::DxvkLegacyD3d9:
     case D3dBackendKind::DxvkLegacy:
         *profile = {
             "legacy", "1.10.3",
@@ -209,109 +205,12 @@ bool ResolveDxvkRuntimeProfile(D3dBackendKind backend,
             true,  // disableSemaphoreFeedback
         };
         return true;
+    case D3dBackendKind::WineD3dZink:
     case D3dBackendKind::WineD3d:
     case D3dBackendKind::Unknown:
         return false;
     }
     return false;
-}
-
-bool ResolveLabGraphicsExperiment(std::string_view id,
-                                  D3dBackendKind backend,
-                                  ProductGraphicsPolicy* policy)
-{
-    if (!policy || backend == D3dBackendKind::Unknown) return false;
-
-    if (id == kIsolateProductEglDesktop) {
-        // One-variable control: preserve the verified product transport,
-        // mapping, DLL and submission policy; change only the desktop consumer.
-        if (!ResolveProductGraphicsPolicy(backend, policy)) return false;
-        policy->host.name = kIsolateProductEglDesktop;
-        policy->vulkanDesktop = false;
-        return true;
-    }
-
-    ProductGraphicsPolicy resolved;
-    // Observation/control experiments must keep their declared transport,
-    // even after the product capability check has selected Direct.
-    if (!ResolveVenusProductGraphicsPolicy(backend, &resolved)) return false;
-    const bool venusPresent = UsesVenusPresent(backend);
-
-    std::string_view canonicalId;
-    if (id == kObserveProductSummary) {
-        canonicalId = kObserveProductSummary;
-        resolved.host.perfSummary = true;
-        resolved.guest.perfSummary = true;
-    } else if (id == kObserveFrameTimeline) {
-        canonicalId = kObserveFrameTimeline;
-        resolved.host.shadowSelector = "frame-timeline";
-        resolved.host.perfSummary = true;
-    } else if (id == kTraceFrameAssociation) {
-        if (!venusPresent) return false;
-        canonicalId = kTraceFrameAssociation;
-        resolved.host.shadowSelector = "inline-gpu-upload-frame-assoc-trace";
-        resolved.host.perfSummary = true;
-    } else if (id == kTracePresentImage) {
-        if (!venusPresent) return false;
-        canonicalId = kTracePresentImage;
-        resolved.host.shadowSelector = "present-image-trace";
-        resolved.guest.tracePresentImage = true;
-    } else if (id == kIsolateVenusNativeBuffer) {
-        if (backend != D3dBackendKind::DxvkLegacy) return false;
-        canonicalId = kIsolateVenusNativeBuffer;
-        resolved.host.presentMode = "native-buffer";
-    } else if (id == kIsolateVenusCpuUpload) {
-        if (!IsDxvkBackend(backend)) return false;
-        canonicalId = kIsolateVenusCpuUpload;
-        // Change only the host upload mechanism. Keep explicit guest range
-        // publication and the product ring ordering so this is a useful
-        // correctness control, unlike the transport-neutral profile.
-        resolved.host.shadowSelector = "cpu-upload";
-    } else if (id == kIsolateTransportNeutral) {
-        if (!venusPresent) return false;
-        canonicalId = kIsolateTransportNeutral;
-        // A deliberate negative control: retain the selected DXVK runtime but
-        // remove WineHua's precise-shadow and ring synchronization policy.
-        resolved.host = {canonicalId, "full", "0"};
-        resolved.guest = {};
-    } else if (id == kIsolateVulkanDirect || id == kIsolateVulkanDirectPrecise || id == kIsolateVulkanDirectWhole) {
-        // A diagnostic cannot create a WSI the selected display cannot own.
-        if (!productDirectPresentationSupported.load(std::memory_order_acquire)) return false;
-        // Limit the first device gate to the validated DXVK runtimes.
-        if (!IsDxvkBackend(backend)) return false;
-        if (id != kIsolateVulkanDirect && backend != D3dBackendKind::DxvkLegacy)
-            return false;
-        canonicalId = id;
-        resolved.guest = {};
-        resolved.guest.directVulkan = true;
-        resolved.vulkanDesktop = true;
-        if (id != kIsolateVulkanDirect) {
-            resolved.guest.preciseShadow = true;
-            resolved.guest.directPreciseMaps = id == kIsolateVulkanDirectPrecise;
-        }
-    } else if (id == kIsolateShadowBoundBuffers) {
-        if (!IsDxvkBackend(backend)) return false;
-        canonicalId = kIsolateShadowBoundBuffers;
-        resolved.host.shadowSelector = "inline-gpu-upload-bound-buffers";
-    } else {
-        return false;
-    }
-
-    resolved.host.name = canonicalId;
-    *policy = resolved;
-    return true;
-}
-
-bool BuildLabGuestGraphicsEnvironment(std::string_view name,
-                                      D3dBackendKind backend,
-                                      std::vector<std::string>* environment)
-{
-    if (!environment) return false;
-    environment->clear();
-    ProductGraphicsPolicy experiment;
-    if (!ResolveLabGraphicsExperiment(name, backend, &experiment)) return false;
-    return SerializeGuestGraphicsEnvironment(name, experiment.guest, backend,
-                                             environment);
 }
 
 bool BuildVenusGuestGraphicsEnvironment(
@@ -335,12 +234,5 @@ bool BuildProductGuestGraphicsEnvironment(
                                              backend, environment);
 }
 
-bool ResolveSessionGraphicsPolicy(std::string_view experiment,
-                                  D3dBackendKind backend,
-                                  ProductGraphicsPolicy* policy)
-{
-    if (ResolveLabGraphicsExperiment(experiment, backend, policy)) return true;
-    return ResolveProductGraphicsPolicy(backend, policy);
-}
 
 } // namespace winehua

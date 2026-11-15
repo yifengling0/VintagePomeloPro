@@ -1,5 +1,5 @@
 /** A confirmation belongs to one account, quote and document revision; never persist it. */
-export const MEMBERSHIP_TERMS_VERSION: string = '2026-10-16';
+export const MEMBERSHIP_TERMS_VERSION: string = '2026-11-15';
 export const MEMBERSHIP_SUPPORT_EMAIL: string = 'liufengpm@live.cn';
 export const MEMBERSHIP_SUPPORT_GROUP: string = '966307250';
 export interface MembershipQuote {

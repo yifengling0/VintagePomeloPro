@@ -437,11 +437,32 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
         }
         return;
     }
+    if (d3dBackend == "wined3d_zink") {
+        AppendVulkanRuntimeEnv(env, binDir);
+        for (const char *line : {
+            "WINEHUA_D3D_BACKEND=wined3d_zink",
+            "GALLIUM_DRIVER=zink", "MESA_LOADER_DRIVER_OVERRIDE=zink",
+            "LIBGL_ALWAYS_SOFTWARE=0",
+            "WINEHUA_ZINK_VULKAN_LIBRARY=/data/storage/el1/bundle/libs/arm64/libvulkan.so.1",
+            "WINEHUA_ZINK_SHADOW_UPLOAD=1", "WINEHUA_ZINK_SHADOW_READBACK=1",
+            "WINEHUA_ZINK_FULL_TEXCOORD=1",
+            "WINEHUA_ZINK_DYNAMIC_EXTRACT=1",
+            "WINEHUA_ZINK_FULL_VERTEX_INPUTS=1",
+            "WINEHUA_ZINK_FULL_VARYINGS=1",
+            "WINEHUA_ZINK_SLICE_3D_UPLOAD=1",
+            "WINEHUA_ZINK_BATCH_UPLOAD=1",
+            "WINEHUA_ZINK_PRESENT=1",
+            "WINEHUA_ZINK_STRIP_NAMES=1",
+            "WINEDLLOVERRIDES=ddraw=b;d3d8=b;d3d9=b;d3d10=b;d3d10_1=b;d3d10core=b;d3d11=b;dxgi=b;vulkan-1=b"})
+            UpsertEnvLine(env, line);
+        return;
+    }
     if (d3dBackend.rfind("dxvk_", 0) != 0) return;
 
     std::string profile = d3dBackend.substr(strlen("dxvk_"));
     if (profile.empty()) profile = "legacy";
-    const bool legacy = profile == "legacy";
+    const bool nativeD3d9 = profile == "legacy_d3d9";
+    const bool legacy = profile == "legacy" || nativeD3d9;
     const bool modern26 = profile == "modern_2_6";
     if (!legacy && !modern26) return;
     const std::string runtimeProfile = modern26 ? "modern-2.6" : "legacy";
@@ -547,7 +568,7 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
          * 纯 n 后正常出界面)。modern 2.x 已移除 d3d10, 不设。
          *
          * vulkan-1=b: 让 DXVK 走 winevulkan 而不是 exe 同目录的原生 loader。 */
-        "WINEDLLOVERRIDES=" + std::string(winehua::DxvkDllOverrides(modern26)),
+        "WINEDLLOVERRIDES=" + std::string(winehua::DxvkDllOverrides(modern26, nativeD3d9)),
         "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
         "VN_WINEHUA_ALWAYS_NOTIFY_RING=1",
         "WINEDLLPATH=" + wineDllPath,
@@ -571,6 +592,15 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
     }
 #endif
     UpsertEnvLine(env, "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1");
+    if (nativeD3d9) {
+        for (const char *key : {"BC_EMULATION", "SHADOW_READBACK", "SHADOW_UPLOAD",
+             "SHADOW_CONSTANTS", "SHADOW_BUFFERS", "SHADOW_FIXED_FUNCTION",
+             "EVENT_FENCE", "MATCH_TOP_MIPS"})
+            UpsertEnvLine(env, std::string("WINEHUA_DXVK9_") + key + "=1");
+        UpsertEnvLine(env, "WINEHUA_DXVK_PRUNE_VERTEX_INPUT=1");
+        UpsertEnvLine(env, "WINEHUA_VENUS_LOW_MAP=1");
+        UpsertEnvLine(env, "WINEHUA_VIRGL_LOW_MAP=1");
+    }
     if (!legacy) return;
 
     const std::vector<std::string> legacyCompatibility = {

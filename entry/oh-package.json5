@@ -8,7 +8,6 @@
   "dependencies": {
     "libdisplay_route_napi.so": "file:./src/main/cpp/types/display_route_napi",
     "libentry.so": "file:./src/main/cpp/types/libentry",
-    "libsteamdecompress.so": "file:./src/main/cpp/types/libsteamdecompress",
-    "libsmoke_napi.so": "file:./src/main/cpp/types/smoke_napi"
+    "libsteamdecompress.so": "file:./src/main/cpp/types/libsteamdecompress"
   }
 }

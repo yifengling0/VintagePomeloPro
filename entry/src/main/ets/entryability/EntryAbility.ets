@@ -1,4 +1,3 @@
-import { preserveReinstallSaves } from '../service/ReinstallSaveSnapshot';
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { ValueAddedService } from '../service/valueadded/ValueAddedService';
@@ -11,21 +10,9 @@ import { WineWindowManager } from '../service/WineWindowManager';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { AppCatalogService, GamesDirectoryStatus } from '../service/AppCatalogService';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
-import { AppSettingsStore } from '../service/AppSettingsStore';
-import { WineEngineService } from '../service/WineEngineService';
-import { AppSessionService } from '../service/AppSessionService';
-import { DesktopModeService } from '../service/DesktopModeService';
-import { SmokeRunner } from '../service/SmokeRunner';
-import { SmokeRequest } from '../common/SmokeTypes';
-import { NativeLaunchResult, WinePresentationMode } from '../model/AppModels';
 import testNapi from 'libentry.so';
 
 const DOMAIN = 0x0000;
-
-interface AutomationEnvironmentPair {
-  key: string;
-  value: string;
-}
 
 export default class EntryAbility extends UIAbility {
   private mainWindow: window.Window | null = null;
@@ -36,8 +23,6 @@ export default class EntryAbility extends UIAbility {
   // some tablet/desktop shells even though the controls return afterwards.
   // Retain the last real safe area for the lifetime of this main window.
   private lastTitleButtonInsetVp: number = 0;
-  private pendingAutomationWant: Want | null = null;
-  private automationLaunchStarted: boolean = false;
   private membershipDelivery: string | null = null;
   private membershipRouteTimer: number = -1;
   private membershipRouteAttempts: number = 0;
@@ -76,15 +61,12 @@ export default class EntryAbility extends UIAbility {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
     AppLog.init();
     DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
-    SmokeRunner.getInstance().initialize(this.context);
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
     testNapi.setPhoneMode(useForkNcp);
     hilog.info(DOMAIN, 'EntryAbility', 'NCP backend=%{public}s deviceType=%{public}s',
       useForkNcp ? 'fork' : 'system', DeviceCapabilityPolicy.deviceType());
     this.ensureDownloadGamesDirectory('onCreate');
-    this.applyWineHuaWantParams(want);
-    this.rememberAutomationWant(want);
     this.rememberMembershipWant(want);
   }
 
@@ -100,7 +82,7 @@ export default class EntryAbility extends UIAbility {
     DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
     this.membershipRouteTimer = -1;
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onDestroy');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onDestroy');
   }
 
   onNewWant(want: Want): void {
@@ -109,8 +91,6 @@ export default class EntryAbility extends UIAbility {
     // A singleton Ability may receive the next launch without another
     // onCreate. Re-check the app-owned Download directory on every handoff.
     this.ensureDownloadGamesDirectory('onNewWant');
-    this.applyWineHuaWantParams(want);
-    this.rememberAutomationWant(want);
     const parameters = want.parameters ?? {};
     if (parameters.overlayRoute === 'input-layout' || parameters.overlayRoute === 'key-mapping') {
       // 覆盖层属于 Desktop Ability，不能直接把它的子窗口替换为编辑器。
@@ -126,8 +106,6 @@ export default class EntryAbility extends UIAbility {
         returnToplevelId: String(parameters.returnToplevelId ?? '0')
       }));
     }
-    this.scheduleWantAutomation();
-    this.scheduleAutomationLaunch();
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
@@ -140,7 +118,7 @@ export default class EntryAbility extends UIAbility {
   }
   private createConfiguredWindowStage(windowStage: window.WindowStage): void {
     // Main window is created, set main page for this ability
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageCreate');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onWindowStageCreate');
     this.ensureDownloadGamesDirectory('onWindowStageCreate');
 
     // 初始化多窗口管理器
@@ -148,7 +126,7 @@ export default class EntryAbility extends UIAbility {
 
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
-        hilog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
+        hilog.error(DOMAIN, 'EntryAbility', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
         return;
       }
       // loadContent 成功后隐藏窗口装饰
@@ -195,268 +173,9 @@ export default class EntryAbility extends UIAbility {
             JSON.stringify(error));
         }
       }
-      hilog.info(DOMAIN, 'testTag', 'Succeeded in loading the content.');
+      hilog.info(DOMAIN, 'EntryAbility', 'Succeeded in loading the content.');
       this.openMembershipWant();
-      this.scheduleWantAutomation();
-      this.scheduleAutomationLaunch();
     });
-  }
-
-  private applyWineHuaWantParams(want: Want): void {
-    const parameters = want.parameters;
-    const value = (key: string, fallback: string): string => {
-      if (!parameters || parameters[key] === undefined || parameters[key] === null) return fallback;
-      return `${parameters[key]}`;
-    };
-    // Explicit host diagnostics, independent of Wine child environment.
-    // Ordinary launches retain the default off state; onNewWant can stop it.
-    if (parameters && parameters['winehua.frameDiagnostics'] !== undefined) {
-      testNapi.setFrameLoopDiagnostics(value('winehua.frameDiagnostics', '0') === '1');
-    }
-    // Pad 多窗口承载调试键: winehua.fusionHost (subwindow|ability) 跨设备强制
-    const explicitFusionHost = !!parameters && parameters['winehua.fusionHost'] !== undefined &&
-      parameters['winehua.fusionHost'] !== null;
-    if (explicitFusionHost) {
-      AppStorage.setOrCreate<string>('winehua.fusionHost', value('winehua.fusionHost', ''));
-    }
-    // 桌面模式显式覆盖 (fusion|virtual): 仅内存, 不持久化
-    const explicitDesktopMode = !!parameters && parameters['winehua.desktopMode'] !== undefined &&
-      parameters['winehua.desktopMode'] !== null;
-    if (explicitDesktopMode) {
-      DesktopModeService.getInstance().setOverrideMode(value('winehua.desktopMode', ''));
-    }
-    const engine = WineEngineService.getInstance();
-    // winehua.autoStart=1 → 主窗口就绪后自动拉起引擎 (一次消费)
-    if (parameters && parameters['winehua.autoStart'] === '1') {
-      engine.autoStartPending = true;
-    }
-    // winehua.program=<wine 路径> → 引擎就绪后自动启动该程序
-    if (parameters && parameters['winehua.program'] !== undefined &&
-      parameters['winehua.program'] !== null) {
-      engine.setAutoProgram(value('winehua.program', ''));
-    }
-  }
-
-  // 自动化通道: autoStart 拉引擎; program 在引擎就绪后直启。不引入 WineEnvService。
-  private scheduleWantAutomation(): void {
-    const engine = WineEngineService.getInstance();
-    engine.initialize(this.context);
-    void AppSettingsStore.getInstance().initialize(this.context).then((): void => {
-      if (engine.consumeAutoStart()) {
-        engine.ensureEngineReady().then((ok: boolean): void => {
-          hilog.info(DOMAIN, 'EntryAbility', 'want autoStart engine ready=%{public}s', ok ? 'yes' : 'no');
-        }).catch((error: Error): void => {
-          hilog.warn(DOMAIN, 'EntryAbility', 'want autoStart failed: %{public}s', JSON.stringify(error));
-        });
-      }
-      this.autoRunIfRequested();
-    });
-  }
-
-  private autoRunIfRequested(): void {
-    const engine = WineEngineService.getInstance();
-    if (engine.getAutoProgram().length === 0) {
-      return;
-    }
-    let tries = 0;
-    const tick = (): void => {
-      const p = engine.getAutoProgram();
-      if (p.length === 0) {
-        return;
-      }
-      engine.ensureEngineReady().then((ok: boolean): void => {
-        if (ok) {
-          const prog = engine.consumeAutoProgram();
-          if (prog) {
-            hilog.info(DOMAIN, 'EntryAbility', 'autoRun: launch %{public}s', prog);
-            this.runWantProgram(prog);
-          }
-          return;
-        }
-        if (++tries < 60) {
-          setTimeout(tick, 1000);
-        } else {
-          hilog.warn(DOMAIN, 'EntryAbility',
-            'autoRun: engine not ready after %{public}d tries, skip %{public}s', tries, p);
-        }
-      }).catch((error: Error): void => {
-        hilog.warn(DOMAIN, 'EntryAbility', 'autoRun ensureEngineReady: %{public}s', JSON.stringify(error));
-        if (++tries < 60) setTimeout(tick, 1000);
-      });
-    };
-    setTimeout(tick, 300);
-  }
-
-  private runWantProgram(windowsPath: string): void {
-    const engine = WineEngineService.getInstance();
-    const slash = Math.max(windowsPath.lastIndexOf('/'), windowsPath.lastIndexOf('\\'));
-    const dir = slash > 0 ? windowsPath.substring(0, slash) : windowsPath;
-    const result = engine.launchExecutable(windowsPath, [], dir);
-    if (!result || result.pid <= 0) {
-      hilog.warn(DOMAIN, 'EntryAbility', 'autoRun launchExecutable failed path=%{public}s', windowsPath);
-      return;
-    }
-    hilog.info(DOMAIN, 'EntryAbility', 'autoRun launched pid=%{public}d path=%{public}s',
-      result.pid, windowsPath);
-  }
-
-  private rememberAutomationWant(want: Want): void {
-    const mode = String(want.parameters?.['winehua.mode'] ?? '');
-    if (mode !== 'game' && mode !== 'smoke' && mode !== 'preserve-reinstall-saves') return;
-    this.pendingAutomationWant = want;
-    hilog.info(DOMAIN, 'EntryAbility', 'automation Want accepted mode=%{public}s', mode);
-  }
-
-  private scheduleAutomationLaunch(): void {
-    if (!this.mainWindow || !this.pendingAutomationWant || this.automationLaunchStarted) return;
-    const want = this.pendingAutomationWant;
-    this.pendingAutomationWant = null;
-    this.automationLaunchStarted = true;
-    setTimeout((): void => {
-      this.runAutomationLaunch(want).then((): void => {
-        this.finishAutomationLaunch();
-      }).catch((error: Error): void => {
-        hilog.error(DOMAIN, 'EntryAbility', 'automation launch failed: %{public}s', error.message + ' ' + JSON.stringify(error));
-        this.finishAutomationLaunch();
-      });
-    }, 800);
-  }
-
-  private finishAutomationLaunch(): void {
-    this.automationLaunchStarted = false;
-    if (this.pendingAutomationWant) this.scheduleAutomationLaunch();
-  }
-
-  private decodeAutomationPayload(value: string): string {
-    try {
-      return decodeURIComponent(value);
-    } catch (_) {
-      return value;
-    }
-  }
-
-  private parseAutomationArguments(value: string): string[] {
-    if (!value) return [];
-    try {
-      const raw = JSON.parse(this.decodeAutomationPayload(value)) as string[];
-      const result: string[] = [];
-      for (let i = 0; i < raw.length; i++) {
-        if (typeof raw[i] === 'string') result.push(raw[i]);
-      }
-      return result;
-    } catch (_) {
-      return [];
-    }
-  }
-
-  private parseAutomationEnvironment(value: string): string[] {
-    if (!value) return [];
-    try {
-      const raw = JSON.parse(this.decodeAutomationPayload(value)) as AutomationEnvironmentPair[];
-      const result: string[] = [];
-      for (let i = 0; i < raw.length; i++) {
-        const pair = raw[i];
-        if (pair && typeof pair.key === 'string' && typeof pair.value === 'string' && pair.key.length > 0) {
-          result.push(`${pair.key}=${pair.value}`);
-        }
-      }
-      return result;
-    } catch (_) {
-      return [];
-    }
-  }
-
-  private automationWorkingDirectory(executable: string): string {
-    const separator = Math.max(executable.lastIndexOf('/'), executable.lastIndexOf('\\'));
-    return separator > 0 ? executable.substring(0, separator) : '';
-  }
-
-  private async runAutomationLaunch(want: Want): Promise<void> {
-    const parameters = want.parameters ?? {};
-    if (String(parameters['winehua.mode'] ?? '') === 'preserve-reinstall-saves') {
-      await preserveReinstallSaves(this.context);
-      return;
-    }
-    if (String(parameters['winehua.mode'] ?? '') === 'smoke') {
-      await this.runSmokeLaunch(want);
-      return;
-    }
-    const executable = this.decodeAutomationPayload(String(parameters['winehua.game_path'] ?? ''));
-    if (!executable) throw new Error('winehua.game_path is empty');
-
-    const backend = String(parameters['winehua.d3d_backend'] ?? 'dxvk_legacy');
-    const renderMode = backend === 'dxvk_modern_2_6' ? 'dxvk_2_6' :
-      (backend === 'wined3d' ? 'virgl' : 'dxvk_1_10');
-    const settingsStore = AppSettingsStore.getInstance();
-    await settingsStore.initialize(this.context);
-    await settingsStore.setRenderMode(renderMode);
-
-    const argumentsValue = this.parseAutomationArguments(
-      String(parameters['winehua.game_args_json'] ?? ''));
-    const environment = this.parseAutomationEnvironment(
-      String(parameters['winehua.d3d_env_json'] ?? ''));
-    const homeDirectory = '/storage/Users/currentUser/Download/com.vintage.pomelopro';
-    const engine = WineEngineService.getInstance();
-    engine.initialize(this.context);
-    engine.selectHostGraphicsBackendForExecutable(executable);
-    const graphicsExperiment = String(parameters['winehua.graphics_experiment'] ?? '').trim();
-    if (graphicsExperiment.length > 0 &&
-      !engine.selectHostGraphicsExperimentForLab(graphicsExperiment)) {
-      throw new Error(`Unsupported graphics LAB experiment: ${graphicsExperiment}`);
-    }
-    const settings = settingsStore.getGlobalSettings();
-    const ready = await engine.ensureReady(settings.defaultDisplayMode,
-      WinePresentationMode.DESKTOP, homeDirectory);
-    if (!ready) throw new Error('Wine engine did not become ready');
-
-    // READY can precede desktop-root registration by a few frames. Giving the
-    // Wayland desktop a short event-driven settling window keeps the first game
-    // toplevel from racing the root surface on cold prefix startup.
-    await new Promise<void>((resolve: () => void): void => {
-      setTimeout((): void => resolve(), 1000);
-    });
-    const result = engine.launchExecutable(executable, argumentsValue,
-      this.automationWorkingDirectory(executable), environment) as NativeLaunchResult;
-    if (!result || result.pid <= 0) throw new Error('runWineExe returned no process');
-    AppSessionService.getInstance().registerDiagnosticLaunch(executable, result,
-      settings.defaultDisplayMode, WinePresentationMode.DESKTOP);
-    hilog.info(DOMAIN, 'EntryAbility',
-      'automation launched pid=%{public}d backend=%{public}s graphicsPolicy=%{public}s exe=%{public}s envCount=%{public}d',
-      result.pid, backend, graphicsExperiment || '(product)', executable, environment.length);
-  }
-
-  /**
-   * WineHua smoke Want protocol adapted behind the product UI.  The runner is
-   * a service and uses the same Native runWineProgram policy as normal product
-   * launches; no upstream sidebar or page replaces the product launcher.
-   */
-  private async runSmokeLaunch(want: Want): Promise<void> {
-    const parameters = want.parameters ?? {};
-    const settingsStore = AppSettingsStore.getInstance();
-    await settingsStore.initialize(this.context);
-    const engine = WineEngineService.getInstance();
-    engine.initialize(this.context);
-    const settings = settingsStore.getGlobalSettings();
-    const homeDirectory = '/storage/Users/currentUser/Download/com.vintage.pomelopro';
-    const requestedSeconds = Number(parameters['winehua.long_seconds'] ?? 3600);
-    const request: SmokeRequest = {
-      suite: String(parameters['winehua.suite'] ?? 'core'),
-      runId: String(parameters['winehua.run_id'] ?? `manual-${Date.now()}`),
-      prefix: String(parameters['winehua.prefix'] ?? 'reuse') === 'clean' ? 'clean' : 'reuse',
-      longSeconds: Number.isFinite(requestedSeconds) && requestedSeconds > 0 ? requestedSeconds : 3600,
-      source: 'want'
-    };
-    // This isolated driver diagnostic does not need a Wine prefix, compositor,
-    // or receiver. Avoid starting them and perturbing the memory measurement.
-    if (request.suite !== 'native-buffer-memory') {
-      const ready = await engine.ensureSmokeReady(settings.defaultDisplayMode,
-        WinePresentationMode.DESKTOP, homeDirectory, request.prefix || 'reuse');
-      if (!ready) throw new Error('Wine engine did not become ready for smoke');
-    }
-    SmokeRunner.getInstance().start(request);
-    hilog.info(DOMAIN, 'EntryAbility',
-      'smoke runner accepted suite=%{public}s runId=%{public}s prefix=%{public}s',
-      request.suite, request.runId, request.prefix || 'reuse');
   }
 
   private isPcWindowHost(): boolean {
@@ -465,7 +184,7 @@ export default class EntryAbility extends UIAbility {
 
   onWindowStageDestroy(): void {
     // Main window is destroyed, release UI related resources
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onWindowStageDestroy');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onWindowStageDestroy');
     if (this.mainWindow && this.titleButtonRectCallback) {
       try {
         this.mainWindow.off('windowTitleButtonRectChange', this.titleButtonRectCallback);
@@ -528,7 +247,7 @@ export default class EntryAbility extends UIAbility {
     AccountAutomaticSyncService.getInstance().setForeground(true);
     ValueAddedService.getInstance().onForeground();
     // Ability has brought to foreground
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onForeground');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onForeground');
     this.ensureDownloadGamesDirectory('onForeground');
   }
 
@@ -537,6 +256,6 @@ export default class EntryAbility extends UIAbility {
     AccountAutomaticSyncService.getInstance().setForeground(false);
     ValueAddedService.getInstance().onBackground();
     // Ability has back to background
-    hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onBackground');
+    hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onBackground');
   }
 }

@@ -25,11 +25,11 @@ std::vector<std::string> BuildWineEnv(const std::string&, const std::string&,
     return {"WINEPREFIX=/test-prefix"};
 }
 
-void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string&,
-                       const std::string& backend, const std::string&)
+void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string& backend,
+                       const std::string&, const std::string&)
 {
     UpsertEnvLine(env, std::string("WINEDLLOVERRIDES=") +
-        winehua::DxvkDllOverrides(backend == "dxvk_modern_2_6"));
+        winehua::DxvkDllOverrides(backend == "dxvk_modern_2_6", backend == "dxvk_legacy_d3d9"));
 }
 
 void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) {}
@@ -84,6 +84,25 @@ int main()
     assert(legacy.find("d3d9=n,b;") != std::string::npos);
     assert(legacy.find("d3d11=n;dxgi=n;") != std::string::npos);
     p.extraEnv.pop_back();
+    p.d3dBackend = "dxvk_legacy_d3d9";
+    auto dxvk9 = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
+    assert(dxvk9.find("d3d9=n;") != std::string::npos);
+    p.extraEnv.push_back("WINEDLLOVERRIDES=d3d9=b");
+    dxvk9 = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
+    assert(dxvk9.find("d3d9=b;") != std::string::npos);
+    p.extraEnv.pop_back();
+    p.extraEnv.clear();
+    for (const auto& test : std::vector<std::pair<std::string, bool>>{
+            {"d3d9=n", true}, {"D3D9.DLL=native,builtin", true},
+            {"d3d9=b", false}, {"d3d9=b,n", false}, {"d3d9=", false},
+            {"d3d9=disabled", false}, {"*d3d9=b", true},
+            {"d3d9=b;*d3d9=n", false}, {"", false}}) {
+        p.extraEnv = {"WINEDLLOVERRIDES=" + test.first, "WINEHUA_DXVK9_OVERLAY=1"};
+        assert(Value(winehua::BuildSessionEnv(p), "WINEHUA_DXVK9_OVERLAY") == (test.second ? "1" : "0"));
+    }
+    assert(winehua::NativeDllPreferred("*d3d9=n,b", "d3d9"));
+    assert(!winehua::NativeDllPreferred("*d3d9=b,n", "d3d9"));
+    p.extraEnv = {"WINEDLLOVERRIDES=vcruntime140,vcruntime140_1=b", "WINEDLLOVERRIDES=vcruntime140=n,b"};
     p.d3dBackend = "dxvk_modern_2_6";
     p.extraEnv.push_back("WINEDLLOVERRIDES=broken");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES") ==

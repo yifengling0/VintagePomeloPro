@@ -759,6 +759,9 @@ EOF
         done
     fi
     # D3D10 x86: 32 位走 FEX/wow64, 两方案都用 x86 PE
+    # DXVK9 is explicit; include the qualified PE32 DLL without changing defaults.
+    [ -f "$dxvk_root/x86/bin/d3d9.dll" ] || err "DXVK Legacy x86 d3d9.dll missing"
+    cp "$dxvk_root/x86/bin/d3d9.dll" "$wine_data/dxvk/legacy/x86/d3d9.dll"
     local dxvk_d3d10_x86
     for dxvk_d3d10_x86 in d3d10.dll d3d10_1.dll d3d10core.dll; do
         [ -f "$dxvk_root/x86/bin/$dxvk_d3d10_x86" ] || err "DXVK Legacy x86 $dxvk_d3d10_x86 missing"
@@ -914,6 +917,8 @@ legacy_pin = json.loads(pathlib.Path(sys.argv[2]).read_text())['runtimes']['lega
 if legacy_pin.get('patches'):
     manifest['runtimes']['legacy']['managedPatches'] = legacy_pin['patches']
     manifest['runtimes']['legacy']['effectiveSourceSha256'] = legacy_pin['patchedSourceSha256']
+if 'qualification' in legacy_pin:
+    manifest['runtimes']['legacy']['textureCompatibility'] = legacy_pin['qualification']
 for profile, runtime in manifest['runtimes'].items():
     for architecture in ('x86', 'x64', 'arm64x'):
         directory = path.parent / profile / architecture
@@ -1063,11 +1068,23 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
         log "  guest_gfx el1: $(ls "$ROOT/entry/libs/$NATIVE_ARCH"/libEGL.so* "$ROOT/entry/libs/$NATIVE_ARCH"/libgallium-*.so 2>/dev/null | wc -l) libs + $(ls "$ROOT/entry/libs/$NATIVE_ARCH"/*_dri.so 2>/dev/null | wc -l) dri drivers"
     fi
 
-    # Guest Linux Vulkan runtime is intentionally outside C:\smoke: Loader + Venus
-    # ICD + offscreen smoke, 按 GUEST_ARCH (aarch64/x86_64) 打包.
+    # Ship only the Vulkan Loader, Venus ICD and loader configuration.
+    # Device probes and replay captures remain in the build tree.
     if [ -f "$BUILD_DIR/guest_vulkan/$guest_arch/manifest.json" ]; then
         mkdir -p "$wine_data/bin/guest_vulkan"
-        cp -a "$BUILD_DIR/guest_vulkan/$guest_arch/"* "$wine_data/bin/guest_vulkan/"
+        cp -a "$BUILD_DIR/guest_vulkan/$guest_arch/lib" "$wine_data/bin/guest_vulkan/"
+        if [ -d "$BUILD_DIR/guest_vulkan/$guest_arch/share/vulkan" ]; then
+            mkdir -p "$wine_data/bin/guest_vulkan/share"
+            cp -a "$BUILD_DIR/guest_vulkan/$guest_arch/share/vulkan" "$wine_data/bin/guest_vulkan/share/"
+        fi
+        python3 - "$BUILD_DIR/guest_vulkan/$guest_arch/manifest.json" "$wine_data/bin/guest_vulkan/manifest.json" <<'PYVULKAN'
+import json, sys
+from pathlib import Path
+manifest = json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'))
+manifest['files'] = {name: digest for name, digest in manifest['files'].items()
+                     if name.startswith(('lib/', 'share/vulkan/'))}
+Path(sys.argv[2]).write_text(json.dumps(manifest, indent=2) + '\n')
+PYVULKAN
         log "  guest_vulkan ($guest_arch): Loader + Venus ICD"
     elif [ "${BUILD_GUEST_VULKAN:-0}" = "1" ]; then
         err "BUILD_GUEST_VULKAN=1 but build/guest_vulkan/$guest_arch/manifest.json is missing"
@@ -1097,40 +1114,11 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
                  "$BUILD_DIR/guest_vulkan/$guest_arch"/lib/libvulkan.so; do
             [ -f "$f" ] && cp -a "$f" "$ROOT/entry/libs/$NATIVE_ARCH/"
         done
-        for f in "$BUILD_DIR/guest_vulkan/$guest_arch"/lib/libvulkan_virtio.so \
-                 "$BUILD_DIR/guest_vulkan/$guest_arch"/bin/libwinehua_guest_vulkan_smoke.so \
-                 "$BUILD_DIR/guest_vulkan/$guest_arch"/bin/libvenus_sampled_image_probe.so \
-                 "$BUILD_DIR/guest_vulkan/$guest_arch"/bin/libvenus_spirv_replay.so \
-                 "$BUILD_DIR/guest_vulkan/$guest_arch"/bin/libvenus_heaven_material_replay.so; do
+        for f in "$BUILD_DIR/guest_vulkan/$guest_arch"/lib/libvulkan_virtio.so; do
             [ -f "$f" ] && cp -a "$f" "$ROOT/entry/libs/$NATIVE_ARCH/"
         done
         log "  guest_vulkan el1: $(ls "$ROOT/entry/libs/$NATIVE_ARCH"/libvulkan.so* "$ROOT/entry/libs/$NATIVE_ARCH"/libvulkan_virtio.so 2>/dev/null | wc -l) vulkan libs (loader 顶层)"
     fi
-
-    # Native offscreen replay runs in the App/NCP security domain and links the
-    # system Host Vulkan loader. Captured resources remain in guest_vulkan so
-    # there is one authoritative exact-replay input set for the Host/Venus A/B.
-    local host_vulkan_root="$BUILD_DIR/host_vulkan/$NATIVE_ARCH"
-    [ -f "$host_vulkan_root/manifest.json" ] || \
-        err "Host Vulkan replay manifest missing: $host_vulkan_root/manifest.json"
-    [ -f "$host_vulkan_root/bin/heaven_exact_host_replay" ] || \
-        err "Host Vulkan replay marker missing: $host_vulkan_root/bin/heaven_exact_host_replay"
-    [ -f "$host_vulkan_root/lib/libwinehua_host_heaven_replay.so" ] || \
-        err "Host Vulkan replay module missing: $host_vulkan_root/lib/libwinehua_host_heaven_replay.so"
-    mkdir -p "$wine_data/bin/host_vulkan"
-    cp -a "$host_vulkan_root/"* "$wine_data/bin/host_vulkan/"
-    log "  host_vulkan ($NATIVE_ARCH): native exact replay"
-
-    # Smoke 载荷 (v2, automation/smoke.py build 产出) → wine-data/smoke/。
-    # 设备端 SmokeHook.seed 的离线源就是 files/wine/smoke (解压自本 zip),
-    # 发布环境无 host 也能播种 C:\smoke; 开发环境 host 推送源
-    # files/smoke-payload 优先级更高, 改测试不用重装 HAP。
-    local smoke_payload="$BUILD_DIR/smoke-payload"
-    [ -f "$smoke_payload/manifest.json" ] || \
-        err "smoke payload missing: run 'python3 automation/smoke.py build' first"
-    mkdir -p "$wine_data/smoke"
-    cp -a "$smoke_payload/." "$wine_data/smoke/"
-    log "  smoke payload → wine-data/smoke ($(find "$wine_data/smoke" -name '*.exe' | wc -l) exe)"
 
     if [ "$WINE_ARCH" = aarch64 ]; then
         python3 "$SCRIPT_DIR/icu_compat_runtime.py" stage \
@@ -1215,19 +1203,12 @@ XKB_KEYMAP
     cp "$STAGING_DIR/$zip_name" "$rawfile_dir/"
     local payload_sha
     payload_sha="$(sha256sum "$rawfile_dir/$zip_name" | awk '{print $1}')"
-    # smokeSuiteVersion 落盘校验器要核对（载荷由 automation/smoke.py build 产出，
-    # 版本号即载荷内容哈希）—— HAP 里的载荷与本次构建不一致时在 package 阶段拦下
-    local smoke_suite_version
-    smoke_suite_version="$(python3 -c \
-        'import json,sys; print(json.load(open(sys.argv[1]))["suiteVersion"])' \
-        "$smoke_payload/manifest.json")"
     cat > "$rawfile_dir/wine-runtime-manifest.json" <<EOF
 
 {
   "schemaVersion": 1,
   "payload": "wine-data.zip",
-  "payloadSha256": "$payload_sha",
-  "smokeSuiteVersion": "$smoke_suite_version"
+  "payloadSha256": "$payload_sha"
 }
 EOF
     python3 "$SCRIPT_DIR/verify_ci_release.py" runtime \

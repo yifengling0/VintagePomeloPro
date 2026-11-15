@@ -12,7 +12,7 @@ const bridge = read('entry/src/main/cpp/bridge/napi_init.cpp');
 const wine = read('entry/src/main/cpp/wine/wine_exe.cpp');
 const added = ['initAppLog','clearNativeLog','controllerSetEnabled','controllerSetButton','controllerSetStick',
  'controllerSetHat','controllerResetSource','controllerSetOutputMode','controllerGetOutputMode','controllerGetStateText',
- 'setHostGraphicsExperimentForLab','setHostGraphicsBackend','getHostGpuName','getDesktopRootId','getWineSession',
+ 'setHostGraphicsBackend','getHostGpuName','getDesktopRootId','getWineSession',
  'activateWineSession','stopWineSession','initGameController','isGamepadConnected','setGamepadButtonCallback',
  'setGamepadAxisCallback','setGamepadDeviceCallback','setGamepadRumbleCallback','refreshRenderer','setRendererPaused',
  'getDisplayFps','readPerformanceCounters','wineTextInputCommit','wineTextInputPreedit','wineTextInputEnabled',
@@ -51,7 +51,7 @@ const imports = {
    writeSmokeText:(_path,value)=>summaries.push(JSON.parse(value))
  }
 };
-const source = read('entry/src/main/ets/service/SmokeRunner.ets');
+const source = read('host_tests/fixtures/device_harness/ets/service/SmokeRunner.ets');
 const js = ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
 const moduleObject={exports:{}};
 vm.runInNewContext(js,{module:moduleObject,exports:moduleObject.exports,
@@ -76,5 +76,5 @@ const request={runId:'contract',suite:'core',prefix:'reuse',source:'unit'};
   assert.ok(actual.argv.includes('--automation'));
   assert.ok(actual.argv.includes(mode==='offscreen'?'--offscreen':'--present'));
  }
- console.log('Native declarations + actual SmokeRunner: exports, ten-argument launch, unsupported clean/backend, supported argv PASS');
+ console.log('Native declarations and host-only archived harness: exports and launch contracts PASS');
 })().catch(error=>{console.error(error);process.exitCode=1;});

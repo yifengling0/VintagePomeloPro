@@ -20,7 +20,7 @@ def load_modern_lock():
 
 
 def source_digest(source):
-    files = {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
+    files = {path.relative_to(source).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
              for path in sorted(source.rglob('*')) if path.is_file()}
     return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 

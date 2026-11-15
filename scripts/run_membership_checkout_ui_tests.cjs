@@ -50,7 +50,7 @@ const mod = { exports: {} };
 vm.runInNewContext(js, { module: mod, ValueAddedService: { getInstance: () => service },
   skinColor: () => '#5569D8',
   console: { warn() {} },
-  MEMBERSHIP_TERMS_VERSION: '2026-10-16', AccountAutomaticSyncService: { getInstance: () => ({ requestSync() { syncCalls++; } }) } });
+  MEMBERSHIP_TERMS_VERSION: '2026-11-15', AccountAutomaticSyncService: { getInstance: () => ({ requestSync() { syncCalls++; } }) } });
 function harness() {
   owner = 'alice'; capabilities = { commerce: true, membershipPurchases: true, renewalReminders: true };
   ready = true; enabled = true; permissionCalls = []; cashierCalls = 0; refreshCalls = 0; permissionAction = null;
@@ -81,44 +81,29 @@ function harness() {
   ui.autoRenewAccepted = true;
   assert.equal(ui.canBuyMembership(product), true, 'permissions not prepared yet must not deadlock the payment button');
   ui.buy(product); await ui.pending;
-  assert.deepEqual(permissionCalls, [true]); assert.equal(refreshCalls, 1); assert.equal(cashierCalls, 1);
-  assert.equal(environmentCalls, 1, 'official payment environment is checked before notification preflight');
+  assert.deepEqual(permissionCalls, []); assert.equal(cashierCalls, 1);
+  assert.equal(environmentCalls, 1, 'payment initialization is checked before checkout');
   assert.equal(ui.membershipAccepted, false, 'leaving the cashier resets confirmation');
   assert.equal(dialogCalls.length, 0, 'normal cashier cancellation is not an error');
 
-  ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; ready = false; enabled = false;
-  ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 0); assert.match(ui.status, /通知/); assert.equal(ui.membershipAccepted, true);
-  assert.equal(dialogCalls.length, 1); assert.match(dialogCalls[0].message, /未发起支付，没有扣款/);
-  assert.match(dialogCalls[0].message, /系统设置/);
-  ready = true; enabled = true; ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 1, 'granting permission after denial permits retry');
-
-  ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; capabilities.renewalReminders = false;
-  ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 0); assert.equal(permissionCalls.length, 0);
-  assert.equal(dialogCalls.length, 1); assert.equal(dialogCalls[0].title, '暂时无法开通');
-  assert.match(dialogCalls[0].message, /续费提醒服务暂不可用/); assert.match(ui.status, /未发起支付，没有扣款/);
-  assert.equal(ui.busy, false, 'dismissal permits a later retry');
-
-  ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
-  capabilities.renewalReminders = false; capabilities.sandboxCommerce = true; capabilities.sandboxCheckout = true;
-  assert.equal(await ui.refreshReminder(false), false, 'sandbox checkout is not reminder readiness');
+  for (const selected of [product, { id: 'VIP', type: 1, price: '¥38.00', lifetime: true }]) {
+    for (const reminderAvailable of [false, true]) {
+      ui = harness(); ui.membershipAccepted = true; ui.autoRenewAccepted = selected.type === 2;
+      ui.selectedProductId = selected.id; ui.products = [{ ...selected, purpose: 'membership' }];
+      capabilities.renewalReminders = reminderAvailable; ready = false; enabled = false;
+      ui.buy(selected); await ui.pending;
+      assert.equal(cashierCalls, 1, 'monthly and lifetime purchases work independently of reminder service/permission');
+      assert.equal(permissionCalls.length, 0, 'checkout never prompts for unrelated notification permission');
+      assert.equal(dialogCalls.length, 0);
+    }
+  }
+  ui = harness(); capabilities.renewalReminders = false;
+  assert.equal(await ui.refreshReminder(false), false);
   assert.match(ui.reminderStatus, /续费提醒服务暂不可用/);
+  assert.equal(cashierCalls, 0, 'checking reminders never starts a purchase');
+  ui.membershipAccepted = ui.autoRenewAccepted = true;
   ui.buy(product); await ui.pending;
-  assert.equal(environmentCalls, 1); assert.equal(cashierCalls, 0); assert.equal(permissionCalls.length, 0);
-  ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
-  capabilities.renewalReminders = false; capabilities.sandboxCheckout = true;
-  ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 0, 'test flag without the sandbox environment cannot skip real renewal preflight');
-  ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
-  capabilities.sandboxCommerce = true; capabilities.sandboxCheckout = true;
-  ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 1, 'legacy sandbox flags do not create a separate checkout flow');
-
-  ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; ready = false;
-  ui.buy(product); await ui.pending;
-  assert.equal(cashierCalls, 0); assert.match(dialogCalls[0].message, /登记未完成/);
+  assert.equal(cashierCalls, 1, 'failed reminder setup does not disable monthly checkout');
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
   purchaseError = Object.assign(new Error('store unavailable'), { code: 18600001 });
@@ -152,12 +137,14 @@ function harness() {
   assert.equal(dialogCalls[0].title, '会员状态待确认'); assert.match(ui.status, /无需再次付款/);
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; capabilities.renewalReminders = false;
+  environmentError = new Error('NOT_CONFIGURED');
   dialogAction = async () => { throw new Error('window unavailable'); };
   ui.buy(product); await ui.pending;
   assert.equal(toastCalls.length, 1, 'a failed dialog keeps a visible toast and page outcome');
   assert.match(ui.status, /未发起支付/);
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true; capabilities.renewalReminders = false;
+  environmentError = new Error('NOT_CONFIGURED');
   let dismiss;
   dialogAction = () => new Promise(resolve => { dismiss = resolve; });
   ui.buy(product);
@@ -167,9 +154,10 @@ function harness() {
   dismiss(); await pending; assert.equal(dialogCalls.length, 1); assert.equal(cashierCalls, 0);
 
   ui = harness(); ui.membershipAccepted = ui.autoRenewAccepted = true;
-  permissionAction = async () => { owner = 'bob'; ui.userId = owner; ui.clearConfirmation(); };
-  ui.buy(product); await ui.pending; assert.equal(cashierCalls, 0, 'account change during permission cannot pay');
+  service.checkPurchaseEnvironment = async () => { environmentCalls++; owner = 'bob'; ui.userId = owner; ui.clearConfirmation(); };
+  ui.buy(product); await ui.pending; assert.equal(cashierCalls, 0, 'account change during initialization cannot pay');
   assert.equal(dialogCalls.length, 0, 'do not show the old account outcome after switching accounts');
+  service.checkPurchaseEnvironment = async () => { environmentCalls++; if (environmentError) throw environmentError; };
 
   ui = harness(); ui.membershipAccepted = true; ui.selectedProductId = 'once';
   ui.buy({ id: 'once', type: 3, price: '¥5.00' }); await ui.pending;
@@ -279,6 +267,6 @@ function harness() {
   assert.equal(lifecycleReads,2);assert.equal(scheduled.length,0,'expanded details install no periodic cloud work');
   detail.aboutToDisappear();assert.equal(listeners.size,0);
   console.log('Membership details: expanded 15-minute virtual idle makes no periodic requests, listeners cleaned up PASS');
-  console.log('Membership checkout UI: explicit consent, reminder preflight, visible failures, SDK error code, pending payment, cancellation, retry, duplicate prevention, account isolation and product changes PASS');
+  console.log('Membership checkout UI: two purchase modes, independent reminders, explicit consent, visible failures, SDK error code, pending payment, cancellation, retry, duplicate prevention, account isolation and product changes PASS');
   console.log('Subscription management: fresh official state, cancellation keeps access, dialog dismissal, partial recovery, query failures and account/page isolation PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

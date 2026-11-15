@@ -860,9 +860,8 @@ export class ValueAddedService {
         if (this.quoteKey(selected) !== this.quoteKey(product)) throw new Error('PRICE_CHANGED');
         if (epoch !== this.generation) throw new Error('ACCOUNT_CHANGED');
       }
-      if (product.type === iap.ProductType.AUTORENEWABLE && !await this.prepareRenewalReminders(false, !this.notificationReady)) {
-        throw new Error('RENEWAL_NOTIFICATION_REQUIRED');
-      }
+      // Notification registration has its own foreground retry flow. Both monthly
+      // and lifetime checkout depend on verified IAP, not reminder availability.
       const body: ProductRequest = { productId: product.id, productType: product.type,
         promotionalOfferId: selected.promotion?.id };
       const intent = await this.request<PurchaseIntent>('/v1/purchases/intent', http.RequestMethod.POST, JSON.stringify(body));

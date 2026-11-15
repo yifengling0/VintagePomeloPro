@@ -47,7 +47,7 @@ export struct AccountSyncSettings {
   @State private checkoutLegalExpanded: boolean = false;
   private checkoutScroller: Scroller = new Scroller();
   @State private reminderReady: boolean = false;
-  @State private reminderStatus: string = '支付前将检查续费提醒，并在需要时申请通知权限。';
+  @State private reminderStatus: string = '续费提醒可单独开启，订阅可在华为支付中管理。';
   @State private renewalDetail: string = '';
   private vipOwner: string = '';
   private vipDeadline: number = 0;
@@ -101,7 +101,7 @@ export struct AccountSyncSettings {
       if (!this.alive) return;
       this.membershipRequest++;
       this.clearConfirmation(); this.reminderReady = false;
-      this.reminderStatus = '支付前将检查续费提醒，并在需要时申请通知权限。';
+      this.reminderStatus = '续费提醒可单独开启，订阅可在华为支付中管理。';
       this.userId = userId; this.refreshHuaweiIdentity(); this.resetVip();
       this.membership = userId ? '正在更新会员状态' : '等待登录';
       if (userId && params?.deliveryId) void ValueAddedService.getInstance().recordReminderOpened(params.deliveryId).catch((): void => {});
@@ -153,8 +153,8 @@ export struct AccountSyncSettings {
     if (error.message === 'MEMBERSHIP_CONSENT_REQUIRED') return '请选择商品，并主动阅读和勾选相应协议';
     if (error.message === 'MEMBERSHIP_STATUS_UNKNOWN') return '本期会员状态待核验，请刷新或恢复购买，无需再次付款';
     if (error.message === 'MEMBERSHIP_NOT_READY' || error.message === 'MEMBERSHIP_NOT_OPEN') return '会员购买尚未开放，管理订阅和恢复购买仍可使用';
-    if (error.message === 'RENEWAL_NOTIFICATION_REQUIRED') return '请允许应用发送续费通知后重试';
-    if (error.message === 'REMINDERS_UNAVAILABLE') return '续费提醒服务暂不可用，连续包月暂时无法开通，请稍后检查；已有订阅仍可管理';
+    if (error.message === 'RENEWAL_NOTIFICATION_REQUIRED') return '续费通知尚未开启，可在提醒设置中开启';
+    if (error.message === 'REMINDERS_UNAVAILABLE') return '续费提醒服务暂不可用，包月和买断可正常选择；请在华为支付中查看续费与取消订阅';
     if (error.message === 'PRODUCT_MISSING') return '该商品价格暂不可用，请重新获取价格后重试';
     if (error.message === 'INVALID_OFFER') return '优惠信息暂不可用，请刷新会员价格后重试';
     if (error.message === 'AUTH_STATE_MISMATCH') return '登录响应校验未通过，请重新登录';
@@ -435,7 +435,7 @@ export struct AccountSyncSettings {
     const confirmation: MembershipConfirmation = { userId: this.userId, quote: service.quoteKey(product),
       termsVersion: MEMBERSHIP_TERMS_VERSION, membershipAccepted: this.membershipAccepted, autoRenewAccepted: this.autoRenewAccepted };
     void this.run('membership', async (): Promise<void> => {
-      // Check the official sandbox status independently of notification setup; never open a cashier for this probe.
+      // Check service initialization independently of notification setup; this does not open a cashier.
       try { await service.checkPurchaseEnvironment(); }
       catch (error) {
         if (this.alive && confirmation.userId === service.getUserId()) {
@@ -446,13 +446,7 @@ export struct AccountSyncSettings {
         return;
       }
       if (!this.alive || confirmation.userId !== service.getUserId()) return;
-      // This explicit payment action can request permission. A background readiness check must not lock the button forever.
-      if (product.type === 2 && !await this.refreshReminder(true)) {
-        if (this.alive && confirmation.userId === service.getUserId()) {
-          await this.showPurchaseMessage('暂时无法开通', this.reminderStatus + '\n\n本次未发起支付，没有扣款。');
-        }
-        return;
-      }
+      // Reminder setup is managed separately from the two membership purchases.
       let result: string;
       try { result = await service.purchase(product, confirmation); }
       catch (error) {
@@ -571,7 +565,7 @@ export struct AccountSyncSettings {
     this.reminderReady = ready;
     this.reminderStatus = ready ? '已开启，续费前将通过系统通知提醒。' :
       enabled ? '续费提醒登记未完成，请稍后检查重试。' : requestPermission ?
-        '通知权限尚未开启，请在系统设置中允许本应用发送通知后重试。' : '通知尚未开启，点击支付将申请通知权限；允许后继续支付。';
+        '通知权限尚未开启，请在系统设置中允许本应用发送通知后重试。' : '通知尚未开启，可点击“开启提醒”单独设置。';
   }
   private manageMembership(): void {
     void this.run('membership', async (): Promise<void> => {
@@ -853,7 +847,8 @@ export struct AccountSyncSettings {
           if (product.type === 2) {
             Text('按月自动扣款，优惠结束后 ' + (product.regularPrice || product.price) + '/月。华为可能提前24小时扣款，失败后可能重试。')
               .fontSize(14).fontColor(skinColor('text_primary')).width('100%')
-            Text('预计续费前7天推送提醒，正常情况下至少提前5日告知金额、扣款时间和延长期限；支付前需开启通知。')
+            Text(this.reminderReady ? '续费提醒已开启，将根据官方续费计划安排通知；请同时留意华为支付中的订阅信息。' :
+              '续费提醒尚未开启或暂不可用。请在华为支付中查看续费计划，需要时可随时取消自动续费。')
               .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
             Text('随时取消：账号与同步 → 管理订阅／取消自动续费 → 华为订阅详情 → 取消订阅 → 确认。本期权益保留，取消不等于退款。')
               .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')

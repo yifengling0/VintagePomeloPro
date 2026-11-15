@@ -27,6 +27,8 @@ assert.equal(policy.resolveGraphicsBackend('dxvk_1_10', 'virgl'), 'virgl');
 assert.equal(policy.resolveGraphicsBackend('virgl', 'dxvk_2_6'), 'dxvk_2_6');
 assert.equal(policy.resolveGraphicsBackend('virgl', 'corrupt'), 'virgl');
 assert.equal(policy.resolveGraphicsBackend('corrupt', 'default'), 'dxvk_1_10');
+assert.equal(policy.resolveGraphicsBackend('zink', 'default'), 'zink');
+assert.equal(policy.resolveGraphicsBackend('virgl', 'dxvk9'), 'dxvk9');
 const old = models.createDefaultAppSettings('old');
 delete old.graphicsBackend;
 assert.equal(models.cloneAppSettings(old).graphicsBackend, 'default');
@@ -37,6 +39,10 @@ assert.equal(old.graphicsBackend, 'virgl');
 old.graphicsBackend = 'invalid';
 assert.equal(models.cloneAppSettings(old).graphicsBackend, 'default');
 
+assert.deepEqual(Array.from(policy.resolveZinkPresentationEnvironment('wined3d_zink')), ['WINEHUA_ZINK_PRESENT=1']);
+for (const backend of ['wined3d', 'dxvk_legacy_d3d9', 'dxvk_legacy', 'invalid']) {
+  assert.deepEqual(Array.from(policy.resolveZinkPresentationEnvironment(backend)), ['WINEHUA_ZINK_PRESENT=0']);
+}
 const source = fs.readFileSync(path.join(root, 'service/WineEngineService.ets'), 'utf8');
 const start = source.indexOf('  private selectedD3DBackend(): string {');
 const end = source.indexOf('  private ensureProductDirectCapability()', start);
@@ -71,6 +77,13 @@ assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', 'dxvk_1_10'), 'dxvk_legacy');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', 'dxvk_2_6'), 'dxvk_legacy');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe', 'invalid'), 'wined3d');
+assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'dxvk9'), 'dxvk_legacy_d3d9');
+assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'zink'), 'wined3d_zink');
+assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined3d');
+for (const backend of ['dxvk9', 'zink']) {
+  old.graphicsBackend = backend;
+  assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(old))).graphicsBackend, backend);
+}
 async function checkLaunchQueue() {
   const session = fs.readFileSync(path.join(root, 'service/AppSessionService.ets'), 'utf8');
   const begin = session.indexOf('  private launchTail:');

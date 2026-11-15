@@ -24,7 +24,6 @@ import {
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
 import { normalizeAppGraphicsBackend, resolveGraphicsBackend } from '../model/GraphicsBackendSettings';
-import { syncManagedSmoke } from './ManagedSmokePayloadService';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
 
@@ -59,12 +58,6 @@ const RESET_KEEP_DIR = '/data/storage/el2/base/cache/wine-reset-keep';
 const PREFIX_USER_KEEP_FOLDERS: string[] = [
   'Documents', 'Desktop', 'Pictures', 'Music', 'Videos', 'Saved Games'
 ];
-function executableUsesVkd3dGraphics(executable: string): boolean {
-  const normalized = executable.toLowerCase();
-  return normalized.indexOf('smoke') >= 0 &&
-    (normalized.indexOf('gears.exe') >= 0 || normalized.indexOf('triangle.exe') >= 0);
-}
-
 interface RuntimePathRequirement {
   path: string;
   label: string;
@@ -328,11 +321,6 @@ const REQUIRED_RUNTIME_PATHS: RuntimePathRequirement[] = [
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d10_1.dll', label: 'dxvk/legacy/x86/d3d10_1.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/d3d11.dll', label: 'dxvk/legacy/x86/d3d11.dll' },
   { path: WINE_ROOT + '/dxvk/legacy/x86/dxgi.dll', label: 'dxvk/legacy/x86/dxgi.dll' },
-  { path: WINE_ROOT + '/smoke/manifest.json', label: 'smoke/manifest.json' },
-  { path: WINE_ROOT + '/smoke/x64/winehua_d3d_switch_cube.exe',
-    label: 'smoke/x64/winehua_d3d_switch_cube.exe' },
-  { path: WINE_ROOT + '/smoke/x86/winehua_d3d_switch_cube.exe',
-    label: 'smoke/x86/winehua_d3d_switch_cube.exe' },
   { path: WINE_BIN + '/aarch64-windows', label: 'bin/aarch64-windows', directory: true },
   { path: WINE_BIN + '/i386-windows', label: 'bin/i386-windows', directory: true }
 ];
@@ -664,13 +652,9 @@ export class WineEngineService {
   private activeDxvkDepthD32: boolean = false;
   private activeWineLanguage: WineLanguage = WineLanguage.CHINESE;
   private hostGraphicsBackend: string = 'dxvk_legacy';
-  // Product sessions derive Host and Guest from the same D3D backend. Only
-  // the qualified VKD3D smoke path owns an explicit one-session override.
-  private hostGraphicsBackendOverride: string = '';
+  // Product sessions derive Host and Guest from the selected D3D backend.
   private appGraphicsBackend: string = 'default';
   private appliedHostGraphicsBackend: string = 'dxvk_legacy';
-  private hostGraphicsLabExperiment: string = '';
-  private appliedHostGraphicsLabExperiment: string = '';
   private productDirectProbe: Promise<boolean> | null = null;
   private enginePhase: string = '';
   private phaseStartedAt: number = 0;
@@ -839,19 +823,16 @@ export class WineEngineService {
     const requestedPrefixMode = prefixMode === 'clean' ? 'clean' : 'reuse';
     const requestedWineLanguage = AppSettingsStore.getInstance().getGlobalSettings().wineLanguage;
     const requestedD3DBackend = this.selectedD3DBackend();
-    this.hostGraphicsBackend = this.hostGraphicsBackendOverride.length > 0 ?
-      this.hostGraphicsBackendOverride : requestedD3DBackend;
+    this.hostGraphicsBackend = requestedD3DBackend;
     if (this.state === EngineState.READY && this.mode === mode &&
       this.presentationMode === presentationMode && this.d3dBackend === requestedD3DBackend &&
       this.activePrefixMode === requestedPrefixMode &&
       this.activeWineLanguage === requestedWineLanguage &&
-      this.appliedHostGraphicsBackend === this.hostGraphicsBackend &&
-      this.appliedHostGraphicsLabExperiment === this.hostGraphicsLabExperiment) {
-      this.syncManagedSmokePayload('ready-reuse');
+      this.appliedHostGraphicsBackend === this.hostGraphicsBackend) {
       return true;
     }
     const sessionKey = [mode, presentationMode, requestedD3DBackend, requestedPrefixMode,
-      requestedWineLanguage, homeDirectory, this.hostGraphicsBackend, this.hostGraphicsLabExperiment].join('|');
+      requestedWineLanguage, homeDirectory, this.hostGraphicsBackend].join('|');
     if (this.state === EngineState.PREPARING && this.requestedSessionKey === sessionKey) {
       return this.waitForReady();
     }
@@ -868,10 +849,8 @@ export class WineEngineService {
        this.d3dBackend !== requestedD3DBackend ||
        this.activePrefixMode !== requestedPrefixMode ||
        this.activeWineLanguage !== requestedWineLanguage ||
-       this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
-       this.appliedHostGraphicsLabExperiment !== this.hostGraphicsLabExperiment)) {
-      const switchingHost = (this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
-        this.appliedHostGraphicsLabExperiment !== this.hostGraphicsLabExperiment) &&
+       this.appliedHostGraphicsBackend !== this.hostGraphicsBackend)) {
+      const switchingHost = (this.appliedHostGraphicsBackend !== this.hostGraphicsBackend) &&
         this.mode === mode && this.presentationMode === presentationMode &&
         this.d3dBackend === requestedD3DBackend;
       this.setState(EngineState.SWITCHING,
@@ -939,25 +918,19 @@ export class WineEngineService {
         // VPP product-vulkan 图形路由 (注入 virgl/guest_gfx/vulkan/dxvk 会话 env)。
         // 注: explorer 等进程 exit=11 是 wine SEH 正常形态 (fault-forensics:
         // "宿主返回码不等于失败"), 不作为路由回归的依据。
-        if (this.hostGraphicsLabExperiment.length === 0) {
-          this.handleEnginePhase('graphics');
-          await this.ensureProductDirectCapability();
-          if (!this.startupCurrent(generation)) return;
-        }
-        const policyApplied = this.hostGraphicsLabExperiment.length > 0 ?
-          (testNapi.setHostGraphicsExperimentForLab(
-            this.hostGraphicsLabExperiment, this.hostGraphicsBackend) as boolean) :
-          (testNapi.setHostGraphicsBackend(this.hostGraphicsBackend) as boolean);
+        this.handleEnginePhase('graphics');
+        await this.ensureProductDirectCapability();
+        if (!this.startupCurrent(generation)) return;
+        const policyApplied = testNapi.setHostGraphicsBackend(this.hostGraphicsBackend) as boolean;
         if (!policyApplied) {
           this.failStartup(generation, '图形配置无效');
           return;
         }
         this.appliedHostGraphicsBackend = this.hostGraphicsBackend;
-        this.appliedHostGraphicsLabExperiment = this.hostGraphicsLabExperiment;
       } catch (error) {
         hilog.error(DOMAIN, TAG,
-          'graphics policy resolve failed backend=%{public}s labExperiment=%{public}s error=%{public}s',
-          this.hostGraphicsBackend, this.hostGraphicsLabExperiment, JSON.stringify(error));
+          'graphics policy resolve failed backend=%{public}s error=%{public}s',
+          this.hostGraphicsBackend, JSON.stringify(error));
         this.failStartup(generation, '图形配置解析失败');
         return;
       }
@@ -1048,52 +1021,11 @@ export class WineEngineService {
     return this.startSession(mode, presentationMode, homeDirectory, 'reuse', foregroundCurrent);
   }
 
-  /**
-   * Prepare the smoke session through the same engine owner. Reuse stays on
-   * the product prefix. Clean first completes any product runtime migration,
-   * then stops the broker and boots an isolated containers/clean/prefix session.
-   */
-  async ensureSmokeReady(mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string, prefixMode: string): Promise<boolean> {
-    // A clean diagnostic immediately stops this prerequisite session. Never
-    // enqueue a DesktopAbility for a root we are about to destroy: its delayed
-    // onCreate could otherwise cover the real session with a stale black view.
-    const productReady = await this.ensureReady(mode, presentationMode, homeDirectory,
-      prefixMode === 'clean' ? (): boolean => false : undefined);
-    if (!productReady || prefixMode !== 'clean') return productReady;
-    await this.stopSession();
-    let reset = false;
-    try {
-      ensureDirectory(FILES_BASE + '/containers/clean/prefix');
-      reset = testNapi.resetWinePrefix('clean') as boolean;
-    } catch (_) {}
-    if (!reset) {
-      this.setState(EngineState.ERROR, '隔离 smoke 环境清理失败');
-      return false;
-    }
-    return this.startSession(mode, presentationMode, homeDirectory, 'clean');
-  }
-
-  /** Restore the normal product prefix after an isolated clean smoke run. */
-  async restoreProductSession(): Promise<boolean> {
-    if (this.activePrefixMode !== 'clean') return true;
-    const mode = this.mode;
-    const presentationMode = this.presentationMode;
-    const homeDirectory = this.homeDirectory;
-    if (mode === null || presentationMode === null || homeDirectory.length === 0) return false;
-    await this.stopSession();
-    return this.startSession(mode, presentationMode, homeDirectory, 'reuse');
-  }
-
   launchExecutable(executable: string, argumentsValue: string[] = [],
     workingDirectory: string = '', envOverrides: string[] = []): NativeLaunchResult {
     if (this.state !== EngineState.READY) {
       hilog.warn(DOMAIN, '[ENG]', 'launchExecutable skipped exe=%{public}s state=%{public}s',
         executable, this.state);
-      return { pid: -1, sessionId: '', reused: false };
-    }
-    if (executable.trim().toLowerCase().startsWith('c:\\smoke\\') &&
-      !this.syncManagedSmokePayload('managed-smoke-launch')) {
       return { pid: -1, sessionId: '', reused: false };
     }
     // Batch files need Wine's command interpreter. This still uses the exact
@@ -1126,10 +1058,6 @@ export class WineEngineService {
     if (!isWineDesktopProgram(program) && !fontAntialiasOverridden) {
       launchEnvironment.push('WINEHUA_FONT_AA=bitmap');
     }
-    if (this.appliedHostGraphicsLabExperiment.length > 0) {
-      launchEnvironment.push(
-        `WINEHUA_GRAPHICS_PROFILE=${this.appliedHostGraphicsLabExperiment}`);
-    }
     return testNapi.runWineExe(
       WINE_BIN,
       SOCK,
@@ -1154,7 +1082,11 @@ export class WineEngineService {
     const mode = resolveGraphicsBackend(stored.length > 0 ? stored :
       (AppStorage.get<string>('winehua.render.mode') ?? 'dxvk_1_10'), this.appGraphicsBackend);
     let backend = 'dxvk_legacy';
-    if (mode === 'virgl') {
+    if (mode === 'dxvk9') {
+      backend = 'dxvk_legacy_d3d9';
+    } else if (mode === 'zink') {
+      backend = 'wined3d_zink';
+    } else if (mode === 'virgl') {
       backend = 'wined3d';
     } else if (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26()) {
       backend = 'dxvk_modern_2_6';
@@ -1184,14 +1116,8 @@ export class WineEngineService {
   }
 
   selectHostGraphicsBackendForExecutable(executable: string, graphicsBackend: string = 'default'): string {
-    // A normal product launch owns the next engine policy. LAB overrides are
-    // scoped to the explicit automation session that selected them.
-    this.hostGraphicsLabExperiment = '';
     this.appGraphicsBackend = normalizeAppGraphicsBackend(graphicsBackend);
-    this.hostGraphicsBackendOverride = executableUsesVkd3dGraphics(executable) ?
-      'vkd3d_limited_500k' : '';
-    this.hostGraphicsBackend = this.hostGraphicsBackendOverride.length > 0 ?
-      this.hostGraphicsBackendOverride : this.selectedD3DBackend();
+    this.hostGraphicsBackend = this.selectedD3DBackend();
     return this.hostGraphicsBackend;
   }
 
@@ -1215,28 +1141,8 @@ export class WineEngineService {
     }
   }
 
-  selectHostGraphicsExperimentForLab(experimentId: string): boolean {
-    const selected = experimentId.trim();
-    if (selected.length === 0) return false;
-    try {
-      // Validate through the same Native resolver used immediately before
-      // Host startup. This also fails closed before an automation run waits
-      // for a profile that can never be applied.
-      const valid = testNapi.setHostGraphicsExperimentForLab(
-        selected, this.hostGraphicsBackend) as boolean;
-      if (!valid) return false;
-      this.hostGraphicsLabExperiment = selected;
-      return true;
-    } catch (error) {
-      hilog.error(DOMAIN, TAG, 'LAB graphics experiment rejected id=%{public}s error=%{public}s',
-        selected, JSON.stringify(error));
-      return false;
-    }
-  }
-
   needsHostGraphicsRestart(): boolean {
-    return this.appliedHostGraphicsBackend !== this.hostGraphicsBackend ||
-      this.appliedHostGraphicsLabExperiment !== this.hostGraphicsLabExperiment;
+    return this.appliedHostGraphicsBackend !== this.hostGraphicsBackend;
   }
 
   /**
@@ -1514,7 +1420,6 @@ export class WineEngineService {
       this.prefixRefreshRequired = false;
       this.pendingPrefixVersion = new Uint8Array(0);
     }
-    this.syncManagedSmokePayload('engine-ready');
     this.setState(EngineState.READY, 'Wine 引擎已就绪');
     this.finishWaiters(true);
   }
@@ -1559,16 +1464,6 @@ export class WineEngineService {
       this.phaseStartedAt = Date.now();
     }
     this.setState(this.state, '正在初始化 Wine：' + this.phaseText(phase));
-  }
-
-  private syncManagedSmokePayload(trigger: string): boolean {
-    const ready = syncManagedSmoke(this.activePrefixMode);
-    if (ready) {
-      hilog.info(DOMAIN, TAG, 'managed C:\\smoke ready trigger=%{public}s', trigger);
-    } else {
-      hilog.error(DOMAIN, TAG, 'managed C:\\smoke sync failed trigger=%{public}s', trigger);
-    }
-    return ready;
   }
 
   private setState(state: EngineState, message: string): void {

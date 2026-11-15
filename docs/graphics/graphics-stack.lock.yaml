@@ -350,6 +350,10 @@
       {
         "path": "patches/wine/0081-wineohos-render-event-pacing.patch",
         "sha256": "35668bf7592859a42084795242b302148d68bbcd8c3876816977f4ae2a2de9eb"
+      },
+      {
+        "path": "patches/wine/0082-ntdll-explicit-dxvk9-overlay.patch",
+        "sha256": "3e551346d3cba87c2656f053cf3bad01baff2184f3b68c032fab430b52051283"
       }
     ],
     "virglrenderer": [
@@ -493,7 +497,59 @@
       },
       {
         "path": "patches/mesa/0011-softpipe-demand-zero-texture-cache.patch",
-        "sha256": "e0f47385f626ec1327729de025c199d5eff547842870e33ba28ebf66b12aaadb"
+        "sha256": "05e0ed9df5a9ecbd4f75e06c07de1b5e95956803e614bc152e2913619127bc7f"
+      },
+      {
+        "path": "patches/mesa/0012-venus-pack-small-vtest-submits.patch",
+        "sha256": "38daab1e0bd425ac906604ac35cfed820987808ff2aac1e71c591edc4202e501"
+      },
+      {
+        "path": "patches/mesa/0013-virgl-vtest-write-command-pair.patch",
+        "sha256": "b04dbde3a7c84f90052c5170447066d1ac0a49cac7309799fc00aaab2a782683"
+      },
+      {
+        "path": "patches/mesa/0015-zink-opt-in-shadow-readback.patch",
+        "sha256": "4b8940be945c9197b96c69fd5d823b91342d5bc5dbc027d846a722c2e229b98f"
+      },
+      {
+        "path": "patches/mesa/0016-zink-opt-in-shadow-uploader.patch",
+        "sha256": "4aeb274f93de3f3d7150e36f6ebfae85a6d78843db2d227f2f79b8ef1bba00ea"
+      },
+      {
+        "path": "patches/mesa/0017-zink-shadow-image-staging-byte-range.patch",
+        "sha256": "e1a3f0e69fc9e4e0955e6f8695e4bddf77bb4252500f7841020b67e66b1ae9d6"
+      },
+      {
+        "path": "patches/mesa/0018-zink-opt-in-full-texcoord.patch",
+        "sha256": "5b748eba810737547ae9cedb07e96ad023aa3e73b7bf5187e39627eb1bd8ff09"
+      },
+      {
+        "path": "patches/mesa/0019-zink-opt-in-dynamic-extract.patch",
+        "sha256": "65296886126b2c18201e42c477052e57d67e0eb9f91a7255808d93685090fe17"
+      },
+      {
+        "path": "patches/mesa/0020-zink-opt-in-full-vertex-inputs.patch",
+        "sha256": "1e75db91b3932871ed1c0ec36d2b227873f3e89f420dac252ab28690992d4c33"
+      },
+      {
+        "path": "patches/mesa/0021-zink-opt-in-strip-debug-names.patch",
+        "sha256": "aae1a6efbf8ed0c2aa1cf22b7192339c3687585d38149c02e60cf702742cb4fc"
+      },
+      {
+        "path": "patches/mesa/0022-zink-opt-in-full-generic-varyings.patch",
+        "sha256": "e3f572a5f56192e9dcd3a1e4754466d7fddbb4c31c58fd0bb4b6d41056df3996"
+      },
+      {
+        "path": "patches/mesa/0023-zink-opt-in-slice-3d-pbo-upload.patch",
+        "sha256": "a4e3f9b2dabdea733f2b8ba924de26ca9a18350c5d35ecb9b04e65e6d6846e17"
+      },
+      {
+        "path": "patches/mesa/0024-zink-opt-in-batch-private-uploads.patch",
+        "sha256": "e31c26cee504c4189e28931cd4d62bdbbe9b6236dc00b2233f456e6d1ba7245d"
+      },
+      {
+        "path": "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
+        "sha256": "c010b4c2b9de52531935d48535e064f04addfd9d11ebeec2cdfb500f419ecffe"
       }
     ],
     "vkd3d-proton": [
@@ -654,6 +710,54 @@
       {
         "path": "patches/dxvk/0007-explicit-d24-d32s8-storage.patch",
         "sha256": "05a11800b0b6c87878fffc3d988def036a1d2b7d4a23936fa206fb13d7ee9055"
+      },
+      {
+        "path": "patches/dxvk/0008-d3d9-opt-in-bc-upload-fallback.patch",
+        "sha256": "ff0ac0fc4173358c45ec9938cf556ef7d473c2ef6df4ff82a729f67a7081aba9"
+      },
+      {
+        "path": "patches/dxvk/0009-d3d9-opt-in-shadow-readback.patch",
+        "sha256": "13e1996386a4c42e2af39b6bb1238b64cdbbd53e422ca832cf4bbaef463200c7"
+      },
+      {
+        "path": "patches/dxvk/0010-preserve-pipeline-specialization.patch",
+        "sha256": "9e031ebc5b2eb10b1c76631b9a70d8b17bffd168e0441d5174ef84669f78cdfa"
+      },
+      {
+        "path": "patches/dxvk/0011-d3d9-opt-in-shadow-upload.patch",
+        "sha256": "e8db747fec3595b04772f988b9ddfbdc463cea79f24b140cddfbd88df5cb25db"
+      },
+      {
+        "path": "patches/dxvk/0012-d3d9-push-constant-range.patch",
+        "sha256": "29149f5e20fcb22bd8282f6dbc2cf1cf94c920e4ff39cc554e14a5ceb65174a9"
+      },
+      {
+        "path": "patches/dxvk/0013-d3d9-opt-in-hardware-constant-upload.patch",
+        "sha256": "b07813c4b20e8d1a180973cc849e3e816cf13efc310efd9d5e05aaadbdea4e7e"
+      },
+      {
+        "path": "patches/dxvk/0014-d3d9-opt-in-buffer-upload.patch",
+        "sha256": "a80eeb43dd754a1559778016d14355ceb1017bd247f4df8dd50f4bb28a2f4c87"
+      },
+      {
+        "path": "patches/dxvk/0015-opt-in-prune-unused-vertex-attributes.patch",
+        "sha256": "fe809cb77f18a4d887cd284a27e5c655651398ab9495181ecaddc175cb282cad"
+      },
+      {
+        "path": "patches/dxvk/0016-d3d9-opt-in-fixed-function-constant-upload.patch",
+        "sha256": "9f6ebfc92776329806db247b9ebc0eccd290ff5e54368107b87c94f5d05d116a"
+      },
+      {
+        "path": "patches/dxvk/0017-d3d9-opt-in-event-completion-fence.patch",
+        "sha256": "704c77b6a7819fb2a2007b36885537b28affcb3f520cb7ee7c7309189be41a10"
+      },
+      {
+        "path": "patches/dxvk/0018-d3d9-opt-in-match-top-texture-mips.patch",
+        "sha256": "a6f3d27e8476985a1cb5cccc6e09c479b5467f0ec2f6d79f5c47b37f9946034c"
+      },
+      {
+        "path": "patches/dxvk/0019-synchronize-mapped-buffer-backing-lookup.patch",
+        "sha256": "cea6e40acc2fd9719e120661ae8b61c19ebb2ced5e78e457ac610b806b277499"
       }
     ]
   },
@@ -737,7 +841,8 @@
       "include/wine/winehua_present.h": "5d793ac345bfb7a2b00010525c90166b9e0079322c9084f67042b148dd78d862",
       "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1",
       "dlls/win32u/defwnd.c": "01907307b6d196c3f2d607512086c11f148298b9633f25ea6fdfe6178ba10941",
-      "dlls/wineohos.drv/ohos_audio_mix.h": "9c127f769482afd53df47bdde58c1be3477161acedb46a896677d392a9c8ba6c"
+      "dlls/wineohos.drv/ohos_audio_mix.h": "9c127f769482afd53df47bdde58c1be3477161acedb46a896677d392a9c8ba6c",
+      "dlls/ntdll/loader.c": "100f2f514fa20cbccdeeb20fa86eb797b71bdc01ea8214a73d5acb5dbf02ed2d"
     },
     "virglrenderer": {
       "src/vrend/vrend_renderer.c": "35bcf434d1882f83c42fcd79e086e2b6c307835287d3652f6e8ac92309702ee1",
@@ -784,15 +889,15 @@
     "default_route": "wayland",
     "validation": "host-build-only; device acceptance pending",
     "build_inputs": {
-      "scripts/build_display_libs.sh": "1ea02d0b70801411249e4acff2abf1582b4ec264d1244a81685c6beda828b754",
-      "scripts/build_xcb_stack.sh": "75cde0e965168a45e09ec77b02b2aacc50757831f0cc1169ad741c7983938715",
-      "scripts/build_x11_client.sh": "3ec15a46f32e6a3856573532008213ddcda6fdb23f64e53db06bbf1047e9537d",
-      "scripts/build_wlroots.sh": "87b0f2ba5be46bfce78ffc57366cd853cbe5fb123b743f4aa7bed4c32889d33a",
-      "scripts/build_xwayland.sh": "520fc57cf717714309b2f29b5241d21f21b948641415fdfe39b4238b073477be",
+      "scripts/build_display_libs.sh": "556666b417c390bcfd4c462ad2dfe5066f26da11f093e9a8531778826fa0b1ea",
+      "scripts/build_xcb_stack.sh": "447583e93b3945bc5f226883757fda0f40b379245764d020a0f541ccd1ab0385",
+      "scripts/build_x11_client.sh": "e38b78804646c031c74a98997ae2eaffad21f597953c65503f512fa3e2e889c7",
+      "scripts/build_wlroots.sh": "c0571c8a96456d641cd47ebf8b7b11a74004f22aaf636ccd21021cc188c84158",
+      "scripts/build_xwayland.sh": "966b47239037202c72c875f2efbb0cfc026311f06035c770f32aacaf51993e37",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "135de38a69a20865b6b10c0ed38ca2f7447026ed54898b8424355690ee5ec259",
-      "scripts/env.sh": "011a97a8f96fc9d89f971ca6e8880843694be80cde43379277fdfe60a9eb8634",
+      "scripts/build_wine.sh": "ae129c03abaa9248a622caf2acabc57dfd38bb7eef70478d179435ed95262a1a",
+      "scripts/env.sh": "7114cabf2d9d65d1fe3c64a954a97ab2ad6d56fe266f5a3318e345cf9437e7e8",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }
   }

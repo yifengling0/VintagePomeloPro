@@ -13,7 +13,8 @@
         "x86/d3d10_1.dll": "16dc92f1ae862a9cb912a75e21b9b8f6cddaf693c7f89d07b42bed93693dba7e",
         "x86/d3d10core.dll": "20222943401ba558776a8226c23c6f408e1440daf46c51e02bbe87edcfc01d82",
         "x86/d3d11.dll": "f66a873600cb16d0a135b6e5c14a6883ad05c94ec759bc8f09e475aea37ba7b6",
-        "x86/dxgi.dll": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73"
+        "x86/dxgi.dll": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73",
+        "x86/d3d9.dll": "e7dbcc95fc326ee576039bd007751b0eafd7e6624702b8d42dcfd0ccb79c8029"
       },
       "patches": [
         {
@@ -112,7 +113,7 @@
   },
   "venus": {
     "commit": "557fa3e781ea6e78fcff3ee759c25f60c3055064",
-    "sha256": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49",
+    "sha256": "5648eea4d30fa5659cc62d057ed2947be1a0d773f8f3590dfcd930d2e7507158",
     "patches": [
       {
         "path": "patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch",
@@ -163,10 +164,6 @@
         "sha256": "b04dbde3a7c84f90052c5170447066d1ac0a49cac7309799fc00aaab2a782683"
       },
       {
-        "path": "patches/mesa/0014-zink-opt-in-instance-diagnostic.patch",
-        "sha256": "19f40d282a5d6e25b9ff994d0ff562681af76d6abdc0e0140143bbdf84deae88"
-      },
-      {
         "path": "patches/mesa/0015-zink-opt-in-shadow-readback.patch",
         "sha256": "4b8940be945c9197b96c69fd5d823b91342d5bc5dbc027d846a722c2e229b98f"
       },
@@ -177,6 +174,38 @@
       {
         "path": "patches/mesa/0017-zink-shadow-image-staging-byte-range.patch",
         "sha256": "e1a3f0e69fc9e4e0955e6f8695e4bddf77bb4252500f7841020b67e66b1ae9d6"
+      },
+      {
+        "path": "patches/mesa/0018-zink-opt-in-full-texcoord.patch",
+        "sha256": "5b748eba810737547ae9cedb07e96ad023aa3e73b7bf5187e39627eb1bd8ff09"
+      },
+      {
+        "path": "patches/mesa/0019-zink-opt-in-dynamic-extract.patch",
+        "sha256": "65296886126b2c18201e42c477052e57d67e0eb9f91a7255808d93685090fe17"
+      },
+      {
+        "path": "patches/mesa/0020-zink-opt-in-full-vertex-inputs.patch",
+        "sha256": "1e75db91b3932871ed1c0ec36d2b227873f3e89f420dac252ab28690992d4c33"
+      },
+      {
+        "path": "patches/mesa/0021-zink-opt-in-strip-debug-names.patch",
+        "sha256": "aae1a6efbf8ed0c2aa1cf22b7192339c3687585d38149c02e60cf702742cb4fc"
+      },
+      {
+        "path": "patches/mesa/0022-zink-opt-in-full-generic-varyings.patch",
+        "sha256": "e3f572a5f56192e9dcd3a1e4754466d7fddbb4c31c58fd0bb4b6d41056df3996"
+      },
+      {
+        "path": "patches/mesa/0023-zink-opt-in-slice-3d-pbo-upload.patch",
+        "sha256": "a4e3f9b2dabdea733f2b8ba924de26ca9a18350c5d35ecb9b04e65e6d6846e17"
+      },
+      {
+        "path": "patches/mesa/0024-zink-opt-in-batch-private-uploads.patch",
+        "sha256": "e31c26cee504c4189e28931cd4d62bdbbe9b6236dc00b2233f456e6d1ba7245d"
+      },
+      {
+        "path": "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
+        "sha256": "c010b4c2b9de52531935d48535e064f04addfd9d11ebeec2cdfb500f419ecffe"
       }
     ]
   }

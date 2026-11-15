@@ -39,6 +39,7 @@ Thumbs.db
 build/
 out/
 /ci-artifacts/
+/artifacts/
 
 # HAP project
 /node_modules

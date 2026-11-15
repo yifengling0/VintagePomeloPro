@@ -28,7 +28,7 @@ POLICY = 'source-build-candidate'
 CMAKE_MODULES = {'libs/arm64-v8a/' + name + '.so' for name in (
     'libvirgl_child', 'libdirect_surface_probe', 'libdirect_gpu_surface_probe',
     'libdirect_vulkan_probe', 'libdirect_shared_buffer_probe',
-    'libentry', 'libwine_child', 'libsmoke_napi',
+    'libentry', 'libwine_child',
     'libsteamdecompress', 'libwinehua_native_memory_probe',
     'libxwayland_child', 'libxclient_child', 'libxim_server_child', 'libdisplay_route_napi')}
 

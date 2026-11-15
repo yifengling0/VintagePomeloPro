@@ -74,4 +74,7 @@ for dll in d3d11.dll dxgi.dll; do
     fi
 done
 
+[ -f "$DXVK_BUILD_ROOT/x86/bin/d3d9.dll" ] || \
+    err "DXVK x86 D3D9 artifact missing: $DXVK_BUILD_ROOT/x86/bin/d3d9.dll"
+
 log "DXVK Legacy ready: $(git -c safe.directory="$DXVK_SRC" -C "$DXVK_SRC" rev-parse --short HEAD)"

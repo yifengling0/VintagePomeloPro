@@ -162,20 +162,20 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 451878390,
-      "sha256": "97add0f7cc1b83236baa59c0cf6f70872d86461f6b9436c53be5a5c1bd8631d7"
+      "bytes": 447770613,
+      "sha256": "f6c82491a68eba3b8ef10ee04f9f2aef41e0c502e4b3ecc81b2065a498145d2f"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 8167,
-      "sha256": "71451d7783efbe991132bd400e8ea8abe4bb32c58ad54d1ec87bb4ee9ec0f309"
+      "bytes": 10906,
+      "sha256": "dd00a3173c6b0355d7ce1c412b56834dea3adfc077875fb37915327c8d0473d1"
     },
     "resources/rawfile/wine_runtime.version": {
-      "bytes": 136,
-      "sha256": "132c6aeab509d93f72b9d843983f6acd9f20096c4efbd67e120306b92066e2ee"
+      "bytes": 167,
+      "sha256": "caee45ce5ff07fcd92cb628ce74ef8f46808398407b324c60707068950c66e32"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
-      "bytes": 1303416,
-      "sha256": "e3e852c7afc81574adb0dbe436368f95a778fcd89ace140f6a583292b65ada49"
+      "bytes": 1006736,
+      "sha256": "5648eea4d30fa5659cc62d057ed2947be1a0d773f8f3590dfcd930d2e7507158"
     },
     "libs/arm64-v8a/libvirglrenderer.so.1": {
       "bytes": 2938240,
@@ -184,14 +184,62 @@
     "libs/arm64-v8a/libwinehua_vtest_server.so": {
       "bytes": 146680,
       "sha256": "d7f54252785b11488e0d82b0ed2d23c3112dd036d959f7891291ea9718bb2175"
+    },
+    "libs/arm64-v8a/libGLESv1_CM.so.1.1.0": {
+      "bytes": 20256,
+      "sha256": "3f74bccab59db173046074e594cab4db1d2152018273ebc215bf2f7cb00b80d4"
+    },
+    "libs/arm64-v8a/libGLESv2.so": {
+      "bytes": 46320,
+      "sha256": "193ab2798c125b795e18bc479dc8167ab593fbc9a45d785076cd1d901727fc2e"
+    },
+    "libs/arm64-v8a/libEGL.so.1": {
+      "bytes": 376248,
+      "sha256": "e8b812078741c373427ef360f2c0670ab60b67260ea8cf784201bbd0ca8a207f"
+    },
+    "libs/arm64-v8a/libGLESv1_CM.so": {
+      "bytes": 20256,
+      "sha256": "3f74bccab59db173046074e594cab4db1d2152018273ebc215bf2f7cb00b80d4"
+    },
+    "libs/arm64-v8a/libGLESv2.so.2": {
+      "bytes": 46320,
+      "sha256": "193ab2798c125b795e18bc479dc8167ab593fbc9a45d785076cd1d901727fc2e"
+    },
+    "libs/arm64-v8a/libGLESv2.so.2.0.0": {
+      "bytes": 46320,
+      "sha256": "193ab2798c125b795e18bc479dc8167ab593fbc9a45d785076cd1d901727fc2e"
+    },
+    "libs/arm64-v8a/libgallium-25.0.1.so": {
+      "bytes": 14663480,
+      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
+    },
+    "libs/arm64-v8a/libGLESv1_CM.so.1": {
+      "bytes": 20256,
+      "sha256": "3f74bccab59db173046074e594cab4db1d2152018273ebc215bf2f7cb00b80d4"
+    },
+    "libs/arm64-v8a/libEGL.so": {
+      "bytes": 376248,
+      "sha256": "e8b812078741c373427ef360f2c0670ab60b67260ea8cf784201bbd0ca8a207f"
+    },
+    "libs/arm64-v8a/virtio_gpu_dri.so": {
+      "bytes": 13482512,
+      "sha256": "9892ddd3e85d0dd6a117f1b5f4813499c8ad5d4fe10dcdf0b022e0080de0e867"
+    },
+    "libs/arm64-v8a/swrast_dri.so": {
+      "bytes": 13482512,
+      "sha256": "9892ddd3e85d0dd6a117f1b5f4813499c8ad5d4fe10dcdf0b022e0080de0e867"
+    },
+    "libs/arm64-v8a/kms_swrast_dri.so": {
+      "bytes": 13482512,
+      "sha256": "9892ddd3e85d0dd6a117f1b5f4813499c8ad5d4fe10dcdf0b022e0080de0e867"
     }
   },
   "graphics": {
     "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
-    "sourceLockSha256": "529d1bbbaf45f224b2b0a42aa23d0e4bcf4de401d104467fa77b7b6d49e71e55",
+    "sourceLockSha256": "4da445084dfa07e1d78f51c47a730bf3b0617c2d542f3b0e2e1c319fb31a9263",
     "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
-    "textureLockSha256": "18a1b7af428a34dab6b9667665b570f81c13d0fdb1628af8f8d9cb163c728453",
-    "qualification": "host-validated-device-pending",
-    "report": "docs/upstream-sync/hsl-pr78-20261114.zh-CN.md"
+    "textureLockSha256": "24c85e96c2eaf0d38ae2b61dc58bef62c54d2e45a2d0c23688fd66e96c42f356",
+    "qualification": "mini-sampled-host-validated",
+    "report": "docs/graphics/mini-release-readiness-20261115.zh-CN.md"
   }
 }

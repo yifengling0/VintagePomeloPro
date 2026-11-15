@@ -27,6 +27,18 @@
         }
       },
       "nativeLib": {
+        // Retired device harnesses can remain in old incremental build output.
+        // Never ship those modules, even when ProcessLibs reuses that cache.
+        "filter": {
+          "excludes": [
+            "**/libsmoke_napi.so",
+            "**/libwinehua_guest_vulkan_smoke.so",
+            "**/libvenus_sampled_image_probe.so",
+            "**/libvenus_spirv_replay.so",
+            "**/libvenus_heaven_material_replay.so",
+            "**/libwinehua_host_heaven_replay.so"
+          ]
+        },
         "debugSymbol": {
           "strip": true,
           // Preserve validated plugin identities and the identical top/nested ICD.
@@ -36,6 +48,11 @@
             "**/libgst*.so",
             "**/winegstreamer.so",
             "**/libvulkan_virtio.so",
+            "**/libEGL.so*",
+            "**/libGLESv1_CM.so*",
+            "**/libGLESv2.so*",
+            "**/libgallium-*.so",
+            "**/*_dri.so",
             "**/avicap32.so",
             "**/bcrypt.so",
             "**/crypt32.so",

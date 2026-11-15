@@ -13,6 +13,19 @@ import { HuaweiPushSender } from './huawei-push.mjs';
 const packageRoot = fileURLToPath(new URL('../', import.meta.url));
 const configFile = path => isAbsolute(path) ? path : resolve(packageRoot, path);
 const optionalFile = async path => path ? readFile(configFile(path), 'utf8') : '';
+export async function loadRenewalVerification(file, root = packageRoot) {
+  try {
+    const evidence = JSON.parse(await readFile(resolve(root, file ?? './config/renewal-verification.json'), 'utf8'));
+    requireThat(evidence && typeof evidence === 'object' && !Array.isArray(evidence),
+      'INVALID_CREDENTIAL_CONFIGURATION', 503);
+    return evidence;
+  } catch (error) {
+    // package-cloud-function.py bundles this default path. A missing optional
+    // report keeps reminders closed; an explicit broken path is a deployment error.
+    if (file === undefined && error.code === 'ENOENT') return {};
+    throw error;
+  }
+}
 export function membershipProductsVerified(products, release) {
   const available = products.filter(p => p.kind === 'membership' && p.purchasesEnabled !== false);
   return available.length > 0 && available.every(p =>
@@ -97,7 +110,7 @@ export async function loadService(env = process.env) {
   config.enforceCheckoutReadiness = true;
   config.membershipReleaseReady = purchaseProvider.commerceReady &&
     products.some(product => product.kind === 'membership' && product.purchasesEnabled !== false);
-  const pushEvidence = env.VP_RENEWAL_VERIFICATION_FILE ? JSON.parse(await optionalFile(env.VP_RENEWAL_VERIFICATION_FILE)) : {};
+  const pushEvidence = await loadRenewalVerification(env.VP_RENEWAL_VERIFICATION_FILE);
   const credential = protectedPushCredential(env.VP_PUSH_CREDENTIAL_JSON || await optionalFile(env.VP_PUSH_CREDENTIAL_FILE), env);
   const pushSender = new HuaweiPushSender({ credential, projectId: env.VP_PUSH_PROJECT_ID ?? '', receiptId: env.VP_PUSH_RECEIPT_ID ?? '',
     verified: !!env.VP_PUSH_RECEIPT_ID && (pushEvidence.appId === config.appId && pushEvidence.projectId === env.VP_PUSH_PROJECT_ID &&

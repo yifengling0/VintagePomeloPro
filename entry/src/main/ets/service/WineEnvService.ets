@@ -8,10 +8,6 @@ import { zlib } from '@kit.BasicServicesKit';
 import { ProcessService, ProcessInfo } from './ProcessService';
 import { normalizeWineLanguage } from '../model/AppModels';
 import { WineWindowManager } from './WineWindowManager';
-// [[SMOKE]] 合并到 main-ui: 删本行与 init 内的 attach 调用 (均为此标记)
-import { SmokeHook } from '../smoke/SmokeHook';
-// [[GAME]] merge drop: delete with ets/game/ and GameHook call sites
-import { GameHook } from '../game/GameHook';
 import {
   DEFAULT_GAME_CONTAINER_ID,
   normalizeGameContainerId,
@@ -394,14 +390,6 @@ export class WineEnvService {
       this.desktopMode = wm.isDesktopMode;
       this.notify();
     });
-    // [[SMOKE]] 合并到 main-ui: 删本行 (smoke 请求的消费/编排全在 SmokeHook,
-    // 经 ets/smoke/ 物理隔离; 返回 true = smoke clean 重置编排已接管初始化)。
-    // 本行位置有讲究: 必须位于 native 状态回调与订阅注册之后 (clean 编排里
-    // stopSession/startSession 依赖 native 状态消息)。
-    GameHook.getInstance().attach(this);
-    if (SmokeHook.getInstance().attach(this)) {
-      return;
-    }
     // 自动初始化分两种情形:
     // 1) prefix 已就绪 (二次进入): 后台自动拉起引擎 (startSession(后台)
     //    抑制 overlay, 用户无感), 就绪前点 exe 由 UI 侧 toast 拦截;
@@ -416,11 +404,8 @@ export class WineEnvService {
       // wine.inf 缺失不算升级 (数据缺失走 startSession 自动解压, 不弹卡)
       if (!this.sessionAlive &&
           pathExists(`${WINE_ROOT}/share/wine/wine.inf`) &&
-          this.upgradeNeedsAttention() &&
-          !GameHook.getInstance().isActive()) {
+          this.upgradeNeedsAttention()) {
         this.upgradePending = true;
-        // [[SMOKE]] 合并到 main-ui: 删本行 (测试会话自动应用引擎更新)
-        SmokeHook.getInstance().onEngineUpgradePending();
         this.notify();
         return;
       }
@@ -514,35 +499,17 @@ export class WineEnvService {
     this.bgStart = false;
     this.setInitStatus('已就绪', false);
     // wineboot 可能还在后台初始化 prefix，轮询等待 drive_c 就绪
-    this.waitForPrefix().then(() => {
-      // [[SMOKE]] 合并到 main-ui: 删本行 (smoke 播种/跑测触发点, 旧
-      // seedSmokePayload+maybeRunSmoke 同位置)
-      SmokeHook.getInstance().onEngineReady();
-      GameHook.getInstance().onEngineReady();
-    });
+    void this.waitForPrefix();
   }
 
-  // 新 Want 进入 (EntryAbility.onNewWant): smoke 请求在 App 存活时到达时
-  // 由 SmokeHook 消费 (引擎已就绪, 可直接编排/跑测)。
   onNewWant(): void {
-    // EntryAbility publishes per-launch D3D overrides to AppStorage before
-    // entering here. Refresh the cached values before GameHook consumes them.
     this.updateLaunchRequest();
-    // [[SMOKE]] 合并到 main-ui: 删本行
-    SmokeHook.getInstance().onNewWant();
-    GameHook.getInstance().onNewWant();
-    // 应用已停在升级提示时，新到达的 game Want 需要主动推进运行时刷新。
-    // init() 中的 GameHook 守卫只覆盖冷启动；热进程此前会一直 deferred 在 idle。
-    if (this.upgradePending && GameHook.getInstance().isActive()) {
-      this.applyRuntimeUpdate(false);
-    }
   }
 
   // 只清 prefix (C 盘 + prefix 元数据), 不删运行时 — 与 doReset (删 WINE_ROOT +
   // 重解压 249MB) 的区别。必须先 stopSession: 活 wineserver/explorer 脚下删
   // prefix 是数据损坏。编排: 停 → 清 → 延迟 startSession (与 doReset 同款 500ms
-  // 隔离)。返回 false = busy 拦截 (调用方走常规启动分支)。当前调用方:
-  // SmokeHook (smoke --prefix clean 基线) — 引擎级通用能力, 非 smoke 专属。
+  // 隔离)。返回 false = busy 拦截，调用方走常规启动分支。
   cleanPrefixAndRestart(): boolean {
     if (this.isBusy()) {
       hilog.warn(DOMAIN, 'wine', 'cleanPrefixAndRestart blocked (busy)');
@@ -964,12 +931,6 @@ export class WineEnvService {
       this.setInitStatus('解压数据...', !this.bgStart);
       hilog.warn(DOMAIN, 'wine', 'auto-init: extracting wine data (missing)...');
       await this.extractWineData();
-    } else if (this.runtimeNeedsRefresh() && GameHook.getInstance().isActive()) {
-      // Game-test Want (无人值守 Heaven 等): 升级不弹卡 — 自动解压以加载 HAP
-      // 内新 win32u/wine-data (WOW64 vkMapMemory 等), 否则会挂在升级卡片上。
-      this.setInitStatus('解压数据...', !this.bgStart);
-      hilog.warn(DOMAIN, 'wine', 'auto-init: game-test runtime upgrade, auto-extracting...');
-      await this.extractWineData();
     } else if (this.upgradeNeedsAttention()) {
       hilog.warn(DOMAIN, 'wine', 'auto-init: runtime outdated, NOT auto-extracting (user-initiated)');
       // 中止初始化: 引擎保持未启动, 弹卡等用户决定 (应用=doReset 引擎静止
@@ -983,8 +944,6 @@ export class WineEnvService {
       this.initOverlayVisible = false;
       this.initBusy = false;
       this.upgradePending = true;
-      // [[SMOKE]] 合并到 main-ui: 删本行 (测试会话自动应用引擎更新)
-      SmokeHook.getInstance().onEngineUpgradePending();
       this.notify();
       return;
     }
@@ -1242,7 +1201,7 @@ export class WineEnvService {
 
     // native 只在 explorer desktop root 出现后发 state:ready，但 root/surface
     // 通过另一条 ArkTS 订阅同步，通常会晚数百毫秒。先等待这次已在进行的
-    // desktop 启动完成；否则 ready 回调中的 GameHook 会立即再调 startSession，
+    // desktop 启动完成，避免就绪回调再次调用 startSession，
     // 造成第二套 wineboot/explorer 与待启动程序并发。
     const settleDeadline = Date.now() + 10000;
     while ((!this.sessionAlive || !this.desktopSurfaceReady) &&

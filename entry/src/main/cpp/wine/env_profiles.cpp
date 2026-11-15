@@ -27,9 +27,10 @@ static std::string FindEnvValue(const std::vector<std::string>& probeBase, const
 void AppendStableDxvkEnv(std::vector<std::string>& env,
                                 const std::vector<std::string>& probeBase,
                                 const std::string& d3dBackend,
-                                const std::string& dxvkBackend)
+                                 const std::string&)
 {
-    const bool usesDxvkOverlay = d3dBackend == "dxvk_legacy" ||
+    const bool usesDxvkOverlay = d3dBackend == "dxvk_legacy_d3d9" ||
+                                 d3dBackend == "dxvk_legacy" ||
                                  d3dBackend == "dxvk_modern_2_6";
     if (!usesDxvkOverlay) return;
 
@@ -126,7 +127,8 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
     // DXVK 1.10.3 is the default, DXVK 2.6.2 is opt-in, and WineD3D remains
     // available for VirGL. VKD3D artifacts may be packaged for future work,
     // but no caller can activate that overlay through this product path.
-    const std::string d3dBackend = p.d3dBackend == "wined3d" ||
+    const std::string d3dBackend = p.d3dBackend == "wined3d_zink" ||
+        p.d3dBackend == "dxvk_legacy_d3d9" || p.d3dBackend == "wined3d" ||
         p.d3dBackend == "dxvk_modern_2_6" ? p.d3dBackend : "dxvk_legacy";
     const std::string dxvkBackend = d3dBackend == "dxvk_modern_2_6" ?
         "dxvk_modern_2_6" : "dxvk_legacy";
@@ -138,22 +140,15 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
         AppendStableDxvkEnv(env, env, d3dBackend, dxvkBackend);
     if (p.desktopShellFlag)
         UpsertEnvLine(env, "WINEHUA_DESKTOP=shell");
-    // The session owner selects Host before startup. Apply that same product
-    // or LAB policy after the historical stable overlay, for Explorer and games.
-    // A child-only profile override cannot change the session transport.
-    const char* sessionProfile = getenv("WINEHUA_GRAPHICS_PROFILE");
     std::vector<std::string> graphicsEnvironment;
-    const bool sessionExperiment = sessionProfile &&
-        BuildLabGuestGraphicsEnvironment(sessionProfile,
-            ParseD3dBackend(d3dBackend), &graphicsEnvironment);
-    const bool graphicsPolicyApplied = sessionExperiment ||
-        BuildProductGuestGraphicsEnvironment(ParseD3dBackend(d3dBackend),
-                                             &graphicsEnvironment);
+    const bool graphicsPolicyApplied = BuildProductGuestGraphicsEnvironment(
+        ParseD3dBackend(d3dBackend), &graphicsEnvironment);
     if (graphicsPolicyApplied)
         for (const auto& line : graphicsEnvironment) UpsertEnvLine(env, line);
     // Direct Vulkan programs intentionally keep d3dBackend=wined3d, so the
     // D3D overlay above does not configure Venus.
     if (FindEnvValue(p.extraEnv, "WINEHUA_VULKAN_RUNTIME") == "1" &&
+        d3dBackend != "dxvk_legacy_d3d9" && d3dBackend != "wined3d_zink" &&
         d3dBackend != "dxvk_legacy" && d3dBackend != "dxvk_modern_2_6")
         AppendVulkanRuntimeEnv(env, p.binDir);
     // Per-app overrides keep their original empty-value semantics. Display
@@ -189,6 +184,11 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
                 line.rfind("DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=", 0) == 0)
                 UpsertEnvLine(env, line);
     }
+    // Derive this after merging app rules; user environment cannot force the
+    // bundled overlay when Wine was explicitly requested to load builtin.
+    UpsertEnvLine(env, std::string("WINEHUA_DXVK9_OVERLAY=") +
+        (d3dBackend == "dxvk_legacy_d3d9" &&
+         NativeDllPreferred(FindEnvValue(env, "WINEDLLOVERRIDES"), "d3d9") ? "1" : "0"));
     return env;
 }
 

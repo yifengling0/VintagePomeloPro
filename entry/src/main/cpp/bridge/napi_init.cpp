@@ -406,7 +406,8 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
         char d3dBackend[64] = {};
         napi_get_value_string_utf8(env, args[5], d3dBackend, sizeof(d3dBackend), nullptr);
         if (!strcmp(d3dBackend, "wined3d") || !strcmp(d3dBackend, "dxvk_legacy") ||
-            !strcmp(d3dBackend, "dxvk_modern_2_6"))
+            !strcmp(d3dBackend, "dxvk_modern_2_6") ||
+            !strcmp(d3dBackend, "dxvk_legacy_d3d9") || !strcmp(d3dBackend, "wined3d_zink"))
             p->d3dBackend = d3dBackend;
     }
     if (argc >= 7) {
@@ -473,9 +474,8 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     }
     // Current product callers leave legacy Direct booleans false. Resolve
     // them from the same Native policy that owns the child environment.
-    const char* sessionProfile = getenv("WINEHUA_GRAPHICS_PROFILE");
     winehua::ProductGraphicsPolicy sessionPolicy;
-    if (winehua::ResolveSessionGraphicsPolicy(sessionProfile ? sessionProfile : "",
+    if (winehua::ResolveProductGraphicsPolicy(
             winehua::ParseD3dBackend(p->d3dBackend), &sessionPolicy)) {
         p->directNcpSession = sessionPolicy.guest.directVulkan;
         p->desktopVulkanCompositor = sessionPolicy.vulkanDesktop;
@@ -1511,45 +1511,6 @@ static bool ApplyHostGraphicsProfile(const winehua::HostGraphicsProfile& profile
     return true;
 }
 
-static napi_value SetHostGraphicsExperimentForLab(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {};
-    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok ||
-        argc < 2) {
-        return BooleanResult(env, false);
-    }
-    char experimentId[96] = {};
-    char backendName[64] = {};
-    if (napi_get_value_string_utf8(env, args[0], experimentId,
-                                   sizeof(experimentId), nullptr) != napi_ok ||
-        napi_get_value_string_utf8(env, args[1], backendName,
-                                   sizeof(backendName), nullptr) != napi_ok) {
-        return BooleanResult(env, false);
-    }
-
-    winehua::ProductGraphicsPolicy experiment;
-    const winehua::D3dBackendKind backend =
-        winehua::ParseD3dBackend(backendName);
-    if (!winehua::ResolveLabGraphicsExperiment(
-            experimentId, backend, &experiment)) {
-        OH_LOG_ERROR(LOG_APP,
-                     "[NAPI] invalid graphics LAB experiment=%{public}s "
-                     "backend=%{public}s",
-                     experimentId, backendName);
-        return BooleanResult(env, false);
-    }
-    if (experiment.guest.directVulkan && PhoneAdapter_IsPhoneMode()) {
-        OH_LOG_ERROR(LOG_APP, "[NAPI] Direct LAB route requires tablet NCP support");
-        return BooleanResult(env, false);
-    }
-#if !defined(__aarch64__) || defined(WINEHUA_WINE_ARCH_IS_X86_64)
-    if (experiment.guest.directVulkan) return BooleanResult(env, false);
-#endif
-    const bool applied = ApplyHostGraphicsProfile(experiment.host);
-    if (applied) gLegacyHostShadowProfile.clear();
-    return BooleanResult(env, applied);
-}
-
 static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1] = {};
@@ -1988,7 +1949,6 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"controllerSetOutputMode", nullptr, ControllerSetOutputMode, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerGetOutputMode", nullptr, ControllerGetOutputMode, nullptr, nullptr, nullptr, napi_default, nullptr},
         // ---- VPP product surface ----
-        {"setHostGraphicsExperimentForLab", nullptr, SetHostGraphicsExperimentForLab, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setHostGraphicsBackend", nullptr, SetHostGraphicsBackend, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runHostVulkanProbe", nullptr, RunHostVulkanProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopHostVulkanProbe", nullptr, StopHostVulkanProbeNapi, nullptr, nullptr, nullptr, napi_default, nullptr},

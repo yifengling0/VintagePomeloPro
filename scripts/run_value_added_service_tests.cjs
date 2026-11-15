@@ -108,7 +108,7 @@ vm.runInNewContext(js,{module:mod,exports:mod.exports,require:n=>{if(!imports[n]
 const service=mod.exports.ValueAddedService.getInstance();
 async function purchaseConfirmed(service, product){
  if(!product.purpose)product=(await service.products()).find(p=>p.id===product.id&&p.type===product.type);
- return service.purchase(product,{userId:service.getUserId(),quote:service.quoteKey(product),termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:product.type===2});
+ return service.purchase(product,{userId:service.getUserId(),quote:service.quoteKey(product),termsVersion:'2026-11-15',membershipAccepted:true,autoRenewAccepted:product.type===2});
 }
 const context={filesDir:directory,resourceManager:{getRawFileContent:async name=>Buffer.from(JSON.stringify(
  name==='membership_campaigns.json'?{schema:1,campaigns:[]}:config))}};
@@ -328,7 +328,7 @@ async function testLifetimeMembership(){
  assert.deepEqual(Array.from(storeProducts,p=>({id:p.id,purpose:p.purpose,price:p.price})),[
   {id:'month',purpose:'membership',price:'CNY 6.00'},{id:'coffee',purpose:'coffee',price:'CNY 6.00'}]);
  const membershipProduct=storeProducts.find(p=>p.purpose==='membership');
- const accepted={userId:'alice',quote:service.quoteKey(membershipProduct),termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false};
+ const accepted={userId:'alice',quote:service.quoteKey(membershipProduct),termsVersion:'2026-11-15',membershipAccepted:true,autoRenewAccepted:false};
  const beforeConsent=purchaseCalls;
  await assert.rejects(service.purchase(membershipProduct),/MEMBERSHIP_CONSENT_REQUIRED/);
  for(const override of [{membershipAccepted:false},{userId:'bob'},{quote:'old quote'},{termsVersion:'old'}]) {
@@ -449,25 +449,20 @@ async function testLifetimeMembership(){
  const originalEnabled=notificationManager.isNotificationEnabled;
  notificationManager.isNotificationEnabled=async()=>false;
  const callsBeforeReminderFailure=purchaseCalls;
- await assert.rejects(purchaseConfirmed(autoService,autoProduct),/RENEWAL_NOTIFICATION_REQUIRED/);
- assert.equal(purchaseCalls,callsBeforeReminderFailure,'disabled notifications cannot reach the cashier');
+ createError=iap.IAPErrorCode.USER_CANCELED;
+ assert.equal(await purchaseConfirmed(autoService,autoProduct),'CANCELLED');
  notificationManager.isNotificationEnabled=originalEnabled;
  capabilityOverrides.renewalReminders=false;
- await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
- assert.equal(purchaseCalls,callsBeforeReminderFailure,'unavailable reminder backend cannot reach the cashier');
- capabilityOverrides.renewalReminders=true;
- // Exercise the service's second payment gate, in addition to the component gate.
- capabilityOverrides.renewalReminders=false;capabilityOverrides.sandboxCheckout=true;
- await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
- capabilityOverrides.sandboxCommerce=true;sandboxActive=false;
- await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
- assert.equal(purchaseCalls,callsBeforeReminderFailure,'legacy test flags cannot bypass renewal readiness');
+ assert.equal(await purchaseConfirmed(autoService,autoProduct),'CANCELLED');
+ assert.equal(autoService.getCapabilities().renewalReminders,false,'checkout never manufactures reminder readiness');
+ capabilityOverrides.sandboxCheckout=true;capabilityOverrides.sandboxCommerce=true;sandboxActive=false;
+ assert.equal(await purchaseConfirmed(autoService,autoProduct),'CANCELLED');
+ assert.equal(purchaseCalls,callsBeforeReminderFailure+3,'monthly checkout is independent of legacy flags and reminders');
  sandboxActive=true;
- await assert.rejects(purchaseConfirmed(autoService,autoProduct),/REMINDERS_UNAVAILABLE/);
  createError=0;delete capabilityOverrides.sandboxCommerce;delete capabilityOverrides.sandboxCheckout;
  capabilityOverrides.renewalReminders=true;
  await assert.rejects(autoService.purchase(autoProduct,{userId:autoService.getUserId(),quote:autoService.quoteKey(autoProduct),
-  termsVersion:'2026-10-16',membershipAccepted:true,autoRenewAccepted:false}),/MEMBERSHIP_CONSENT_REQUIRED/);
+  termsVersion:'2026-11-15',membershipAccepted:true,autoRenewAccepted:false}),/MEMBERSHIP_CONSENT_REQUIRED/);
  const autoRoute=route, beforeAutoFinish=finishCalls;
  route=async(url,opts)=>{
   if(new URL(url).pathname==='/v1/purchases/verify'){
@@ -678,7 +673,7 @@ async function testLifetimeMembership(){
  frequent.config.membershipProductType=2;createError=iap.IAPErrorCode.USER_CANCELED;
  const preflightProduct=(await frequent.products()).find(p=>p.type===2);
  assert.equal(await purchaseConfirmed(frequent,preflightProduct),'CANCELLED');
- assert.equal(count('/v1/notification-devices/register'),registrations,'checkout reuses its successful reminder preflight');
+ assert.equal(count('/v1/notification-devices/register'),registrations,'checkout does not repeat independent reminder registration');
  createError=0;frequent.config.membershipProductType=3;
  // Permission restoration cancels an obsolete revoke retry, even if the old binding was never removed.
  notificationsAllowed=false;failRevoke=true;await assert.rejects(frequent.prepareRenewalReminders(false),/OFFLINE/);

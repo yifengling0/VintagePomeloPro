@@ -172,7 +172,7 @@ export class AppSettingsStore {
   }
 
   private normalizeRenderMode(value: string): string {
-    if (value === 'dxvk_2_6' || value === 'dxvk_1_10' || value === 'virgl') {
+    if (value === 'dxvk_2_6' || value === 'dxvk_1_10' || value === 'virgl' || value === 'dxvk9' || value === 'zink') {
       return value;
     }
     if (value === 'dxvk_modern_2_6') {
@@ -189,6 +189,8 @@ export class AppSettingsStore {
     if (mode === 'dxvk_2_6') {
       return 'dxvk_modern_2_6';
     }
+    if (mode === 'dxvk9') return 'dxvk_legacy_d3d9';
+    if (mode === 'zink') return 'wined3d_zink';
     if (mode === 'virgl') {
       return 'wined3d';
     }

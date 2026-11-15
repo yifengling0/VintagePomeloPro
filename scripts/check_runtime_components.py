@@ -523,7 +523,6 @@ def validate_runtime_payload(archive: Archive, candidate=None) -> RuntimeInfo:
             archive.require_file(f"bin/{windows_arch}/{filename}")
         for filename in REQUIRED_WINDOWS_NETWORK_FILES:
             archive.require_file(f"bin/{windows_arch}/{filename}")
-    validate_platform_smoke_suites(archive)
     validate_graphics_runtime_payload(archive, wine_arch, candidate)
     if wine_arch == 'aarch64':
         try:
@@ -647,8 +646,6 @@ def validate_hap(path: Path, source_manifest=None) -> RuntimeInfo:
             hashlib.sha256(payload_bytes).hexdigest(),
             "HAP runtime manifest payload checksum",
         )
-        if not isinstance(runtime_manifest.get("smokeSuiteVersion"), str) or not runtime_manifest["smokeSuiteVersion"]:
-            raise ValidationError("HAP runtime manifest has no smoke suite version")
 
         payload = Archive(io.BytesIO(payload_bytes))
         try:

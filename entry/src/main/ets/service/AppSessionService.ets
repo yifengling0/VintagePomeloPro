@@ -28,6 +28,7 @@ import {
   resolveFexCompatEnv,
   resolveWinePresentationMode
 } from '../model/AppModels';
+import { resolveZinkPresentationEnvironment } from '../model/GraphicsBackendSettings';
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
 import { WineEngineService } from './WineEngineService';
 import { WineWindowManager } from './WineWindowManager';
@@ -342,7 +343,8 @@ export class AppSessionService {
     const cpuEngine = resolveAppWineTranslationEngine(settings.wineTranslationEngine, appSettings.wineTranslationEngine);
     const useBox64 = cpuEngine === WineTranslationEngine.BOX64;
     const envOverrides = resolveWineCpuEnvironment(cpuEngine, presetId)
-      .concat(resolveFexCompatEnv(cpuEngine, appSettings), resolveMfCompatEnv(appSettings));
+      .concat(resolveFexCompatEnv(cpuEngine, appSettings), resolveMfCompatEnv(appSettings),
+        resolveZinkPresentationEnvironment(hostGraphicsBackend));
     if (appSettings.dxvkFloatControls === false) {
       const documents = `${wineDriveCForContainer(DEFAULT_GAME_CONTAINER_ID)}/users/steamuser/Documents`;
       try {

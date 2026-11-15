@@ -285,7 +285,6 @@ export const controllerResetSource: (source: number) => void;
 export const controllerSetOutputMode: (mode: string) => void;
 export const controllerGetOutputMode: () => string;
 export const controllerGetStateText: (slot?: number) => string;
-export const setHostGraphicsExperimentForLab: (experimentId: string, backend: string) => boolean;
 export const setHostGraphicsBackend: (backend: string) => boolean;
 export const getHostGpuName: () => string;
 export const getDesktopRootId: () => number;

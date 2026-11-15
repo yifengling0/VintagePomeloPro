@@ -136,23 +136,6 @@ static void start_stderr_capture(size_t entryBytes, int argc, const char* role)
     close(pipes[1]);
 }
 
-static const char *midi_diag_winedebug_profile(void)
-{
-    return "-all,trace+driver,trace+winmm,trace+mmdevapi,"
-           "trace+ohosaudio,warn+ohosaudio,warn+module,"
-           /* +seh: 音频链路真机崩溃时输出未处理异常的寄存器与回栈
-            * (含模块名+偏移), 是定位 "mmdevapi 循环后页错误" 的唯一手段。 */
-           "err+seh";
-}
-
-static const char *sdl_audio_diag_winedebug_profile(void)
-{
-    return "-all,trace+driver,trace+winmm,trace+mmdevapi,"
-           "warn+mmdevapi,err+mmdevapi,trace+dsound,warn+dsound,"
-           "err+dsound,trace+ohosaudio,warn+ohosaudio,err+ohosaudio,"
-           "warn+module,err+module";
-}
-
 static const char *steam_webhelper_diag_winedebug_profile(void)
 {
     /* Opt-in only: trace+dwrite emits tens of thousands of lines while CEF
@@ -185,44 +168,12 @@ static void normalize_basename(const char *path, char *out, size_t out_size)
     for (size_t i = 0; base[i] && j < out_size - 1; ++i)
     {
         char c = base[i];
-        /* Match executable stems rather than their filesystem spelling.  The
-           desktop smoke is named winehua_audio_smoke.exe, so keeping '_'
-           makes the audio diagnostic probe miss its own profile. */
+        // Match process stems independently of spacing and separators.
         if (c == ' ' || c == '\t' || c == '_' || c == '-') continue;
         if (c >= 'A' && c <= 'Z') c = c - 'A' + 'a';
         out[j++] = c;
     }
     out[j] = '\0';
-}
-
-static bool is_audio_test_exe(int argc, char *argv[])
-{
-    char norm[128];
-
-    /* argv[0] 是 wine 加载器, 实际程序从 argv[1] 开始。
-       保留 audio_test 兼容性，并匹配当前打包并由 SmokeRunner 启动的
-       winehua_audio_smoke.exe；模糊匹配容忍空格、下划线与连字符变体。 */
-    for (int i = 1; i < argc; ++i)
-    {
-        if (!argv[i]) continue;
-        normalize_basename(argv[i], norm, sizeof(norm));
-        if (strstr(norm, "audiotest") != NULL ||
-            strstr(norm, "audiosmoke") != NULL) return true;
-    }
-    return false;
-}
-
-static bool is_sdl_audio_test_exe(int argc, char *argv[])
-{
-    char norm[128];
-
-    for (int i = 1; i < argc; ++i)
-    {
-        if (!argv[i]) continue;
-        normalize_basename(argv[i], norm, sizeof(norm));
-        if (strstr(norm, "mjx86") != NULL) return true;
-    }
-    return false;
 }
 
 static bool is_steam_webhelper_exe(int argc, char *argv[])
@@ -427,8 +378,6 @@ static const char *select_winedebug_profile(int argc, char *argv[])
     // 子进程出错时 stderr 全盲 (2026-08 方案② explorer 猝死零日志即因此)
     const char *existing = getenv("WINEDEBUG");
     if (existing && existing[0] && strcmp(existing, "-all") != 0) return existing;
-    if (is_audio_test_exe(argc, argv)) return midi_diag_winedebug_profile();
-    if (is_sdl_audio_test_exe(argc, argv)) return sdl_audio_diag_winedebug_profile();
     if (is_steam_webhelper_exe(argc, argv) && steam_webhelper_diag_enabled())
         return steam_webhelper_diag_winedebug_profile();
     return default_winedebug_profile();
@@ -1932,11 +1881,8 @@ extern "C" void Main(NativeChildProcess_Args args)
     // 父进程 __env 可能用 DXVK PE 目录覆盖 WINEDLLPATH 并丢掉 HAP native-lib
     // 目录 (wineohos.so 所在) — 按方案重Assert运行期路径 (arm64 三方案修复)。
     reassert_arch_wine_runtime_env(binDir);
-    /* Parent serializes WINEDEBUG=-all,+opengl,... which clobbers the
-     * audio diagnostic profile selected in setup_wine_env(). Restore it
-     * so mmdevapi/wineohos traces actually appear for audio tests. */
-    if (is_audio_test_exe(argc, argv) || is_sdl_audio_test_exe(argc, argv) ||
-        (is_steam_webhelper_exe(argc, argv) && steam_webhelper_diag_enabled()))
+    // Preserve the explicitly requested Steam diagnostic profile.
+    if (is_steam_webhelper_exe(argc, argv) && steam_webhelper_diag_enabled())
     {
         const char *profile = select_winedebug_profile(argc, argv);
         setenv("WINEDEBUG", profile, 1);

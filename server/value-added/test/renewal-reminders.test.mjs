@@ -106,7 +106,7 @@ test('timer scans more than 256 jobs; public JSON transport cannot execute a tim
   const publicTransport = createCloudFunction(f.d);
   assert.equal((await publicTransport({ triggerType: 'TIMER', userData: secret })).status, 400);
 });
-test('new automatic purchases require a fresh timer heartbeat and registered device; recovery remains available', async () => {
+test('stale timer disables reminders independently of monthly checkout; recovery remains available', async () => {
   const f = await fixture(); f.d.config.enforceCheckoutReadiness = true; f.d.config.membershipReleaseReady = true;
   f.fact.autoRenew = false; f.fact.status = 'expired'; f.fact.expiresAt -= 8 * DAY;
   await f.d.verify(user, { purchaseData: 'protected receipt', productType: 2 });
@@ -114,26 +114,26 @@ test('new automatic purchases require a fresh timer heartbeat and registered dev
   f.advance(DAY);
   await f.d.intent(user, { productId: 'auto', productType: 2 });
   f.advance(RENEWAL_TIMER_MAX_AGE_MS - DAY + 1);
-  await assert.rejects(f.d.intent(user, { productId: 'auto', productType: 2 }), /REMINDERS_UNAVAILABLE/);
+  assert.equal(await f.d.reminders.available(user), false);
+  assert.ok((await f.d.intent(user, { productId: 'auto', productType: 2 })).developerPayload);
 });
-test('legacy sandbox flags never bypass renewal readiness in either environment', async () => {
+test('legacy sandbox flags cannot manufacture reminder health or commerce readiness', async () => {
   const f = await fixture();
-  f.d.config.enforceCheckoutReadiness=true; f.d.config.membershipReleaseReady=true;
-  f.fact.autoRenew=false; f.fact.status='expired'; f.fact.expiresAt-=8*DAY;
-  await f.d.verify(user,{purchaseData:'protected receipt',productType:2});
-  f.d.reminders.sender.ready=false;
-  f.d.purchaseProvider.sandboxReady=true; f.d.purchaseProvider.config={environment:'SANDBOX'};
-  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
-  f.d.config.sandboxCheckout=true;
-  assert.equal(f.d.capabilities().renewalReminders,false);
-  assert.equal(f.d.capabilities().sandboxCheckout,undefined);
-  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
-  f.d.purchaseProvider.config.environment='NORMAL';
-  assert.equal(f.d.capabilities().sandboxCheckout,undefined);
-  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
-  f.d.purchaseProvider.config.environment='SANDBOX'; f.d.purchaseProvider.sandboxReady=false;
-  await assert.rejects(f.d.intent(user,{productId:'auto',productType:2}), /REMINDERS_UNAVAILABLE/);
+  f.d.config.enforceCheckoutReadiness = true; f.d.config.membershipReleaseReady = true;
+  f.fact.autoRenew = false; f.fact.status = 'expired'; f.fact.expiresAt -= 8 * DAY;
+  await f.d.verify(user, { purchaseData: 'protected receipt', productType: 2 });
+  f.d.reminders.sender.ready = false;
+  for (const environment of ['SANDBOX', 'NORMAL']) {
+    f.d.purchaseProvider.config = { environment };
+    f.d.config.sandboxCheckout = true;
+    assert.equal(f.d.capabilities().renewalReminders, false);
+    assert.equal(f.d.capabilities().sandboxCheckout, undefined);
+    assert.ok((await f.d.intent(user, { productId: 'auto', productType: 2 })).developerPayload);
+  }
+  f.d.purchaseProvider.ready = false; f.d.purchaseProvider.commerceReady = false;
+  await assert.rejects(f.d.intent(user, { productId: 'auto', productType: 2 }), /NOT_CONFIGURED/);
 });
+
 test('NEXT v3 PS256 JWT and subscription content are valid; HTTP success alone is rejected', async () => {
   const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   let code = '80000000', sent;

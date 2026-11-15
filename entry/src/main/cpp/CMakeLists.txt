@@ -291,17 +291,6 @@ target_link_libraries(direct_gpu_surface_probe PUBLIC
     libnative_window.so libnative_buffer.so libvulkan.so
 )
 
-# smoke 测试设施的原生侧 (与 ets/smoke/ 物理隔离对应): 测试专用查询/注入
-# 原语, 产品代码不引用。符号来自 entry (同进程运行时解析), 必须与 entry 同包。
-add_library(smoke_napi SHARED
-    smoke/smoke_napi.cpp
-)
-target_link_libraries(smoke_napi PRIVATE
-    entry
-    libace_napi.z.so
-    libhilog_ndk.z.so
-)
-
 # Shared OHOS NativeBuffer diagnostic, independent of Steam or GNU userspace.
 add_library(winehua_native_memory_probe SHARED
     ${CMAKE_CURRENT_LIST_DIR}/../../../../scripts/diagnostics/native_buffer_memory_probe.c)

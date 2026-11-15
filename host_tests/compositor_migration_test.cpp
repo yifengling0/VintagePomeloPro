@@ -59,7 +59,7 @@ struct Scene {
         tm.EnsureToplevelLocked(2).ApplyFullscreen(on);
         comp.MarkDesktopRootDirtyLocked();
     }
-    void sub(int x, int y, int w, int h, uint32_t color, int damageW = 0) {
+    void sub(int x, int y, int w, int h, uint32_t color, int damageW = 0, bool opaque = true) {
         { auto lk = tm.Lock();
         childData.w = w; childData.h = h;
         childData.vpDstW = w; childData.vpDstH = h;
@@ -68,7 +68,7 @@ struct Scene {
         s.surface = &child; s.surfaceKey = 3; s.parentToplevel = 2;
         s.route = policy.RouteForSubsurface(childData.inputRegionEmpty, childData.vpSrcW);
         s.x = s.localX = x; s.y = s.localY = y; s.w = w; s.h = h;
-        s.vpDstW = w; s.vpDstH = h; s.opaque = true;
+        s.vpDstW = w; s.vpDstH = h; s.opaque = opaque; s.shmFormat = opaque ? 1 : 0;
         s.dmgW = damageW; s.dmgH = damageW;
         s.shmCommitSerial = ++childData.shmCommitSerial;
         std::vector<uint8_t> p(size_t(w) * h * 4);
@@ -143,6 +143,28 @@ static GpuDesktopLayer DirectLayer(const GpuDesktopScene& scene) {
     return {};
 }
 int main() {
+    { // A translucent GL child must not be replaced by its black parent.
+        Scene s(80, 60); s.setWindow(2, 40, 30, 0xff000000); s.fullscreen(true);
+        s.sub(0, 0, 40, 30, 0x80800000, 0, false);
+        CHECK(s.take() && s.frame.kind == PresentedFrame::Kind::Composed,
+              "ARGB child requires composition instead of parent direct pass");
+        CHECK((s.pixel(s.width/2, s.height/2) & 0x00ff0000) != 0,
+              "visible child color reaches fullscreen output");
+        s.sub(0, 0, 40, 30, 0x80008000, 0, false);
+        CHECK(s.take() && (s.pixel(s.width/2, s.height/2) & 0x0000ff00) != 0,
+              "new ARGB child frame updates fullscreen output");
+        s.sub(0, 0, 40, 30, 0xff123456, 0, false);
+        CHECK(s.take() && s.pixel(s.width/2, s.height/2) == 0xff123456,
+              "unclassified opaque ARGB reaches output on its first frame");
+        CHECK(s.frame.kind == PresentedFrame::Kind::DirectPass,
+              "opaque ARGB child uses GPU scaling after classification");
+        s.sub(0, 0, 40, 30, 0x80000080, 0, false);
+        CHECK(s.take() && s.frame.kind == PresentedFrame::Kind::Composed,
+              "next transparent commit invalidates cached opacity");
+        CHECK((s.pixel(s.width/2, s.height/2) & 0x000000ff) != 0,
+              "transparent update remains visible after an opaque direct frame");
+    }
+
     { // Managed WSI binds the GPU queue to the toplevel, while the client
       // SHM surface can retain a full-window white frame. GPU must cover it,
       // just as a whole-window NativeImage layer covers inline SHM children.

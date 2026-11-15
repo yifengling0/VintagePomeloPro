@@ -116,9 +116,8 @@ export class ValueAddedDomain {
         const current = await this.entitlement(userId);
         requireThat(!current.active, 'MEMBERSHIP_ALREADY_ACTIVE', 409);
         requireThat(!current.refreshRequired, 'MEMBERSHIP_STATUS_UNKNOWN', 409);
-        if (productType === 2) {
-          requireThat(await this.reminders.available(userId), 'REMINDERS_UNAVAILABLE', 503);
-        }
+        // Checkout is verified by IAP. The independent reminder service reports its
+        // own readiness; an outage must not disable this membership product.
       }
     }
     // 32 + 1 + 64 + 1 + 43 = 141 chars, safely under the IAP 256-character limit.

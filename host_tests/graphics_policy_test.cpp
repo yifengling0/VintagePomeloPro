@@ -3,6 +3,7 @@
 #include "graphics/present_policy.h"
 #include "graphics/virgl_host_config.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -22,43 +23,28 @@ void Check(bool condition, std::string_view message)
     ++failures;
 }
 
-struct ExpectedProfile {
-    std::string_view name;
-    std::string_view shadowMode;
-    std::string_view shadowSelector;
-    bool mergeShadowRanges = true;
-    bool waitGpuUpload = false;
-    bool serializeDescriptorUpdates = false;
-    bool deferSharedMemoryUnref = false;
-    bool perfSummary = false;
-    winehua::GpuUploadPolicy gpuUpload = winehua::GpuUploadPolicy::Automatic;
-};
-
-struct ExpectedGuestPolicy {
-    std::string_view name;
-    bool preciseShadow;
-    winehua::GuestSubmissionPolicy submission;
-    bool perfSummary = false;
-    bool directFenceWait = false;
-    bool tracePresentImage = false;
-    bool deferSharedMemoryUnref = false;
-    bool disableGpuUpload = false;
-    bool serializeDescriptorUpdates = false;
-};
-
-void CheckProfileField(bool condition, const ExpectedProfile& expected,
-                       std::string_view field)
-{
-    if (condition) return;
-    std::cerr << "FAIL: profile " << expected.name << " field " << field << '\n';
-    ++failures;
-}
-
 void TestBackendPolicy()
 {
     using winehua::D3dBackendKind;
     Check(winehua::ParseD3dBackend("wined3d") == D3dBackendKind::WineD3d,
           "WineD3D backend classification");
+    Check(winehua::ParseD3dBackend("wined3d_zink") == D3dBackendKind::WineD3dZink,
+          "Zink is a distinct session backend");
+    Check(winehua::ParseD3dBackend("dxvk_legacy_d3d9") == D3dBackendKind::DxvkLegacyD3d9,
+          "native D3D9 is a distinct session backend");
+    for (auto backend : {D3dBackendKind::WineD3dZink, D3dBackendKind::DxvkLegacyD3d9}) {
+        winehua::ProductGraphicsPolicy policy;
+        std::vector<std::string> env;
+        Check(winehua::UsesVenusPresent(backend) &&
+              winehua::ResolveProductGraphicsPolicy(backend, &policy) &&
+              policy.route == winehua::kProductVulkanRoute &&
+              policy.guest.preciseShadow && !policy.guest.directVulkan &&
+              winehua::BuildProductGuestGraphicsEnvironment(backend, &env),
+              "experimental backend retains explicit Venus publication policy");
+        Check(std::find(env.begin(), env.end(),
+              "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring") != env.end(),
+              "experimental Venus routes disable unshared semaphore feedback");
+    }
     Check(winehua::ParseD3dBackend("dxvk_legacy") == D3dBackendKind::DxvkLegacy,
           "DXVK 1.10 backend classification");
     Check(winehua::ParseD3dBackend("dxvk_modern_2_6") == D3dBackendKind::DxvkModern26,
@@ -133,265 +119,6 @@ void TestBackendPolicy()
           "WineD3D does not resolve a DXVK runtime");
     Check(!winehua::ResolveDxvkRuntimeProfile(D3dBackendKind::Unknown, &runtime),
           "unknown backend does not resolve a DXVK runtime");
-}
-
-void TestProfileResolution()
-{
-    winehua::ProductGraphicsPolicy direct;
-    Check(winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
-              winehua::D3dBackendKind::DxvkLegacy, &direct) &&
-              direct.guest.directVulkan && !direct.guest.preciseShadow &&
-              direct.guest.submission == winehua::GuestSubmissionPolicy::Default,
-          "Direct removes Venus transport while retaining DXVK selection");
-    Check(!winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
-              winehua::D3dBackendKind::WineD3d, &direct) &&
-              !winehua::ResolveLabGraphicsExperiment("isolate-vulkan-direct",
-              winehua::D3dBackendKind::Vkd3dLimited500k, &direct),
-          "Direct experiment rejects unvalidated backend combinations");
-    constexpr std::array<ExpectedProfile, 6> expectedProfiles = {{
-        {"observe-product-summary", "precise-dirty",
-         "inline-gpu-upload-coverage-sort",
-         true, false, false, false, true},
-        {"observe-frame-timeline", "precise-dirty", "frame-timeline",
-         true, false, false, false, true},
-        {"trace-frame-association", "precise-dirty",
-         "inline-gpu-upload-frame-assoc-trace",
-         true, false, false, false, true},
-        {"trace-present-image", "precise-dirty", "present-image-trace"},
-        {"isolate-transport-neutral", "full", "0"},
-        {"isolate-venus-cpu-upload", "precise-dirty", "cpu-upload"},
-    }};
-
-    for (const ExpectedProfile& expected : expectedProfiles) {
-        winehua::ProductGraphicsPolicy experiment;
-        if (!winehua::ResolveLabGraphicsExperiment(
-                expected.name, winehua::D3dBackendKind::DxvkLegacy,
-                &experiment)) {
-            std::cerr << "FAIL: resolve profile " << expected.name << '\n';
-            ++failures;
-            continue;
-        }
-        const winehua::HostGraphicsProfile& resolved = experiment.host;
-        CheckProfileField(resolved.name == expected.name, expected, "name");
-        CheckProfileField(resolved.shadowMode == expected.shadowMode,
-                          expected, "shadowMode");
-        CheckProfileField(resolved.shadowSelector == expected.shadowSelector,
-                          expected, "shadowSelector");
-        CheckProfileField(resolved.mergeShadowRanges == expected.mergeShadowRanges,
-                          expected, "mergeShadowRanges");
-        CheckProfileField(resolved.waitGpuUpload == expected.waitGpuUpload,
-                          expected, "waitGpuUpload");
-        CheckProfileField(
-            resolved.serializeDescriptorUpdates == expected.serializeDescriptorUpdates,
-            expected, "serializeDescriptorUpdates");
-        CheckProfileField(
-            resolved.deferSharedMemoryUnref == expected.deferSharedMemoryUnref,
-            expected, "deferSharedMemoryUnref");
-        CheckProfileField(resolved.perfSummary == expected.perfSummary,
-                          expected, "perfSummary");
-        CheckProfileField(resolved.gpuUpload == expected.gpuUpload,
-                          expected, "gpuUpload");
-    }
-
-    winehua::ProductGraphicsPolicy legacyExperiment;
-    winehua::ProductGraphicsPolicy modernExperiment;
-    Check(winehua::ResolveLabGraphicsExperiment(
-              "observe-product-summary", winehua::D3dBackendKind::DxvkLegacy,
-              &legacyExperiment) &&
-              winehua::ResolveLabGraphicsExperiment(
-                  "observe-product-summary",
-                  winehua::D3dBackendKind::DxvkModern26,
-                  &modernExperiment),
-          "resolve LAB experiment on both DXVK generations");
-    Check(legacyExperiment.route == winehua::kProductVulkanRoute &&
-              modernExperiment.route == winehua::kProductVulkanRoute &&
-              legacyExperiment.host.shadowMode == modernExperiment.host.shadowMode &&
-              legacyExperiment.host.shadowSelector ==
-                  modernExperiment.host.shadowSelector,
-          "LAB observation inherits one product Vulkan policy");
-    winehua::ProductGraphicsPolicy virglExperiment;
-    Check(winehua::ResolveLabGraphicsExperiment(
-              "observe-product-summary", winehua::D3dBackendKind::WineD3d,
-              &virglExperiment) &&
-              virglExperiment.route == winehua::kProductVirglRoute &&
-              virglExperiment.host.shadowMode == "full" &&
-              virglExperiment.host.perfSummary,
-          "common summary observation derives from the VirGL product route");
-    Check(!winehua::ResolveLabGraphicsExperiment(
-              "trace-present-image", winehua::D3dBackendKind::WineD3d,
-              &virglExperiment),
-          "Venus-only present trace rejects the VirGL route");
-
-    Check(!winehua::ResolveLabGraphicsExperiment(
-              "baseline", winehua::D3dBackendKind::DxvkLegacy,
-              &legacyExperiment),
-          "historical neutral profile alias stays removed");
-    Check(!winehua::ResolveLabGraphicsExperiment(
-              "shadow-precise-dirty-ring-frame-timeline",
-              winehua::D3dBackendKind::DxvkLegacy, &legacyExperiment),
-          "historical combinatorial profile stays removed");
-    Check(!winehua::ResolveLabGraphicsExperiment(
-              winehua::kProductVulkanRoute,
-              winehua::D3dBackendKind::DxvkLegacy, &legacyExperiment),
-          "product route is not a LAB profile id");
-}
-
-bool HasEnvironmentLine(const std::vector<std::string>& environment,
-                        std::string_view expected)
-{
-    for (const std::string& line : environment) {
-        if (line == expected) return true;
-    }
-    return false;
-}
-
-void TestGuestProfileResolution()
-{
-    using Submission = winehua::GuestSubmissionPolicy;
-    constexpr std::array<ExpectedGuestPolicy, 5> expectedPolicies = {{
-        {"observe-product-summary", true, Submission::StrongRingBarrier, true},
-        {"observe-frame-timeline", true, Submission::StrongRingBarrier},
-        {"trace-frame-association", true, Submission::StrongRingBarrier},
-        {"trace-present-image", true, Submission::StrongRingBarrier,
-         false, false, true},
-        {"isolate-transport-neutral", false, Submission::Default},
-    }};
-
-    for (const ExpectedGuestPolicy& expected : expectedPolicies) {
-        winehua::ProductGraphicsPolicy experiment;
-        if (!winehua::ResolveLabGraphicsExperiment(
-                expected.name, winehua::D3dBackendKind::DxvkLegacy,
-                &experiment)) {
-            std::cerr << "FAIL: resolve guest policy " << expected.name << '\n';
-            ++failures;
-            continue;
-        }
-        const winehua::GuestGraphicsPolicy& resolved = experiment.guest;
-        Check(resolved.preciseShadow == expected.preciseShadow,
-              std::string(expected.name) + " guest precise shadow");
-        Check(resolved.submission == expected.submission,
-              std::string(expected.name) + " guest submission");
-        Check(resolved.perfSummary == expected.perfSummary,
-              std::string(expected.name) + " guest perf summary");
-        Check(resolved.directFenceWait == expected.directFenceWait,
-              std::string(expected.name) + " direct fence wait");
-        Check(resolved.tracePresentImage == expected.tracePresentImage,
-              std::string(expected.name) + " present image trace");
-        Check(resolved.deferSharedMemoryUnref == expected.deferSharedMemoryUnref,
-              std::string(expected.name) + " deferred shmem unref");
-        Check(resolved.disableGpuUpload == expected.disableGpuUpload,
-              std::string(expected.name) + " disabled GPU upload");
-        Check(resolved.serializeDescriptorUpdates ==
-                  expected.serializeDescriptorUpdates,
-              std::string(expected.name) + " descriptor serialization");
-    }
-
-    std::vector<std::string> environment;
-    winehua::ProductGraphicsPolicy nativePolicy;
-    Check(winehua::ResolveLabGraphicsExperiment("isolate-venus-native-buffer",
-              winehua::D3dBackendKind::DxvkLegacy, &nativePolicy) &&
-              nativePolicy.host.presentMode == "native-buffer" &&
-              !nativePolicy.guest.directVulkan && nativePolicy.guest.preciseShadow,
-          "native-buffer changes host presentation while preserving Venus resource policy");
-    Check(!winehua::ResolveLabGraphicsExperiment("isolate-venus-native-buffer",
-              winehua::D3dBackendKind::DxvkModern26, &nativePolicy),
-          "native-buffer LAB rejects unqualified modern backend");
-    Check(winehua::BuildLabGuestGraphicsEnvironment("isolate-vulkan-direct",
-              winehua::D3dBackendKind::DxvkLegacy, &environment) &&
-              HasEnvironmentLine(environment, "WINEHUA_VULKAN_BACKEND=direct") &&
-              HasEnvironmentLine(environment, "DXVK_WINEHUA_PRECISE_SHADOW=0") &&
-              HasEnvironmentLine(environment, "VN_WINEHUA_REMOTE_MEMORY_SYNC=0"),
-          "Direct Guest serialization selects system driver without shadow copies");
-    Check(winehua::BuildLabGuestGraphicsEnvironment("isolate-vulkan-direct-precise-map",
-              winehua::D3dBackendKind::DxvkLegacy, &environment) &&
-              HasEnvironmentLine(environment, "WINEHUA_VULKAN_BACKEND=direct") &&
-              HasEnvironmentLine(environment, "WINEHUA_VK_PRECISE_MAP=1") &&
-              HasEnvironmentLine(environment, "DXVK_WINEHUA_PRECISE_SHADOW=1") &&
-              HasEnvironmentLine(environment, "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"),
-          "Direct WOW64 precise maps pair with explicit legacy DXVK publication");
-    Check(!winehua::BuildLabGuestGraphicsEnvironment("isolate-vulkan-direct-precise-map",
-              winehua::D3dBackendKind::DxvkModern26, &environment),
-          "Direct precise maps reject DXVK without the explicit publication contract");
-    Check(winehua::BuildProductGuestGraphicsEnvironment(
-              winehua::D3dBackendKind::DxvkLegacy, &environment),
-          "serialize product DXVK 1.10 guest policy");
-    Check(HasEnvironmentLine(environment,
-              "WINEHUA_GRAPHICS_PROFILE=product-vulkan") &&
-              HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_PRECISE_SHADOW=1") &&
-              HasEnvironmentLine(environment, "WINEHUA_VK_PRECISE_MAP=0") &&
-              HasEnvironmentLine(environment,
-              "VN_WINEHUA_STRONG_RING_BARRIER=1") &&
-              HasEnvironmentLine(environment,
-              "VN_WINEHUA_REMOTE_MEMORY_SYNC=1") &&
-              HasEnvironmentLine(environment,
-              "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring") &&
-              HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"),
-          "DXVK 1.10 receives common precise/strong legacy policy");
-
-    Check(winehua::BuildProductGuestGraphicsEnvironment(
-              winehua::D3dBackendKind::DxvkModern26, &environment),
-          "serialize product DXVK 2.6 guest policy");
-    Check(!HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1") &&
-              HasEnvironmentLine(environment,
-              "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring"),
-          "DXVK 2.6 excludes legacy mapped-flush switch");
-
-    Check(winehua::BuildProductGuestGraphicsEnvironment(
-              winehua::D3dBackendKind::Vkd3dLimited500k, &environment),
-          "serialize product VKD3D guest policy");
-    Check(HasEnvironmentLine(environment,
-              "WINEHUA_GRAPHICS_PROFILE=product-vulkan") &&
-              HasEnvironmentLine(environment,
-              "VN_WINEHUA_STRONG_RING_BARRIER=1") &&
-              HasEnvironmentLine(environment,
-              "VN_WINEHUA_DIRECT_FENCE_WAIT=1") &&
-              !HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1"),
-          "VKD3D uses Vulkan route with its qualified modern adapter policy");
-
-    Check(winehua::BuildLabGuestGraphicsEnvironment(
-              "isolate-transport-neutral",
-              winehua::D3dBackendKind::DxvkLegacy, &environment),
-          "serialize neutral transport isolation");
-    Check(HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_PRECISE_SHADOW=0") &&
-              HasEnvironmentLine(environment,
-              "VN_WINEHUA_STRONG_RING_BARRIER=0") &&
-              HasEnvironmentLine(environment,
-              "VN_WINEHUA_REMOTE_MEMORY_SYNC=0") &&
-              HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=0"),
-          "neutral isolation resets precise/strong/remote/mapped-flush policy");
-
-    Check(winehua::BuildLabGuestGraphicsEnvironment(
-              "observe-product-summary",
-              winehua::D3dBackendKind::DxvkLegacy, &environment),
-          "serialize product-derived observation policy");
-    Check(HasEnvironmentLine(environment,
-              "VN_WINEHUA_STRONG_RING_BARRIER=1") &&
-              HasEnvironmentLine(environment, "VN_WINEHUA_PERF_SUMMARY=1"),
-          "observation retains product transport and enables periodic summary");
-
-    Check(winehua::BuildLabGuestGraphicsEnvironment(
-              "observe-frame-timeline",
-              winehua::D3dBackendKind::DxvkModern26, &environment),
-          "serialize Modern product-derived timeline observation");
-    Check(HasEnvironmentLine(environment,
-              "WINEHUA_GRAPHICS_PROFILE=observe-frame-timeline") &&
-              !HasEnvironmentLine(environment,
-              "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=1") &&
-              HasEnvironmentLine(environment,
-              "VN_PERF=no_fence_feedback,no_query_feedback,no_semaphore_feedback,no_multi_ring"),
-          "Modern observation applies runtime capabilities without legacy switches");
-
-    environment = {"STALE=1"};
-    Check(!winehua::BuildLabGuestGraphicsEnvironment(
-              "unknown-experiment", winehua::D3dBackendKind::DxvkLegacy,
-              &environment) && environment.empty(),
-          "unknown Guest experiment fails closed and clears stale output");
 }
 
 void TestPresentPacing()
@@ -528,19 +255,19 @@ static void TestAutomaticDirectPolicy()
     Check(winehua::ResolveProductGraphicsPolicy(D3dBackendKind::DxvkLegacy, &policy) &&
           !policy.guest.directVulkan, "unverified capability keeps Venus");
     winehua::SetProductDirectVulkanVerified(true);
-    Check(winehua::ResolveSessionGraphicsPolicy("product-vulkan", D3dBackendKind::DxvkLegacy, &policy) &&
+    Check(winehua::ResolveProductGraphicsPolicy(D3dBackendKind::DxvkLegacy, &policy) &&
           policy.route == winehua::kProductVulkanRoute && policy.host.name == policy.route &&
           policy.guest.directVulkan && policy.guest.directPreciseMaps && policy.guest.preciseShadow &&
           policy.guest.submission == winehua::GuestSubmissionPolicy::Default,
-          "verified product uses paired Direct range copies without a LAB id");
+          "verified product uses paired Direct range copies");
     for (auto backend : {D3dBackendKind::WineD3d, D3dBackendKind::DxvkModern26, D3dBackendKind::Vkd3dLimited500k})
         Check(winehua::ResolveProductGraphicsPolicy(backend, &policy) && !policy.guest.directVulkan,
               "unqualified backends preserve their product path");
-    Check(winehua::ResolveSessionGraphicsPolicy("trace-present-image", D3dBackendKind::DxvkLegacy, &policy) &&
-          !policy.guest.directVulkan && policy.guest.tracePresentImage,
-          "explicit Venus diagnostic remains Venus after automatic Direct qualification");
+    Check(winehua::ResolveProductGraphicsPolicy(D3dBackendKind::DxvkLegacy, &policy) &&
+          policy.guest.directVulkan && !policy.guest.tracePresentImage,
+          "product policy keeps presentation tracing disabled");
     winehua::SetProductDirectVulkanVerified(false);
-    Check(winehua::ResolveSessionGraphicsPolicy("product-vulkan", D3dBackendKind::DxvkLegacy, &policy) &&
+    Check(winehua::ResolveProductGraphicsPolicy(D3dBackendKind::DxvkLegacy, &policy) &&
           !policy.guest.directVulkan && !policy.guest.directPreciseMaps,
           "failed verification removes Direct and its mapped-memory protocol");
 }
@@ -548,8 +275,6 @@ static void TestAutomaticDirectPolicy()
 int main()
 {
     TestBackendPolicy();
-    TestProfileResolution();
-    TestGuestProfileResolution();
     TestPresentPacing();
     TestPresenterRuntimePolicy();
     TestVirglHostConfig();

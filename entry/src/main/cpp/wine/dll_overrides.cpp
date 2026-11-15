@@ -81,6 +81,19 @@ bool Parse(const std::string& value, Rules& rules)
 
 }
 
+bool NativeDllPreferred(const std::string& overrides, const std::string& module)
+{
+    Rules rules;
+    if (!Parse(overrides, rules)) return false;
+    const std::string name = Lower(module);
+    // Wine resolves an unqualified explicit name before its wildcard form.
+    for (const std::string& candidate : {name, "*" + name})
+        for (const auto& rule : rules)
+            if (rule.first == candidate)
+                return !rule.second.empty() && rule.second[0] == 'n';
+    return false;
+}
+
 bool MergeDllOverrides(const std::string& baseline, const std::string& update,
                        std::string& result)
 {

@@ -109,7 +109,7 @@ def verify_artifact(hap, manifest):
                 and len(name.split("/")) > 2}
         if abis != {"arm64-v8a"}:
             raise ValueError(f"unexpected native ABIs: {sorted(abis)}")
-        for library in ("libentry.so", "libwine_child.so", "libsmoke_napi.so",
+        for library in ("libentry.so", "libwine_child.so",
                         "libwinehua_native_memory_probe.so", "libwinehua_vtest_server.so",
                         "libvirglrenderer.so.1", "libvirgl_child.so"):
             with archive.open("libs/arm64-v8a/" + library) as stream:

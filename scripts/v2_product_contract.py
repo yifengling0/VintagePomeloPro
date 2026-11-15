@@ -15,10 +15,22 @@ REQUIRED_GUEST = (
 )
 REQUIRED_HOST = ('libentry.so', 'libwine_child.so', 'wineohos.so', 'libwineserver.so',
                  'libsteamdecompress.so', 'libgstreamer-1.0.so.0')
+DEVICE_TEST_LIBRARIES = frozenset((
+    'libsmoke_napi.so', 'libwinehua_guest_vulkan_smoke.so',
+    'libvenus_sampled_image_probe.so', 'libvenus_spirv_replay.so',
+    'libvenus_heaven_material_replay.so', 'libwinehua_host_heaven_replay.so',
+))
+DEVICE_TEST_PREFIXES = ('smoke/', 'bin/host_vulkan/', 'bin/guest_vulkan/bin/',
+                        'bin/guest_vulkan/share/winehua/')
+DEVICE_TEST_MARKERS = (b'runAutomationLaunch' , b'winehua.graphics_experiment',
+                       b'setHostGraphicsExperimentForLab', b'PIXEL-BOUNDARY')
 
 def verify_members(names):
     for name in names:
         relative = name.removeprefix('resources/rawfile/')
+        if (relative.startswith(DEVICE_TEST_PREFIXES) or '/smoke/' in relative or
+            Path(name).name in DEVICE_TEST_LIBRARIES):
+            raise ValueError('Device test payload in product: ' + name)
         if (relative.startswith(RETIRED) or 'steamohos' in name.lower() or
             Path(name).name.lower() in ('lsteamclient.dll', 'linux-steam-bridge.json') or
             '/hmosdeck-steam/' in '/' + name.lower()):
@@ -48,12 +60,18 @@ def verify_hap(path):
         for name in REQUIRED_HOST:
             if 'libs/arm64-v8a/' + name not in names:
                 raise ValueError('Missing OHOS Wine / Windows Steam module: ' + name)
-        for name in ('libentry.so', 'libsmoke_napi.so'):
+        for name in ('libentry.so',):
             member = 'libs/arm64-v8a/' + name
             if member in names:
                 data = archive.read(member)
                 for symbol in (b'probeLinuxSteam', b'startLinuxProtonGame', b'prepareLinuxSteamDisplay', b'isLinuxSteamProcess'):
                     if symbol in data: raise ValueError('Retired Linux NAPI in ' + member)
+                for symbol in DEVICE_TEST_MARKERS:
+                    if symbol in data: raise ValueError('Device test entry in ' + member)
+        if 'ets/modules.abc' in names:
+            code = archive.read('ets/modules.abc')
+            for symbol in DEVICE_TEST_MARKERS + (b'/service/SmokeRunner', b'/smoke/SmokeHook', b'/game/GameHook'):
+                if symbol in code: raise ValueError('Device test entry in ArkTS: ' + symbol.decode())
         # Keep memory bounded; do not expand an entire runtime tree for auditing.
         # TemporaryFile exposes seekable() on Python 3.10 as well as newer CI
         # Python versions, and keeps large nested runtimes out of memory.
