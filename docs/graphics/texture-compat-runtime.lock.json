@@ -173,6 +173,10 @@
       {
         "path": "patches/mesa/0016-zink-opt-in-shadow-uploader.patch",
         "sha256": "4aeb274f93de3f3d7150e36f6ebfae85a6d78843db2d227f2f79b8ef1bba00ea"
+      },
+      {
+        "path": "patches/mesa/0017-zink-shadow-image-staging-byte-range.patch",
+        "sha256": "e1a3f0e69fc9e4e0955e6f8695e4bddf77bb4252500f7841020b67e66b1ae9d6"
       }
     ]
   }

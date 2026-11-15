@@ -25,6 +25,7 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0014-zink-opt-in-instance-diagnostic.patch"
     "$SCRIPT_DIR/../patches/mesa/0015-zink-opt-in-shadow-readback.patch"
     "$SCRIPT_DIR/../patches/mesa/0016-zink-opt-in-shadow-uploader.patch"
+    "$SCRIPT_DIR/../patches/mesa/0017-zink-shadow-image-staging-byte-range.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {
