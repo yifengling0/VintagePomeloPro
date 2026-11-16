@@ -1,4 +1,5 @@
 import { resolveOutputScale } from '../model/DisplayScalePolicy';
+import { InputRouter } from './InputRouter';
 import { common, Want } from '@kit.AbilityKit';
 import { window, display } from '@kit.ArkUI';
 import { hilog } from './LogService';
@@ -1451,6 +1452,9 @@ export class WineWindowManager {
       } catch (_) { /* ignore */ }
       try {
         subWin.on('windowEvent', (eventType: number) => {
+          if (eventType === window.WindowEventType.WINDOW_INACTIVE) {
+            InputRouter.getInstance().releaseWindowSource(id, 'physical');
+          }
           if (eventType === window.WindowEventType.WINDOW_DESTROYED) {
             hilog.info(DOMAIN, TAG, '[MW] fusion subwindow #%{public}d WINDOW_DESTROYED (fallback)', winId);
             this.onToplevelDestroyed(winId);

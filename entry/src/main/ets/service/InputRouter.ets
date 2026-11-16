@@ -1,4 +1,5 @@
 import testNapi from 'libentry.so';
+import { InputStateTracker } from './InputStateTracker';
 
 export interface PointerPosition {
   x: number;
@@ -15,7 +16,7 @@ export interface PointerInput {
 export class InputRouter {
   private static instance: InputRouter | null = null;
   private activeToplevelId: number = 0;
-  private pressedKeys: Set<number> = new Set<number>();
+  private windowKeys: Map<number, InputStateTracker> = new Map<number, InputStateTracker>();
   private pressedButtons: Set<number> = new Set<number>();
   private pointerX: number = 0;
   private pointerY: number = 0;
@@ -27,7 +28,10 @@ export class InputRouter {
   }
 
   setActiveToplevel(toplevelId: number): void {
-    if (this.activeToplevelId !== toplevelId) this.releaseAllKeys();
+    if (this.activeToplevelId !== toplevelId) {
+      this.releaseWindowSource(this.activeToplevelId, 'router');
+      this.releasePointerButtons();
+    }
     this.activeToplevelId = toplevelId;
   }
 
@@ -36,10 +40,30 @@ export class InputRouter {
   }
 
   sendKey(evdevCode: number, pressed: boolean): void {
-    if (this.activeToplevelId <= 0 || evdevCode <= 0) return;
-    if (pressed) this.pressedKeys.add(evdevCode);
-    else this.pressedKeys.delete(evdevCode);
-    testNapi.sendKeyEvent(this.activeToplevelId, evdevCode, pressed);
+    this.sendWindowKey(this.activeToplevelId, 'router', evdevCode, pressed);
+  }
+
+  sendWindowKey(toplevelId: number, source: string, code: number, pressed: boolean): void {
+    if (toplevelId <= 0 || code <= 0) return;
+    let state = this.windowKeys.get(toplevelId);
+    if (!state) {
+      if (!pressed) return;
+      state = new InputStateTracker();
+      this.windowKeys.set(toplevelId, state);
+    }
+    const repeat = pressed && state.isKeyHeldBy(source, code);
+    const changed = pressed ? state.pressKey(source, code) : state.releaseKey(source, code);
+    if (changed || repeat) testNapi.sendKeyEvent(toplevelId, code, pressed);
+    if (state.snapshot().heldKeys === 0) this.windowKeys.delete(toplevelId);
+  }
+
+  releaseWindowSource(toplevelId: number, source: string): void {
+    const state = this.windowKeys.get(toplevelId);
+    if (!state) return;
+    state.releaseSource(source).keys.forEach((code: number): void => {
+      testNapi.sendKeyEvent(toplevelId, code, false);
+    });
+    if (state.snapshot().heldKeys === 0) this.windowKeys.delete(toplevelId);
   }
 
   sendPointer(action: number, x: number, y: number, button: number, input?: PointerInput): void {
@@ -79,16 +103,22 @@ export class InputRouter {
   }
 
   releaseAllKeys(): void {
-    if (this.activeToplevelId > 0) {
-      this.pressedKeys.forEach((code: number): void => {
-        testNapi.sendKeyEvent(this.activeToplevelId, code, false);
+    this.windowKeys.forEach((state: InputStateTracker, toplevelId: number): void => {
+      state.releaseAll().keys.forEach((code: number): void => {
+        testNapi.sendKeyEvent(toplevelId, code, false);
       });
-      this.pressedButtons.forEach((button: number) => {
+    });
+    this.windowKeys.clear();
+    this.releasePointerButtons();
+  }
+
+  private releasePointerButtons(): void {
+    if (this.activeToplevelId > 0) {
+      this.pressedButtons.forEach((button: number): void => {
         testNapi.sendPointerEvent(this.activeToplevelId, MouseAction.Release,
           this.pointerX, this.pointerY, button);
       });
     }
-    this.pressedKeys.clear();
     this.pressedButtons.clear();
   }
 }
