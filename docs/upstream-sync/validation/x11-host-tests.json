@@ -1,0 +1,24 @@
+{
+  "scope": "system-open foreground context fix",
+  "sourceCommit": "a2b9306c81444cf9e2ee8de88d903b0c15cfa16d",
+  "preflight": {
+    "checks": 274,
+    "result": "PASS"
+  },
+  "arkts": "PASS",
+  "upstreamBehaviorTests": "PASS: production context routing, HTTP resolver, file read-only grant, mailto, synchronous failure, no context, OPEN disable/unmapped/failure/stop, source-isolated keys",
+  "packageGraphicsContract": "PASS",
+  "x11Closure": "PASS: 40 ELF libraries, PE drivers, XKB/XKM, locale",
+  "fullModelSuite": {
+    "result": "FAIL",
+    "firstFailure": "run_host_window_task_tests.cjs: expectSteamGame and setSteamGameCloser no longer exist",
+    "scopeNote": "The failing production host-task classes were unchanged by this system-open commit; later model suites were not reached."
+  },
+  "clipboardPermission": {
+    "moduleDeclared": false,
+    "runtimeRequested": false,
+    "profileAclGranted": false,
+    "safePasteButtonAvailable": true,
+    "automaticBidirectionalSyncAccepted": false
+  }
+}

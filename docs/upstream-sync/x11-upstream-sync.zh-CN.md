@@ -29,8 +29,22 @@ Wine 向鸿蒙系统剪贴板写入使用 `setData()`，不需要该读取权限
 
 主机完整 preflight 为 274 项通过；此前 X11 集成、原生增量构建、ArkTS、OPEN transport、剪贴板生命周期及最终包成员校验通过。新增剪贴板窗口识别回归通过。构建结果和真机验收分别记录。
 
-Mini 已安装过本分支调试签名包，基本窗口、中文菜单与输入已有局部验证。修复 0085 前 Wayland Wine→系统复制仍失败；0085 的最终真机复验尚待记录。安全控件读取与完整持续授权需分开验收。
+Mini 已安装当前调试签名包，基本窗口、中文菜单与输入已有局部验证。Wayland 真机复验已通过：系统浏览器地址栏复制的 `https://example.com/` 经真实 PasteButton 点击后出现在 Wine 记事本；Wine 记事本中新输入的 `WineWaylandClipboardConfirmed123` 经 Ctrl+C 后，在鸿蒙原生 SearchField 中 Ctrl+V 得到完全相同文本。这仅验收按钮授权粘贴和 Wine 向系统复制，没有验收持续自动读取。证据见 `validation/x11-mini-clipboard-open.json`。
 
-下列项目仍未完整验收，不得引用旧性能或 fullscreen BADMODE 记录替代：HTTP `openLink` 真机结果、系统打开关闭/回退/文件映射、双路线 DPI 全矩阵及输入/退出重入、各图形后端矩阵、固定负载 Heaven 预热后 3×60 秒对比、M80 及 Edge/PC 场景。
+下列项目仍未完整验收，不得引用旧性能或 fullscreen BADMODE 记录替代：READ_PASTEBOARD 持续授权、系统打开关闭/回退/文件映射、双路线 DPI 全矩阵及输入/退出重入、各图形后端矩阵、固定负载 Heaven 预热后 3×60 秒对比、M80 及 Edge/PC 场景。
+
+完整模型测试未通过：旧 `run_host_window_task_tests.cjs` 调用了现有生产类中不存在的 `expectSteamGame`、`setSteamGameCloser`，后续模型用例未执行。相关生产类不在本次系统打开修复中修改。详情见 `validation/x11-host-tests.json`。
+
+## 系统打开修复与验证
+
+原先 OPEN 已到达 ArkTS，但保存的 EntryAbility context 在桌面前台运行时处于后台，系统返回 201。`a2b9306c` 改为复用 WineWindowManager 既有的前台桌面/游戏窗口上下文选择，排除已销毁窗口，保留 HTTP openLink、文件只读授权和异步失败提示。
+
+候选已在 Mini 调试签名覆盖安装。Wine 运行对话框打开 `https://example.com/` 后，真实系统浏览器显示 Example Domain 与对应地址，确认不是仅进入请求队列。关闭开关、无法映射、失败通知、旧回调失效和文件 URI 授权已有主机行为测试；文件和 mailto 的真机场景尚未验收。
+
+## 当前调试包
+
+`VPP-2.0.3-x11-upstream-sync-debug-signed.hap`：627763847 字节，SHA-256 `bef04aad68d7372e5e57ee5fba3b0b1e6a7afba68c53f891d4286b34f8eaa8ae`，应用源码 `a2b9306c81444cf9e2ee8de88d903b0c15cfa16d`。签名、新包图形契约、X11 40 ELF/PE/XKB/locale 闭包校验均通过。
+
+上一份已通过剪贴板修复验收的 `8bac145f…` 包保留为 previous 回退包；main 原始回退包继续引用现有 multi-gamepad 任务目录，不再复制。
 
 当前方案保持候选状态；本报告不构成发布或性能提升结论。
