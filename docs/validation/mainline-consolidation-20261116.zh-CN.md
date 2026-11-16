@@ -26,4 +26,6 @@ VirGL 重放后的额外变化是临时 GPU flight/checkpoint/phone shader repla
 
 15 组主机回归全部通过：四手柄适配器/Hub/socket、Winebus、原 bridge、subsurface 生命周期、生产 GPU 场景输入、线程退出包校验、运行库校验、Mesa 构建身份、发布边界、FEX VM 合同、游戏后端设置、Steam 服务、会员服务、购买 UI 和会员后端。图形源码合同校验通过。精确命令与结果见同目录 JSON。
 
+完整 `scripts/ci_preflight.py` 预检 273 项通过。发布验收样本已排除 smoke 测试库，并显式验证混入 smoke 时必须拒绝；DXVK overlay 回放样本从 `+++ b/` 收集全部受影响文件，同时支持标准 Git diff 与普通 unified diff。没有放宽产品包校验或修改实际运行行为。
+
 本次没有实体多手柄验收；继续保留 `hardwareValidated=false`，等待用户连接多只手柄验证。未新增游戏性能或 GL3.1 能力结论。已存在的多手柄调试 HAP 可继续测试；已有正式签名 APP 不含随后新增的多手柄修复，不能称为本次主线的重新打包。

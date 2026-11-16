@@ -147,5 +147,17 @@
     }
   ],
   "hardwareValidatedThisTask": false,
-  "rebuiltOrResignedThisTask": false
+  "rebuiltOrResignedThisTask": false,
+  "ciPreflight": {
+    "command": [
+      "python3",
+      "scripts/ci_preflight.py"
+    ],
+    "checks": 273,
+    "exitCode": 0,
+    "fixtureRepairs": [
+      "Reject smoke library explicitly instead of including it in valid product fixture",
+      "Extract all unified-diff target files for pristine DXVK overlay replay"
+    ]
+  }
 }

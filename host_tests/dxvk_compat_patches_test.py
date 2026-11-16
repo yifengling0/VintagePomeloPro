@@ -24,7 +24,7 @@ class OverlayTests(unittest.TestCase):
         self.source.mkdir()
         self.pin = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())['runtimes']['legacy']
         self.patch = ROOT / self.pin['patches'][0]['path']
-        self.names = sorted({name for row in self.pin['patches'] for name in re.findall(r'^diff --git a/(\S+) b/\S+$', (ROOT / row['path']).read_text(), re.M)})
+        self.names = sorted({name for row in self.pin['patches'] for name in re.findall(r'^\+\+\+ b/(\S+)', (ROOT / row['path']).read_text(), re.M)})
         self.assertTrue(self.names)
         repository = ROOT / 'thirdparty/dxvk'
         present = set(subprocess.check_output(['git', '-C', str(repository), 'ls-tree', '-r',
