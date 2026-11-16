@@ -9,6 +9,7 @@
 - 纳入 `9db27bc7` 的 DXVK9 交换链修复，窗口模式不再额外轮换前缓冲。原 DLL 与修复 DLL 已分别做 Mini PAL4 对照；本次将热修复正式放入嵌套运行时。
 - 纳入 `f9ebe484` 的 WineD3D legacy GLSL 修复：specular alpha 隐式雾读取旧语法已声明的 `gl_FrontSecondaryColor`。候选补丁配方增加 0086，更新历史、源码锁、两套 PE DLL 及 prefix 内置 DLL 身份。
 - 保留现有本地 UI、会员两种购买方式、多手柄、Proton/FEX、Gecko 双架构和 Mono。默认 DX9/VirGL、DX11/DXVK 1.10；专业玩家可按游戏切换 DXVK9 或 Zink。
+- 启动阶段改为一行真实状态，阶段变化时淡入淡出并上下切换；不播放伪造日志或估计百分比。耗时超过 20 秒显示实际等待时长，保留错误、返回和重试；Deck 游戏封面继续保留。
 
 ## 已有证据与边界
 
