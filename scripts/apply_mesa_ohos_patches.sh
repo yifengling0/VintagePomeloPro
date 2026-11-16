@@ -33,6 +33,7 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0023-zink-opt-in-slice-3d-pbo-upload.patch"
     "$SCRIPT_DIR/../patches/mesa/0024-zink-opt-in-batch-private-uploads.patch"
     "$SCRIPT_DIR/../patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch"
+    "$SCRIPT_DIR/../patches/mesa/0026-zink-shadow-buffer-map-offset.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

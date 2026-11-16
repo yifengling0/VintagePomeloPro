@@ -836,7 +836,8 @@ meson install -C "$BUILD_ROOT"
 
 if [ "$VULKAN_ONLY" != "1" ]; then
     python3 "$SCRIPT_DIR/guest_gfx_build_identity.py" record \
-        --build-root "$BUILD_ROOT" --install-root "$INSTALL_ROOT" --arch "$WINE_ARCH"
+        --build-root "$BUILD_ROOT" --source-root "$SOURCE_ROOT" \
+        --install-root "$INSTALL_ROOT" --arch "$WINE_ARCH"
 fi
 
 if [ "$PACKAGE_BUNDLE" -eq 1 ]; then

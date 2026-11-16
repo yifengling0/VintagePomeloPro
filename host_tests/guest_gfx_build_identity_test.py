@@ -1,5 +1,6 @@
 """Reject relabelled VirGL builds and mismatched Zink packaging inputs."""
 import json
+import hashlib
 from pathlib import Path
 import subprocess
 import sys
@@ -16,6 +17,28 @@ class GuestGraphicsIdentityTest(unittest.TestCase):
         self.root = Path(temp.name)
         self.install = self.root / 'install'
         self.build = self.root / 'build'
+        self.repo = self.root / 'repo'
+        (self.repo / 'scripts').mkdir(parents=True)
+        self.script = self.repo / 'scripts/guest_gfx_build_identity.py'
+        self.script.write_bytes(SCRIPT.read_bytes())
+        (self.repo / 'docs/graphics').mkdir(parents=True)
+        (self.repo / 'patches/mesa').mkdir(parents=True)
+        self.overlay = self.repo / 'patches/mesa/0001-fixture.patch'
+        self.overlay.write_text('fixture overlay\n')
+        (self.repo / 'scripts/apply_mesa_ohos_patches.sh').write_text(
+            '"$SCRIPT_DIR/../patches/mesa/0001-fixture.patch"\n')
+        self.source = self.root / 'mesa'
+        self.source.mkdir()
+        self.resource = self.source / 'zink_resource.c'
+        self.resource.write_text('fixture effective image transfer\n')
+        self.lock = self.repo / 'docs/graphics/graphics-stack.lock.yaml'
+        self.lock.write_text(json.dumps({
+            'submodules': {'mesa': 'fixture-pin'},
+            'managed_patches': {'mesa': [{'path': 'patches/mesa/0001-fixture.patch',
+                'sha256': hashlib.sha256(self.overlay.read_bytes()).hexdigest()}]},
+            'mesa_production_overlays': ['patches/mesa/0001-fixture.patch'],
+            'effective_files': {'mesa': {'zink_resource.c': hashlib.sha256(self.resource.read_bytes()).hexdigest()}}
+        }))
         (self.install / 'lib').mkdir(parents=True)
         (self.build / 'meson-info').mkdir(parents=True)
         self.library = self.install / 'lib/libgallium-25.0.1.so'
@@ -24,8 +47,8 @@ class GuestGraphicsIdentityTest(unittest.TestCase):
         (self.install / 'lib/libGLESv2.so').write_bytes(b'fixture - paired GLES')
 
     def cli(self, action, arch='aarch64'):
-        command = [sys.executable, str(SCRIPT), action, '--install-root', str(self.install), '--arch', arch]
-        if action == 'record': command += ['--build-root', str(self.build)]
+        command = [sys.executable, str(self.script), action, '--install-root', str(self.install), '--arch', arch]
+        if action == 'record': command += ['--build-root', str(self.build), '--source-root', str(self.source)]
         return subprocess.run(command, capture_output=True, text=True)
 
     def record(self, drivers):
@@ -56,6 +79,24 @@ class GuestGraphicsIdentityTest(unittest.TestCase):
     def test_stale_library_rejected(self):
         self.record(['zink', 'virgl', 'softpipe'])
         self.library.write_bytes(b'fixture - rebuilt driver bundle B')
+        self.assertNotEqual(self.cli('verify-zink').returncode, 0)
+
+    def test_changed_effective_source_cannot_be_recorded(self):
+        self.record(['zink', 'virgl', 'softpipe'])
+        self.resource.write_text('old transfer missing shadow fix\n')
+        self.assertNotEqual(self.cli('record').returncode, 0)
+
+    def test_changed_overlay_cannot_reuse_recorded_library(self):
+        self.record(['zink', 'virgl', 'softpipe'])
+        self.overlay.write_text('different overlay\n')
+        lock = json.loads(self.lock.read_text())
+        lock['managed_patches']['mesa'][0]['sha256'] = hashlib.sha256(self.overlay.read_bytes()).hexdigest()
+        self.lock.write_text(json.dumps(lock))
+        self.assertNotEqual(self.cli('verify-zink').returncode, 0)
+
+    def test_changed_production_order_rejected(self):
+        self.record(['zink', 'virgl', 'softpipe'])
+        (self.repo / 'scripts/apply_mesa_ohos_patches.sh').write_text('no production patches\n')
         self.assertNotEqual(self.cli('verify-zink').returncode, 0)
 
     def test_egl_cannot_be_replaced_after_recording_gallium_pair(self):
