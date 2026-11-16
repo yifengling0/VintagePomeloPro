@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "4ba188e4fc2cf72971fe583d2dd943706d820d05",
+  "currentBaseCommit": "7683a58b2f746b07979c9a56ac8e2dc240ad838f",
+  "previousSourceLockSha256": "4da445084dfa07e1d78f51c47a730bf3b0617c2d542f3b0e2e1c319fb31a9263",
+  "sourceLockSha256": "9c1de4d2747a1446cdac4429e097b41c71ddc62fa299c0765765a6be43a86ff3",
+  "independentGraphicsBytesUnchanged": true,
+  "reason": "Mainline added existing multi-gamepad Wine patch and diagnostic-only Mesa inventory; no production rendering overlay changed. New Proton Wine is independently source-locked. Updated rebuilt Winebus identity to exact package member.",
+  "productionMesaRecipeExcludes0014": true,
+  "controllerWinebusSha256": "0cff044370dee17d27a06dda4fcb5a59452def6123ecfede6c6dbe5d632a6af1"
+}
