@@ -28,12 +28,12 @@ static void ReadExact(int fd, void* buffer, size_t length)
     }
 }
 
-static whgp_state_v2 ReadState(int fd)
+static whgp_state_v2 ReadState(int fd, uint32_t slot = 0)
 {
     whgp_header header{};
     ReadExact(fd, &header, sizeof(header));
     assert(header.magic == WHGP_MAGIC && header.version == WHGP_VERSION);
-    assert(header.msg_type == WHGP_MSG_STATE && header.slot == 0);
+    assert(header.msg_type == WHGP_MSG_STATE && header.slot == slot);
     assert(header.payload_size == sizeof(whgp_state_v2));
     whgp_state_v2 state{};
     ReadExact(fd, &state, sizeof(state));
@@ -49,7 +49,7 @@ static int Connect(const char* path)
     assert(strlen(path) < sizeof(address.sun_path));
     strcpy(address.sun_path, path);
     assert(connect(fd, reinterpret_cast<sockaddr*>(&address), sizeof(address)) == 0);
-    ReadState(fd);
+    for (uint32_t slot = 0; slot < WHGP_MAX_SLOTS; ++slot) ReadState(fd, slot);
     return fd;
 }
 
@@ -78,7 +78,8 @@ int main(int argc, char** argv)
     assert(argc == 2);
     auto& bridge = GamepadBridge::Instance();
     std::atomic<unsigned> rumbles{0};
-    bridge.SetRumbleListener([&](uint16_t low, uint16_t high, uint32_t ms) {
+    bridge.SetRumbleListener([&](uint32_t slot, uint16_t low, uint16_t high, uint32_t ms) {
+        assert(slot == 0);
         assert(low == 12 && high == 34 && ms == 56);
         ++rumbles;
     });

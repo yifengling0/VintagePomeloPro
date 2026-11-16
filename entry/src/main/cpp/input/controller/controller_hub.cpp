@@ -6,6 +6,11 @@
 namespace winehua {
 namespace controller {
 
+ControllerHub::ControllerHub()
+{
+    slots_[0].logical.connected = true;
+}
+
 ControllerHub& ControllerHub::Instance()
 {
     static ControllerHub hub;
@@ -22,7 +27,11 @@ void ControllerHub::SetEnabled(bool enabled)
         cb = listener_;
         if (!enabled) {
             for (uint32_t s = 0; s < kMaxControllerSlots; ++s) {
+                const bool connected = slots_[s].logical.connected;
+                const uint64_t sequence = slots_[s].logical.sequence + 1;
                 slots_[s] = SlotState{};
+                slots_[s].logical.connected = connected;
+                slots_[s].logical.sequence = sequence;
                 snaps[s] = slots_[s].logical;
             }
         }
@@ -197,10 +206,28 @@ void ControllerHub::SetHat(ControllerSourceId source, uint32_t slot, int8_t x, i
     if (changed && cb) cb(slot, snap);
 }
 
-void ControllerHub::ResetSource(ControllerSourceId source)
+void ControllerHub::SetSlotConnected(uint32_t slot, bool connected)
+{
+    if (slot >= kMaxControllerSlots) return;
+    StateListener cb;
+    LogicalGamepadState snap;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto& state = slots_[slot].logical;
+        connected = slot == 0 || connected;
+        if (state.connected == connected) return;
+        state.connected = connected;
+        ++state.sequence;
+        snap = state;
+        cb = listener_;
+    }
+    if (cb) cb(slot, snap);
+}
+
+void ControllerHub::ResetSource(ControllerSourceId source, uint32_t onlySlot)
 {
     const uint32_t src = static_cast<uint32_t>(source);
-    if (src >= kSourceCount) return;
+    if (src >= kSourceCount || onlySlot > kMaxControllerSlots) return;
     const uint32_t bit = 1u << src;
 
     StateListener cb;
@@ -211,6 +238,7 @@ void ControllerHub::ResetSource(ControllerSourceId source)
         std::lock_guard<std::mutex> lock(mutex_);
         cb = listener_;
         for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot) {
+            if (onlySlot != kMaxControllerSlots && slot != onlySlot) continue;
             auto& st = slots_[slot];
             for (uint32_t b = 0; b < kButtonCount; ++b) st.buttonOwners[b] &= ~bit;
             for (uint32_t stick = 0; stick < kStickCount; ++stick) {

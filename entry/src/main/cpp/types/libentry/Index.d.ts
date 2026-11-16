@@ -300,7 +300,7 @@ export const isGamepadConnected: () => boolean;
 export const setGamepadButtonCallback: (callback: (buttonCode: number, pressed: boolean) => void) => void;
 export const setGamepadAxisCallback: (callback: (axisType: number, x: number, y: number) => void) => void;
 export const setGamepadDeviceCallback: (callback: (connected: boolean) => void) => void;
-export const setGamepadRumbleCallback: (callback: (low: number, high: number, durationMs: number) => void) => void;
+export const setGamepadRumbleCallback: (callback: (low: number, high: number, durationMs: number, deviceId: string) => void) => void;
 export const refreshRenderer: (toplevelId: number) => void;
 export const setRendererPaused: (toplevelId: number, paused: boolean) => void;
 export const getDisplayFps: (toplevelId?: number) => number;

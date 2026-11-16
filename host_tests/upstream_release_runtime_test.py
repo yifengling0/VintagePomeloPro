@@ -52,6 +52,19 @@ class ReleaseRuntimeTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'member missing'):
             self.check()
 
+    def test_controller_metadata_passes(self):
+        metadata = dict(schemaVersion=1, slots=4, patchSha256='paired-controller')
+        self.lock['controller'] = dict(runtimeMetadata=metadata)
+        self.manifest['controllerRuntime'] = copy.deepcopy(metadata)
+        self.refresh()
+        self.assertEqual(self.check()['wine'], 'new-wine')
+
+    def test_old_controller_runtime_fails(self):
+        self.lock['controller'] = dict(runtimeMetadata=dict(slots=4))
+        self.refresh()
+        with self.assertRaisesRegex(ValueError, 'Unpaired controller'):
+            self.check()
+
 
 if __name__ == '__main__':
     unittest.main()

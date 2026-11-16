@@ -122,8 +122,8 @@
       "sha256": "e1b8f1c2be80f85f068065984bc0c4dd7171fa03571a29fb107e93ad2fcdfa48"
     },
     "libs/arm64-v8a/winebus.so": {
-      "bytes": 51104,
-      "sha256": "2bb488014e6322047f0ddbf750c5a92113dab04d7a7fce753aa4d2701d88622d"
+      "bytes": 43904,
+      "sha256": "64a5a56dbbfe0259743456aaf441d64ba1efcb0d05e391b651f7abe0e22ed369"
     },
     "libs/arm64-v8a/winedmo.so": {
       "bytes": 126912,
@@ -166,8 +166,8 @@
       "sha256": "5547e13f5c566c08f2659a6c3759e2306cb1e284c72fffdce6f66e95e6a92937"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 15973,
-      "sha256": "abd51b8e096f47719a0bea0e94da74df94fcf16ca7800d88829bddd04cd880de"
+      "bytes": 16276,
+      "sha256": "5d5ffe46f88bbc5d5da8038981f054bc43d5d4134765f01d395b8bfbd2ce995a"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 167,
@@ -241,5 +241,19 @@
     "textureLockSha256": "24c85e96c2eaf0d38ae2b61dc58bef62c54d2e45a2d0c23688fd66e96c42f356",
     "qualification": "mini-sampled-host-validated",
     "report": "docs/graphics/mini-release-readiness-20261115.zh-CN.md"
+  },
+  "controller": {
+    "patchFile": "patches/wine/0083-winebus-multiple-gamepads.patch",
+    "patchSha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37",
+    "protocolBlockSha256": "e652863e3b83baf38083695627db54cba5f3da0ea5883b63315ae5aefacf8a94",
+    "runtimeMetadata": {
+      "schemaVersion": 1,
+      "slots": 4,
+      "protocolVersion": 2,
+      "patchSha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37",
+      "winebusSha256": "64a5a56dbbfe0259743456aaf441d64ba1efcb0d05e391b651f7abe0e22ed369",
+      "hardwareValidated": false
+    },
+    "qualification": "Host multi-device/socket/Winebus regression and OHOS compile only; physical controller acceptance pending."
   }
 }

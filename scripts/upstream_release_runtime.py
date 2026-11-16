@@ -62,6 +62,15 @@ def load_lock():
             if row['sha256'] not in {hashlib.sha256(data).hexdigest(),
                     hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest()}:
                 raise ValueError('Selected graphics patch changed: ' + row['path'])
+    controller = lock.get('controller')
+    if controller:
+        if file_sha(ROOT / controller['patchFile']) != controller['patchSha256']:
+            raise ValueError('Selected controller patch changed')
+        header = (ROOT / 'entry/src/main/cpp/input/controller/gamepad_ipc_protocol.h').read_text()
+        begin, end = '/* >>> WHGP_PROTOCOL_BEGIN */', '/* <<< WHGP_PROTOCOL_END */'
+        block = header[header.index(begin):header.index(end) + len(end)]
+        if hashlib.sha256(block.encode()).hexdigest() != controller['protocolBlockSha256']:
+            raise ValueError('Selected controller host protocol changed')
     return lock
 
 
@@ -106,6 +115,9 @@ def verify(open_member, names, lock):
             raise ValueError('Upstream runtime source lock mismatch: ' + component)
     if lock.get('graphics'):
         verify_graphics(open_member, manifest, lock['graphics'])
+    if lock.get('controller'):
+        if manifest.get('controllerRuntime') != lock['controller']['runtimeMetadata']:
+            raise ValueError('Unpaired controller runtime metadata')
     return dict(wine=lock['wine']['adaptedCommit'], fex=lock['fex']['adaptedCommit'],
                 verifiedMembers=len(lock['members']))
 

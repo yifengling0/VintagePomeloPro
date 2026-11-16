@@ -746,6 +746,8 @@ test-fex-exact-store:
 .PHONY: test-gamepad-bridge
 test-gamepad-bridge:
 	python3 $(ROOT)/host_tests/gamepad_bridge_test.py
+	python3 $(ROOT)/host_tests/multiple_gamepads_test.py
+	python3 $(ROOT)/host_tests/wine_multiple_gamepads_test.py
 
 .PHONY: test-gpu-followup
 test-gpu-followup:

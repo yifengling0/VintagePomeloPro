@@ -48,6 +48,8 @@ struct GamepadBridge::Client {
     // snapshots. A recycled descriptor must never receive another peer's state.
     std::mutex sendMutex;
     bool active = true;
+    bool seen[kMaxControllerSlots] = {};
+    uint64_t sequence[kMaxControllerSlots] = {};
     std::atomic<bool> finished{false};
     std::thread receiver;
 };
@@ -225,7 +227,8 @@ void GamepadBridge::AcceptLoop()
         OH_LOG_INFO(LOG_APP, "[WHGP] client connected fd=%{public}d peer_pid=%{public}d", client, peerPid);
         connection->receiver = std::thread([this, connection] { RecvLoop(connection); });
         // Joining a peer does not resend snapshots to existing consumers.
-        WriteState(connection, 0, ControllerHub::Instance().GetState(0));
+        for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot)
+            WriteState(connection, slot, ControllerHub::Instance().GetState(slot));
     }
 }
 
@@ -245,7 +248,7 @@ void GamepadBridge::RecvLoop(const std::shared_ptr<Client>& client)
                         hdr.version, WHGP_VERSION);
             break;
         }
-        if (hdr.payload_size > 4096) {
+        if (hdr.payload_size > 4096 || hdr.slot >= kMaxControllerSlots) {
             OH_LOG_WARN(LOG_APP, "[WHGP] payload too large %{public}u", hdr.payload_size);
             break;
         }
@@ -258,7 +261,7 @@ void GamepadBridge::RecvLoop(const std::shared_ptr<Client>& client)
                 std::lock_guard<std::mutex> lock(mutex_);
                 cb = rumbleListener_;
             }
-            if (cb) cb(body.low, body.high, body.duration_ms);
+            if (cb) cb(hdr.slot, body.low, body.high, body.duration_ms);
             continue;
         }
 
@@ -289,6 +292,7 @@ void GamepadBridge::RecvLoop(const std::shared_ptr<Client>& client)
 void GamepadBridge::WriteState(const std::shared_ptr<Client>& client, uint32_t slot,
                                const LogicalGamepadState& state)
 {
+    if (slot >= kMaxControllerSlots) return;
     whgp_header hdr{};
     hdr.magic = WHGP_MAGIC;
     hdr.version = WHGP_VERSION;
@@ -306,6 +310,8 @@ void GamepadBridge::WriteState(const std::shared_ptr<Client>& client, uint32_t s
     body.rt = state.rt;
     body.hat_x = state.hatX;
     body.hat_y = state.hatY;
+    body.reserved[0] = WHGP_STATE_TOPOLOGY_VALID |
+                       (state.connected ? WHGP_STATE_CONNECTED : 0);
 
     const ssize_t total = static_cast<ssize_t>(sizeof(hdr) + sizeof(body));
     iovec iov[2] = {
@@ -317,6 +323,10 @@ void GamepadBridge::WriteState(const std::shared_ptr<Client>& client, uint32_t s
     message.msg_iovlen = 2;
     std::lock_guard<std::mutex> sendLock(client->sendMutex);
     if (!client->active) return;
+    // A concurrent hotplug/input update can overtake the initial snapshot.
+    if (client->seen[slot] && state.sequence < client->sequence[slot]) return;
+    client->seen[slot] = true;
+    client->sequence[slot] = state.sequence;
     ssize_t sent;
     do {
         sent = sendmsg(client->fd, &message, MSG_NOSIGNAL | MSG_DONTWAIT);

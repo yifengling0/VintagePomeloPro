@@ -356,6 +356,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0080-wineohos-shared-multichannel
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0081-wineohos-render-event-pacing.patch" "OHOS render writable-period event pacing"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0082-ntdll-explicit-dxvk9-overlay.patch" "Explicit per-game DXVK9 managed DLL overlay"
 
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0083-winebus-multiple-gamepads.patch" \
+    "Route independent WHGP slots and controller hotplug in Winebus"
 if [ "${1:-}" = --check-patches ]; then exit 0; fi
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.

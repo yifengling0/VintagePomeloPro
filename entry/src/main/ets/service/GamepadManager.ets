@@ -21,6 +21,12 @@ class PadMotor {
   usePattern: boolean = true;
 }
 
+class PadRumbleState {
+  low: number = -1;
+  high: number = -1;
+  at: number = 0;
+}
+
 export class GamepadManager {
   private static instance: GamepadManager | null = null;
   private sink: GamepadSink = new KeyMouseGamepadSink();
@@ -49,9 +55,7 @@ export class GamepadManager {
       [mapping.buttonCode, mapping.evdevCode])
   );
   private padMotors: PadMotor[] = [];
-  private lastLow: number = -1;
-  private lastHigh: number = -1;
-  private lastRumbleAt: number = 0;
+  private rumbleStates: Map<string, PadRumbleState> = new Map<string, PadRumbleState>();
   private rumbleListening: boolean = false;
 
   static getInstance(): GamepadManager {
@@ -115,8 +119,8 @@ export class GamepadManager {
       this.refreshPadMotors();
       this.connectionListeners.forEach((listener: GamepadConnectionListener) => listener(connected));
     });
-    testNapi.setGamepadRumbleCallback((low: number, high: number, durationMs: number) => {
-      this.applyRumble(low, high, durationMs);
+    testNapi.setGamepadRumbleCallback((low: number, high: number, durationMs: number, deviceId: string) => {
+      this.applyRumble(low, high, durationMs, deviceId);
     });
     this.watchVibrators();
     this.refreshPadMotors();
@@ -357,33 +361,41 @@ export class GamepadManager {
     hilog.info(DOMAIN, TAG, 'pad motors=%{public}d %{public}s', next.length, this.getRumbleStatusText());
   }
 
-  private applyRumble(low: number, high: number, durationMs: number): void {
+  private applyRumble(low: number, high: number, durationMs: number, deviceId?: string): void {
     if (this.outputMode !== 'dinput') return;
     const now = Date.now();
-    if (low <= 0 && high <= 0) {
-      this.lastLow = 0;
-      this.lastHigh = 0;
-      this.lastRumbleAt = now;
-      this.stopPadVibration();
-      return;
-    }
-    if (low === this.lastLow && high === this.lastHigh && (now - this.lastRumbleAt) < 60) {
-      return;
-    }
-    this.lastLow = low;
-    this.lastHigh = high;
-    this.lastRumbleAt = now;
-
     if (this.padMotors.length === 0) this.refreshPadMotors();
-    if (this.padMotors.length === 0) return;
+    // Only the explicit settings-page test fans out. Wine feedback is targeted.
+    const motors: PadMotor[] = deviceId === undefined ? this.padMotors :
+      this.padMotors.filter((motor: PadMotor): boolean => String(motor.deviceId) === deviceId);
+    if (motors.length === 0) return;
+    const key: string = deviceId ?? 'test';
+    let state: PadRumbleState | undefined = this.rumbleStates.get(key);
+    if (!state) {
+      state = new PadRumbleState();
+      this.rumbleStates.set(key, state);
+    }
+    if (low <= 0 && high <= 0) {
+      state.low = 0;
+      state.high = 0;
+      state.at = now;
+      motors.forEach((motor: PadMotor): void => this.stopMotor(motor));
+      return;
+    }
+    if (low === state.low && high === state.high && (now - state.at) < 60) {
+      return;
+    }
+    state.low = low;
+    state.high = high;
+    state.at = now;
 
     const duration = durationMs > 0 ? durationMs : 250;
-    if (this.padMotors.length >= 2) {
-      this.startMotor(this.padMotors[0], low, duration, true);
-      this.startMotor(this.padMotors[1], high, duration, false);
+    if (motors.length >= 2) {
+      this.startMotor(motors[0], low, duration, true);
+      this.startMotor(motors[1], high, duration, false);
       return;
     }
-    this.startMotor(this.padMotors[0], Math.max(low, high), duration, true);
+    this.startMotor(motors[0], Math.max(low, high), duration, true);
   }
 
   private startMotor(motor: PadMotor, intensityRaw: number, durationMs: number, isLow: boolean): void {
@@ -437,6 +449,7 @@ export class GamepadManager {
   }
 
   private stopPadVibration(): void {
+    this.rumbleStates.clear();
     for (let i = 0; i < this.padMotors.length; i++) {
       this.stopMotor(this.padMotors[i]);
     }

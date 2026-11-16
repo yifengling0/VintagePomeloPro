@@ -17,7 +17,7 @@ namespace controller {
 // clients; rumble packets from winebus are forwarded to a JS/native listener.
 class GamepadBridge {
 public:
-    using RumbleListener = std::function<void(uint16_t low, uint16_t high, uint32_t durationMs)>;
+    using RumbleListener = std::function<void(uint32_t slot, uint16_t low, uint16_t high, uint32_t durationMs)>;
 
     static GamepadBridge& Instance();
 
