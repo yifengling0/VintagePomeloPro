@@ -1,6 +1,7 @@
 import { common, wantConstant } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { promptAction } from '@kit.ArkUI';
+import { hilog } from './LogService';
 import testNapi from 'libentry.so';
 import { AppSettingsStore } from './AppSettingsStore';
 import { parseSystemOpenTarget } from '../model/SystemOpenTarget';
@@ -56,8 +57,14 @@ export class SystemOpenService {
       } catch (_) { return false; }
     }
     try {
-      void context.startAbility({ action: 'ohos.want.action.viewData', uri, flags })
-        .catch((): void => { promptAction.showToast({ message: '系统应用未能打开链接或文件，请检查是否安装了对应应用' }); });
+      // HTTP links use the system link resolver (including the default browser).
+      // Generic viewData alone can fail to match a browser on HarmonyOS.
+      const launch = /^https?:/i.test(uri) ? context.openLink(uri, { appLinkingOnly: false }) :
+        context.startAbility({ action: 'ohos.want.action.viewData', uri, flags });
+      void launch.catch((error: Error): void => {
+        hilog.warn(0, 'SystemOpen', 'System open failed: %{public}s', JSON.stringify(error));
+        promptAction.showToast({ message: '系统应用未能打开链接或文件，请检查是否安装了对应应用' });
+      });
       return true; // Accepted; asynchronous launch failure is reported above.
     } catch (_) {
       promptAction.showToast({ message: '系统应用启动失败，请稍后重试' });

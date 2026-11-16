@@ -45,13 +45,14 @@ const settings = {getGlobalSettings: () => ({systemOpenEnabled: allow}), subscri
 const {SystemOpenService: service} = load('service/SystemOpenService', {
   '@kit.AbilityKit': {wantConstant: {Flags: {FLAG_AUTH_READ_URI_PERMISSION: 1}}},
   '@kit.CoreFileKit': {fileIo: {OpenMode:{READ_ONLY:0}, openSync: p => {if(missing)throw Error('unmapped'); return {fd:1,path:p};}, statSync: () => ({isFile:()=>true}), closeSync:()=>closed++}, fileUri: {getUriFromPath: () => 'file://com.vintage.pomelopro/data/storage/el2/base/files/a.txt'}},
+  './LogService': {hilog:{warn(){}}},
   '@kit.ArkUI': {promptAction: {showToast: x => errors.push(x.message)}},
   'libentry.so': {default:{setSystemOpenEnabled:x=>{enabled=x;}, setOpenTargetCallback:f=>{callback=f;}}},
   './AppSettingsStore': {AppSettingsStore:{getInstance:()=>settings}},
   '../model/SystemOpenTarget': {parseSystemOpenTarget:parse}
 });
 (async () => {
-  service.initialize({startAbility: want => {opened.push(want);return failLaunch ? Promise.reject(Error('no handler')) : Promise.resolve();}});
+  service.initialize({openLink: (uri, options) => {assert.equal(options.appLinkingOnly,false); opened.push({uri,options}); return failLaunch ? Promise.reject(Error('no browser')) : Promise.resolve();}, startAbility: want => {opened.push(want);return failLaunch ? Promise.reject(Error('no handler')) : Promise.resolve();}});
   service.start('/prefix'); assert(!enabled); assert(!callback('https://example.com'));
   allow = true; changed(); assert(enabled); assert(callback('https://example.com')); assert.equal(opened.length, 1);
   missing = true; assert(!callback('file:///C:/a.txt')); assert.equal(opened.length,1, 'unmapped file falls back');
