@@ -1415,6 +1415,7 @@ test-virgl-fbo-status:
 .PHONY: test-x11-upstream-sync
 test-x11-upstream-sync:
 	@mkdir -p $(HOST_TEST_DIR)
+	python3 $(ROOT)/host_tests/wine_wayland_clipboard_window_test.py
 	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/open_protocol_test.cpp -pthread -o $(HOST_TEST_DIR)/open_protocol_test
 	$(HOST_TEST_DIR)/open_protocol_test
 	g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I $(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/wayland_clipboard_lifecycle_test.cpp -lwayland-server -pthread -o $(HOST_TEST_DIR)/wayland_clipboard_lifecycle_test

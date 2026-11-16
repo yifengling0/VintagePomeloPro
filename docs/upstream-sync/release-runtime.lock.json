@@ -11,8 +11,8 @@
   },
   "wine": {
     "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
-    "lockSha256": "4a37d8b3b967d0fac233fc8ff47a75e6e6fc378c127ed5f6c569c1dcdcd10e79",
-    "adaptedCommit": "8a65f6c15ca4426370a56226153ef6a0b5e7be1d",
+    "lockSha256": "56b2029a9382af3293d92ed908d5a64b70ba242270dd8d73e3f87672e87a64d9",
+    "adaptedCommit": "9e5e178c08e2cb3f43cc90b7b1cf21af95012301",
     "upstreamCommit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
   },
   "fex": {
@@ -146,8 +146,8 @@
       "sha256": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc"
     },
     "libs/arm64-v8a/winewayland.so": {
-      "bytes": 204576,
-      "sha256": "28c4c2478f2deb8faca6af9f2f3e2076a0edba9a8aa5bd0a646cd48e87522dd8"
+      "bytes": 204584,
+      "sha256": "d2efd0068d3b3c5529a09b38db3d6d66cd2f3451c10ffdfa68c726822eeec540"
     },
     "libs/arm64-v8a/winex11.so": {
       "bytes": 482784,
@@ -167,11 +167,11 @@
     },
     "resources/rawfile/wine-runtime-manifest.json": {
       "bytes": 16276,
-      "sha256": "f8d5125fdc8af5b275cecb55f6e2b708b9c750866eb972bea38350a58742cf50"
+      "sha256": "0c789b50b5def544f788fe33df47615ad24a1b3a1fbe8dacf84f5a7bd1364237"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 193,
-      "sha256": "295ddcac88ffdecd0b18f5bc6b804b99e7a494a6811ccac4b9e97f4aab6d9467"
+      "sha256": "2c1488374ac61783ed47e6bdd18e9885b5d89af8f1f6a8c720b772c536b8cfec"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1006736,

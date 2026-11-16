@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "x11-sync-build-pending",
+  "status": "x11-sync-device-validation-pending",
   "upstream": {
     "repository": "ValveSoftware/wine",
     "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "8a65f6c15ca4426370a56226153ef6a0b5e7be1d",
-  "adaptedTree": "9b568f046c14377665ae49609db50e933f9bf79b",
+  "adaptedCommit": "9e5e178c08e2cb3f43cc90b7b1cf21af95012301",
+  "adaptedTree": "434d4f4d41043346606cc4fbba784f2289ba4751",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -526,11 +526,17 @@
       "sha256": "a013221122f591d09fcb348c68dd676a570e08f8161fe79893319387d0959413",
       "commit": "8a65f6c15ca4426370a56226153ef6a0b5e7be1d",
       "subject": "OHOS: port WineHua HiDPI and bounded host-open support to current Proton"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0085-wayland-clipboard-window-class-termination.patch",
+      "sha256": "74406def139a15fe174f23804a99200abb407a899a073df5e250281d8579ee1c",
+      "commit": "9e5e178c08e2cb3f43cc90b7b1cf21af95012301",
+      "subject": "winewayland: terminate the per-process clipboard window class name"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "f30b692854c136a61c8dabbfc2242c2ac223a96f14ce93b87d98c9ce29b2e41b"
+    "sha256": "3978170ca2db0866071a71ea095c3e7c830ccbc1283914cbf5bd4d9dd04e113b"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",
