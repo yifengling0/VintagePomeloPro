@@ -939,7 +939,7 @@
       "scripts/build_xwayland.sh": "966b47239037202c72c875f2efbb0cfc026311f06035c770f32aacaf51993e37",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "5a84276c968f8662ac39faa46b31ad0aab8015b39e4a76bf30b9cb2541fb345c",
+      "scripts/build_wine.sh": "734d207fca90ccaed831a9f7dd94918963b828c43947ba5508e5c989e641633e",
       "scripts/env.sh": "7114cabf2d9d65d1fe3c64a954a97ab2ad6d56fe266f5a3318e345cf9437e7e8",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }

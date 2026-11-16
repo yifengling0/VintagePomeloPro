@@ -167,7 +167,7 @@
     },
     "resources/rawfile/wine-runtime-manifest.json": {
       "bytes": 22051,
-      "sha256": "ce290408d83541577efc07717ee0e84dd0fd472247dcfb7c5c293e7e5dd8c44d"
+      "sha256": "60b7b596e8e997b236c1d1d803c6599860de1eceeeaca3f56048dff068b89c56"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 193,
@@ -236,7 +236,7 @@
   },
   "graphics": {
     "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
-    "sourceLockSha256": "ed2f50ecca9e6fa81e5bc96a271b31cf6382805c7a43f359ddde9cc4a95f93a1",
+    "sourceLockSha256": "0cf554bffb129c7c21374077969a464bb0079e3dea89fe6905534f30eb61d0c8",
     "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
     "textureLockSha256": "eb1e8b6226cb6f2de21d55ee31edad9b967c38e99e16dae6f290d274a00b968e",
     "qualification": "host-validated-mini-components-tested-integrated-package-pending",
