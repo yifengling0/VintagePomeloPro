@@ -21,6 +21,12 @@
       "date": "2026-11-16",
       "qualification": "host-validation-only",
       "note": "0026 corrects remote buffer read offset and failed-map references; 0027 uses isolated staging and exact image copy regions. Existing shadow switches only. No Maleoon ShaderLayer workaround enabled."
+    },
+    "d3d9_backbuffer_preservation": {
+      "date": "2026-11-16",
+      "upstream": "feebec959d3d23c3503964e89732c9d7dc28dde5",
+      "qualification": "mini-pal4-bounded-device-validated; other games/fullscreen pending",
+      "note": "Preserve COPY and single-backbuffer windowed DISCARD contents; retain fullscreen/FLIP rotation and existing explicit opt-out. No global noExplicitFrontBuffer override."
     }
   },
   "architecture": {
@@ -783,6 +789,10 @@
       {
         "path": "patches/dxvk/0019-synchronize-mapped-buffer-backing-lookup.patch",
         "sha256": "cea6e40acc2fd9719e120661ae8b61c19ebb2ced5e78e457ac610b806b277499"
+      },
+      {
+        "path": "patches/dxvk/0020-d3d9-preserve-copy-and-windowed-backbuffers.patch",
+        "sha256": "13568cd5c4853e71454d007856603e46b85057eaedba09d68b81b6034f11033c"
       }
     ]
   },

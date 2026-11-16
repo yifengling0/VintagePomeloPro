@@ -173,6 +173,11 @@ endif
 .PHONY: dxvk
 dxvk: $(DXVK_STAMP)
 
+# Focused PE32 D3D9 rebuild; deliberately does not satisfy the full DXVK stamp.
+.PHONY: dxvk-d3d9
+dxvk-d3d9:
+	bash $(SCRIPTS)/build_dxvk.sh --d3d9-only
+
 # arm64x 链接引用 wine 构建的 import lib (dlls/vulkan-1/aarch64-windows/libvulkan-1.a):
 # 必须显式前置 wine stamp, 否则干净环境 (无残留 build/) 中 dxvk 先于 wine 构建
 # → 链接失败 (CI 实测 2026-09-04: "no such file ... libvulkan-1.a")。
@@ -681,6 +686,7 @@ test-hsl-pr78:
 	g++ -std=c++17 -Wall -Wextra -Werror $(ROOT)/host_tests/wine_cpu_policy_test.cpp -o $(HOST_TEST_DIR)/wine_cpu_policy_test
 	$(HOST_TEST_DIR)/wine_cpu_policy_test
 	python3 $(ROOT)/host_tests/dxvk_compat_patches_test.py
+	python3 $(ROOT)/host_tests/dxvk9_backbuffer_preservation_test.py
 	python3 $(ROOT)/host_tests/hsl_dxvk_publication_test.py
 	python3 $(ROOT)/host_tests/venus_present_retry_test.py
 	python3 $(ROOT)/host_tests/venus_present_deadline_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/venus-deadline
