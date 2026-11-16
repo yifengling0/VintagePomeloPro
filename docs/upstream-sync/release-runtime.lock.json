@@ -7,12 +7,12 @@
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
     "recordSha256": "5043c7386a7170e6553ac8c9e94f5f09ab0f51dda0d732c45951696b07ad52f4",
     "testedPackageSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
-    "scope": "Historical Wine/FEX baseline checks only; the graphics sync has host validation and requires separate VPP device acceptance."
+    "scope": "Historical baseline evidence only. X11 upstream-sync candidate has host build validation; its device and performance acceptance is tracked separately in docs/upstream-sync/x11-upstream-sync.zh-CN.md."
   },
   "wine": {
     "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
-    "lockSha256": "43adfdd8108186b4e17739953a3c3ab29d3dbfd91d628b2adc447f076cb077ea",
-    "adaptedCommit": "098ece0eedff40bea426d2d57b215bb81411e239",
+    "lockSha256": "56b2029a9382af3293d92ed908d5a64b70ba242270dd8d73e3f87672e87a64d9",
+    "adaptedCommit": "9e5e178c08e2cb3f43cc90b7b1cf21af95012301",
     "upstreamCommit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
   },
   "fex": {
@@ -86,8 +86,8 @@
       "sha256": "f7be336ea442658b0529bb1d27df52257a72054d8f06e2fe7365d0d1bf16378f"
     },
     "libs/arm64-v8a/ntdll.so": {
-      "bytes": 723920,
-      "sha256": "0cb486f74ca513c7a9d607068f4c0fd38add4777c491c02453cbe45680bb930b"
+      "bytes": 725392,
+      "sha256": "5b0a2c3266edaf244176e368cea557aebe551ad01e70346bebcda10f9fdd85d2"
     },
     "libs/arm64-v8a/odbc32.so": {
       "bytes": 63728,
@@ -110,8 +110,8 @@
       "sha256": "3f421a48c2fe65d45fb965ef0bbfe50f35bbf38ca02e90c55db3ec1a974affa1"
     },
     "libs/arm64-v8a/win32u.so": {
-      "bytes": 2252824,
-      "sha256": "c7a184079e82385e704f9099e0e5d6ebacb08388228330acf5f170da2370c454"
+      "bytes": 2253720,
+      "sha256": "484c1fc3a7239a0b2d1f8dd281f23fb2e6bde683e8c0ae9dda487b1036cb0a9c"
     },
     "libs/arm64-v8a/windows.media.speech.so": {
       "bytes": 8496,
@@ -122,8 +122,8 @@
       "sha256": "e1b8f1c2be80f85f068065984bc0c4dd7171fa03571a29fb107e93ad2fcdfa48"
     },
     "libs/arm64-v8a/winebus.so": {
-      "bytes": 43904,
-      "sha256": "64a5a56dbbfe0259743456aaf441d64ba1efcb0d05e391b651f7abe0e22ed369"
+      "bytes": 53312,
+      "sha256": "0cff044370dee17d27a06dda4fcb5a59452def6123ecfede6c6dbe5d632a6af1"
     },
     "libs/arm64-v8a/winedmo.so": {
       "bytes": 126912,
@@ -146,8 +146,8 @@
       "sha256": "4e6fc7b63d48c7818de84e53de44935ae55295f4a63aea0d131beb3778abeebc"
     },
     "libs/arm64-v8a/winewayland.so": {
-      "bytes": 204640,
-      "sha256": "c5082ac0a2665014d9b866aeca8910b03391a81b56b6506611fec8d3f1bc730c"
+      "bytes": 204584,
+      "sha256": "d2efd0068d3b3c5529a09b38db3d6d66cd2f3451c10ffdfa68c726822eeec540"
     },
     "libs/arm64-v8a/winex11.so": {
       "bytes": 482784,
@@ -162,16 +162,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 447913043,
-      "sha256": "5547e13f5c566c08f2659a6c3759e2306cb1e284c72fffdce6f66e95e6a92937"
+      "bytes": 448144706,
+      "sha256": "2e3e6ede78d2444fc58ca02ae2e0ee6f56243b362478c9b8aa29e34b60941965"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
       "bytes": 16276,
-      "sha256": "5d5ffe46f88bbc5d5da8038981f054bc43d5d4134765f01d395b8bfbd2ce995a"
+      "sha256": "0c789b50b5def544f788fe33df47615ad24a1b3a1fbe8dacf84f5a7bd1364237"
     },
     "resources/rawfile/wine_runtime.version": {
-      "bytes": 167,
-      "sha256": "165610a6ec9da46a6d15ab2ebafd464763fe32c3b425e7c4d2f825d74a4a7de9"
+      "bytes": 193,
+      "sha256": "2c1488374ac61783ed47e6bdd18e9885b5d89af8f1f6a8c720b772c536b8cfec"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1006736,
@@ -236,7 +236,7 @@
   },
   "graphics": {
     "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
-    "sourceLockSha256": "4da445084dfa07e1d78f51c47a730bf3b0617c2d542f3b0e2e1c319fb31a9263",
+    "sourceLockSha256": "9c1de4d2747a1446cdac4429e097b41c71ddc62fa299c0765765a6be43a86ff3",
     "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
     "textureLockSha256": "24c85e96c2eaf0d38ae2b61dc58bef62c54d2e45a2d0c23688fd66e96c42f356",
     "qualification": "mini-sampled-host-validated",
@@ -251,7 +251,7 @@
       "slots": 4,
       "protocolVersion": 2,
       "patchSha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37",
-      "winebusSha256": "64a5a56dbbfe0259743456aaf441d64ba1efcb0d05e391b651f7abe0e22ed369",
+      "winebusSha256": "0cff044370dee17d27a06dda4fcb5a59452def6123ecfede6c6dbe5d632a6af1",
       "hardwareValidated": false
     },
     "qualification": "Host multi-device/socket/Winebus regression and OHOS compile only; physical controller acceptance pending."

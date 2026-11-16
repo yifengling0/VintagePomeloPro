@@ -15,6 +15,10 @@
 // (BuildWineBaselineLines / ApplyEnvLinesToEnviron) 已收口到
 // wine_env_baseline.h 单表, 此处 via include 透出, 调用点用 winehua:: 前缀。
 
+// Immutable for one Wine session; font DPI is independent of output scaling.
+bool SetWineLogPixels(int pixels);
+void AppendWineDpiEnv(std::vector<std::string>& env);
+
 // -- Wine 环境变量构建 --
 // wineLang: Wine locale 语言 ("zh_CN"/"en_US"), 决定基线 LANG=<wineLang>.UTF-8;
 // 桌面会话经 launchClient 由用户设置传入, 程序直启路径由 ArkTS 经 environment

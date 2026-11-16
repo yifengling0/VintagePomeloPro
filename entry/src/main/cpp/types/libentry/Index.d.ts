@@ -233,6 +233,7 @@ export const terminateWineProcess: (pid: number) => boolean;
 export const checkWinePrefix: (containerId?: string) => boolean;
 export const resetWinePrefix: (containerId?: string) => boolean;
 export const setOutputSize: (w: number, h: number) => void;
+export const setWineLogPixels: (pixels: number) => boolean;
 export const setDisplayScale: (scale: number) => void;
 export const setDesktopMode: (enabled: boolean) => void;
 export const setPhoneMode: (enabled: boolean) => void;
@@ -319,3 +320,6 @@ export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>
 export const getSteamZipProgress: () => SteamZipProgress;
 
 export const setToplevelIsolated: (id: number, isolated: boolean) => void;
+
+export const setSystemOpenEnabled: (enabled: boolean) => void;
+export const setOpenTargetCallback: (callback: ((target: string) => boolean) | null) => void;

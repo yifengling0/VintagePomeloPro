@@ -643,6 +643,7 @@ struct SystemSettingsPage {
       keepScreenOn: keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
       wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
+      systemOpenEnabled: this.settings.systemOpenEnabled === true,
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: desktopInputProfileId || 'default',
       viewMode: view,
@@ -1118,6 +1119,7 @@ struct SystemSettingsPage {
       keepScreenOn: this.settings.keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
       wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
+      systemOpenEnabled: this.settings.systemOpenEnabled === true,
       box64Preset: preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1180,6 +1182,7 @@ struct SystemSettingsPage {
       keepScreenOn: this.settings.keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
       wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
+      systemOpenEnabled: this.settings.systemOpenEnabled === true,
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -2382,6 +2385,17 @@ struct SystemSettingsPage {
             Text('用于部分游戏的方形黑块或深度画面异常。默认关闭；设备不支持时会报告错误。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           }
+
+          Row({ space: 8 }) {
+            Text('使用系统应用打开链接和文件').fontSize(12).layoutWeight(1)
+              .fontColor(skinColor('text_primary'))
+            Toggle({ type: ToggleType.Switch, isOn: this.settings.systemOpenEnabled === true })
+              .id('wine-system-open')
+              .onChange((enabled: boolean): void => {
+                this.settings.systemOpenEnabled = enabled;
+                void ThemeSettingsService.getInstance().update(this.settings);
+              })
+          }.width('100%')
 
           Text('窗口后端').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')

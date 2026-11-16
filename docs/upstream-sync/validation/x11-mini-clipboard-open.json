@@ -1,0 +1,41 @@
+{
+  "device": "Mini MLR-AL10",
+  "observedAt": "2026-11-16T08:20:22.343548+00:00",
+  "sourceCommit": "a2b9306c81444cf9e2ee8de88d903b0c15cfa16d",
+  "signedHap": {
+    "bytes": 627763847,
+    "sha256": "bef04aad68d7372e5e57ee5fba3b0b1e6a7afba68c53f891d4286b34f8eaa8ae"
+  },
+  "displayRoute": "wayland",
+  "hostToWine": {
+    "source": "system browser address bar",
+    "text": "https://example.com/",
+    "action": "real system PasteButton click",
+    "observed": "Wine notepad rendered exact address",
+    "result": "PASS",
+    "screenshotSha256": "b67050b66d98ae6235be3cf28c3b9d4c0599564d8632b061dcff8612fe32fc5c"
+  },
+  "wineToHost": {
+    "source": "freshly typed Wine notepad text",
+    "action": "Ctrl+A / Ctrl+C then native SearchField Ctrl+V",
+    "expected": "WineWaylandClipboardConfirmed123",
+    "observedNativeSearchField": "WineWaylandClipboardConfirmed123",
+    "result": "PASS"
+  },
+  "automaticClipboardReadPermission": {
+    "declared": false,
+    "requested": false,
+    "profileAcl": false,
+    "automaticReadAccepted": false
+  },
+  "systemOpen": {
+    "target": "Mini MLR-AL10",
+    "appSourceCommit": "a2b9306c81444cf9e2ee8de88d903b0c15cfa16d",
+    "observedAt": "2026-11-16T08:16:31.359057+00:00",
+    "action": "Wine Run -> https://example.com/",
+    "openedBrowserTitle": true,
+    "openedAddress": "example.com",
+    "result": "PASS: real system browser rendered requested page",
+    "clipReadPermissionNeeded": false
+  }
+}

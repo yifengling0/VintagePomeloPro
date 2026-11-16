@@ -36,6 +36,20 @@ def main():
                            'Stage the verified full component build with '
                            'VPP_UPSTREAM_RUNTIME_HAP; refusing to package the old runtime.') from error
     script = ROOT / 'scripts'
+    from local_source_receipt import capture, verify_effective
+    from verify_ci_release import application_build_record
+    source_path = Path(os.environ.get('SOURCE_BUILD_MANIFEST', ROOT / 'build/selected-app-source.json'))
+    if 'SOURCE_BUILD_MANIFEST' not in os.environ:
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(json.dumps(capture(ROOT), indent=2) + '\n')
+    source = json.loads(source_path.read_text())
+    if source['commit'] != subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip():
+        raise ValueError('Application source receipt belongs to another commit')
+    run('git', 'diff', '--quiet', 'HEAD', '--ignore-submodules=all')
+    if source.get('sourceMode') == 'local-effective-source':
+        verify_effective(ROOT, source)
+    app_record = ROOT / 'entry/src/main/resources/rawfile/application-build.json'
+    app_record.write_text(json.dumps(application_build_record(source), indent=2) + '\n')
     run('python3', str(script / 'v2_product_contract.py'), '--source-layout')
     run('python3', str(script / 'prepare_windows_steam_runtime.py'), '--verify-only')
     target = 'assembleApp' if args.mode.startswith('app') else 'assembleHap'
@@ -43,6 +57,10 @@ def main():
         '-p', 'product=default', '-p', 'buildMode=release', target, '--no-daemon')
     hap = ROOT / 'entry/build/default/outputs/default/entry-default-unsigned.hap'
     verify_hap(hap, lock)
+    run('python3', str(script / 'verify_ci_release.py'), 'artifact', '--manifest', str(source_path),
+        '--hap', str(hap), '--output', str(ROOT / 'build/selected-app-artifact.json'))
+    if source.get('sourceMode') == 'local-effective-source':
+        verify_effective(ROOT, source)
     for check in ('runtime_library_guard.py', 'v2_product_contract.py', 'prepare_windows_steam_runtime.py'):
         command = ['python3', str(script / check)]
         run(*command, *(['--hap'] if check != 'runtime_library_guard.py' else []), str(hap))

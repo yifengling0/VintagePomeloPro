@@ -189,6 +189,7 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
     UpsertEnvLine(env, std::string("WINEHUA_DXVK9_OVERLAY=") +
         (d3dBackend == "dxvk_legacy_d3d9" &&
          NativeDllPreferred(FindEnvValue(env, "WINEDLLOVERRIDES"), "d3d9") ? "1" : "0"));
+    AppendWineDpiEnv(env); // Per-app environment must not split the session DPI.
     return env;
 }
 

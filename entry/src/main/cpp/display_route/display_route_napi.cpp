@@ -1,3 +1,4 @@
+#include "input/data_device.h"
 /* display_route NAPI 模块 —— x11 显示路线控制面的产品入口 (ArkTS → 原生)。
  *
  * 边界约定 (D21): 本模块承载全部产品调用面 (桌面窗 / 启动链 / IME 桥);
@@ -288,7 +289,7 @@ static napi_value InjectDisplayRouteText(napi_env env, napi_callback_info info) 
  * injectDisplayRouteKey(29,false)。 */
 static napi_value GetDisplayRouteClipboard(napi_env env, napi_callback_info) {
     uint64_t version = 0;
-    char *text = wl_ohos_input_clipboard_snapshot(&version);
+    char *text = WineHua_DisplayRouteIsX11() ? wl_ohos_input_clipboard_snapshot(&version) : WineClipboardSnapshot(&version);
     napi_value object, value;
     napi_create_object(env, &object);
     napi_create_double(env, static_cast<double>(version), &value);
@@ -308,7 +309,8 @@ static napi_value SetDisplayRouteClipboard(napi_env env, napi_callback_info info
         char *text = static_cast<char *>(malloc(len + 1));
         if (text) {
             napi_get_value_string_utf8(env, args[0], text, len + 1, &len);
-            wl_ohos_input_post_clipboard(text);
+            if (WineHua_DisplayRouteIsX11()) wl_ohos_input_post_clipboard(text);
+            else WineClipboardPost(text);
             free(text);
         }
     }

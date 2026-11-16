@@ -324,10 +324,10 @@ export struct DesktopLayer {
       } else if (Date.now() - this.lastEnterDownTs > DesktopLayer.ENTER_SYNTH_WINDOW_MS &&
           !WineImeCoordinator.getInstance().hasAttachedSession()) {
         hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] ENTER SYNTH down (missing down)');
-        InputRouter.getInstance().sendKey(EVDEV_KEY_ENTER, true);
+        InputRouter.getInstance().sendWindowKey(rootId, 'physical', EVDEV_KEY_ENTER, true);
       }
     }
-    InputRouter.getInstance().sendKey(code, pressed);
+    InputRouter.getInstance().sendWindowKey(rootId, 'physical', code, pressed);
   }
 
   build() {
@@ -677,6 +677,7 @@ export struct DesktopLayer {
         if (vert !== 0) testNapi.sendScrollEvent(tl, 0, vert, step, wpx, wpy);
         if (horiz !== 0) testNapi.sendScrollEvent(tl, 1, horiz, step, wpx, wpy);
       })
+      .onBlur((): void => InputRouter.getInstance().releaseWindowSource(WineWindowManager.getInstance().getDesktopRootId(), 'physical'))
       .onKeyEvent((ev: KeyEvent): void => this.handleHardwareKey(ev))
 
       FpsHud({ toplevelId: 0, hide: this.floating })

@@ -29,4 +29,22 @@ class LocalSourceTests(unittest.TestCase):
             write(root/'AppScope/app.json5','dirty root')
             with self.assertRaises(subprocess.CalledProcessError): capture(root)
 
+    def test_uninitialized_sources_are_explicit_and_cannot_change(self):
+        with tempfile.TemporaryDirectory() as d:
+            root=Path(d)/'root';init_repo(root)
+            child=root/'thirdparty/runtime';init_repo(child)
+            git(root,'submodule','add','./thirdparty/runtime','thirdparty/runtime');commit(root)
+            # Model an uninitialized optional checkout without deleting source.
+            child.rename(root/'saved-runtime');child.mkdir()
+            write(child/'diagnostic.txt','retained local source')
+            value=capture(root)
+            state=value['effectiveSources']['thirdparty/runtime']
+            self.assertEqual(state['sourceState'],'uninitialized')
+            self.assertEqual(base64.b64decode(state['files']['diagnostic.txt']['data']),b'retained local source')
+            verify_effective(root,value)
+            with self.assertRaisesRegex(ValueError,'not initialized'):
+                verify_source(root,value['commit'],'')
+            write(child/'diagnostic.txt','changed')
+            with self.assertRaisesRegex(ValueError,'changed during build'):verify_effective(root,value)
+
 if __name__=='__main__': unittest.main()

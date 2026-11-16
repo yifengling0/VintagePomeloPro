@@ -29,6 +29,21 @@ def effective(repo):
         files[name]=dict(sha256=hashlib.sha256(data).hexdigest(),data=base64.b64encode(data).decode())
     return dict(deltaSha256=hashlib.sha256(delta).hexdigest(),delta=base64.b64encode(delta).decode(),files=files)
 
+def uninitialized(repo):
+    # Selected-runtime packaging reuses exact locked components; absent optional
+    # source checkouts are recorded honestly rather than downloaded for a HAP.
+    files = {}; total = 0
+    for path in sorted(repo.rglob('*')) if repo.exists() else []:
+        if path.is_symlink(): raise ValueError('Uninitialized source symlink: ' + str(path))
+        if not path.is_file(): continue
+        data = path.read_bytes(); total += len(data)
+        if len(data) > 2*1024*1024 or total > 16*1024*1024:
+            raise ValueError('Uninitialized source inventory exceeds receipt budget')
+        files[path.relative_to(repo).as_posix()] = dict(sha256=hashlib.sha256(data).hexdigest(),
+                                                       data=base64.b64encode(data).decode())
+    return dict(sourceState='uninitialized', files=files)
+
+
 def capture(root):
     subprocess.run(['git','-C',str(root),'diff','--quiet','HEAD','--ignore-submodules=all'],check=True)
     links={};trees={}
@@ -38,9 +53,12 @@ def capture(root):
             meta,name=record.split('\t',1);mode,_,pin=meta.split()
             if mode!='160000': continue
             child=repo/name;label=prefix+name
-            if not (child/'.git').exists() or git(child,'rev-parse','HEAD')!=pin:
+            links[label]=pin
+            if not (child/'.git').exists():
+                trees[label]=uninitialized(child);continue
+            if git(child,'rev-parse','HEAD')!=pin:
                 raise ValueError('Local source gitlink mismatch: '+label)
-            links[label]=pin;trees[label]=effective(child);visit(child,label+'/')
+            trees[label]=effective(child);visit(child,label+'/')
     visit(root)
     patches={p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted((root/'patches').rglob('*.patch'))}
     app=load_app(root)
@@ -49,6 +67,10 @@ def capture(root):
 
 def verify_effective(root,manifest):
     for name,expected in manifest['effectiveSources'].items():
+        if expected.get('sourceState') == 'uninitialized':
+            if (root/name/'.git').exists() or uninitialized(root/name) != expected:
+                raise ValueError('Uninitialized local source changed during build: ' + name)
+            continue
         if git(root/name,'rev-parse','HEAD')!=manifest['submodules'][name] or effective(root/name)!=expected:
             raise ValueError('Local effective source changed during build: '+name)
 

@@ -54,6 +54,7 @@ function fixture() {
     'libentry.so': { default: native },
     './LogService': { hilog: { info() {}, warn() {}, error() {} } },
     '../model/AppModels': models,
+    '../model/GraphicsBackendSettings': require(path.join(compiledRoot, 'model/GraphicsBackendSettings.js')),
     '../model/AppCatalogRules': rules,
     './WineEngineService': { WineEngineService: { getInstance: () => engine } },
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },

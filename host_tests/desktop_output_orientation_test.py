@@ -21,7 +21,8 @@ def method(signature):
 methods = '\n'.join(method(signature) for signature in [
     'setOutputScalePercent(', 'syncOutputSize(', 'prepareOutputForOrientation(',
     'desktopDisplaySafeSize(', 'private shouldNotifyDesktopToplevelResize('])
-fixture = '''class Manager {
+scale_policy = (ROOT / 'entry/src/main/ets/model/DisplayScalePolicy.ets').read_text().replace('export ', '')
+fixture = scale_policy + '''\nclass Manager {
 displayScale=1; scaleBoost=1; outputScalePercent=100;
 outputHostWidth=0; outputHostHeight=0;
 presentationMode=WinePresentationMode.DESKTOP; isDesktopMode=true; desktopRootId=0;
@@ -47,11 +48,11 @@ const m=new Manager();
 // Engine prepares landscape, then Index completes its asynchronous settings load
 // while the phone display is still portrait. This is the captured failing order.
 m.prepareOutputForOrientation(settings.desktopOrientation);
-assert.deepStrictEqual(last(),[1416,640]);
+assert.deepStrictEqual(last(),[2832,1280]);
 m.setOutputScalePercent(100);
-assert.deepStrictEqual(last(),[1416,640],'late unchanged Index settings must preserve prepared landscape output');
+assert.deepStrictEqual(last(),[2832,1280],'late unchanged Index settings must preserve prepared landscape output');
 m.setOutputScalePercent(125);
-assert.deepStrictEqual(last(),[1133,512],'a real scale change must reuse desktop geometry, not portrait library geometry');
+assert.deepStrictEqual(last(),[2266,1024],'a real scale change must reuse desktop geometry, not portrait library geometry');
 m.setOutputScalePercent(100);
 m.desktopRootId=7;
 const before=outputs.length;
@@ -59,38 +60,42 @@ m.syncOutputSize(1280,2832);
 assert.strictEqual(outputs.length,before,'transient portrait XComponent must not change landscape output');
 assert.strictEqual(configures.length,0,'transient geometry must not configure the Wine root');
 m.syncOutputSize(2832,1280);
-assert.deepStrictEqual(last(),[1416,640]);
-assert.deepStrictEqual(configures.at(-1),[7,1416,640]);
+assert.deepStrictEqual(last(),[2832,1280]);
+assert.deepStrictEqual(configures.at(-1),[7,2832,1280]);
 // A library resume/unrelated settings notification occurs after desktop creation.
 screen={width:1280,height:2832,densityPixels:3.5};
 m.setOutputScalePercent(100);
-assert.deepStrictEqual(last(),[1416,640]);
+assert.deepStrictEqual(last(),[2832,1280]);
 settings.desktopOrientation='portrait';
 m.prepareOutputForOrientation('portrait');
-assert.deepStrictEqual(last(),[640,1416]);
+assert.deepStrictEqual(last(),[1280,2832]);
 const portraitCount=outputs.length;
 m.syncOutputSize(2832,1280);
 assert.strictEqual(outputs.length,portraitCount,'portrait desktop rejects transient landscape surface');
 m.syncOutputSize(1280,2832);
-assert.deepStrictEqual(last(),[640,1416]);
+assert.deepStrictEqual(last(),[1280,2832]);
 // Tablet and managed windows retain their existing resize behavior.
 phone=false; settings.desktopOrientation='landscape';
 m.syncOutputSize(1280,2832);
-assert.deepStrictEqual(last(),[640,1416]);
+assert.deepStrictEqual(last(),[1280,2832]);
 phone=true; m.presentationMode='managed'; managed=true;
 m.syncOutputSize(1280,2832);
-assert.deepStrictEqual(last(),[640,1416]);
+assert.deepStrictEqual(last(),[1280,2832]);
 // Floating thumbnails never resize the root; explicit orientation preparation can.
 managed=false; m.presentationMode='desktop'; settings.desktopWindowMode='floating';
 configures=[]; m.syncOutputSize(2832,1280);
 assert.strictEqual(configures.length,0);
 m.prepareOutputForOrientation('sensor-landscape');
-assert.deepStrictEqual(configures.at(-1),[7,1416,640]);
+assert.deepStrictEqual(configures.at(-1),[7,2832,1280]);
 // Safe margins are applied once and remain unchanged when the scale changes.
 settings.desktopWindowMode='safe-area'; m.prepareOutputForOrientation('landscape');
-assert.deepStrictEqual(last(),[1368,640]);
+assert.deepStrictEqual(last(),[2736,1280]);
 m.setOutputScalePercent(125);
-assert.deepStrictEqual(last(),[1094,512]);
+assert.deepStrictEqual(last(),[2189,1024]);
+m.setOutputScalePercent(75);
+assert.deepStrictEqual(last(),[3648,1707]);
+m.setOutputScalePercent(150);
+assert.deepStrictEqual(last(),[1824,853]);
 console.log('Desktop output orientation PASS: captured startup race, scale updates, transient rotation, portrait, managed/tablet, floating and safe margins');
 '''
 runner = runner.replace('TS_MODULE', json.dumps(args.typescript)).replace('FIXTURE', json.dumps(fixture))

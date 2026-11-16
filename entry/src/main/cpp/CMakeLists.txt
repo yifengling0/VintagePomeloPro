@@ -105,6 +105,7 @@ add_library(entry SHARED
     input/controller/gamepad_bridge.cpp
     input/controller/physical_gamepad.cpp
     bridge/napi_init.cpp
+    bridge/system_open.cpp
     proc/wine_process.cpp
     wine/wine_env.cpp
     wine/env_spec.cpp
@@ -148,6 +149,7 @@ add_library(entry SHARED
     common/process_utils.cpp
     common/ring_buffer.cpp
     input/seat.cpp
+    input/data_device.cpp
     graphics/shader_utils.cpp
     common/string_utils.cpp
     input/input_manager.cpp

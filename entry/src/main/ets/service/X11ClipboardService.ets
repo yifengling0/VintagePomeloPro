@@ -37,6 +37,44 @@ export class X11ClipboardService {
     catch (_) { /* The system service can be unavailable during teardown. */ }
   }
 
+  // Called from a real PasteButton click. Its temporary system grant also
+  // works with profiles that cannot request the restricted READ_PASTEBOARD ACL.
+  // Wait for the loop-owned selection before the caller sends Ctrl+V.
+  static async prepareSystemPaste(): Promise<boolean> {
+    if (!X11ClipboardService.active || X11ClipboardService.busy) return false;
+    const epoch = X11ClipboardService.epoch;
+    const sequence = ++X11ClipboardService.readSequence;
+    const deadline = Date.now() + 1000;
+    let timer: number = -1;
+    try {
+      const data = await new Promise<pasteboard.PasteData | null>((resolve): void => {
+        timer = setTimeout((): void => resolve(null), 1000);
+        pasteboard.getSystemPasteboard().getData().then(resolve).catch((): void => resolve(null));
+      });
+      clearTimeout(timer);
+      if (data === null || Date.now() >= deadline) return false;
+      if (!X11ClipboardService.active || epoch !== X11ClipboardService.epoch ||
+        sequence !== X11ClipboardService.readSequence || X11ClipboardService.busy) return false;
+      const text = data.getPrimaryText();
+      if (text.length > 262144) return false;
+      displayRoute.setDisplayRouteClipboard(text);
+      X11ClipboardService.lastText = text;
+      X11ClipboardService.hasText = true;
+      while (Date.now() < deadline) {
+        if (!X11ClipboardService.active || epoch !== X11ClipboardService.epoch ||
+          sequence !== X11ClipboardService.readSequence) return false;
+        const value = displayRoute.getDisplayRouteClipboard();
+        if (value.text === text) {
+          X11ClipboardService.version = value.version;
+          return true;
+        }
+        await new Promise<void>((resolve: () => void) => setTimeout(resolve, 10));
+      }
+    } catch (_) { /* Denial and teardown never affect game startup. */ }
+    finally { if (timer >= 0) clearTimeout(timer); }
+    return false;
+  }
+
   private static async pushSystem(): Promise<void> {
     if (!X11ClipboardService.active || X11ClipboardService.busy) return;
     const epoch = X11ClipboardService.epoch;

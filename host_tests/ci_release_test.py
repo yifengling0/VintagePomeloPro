@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -171,7 +172,7 @@ class SourceTests(unittest.TestCase):
                     "submodules": submodules}
         hap = self.root / "test.hap"
         def create(app, machine=183, stale_wine=False, corrupt_runtime=False,
-                   include_version=True, stale_mesa=False, missing_memory_probe=False, include_smoke=False):
+                   include_version=True, stale_mesa=False, missing_memory_probe=False, include_smoke=False, app_record=None, old_origin=False):
             guest = io.BytesIO()
             with zipfile.ZipFile(guest, 'w') as wine:
                 for name in REQUIRED_GUEST: wine.writestr(name, b'guest')
@@ -196,6 +197,10 @@ class SourceTests(unittest.TestCase):
                                      ";".join(f"{key}={value}" for key, value in version.items()))
                 provenance = dict(commit=self.sha, nativeArch='arm64-v8a', wineArch='aarch64',
                                   wineSource='thirdparty/wine-valve', submodules=dict(submodules))
+                if app_record is not None:
+                    archive.writestr('resources/rawfile/application-build.json', json.dumps(app_record))
+                if old_origin:
+                    provenance['commit'] = '1' * 40
                 if stale_mesa:
                     provenance['submodules']['thirdparty/mesa'] = '0' * 40
                 archive.writestr("resources/rawfile/wine-runtime-manifest.json", json.dumps({
@@ -205,6 +210,19 @@ class SourceTests(unittest.TestCase):
                 }))
         create(APP)
         self.assertEqual(release.verify_artifact(hap, manifest)["app"], APP)
+        create(APP, old_origin=True)
+        with self.assertRaisesRegex(ValueError, 'source or architecture'):
+            release.verify_artifact(hap, manifest)
+        create(APP, old_origin=True, app_record=release.application_build_record(manifest))
+        with patch('upstream_release_runtime.verify_hap') as selected:
+            self.assertEqual(release.verify_artifact(hap, manifest)['commit'], self.sha)
+            selected.assert_called_once_with(hap)
+        with patch('upstream_release_runtime.verify_hap', side_effect=ValueError('selected component changed')):
+            with self.assertRaisesRegex(ValueError, 'selected component changed'):
+                release.verify_artifact(hap, manifest)
+        create(APP, old_origin=True, app_record=dict(release.application_build_record(manifest), sourceReceiptSha256='0' * 64))
+        with self.assertRaisesRegex(ValueError, 'effective application source'):
+            release.verify_artifact(hap, manifest)
         create(APP, include_smoke=True)
         with self.assertRaisesRegex(ValueError, "Device test payload"):
             release.verify_artifact(hap, manifest)
