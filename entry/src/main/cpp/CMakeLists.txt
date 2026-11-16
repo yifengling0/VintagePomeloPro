@@ -45,7 +45,12 @@ set(WAYLAND_LIBS_DIR ${NATIVERENDER_ROOT_PATH}/../../../libs/${OHOS_ARCH})
 # 显示路线 wlroots (静态库) — 构建产物在 build/host-ext (纪律: build/ 内唯一落点),
 # 其 NEEDED 闭包 .so 由 assemble.sh 装配进 libs/ (打包视图)
 # 注: NATIVERENDER_ROOT_PATH = entry/src/main/cpp, 仓库根在四级上
-set(WLR_DIR ${NATIVERENDER_ROOT_PATH}/../../../../build/host-ext/${OHOS_ARCH})
+# Allow a read-only dependency install outside Hvigor's disposable build tree.
+set(VPP_HOST_EXT_ROOT "$ENV{VPP_HOST_EXT_ROOT}" CACHE PATH "Existing host dependency install")
+if(NOT VPP_HOST_EXT_ROOT)
+    set(VPP_HOST_EXT_ROOT ${NATIVERENDER_ROOT_PATH}/../../../../build/host-ext)
+endif()
+set(WLR_DIR ${VPP_HOST_EXT_ROOT}/${OHOS_ARCH})
 set(WLR_STATIC ${WLR_DIR}/usr/lib/libwlroots-0.20.a)
 set(WLR_INC ${WLR_DIR}/usr/include/wlroots-0.20)
 set(WLR_PIXMAN_INC ${WLR_DIR}/usr/include/pixman-1)
