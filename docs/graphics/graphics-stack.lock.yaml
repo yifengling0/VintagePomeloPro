@@ -263,6 +263,10 @@
         "sha256": "3ff4ad1d4cfb6fe0b9eae9111ed80382475319c8984f91cf8ea8dc89665aaa04"
       },
       {
+        "path": "patches/wine/0084-wined3d-legacy-specular-fog.patch",
+        "sha256": "de3c847b3ed2bbe62297b87da0ec15403523239039e0106969cddc034d777fa7"
+      },
+      {
         "path": "patches/wine/0054-ntdll-broker-preserve-resolved-image-path.patch",
         "sha256": "8f632a08d23c27bcc532f6514bc3b82349590ad846f3789d8c2357401f95aff9"
       },
