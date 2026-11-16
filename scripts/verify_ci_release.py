@@ -92,6 +92,15 @@ def record_runtime(root, manifest_path, wine_source, native_arch, wine_arch):
     return value['sourceBuild']
 
 
+def application_build_record(manifest):
+    # A selected component runtime can predate the host application. Preserve
+    # that origin, and bind the newly built host to its own effective sources.
+    canonical = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+    return dict(schemaVersion=1, commit=manifest['commit'], app=manifest['app'],
+                sourceMode=manifest.get('sourceMode', 'clean-ci-source'),
+                sourceReceiptSha256=hashlib.sha256(canonical).hexdigest())
+
+
 def verify_artifact(hap, manifest):
     from v2_product_contract import verify_hap
     verify_hap(hap)
@@ -130,7 +139,16 @@ def verify_artifact(hap, manifest):
         if runtime_manifest.get("payload") != "wine-data.zip":
             raise ValueError("invalid HAP runtime manifest")
         provenance = runtime_manifest.get('sourceBuild', {})
-        if (provenance.get('commit') != manifest['commit'] or
+        separate_application = 'resources/rawfile/application-build.json' in names
+        if separate_application:
+            actual = json.loads(archive.read('resources/rawfile/application-build.json'))
+            if actual != application_build_record(manifest):
+                raise ValueError('HAP application differs from effective application source receipt')
+            # This is a deliberately separate origin, never an override of the
+            # selected Wine/FEX or independent graphics member guards.
+            from upstream_release_runtime import verify_hap as verify_selected_runtime
+            verify_selected_runtime(hap)
+        if ((not separate_application and provenance.get('commit') != manifest['commit']) or
                 provenance.get('nativeArch') != 'arm64-v8a' or
                 provenance.get('wineArch') != 'aarch64' or
                 provenance.get('wineSource') != 'thirdparty/wine-valve' or

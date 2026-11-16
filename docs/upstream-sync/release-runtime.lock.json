@@ -167,7 +167,7 @@
     },
     "resources/rawfile/wine-runtime-manifest.json": {
       "bytes": 16276,
-      "sha256": "8fd663019823dbc0e83798fc3f8a7d0d6e6cbab66a97c32fed2d9946513bf1f4"
+      "sha256": "f8d5125fdc8af5b275cecb55f6e2b708b9c750866eb972bea38350a58742cf50"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 193,
