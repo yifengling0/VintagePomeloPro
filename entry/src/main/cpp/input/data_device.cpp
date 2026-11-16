@@ -18,6 +18,9 @@ namespace {
 constexpr size_t MaxText = 1024 * 1024, MaxTransfers = 4;
 const char* Utf8 = "text/plain;charset=utf-8";
 const char* Plain = "text/plain";
+// Wine processes share one Windows clipboard. Preserve this marker so another
+// Wine client does not import its own export and replace the delayed-render owner.
+const char* WineTag = "application/x.winewayland.tag";
 struct Source { wl_resource* resource; std::vector<std::string> mimes; };
 struct Offer { wl_resource* resource; std::shared_ptr<const std::string> text; };
 struct Transfer {
@@ -38,6 +41,7 @@ std::mutex bridgeMutex;
 int wake[2] = {-1, -1};
 wl_event_source* wakeEvent;
 bool pending = false, reset = false, hasSelection = false;
+bool wineSelection = false;
 std::string pendingText, snapshot;
 std::shared_ptr<const std::string> selectionText;
 uint64_t version = 0, generation = 0;
@@ -125,7 +129,12 @@ void OfferDestroyed(wl_resource* r) {
 }
 void SendTo(wl_resource* device) {
     if (wl_resource_get_client(device) != focusClient) return;
-    if (!hasSelection) { wl_data_device_send_selection(device, nullptr); return; }
+    if (!hasSelection) {
+        // The new owner may still be rendering its data. A transient NULL offer
+        // would empty Wine's shared clipboard before it services source.send.
+        if (!selection) wl_data_device_send_selection(device, nullptr);
+        return;
+    }
     if (offers.size() >= 256) { wl_client_post_no_memory(focusClient); return; }
     auto* resource = wl_resource_create(focusClient, &wl_data_offer_interface, wl_resource_get_version(device), 0);
     if (!resource) { wl_client_post_no_memory(focusClient); return; }
@@ -133,12 +142,13 @@ void SendTo(wl_resource* device) {
     wl_resource_set_implementation(resource, &OfferImpl, offer, OfferDestroyed);
     wl_data_device_send_data_offer(device, resource);
     wl_data_offer_send_offer(resource, Utf8); wl_data_offer_send_offer(resource, Plain);
+    if (wineSelection) wl_data_offer_send_offer(resource, WineTag);
     wl_data_device_send_selection(device, resource);
 }
 void SendSelections() { for (auto* d : devices) SendTo(d); }
 void SourceOffer(wl_client*, wl_resource* r, const char* mime) {
     auto* source = static_cast<Source*>(wl_resource_get_user_data(r));
-    if (source && TextMime(mime) && source->mimes.size() < 2 &&
+    if (source && (TextMime(mime) || (mime && !strcmp(mime, WineTag))) && source->mimes.size() < 3 &&
         std::find(source->mimes.begin(), source->mimes.end(), mime) == source->mimes.end()) source->mimes.emplace_back(mime);
 }
 void SourceActions(wl_client*, wl_resource*, uint32_t) {}
@@ -160,11 +170,12 @@ void SetSelection(wl_client* client, wl_resource*, wl_resource* source, uint32_t
     if (selection && selection != source) wl_data_source_send_cancelled(selection);
     Invalidate(); selection = source;
     // Never offer the previous owner's text while the new source is being read.
-    selectionText.reset(); hasSelection = false; SendSelections();
-    if (!source) { Publish(""); return; }
+    selectionText.reset(); hasSelection = false; wineSelection = false;
+    if (!source) { Publish(""); SendSelections(); return; }
     const auto& mimes = sources[source]->mimes;
+    wineSelection = std::find(mimes.begin(), mimes.end(), WineTag) != mimes.end();
     auto utf8 = std::find(mimes.begin(), mimes.end(), Utf8);
-    if (mimes.empty()) return;
+    if (utf8 == mimes.end() && std::find(mimes.begin(), mimes.end(), Plain) == mimes.end()) return;
     int pipefd[2]; if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK)) return;
     if (!StartTransfer(pipefd[0], false)) { close(pipefd[1]); return; }
     // wl_data_source.send duplicates the descriptor over SCM_RIGHTS.
@@ -189,7 +200,7 @@ void Bind(wl_client* client, void*, uint32_t v, uint32_t id) {
 void FocusDestroyed(wl_listener*, void*) { WineClipboardFocus(nullptr); }
 void ClearLoopState() {
     Invalidate(); if (selection) wl_data_source_send_cancelled(selection);
-    selection = nullptr; hasSelection = false; selectionText.reset(); WineClipboardFocus(nullptr);
+    selection = nullptr; hasSelection = false; wineSelection = false; selectionText.reset(); WineClipboardFocus(nullptr);
 }
 int Posted(int fd, uint32_t, void*) {
     char bytes[64]; while (read(fd, bytes, sizeof(bytes)) > 0) {}
@@ -199,7 +210,8 @@ int Posted(int fd, uint32_t, void*) {
     if (clear) ClearLoopState();
     if (apply) {
         Invalidate(); if (selection) wl_data_source_send_cancelled(selection);
-        selection = nullptr; selectionText = std::make_shared<const std::string>(std::move(text)); hasSelection = true; SendSelections();
+        selection = nullptr; wineSelection = false;
+        selectionText = std::make_shared<const std::string>(std::move(text)); hasSelection = true; SendSelections();
         Publish(*selectionText); // Acknowledge only after the loop applied the host selection.
     }
     return 0;
@@ -212,7 +224,8 @@ void WineClipboardFocus(wl_resource* surface) {
     focusSurface = surface; focusClient = surface ? wl_resource_get_client(surface) : nullptr;
     if (surface) { focusDestroyed.notify = FocusDestroyed; wl_resource_add_destroy_listener(surface, &focusDestroyed); }
     if (old != focusClient) {
-        for (auto* d : devices) if (wl_resource_get_client(d) == old) wl_data_device_send_selection(d, nullptr);
+        // Losing keyboard focus does not clear the selection. In particular,
+        // Wine clients share ownership even when their Wayland clients differ.
         SendSelections();
     }
 }

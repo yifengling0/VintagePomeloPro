@@ -10,6 +10,36 @@ static void ReadPipe(const std::string& text) {
     int p[2]; assert(!pipe2(p, O_CLOEXEC | O_NONBLOCK)); assert(StartTransfer(p[0], false));
     assert(write(p[1], text.data(), text.size()) == static_cast<ssize_t>(text.size())); close(p[1]); Dispatch();
 }
+struct Wire { std::string bytes; std::vector<int> fds; };
+// Inspect actual queued protocol events, including the source's SCM_RIGHTS fd.
+static Wire Receive(wl_client* client, int peer) {
+    wl_client_flush(client);
+    char bytes[65536], control[CMSG_SPACE(8 * sizeof(int))];
+    iovec io{bytes, sizeof(bytes)}; msghdr msg{};
+    msg.msg_iov = &io; msg.msg_iovlen = 1; msg.msg_control = control; msg.msg_controllen = sizeof(control);
+    ssize_t n = recvmsg(peer, &msg, MSG_DONTWAIT);
+    if (n < 0) { assert(errno == EAGAIN); return {}; }
+    assert(!(msg.msg_flags & (MSG_TRUNC | MSG_CTRUNC)));
+    Wire result{std::string(bytes, n), {}};
+    for (auto* c = CMSG_FIRSTHDR(&msg); c; c = CMSG_NXTHDR(&msg, c)) {
+        assert(c->cmsg_level == SOL_SOCKET && c->cmsg_type == SCM_RIGHTS);
+        auto* first = reinterpret_cast<int*>(CMSG_DATA(c));
+        result.fds.insert(result.fds.end(), first, first + (c->cmsg_len - CMSG_LEN(0)) / sizeof(int));
+    }
+    return result;
+}
+static bool NullSelection(const Wire& wire, wl_resource* device) {
+    for (size_t pos = 0; pos < wire.bytes.size();) {
+        uint32_t header[2]; assert(pos + 8 <= wire.bytes.size()); memcpy(header, wire.bytes.data() + pos, 8);
+        size_t size = header[1] >> 16; assert(size >= 8 && pos + size <= wire.bytes.size());
+        if (header[0] == wl_resource_get_id(device) && (header[1] & 0xffff) == 5) {
+            uint32_t id; assert(size == 12); memcpy(&id, wire.bytes.data() + pos + 8, 4);
+            if (!id) return true;
+        }
+        pos += size;
+    }
+    return false;
+}
 int main() {
     wl_display* server = wl_display_create(); assert(server); WineClipboardRegister(server);
     int a[2], b[2]; assert(!socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, a));
@@ -32,6 +62,25 @@ int main() {
     SetSelection(clientB, devices.back(), unsupported, 1); assert(!hasSelection && !selectionText);
     wl_resource_destroy(unsupported);
     ReadPipe("guest"); assert(Snapshot() == "guest"); ReadPipe(""); assert(Snapshot().empty());
+    assert(Receive(clientA, a[1]).fds.empty()); assert(Receive(clientB, b[1]).fds.empty());
+    CreateSource(clientB, managerB, 0); auto* wineSource = sources.begin()->first;
+    SourceOffer(clientB, wineSource, Utf8); SourceOffer(clientB, wineSource, WineTag);
+    SetSelection(clientB, devices.back(), wineSource, 1);
+    auto request = Receive(clientB, b[1]);
+    assert(!NullSelection(request, devices.back())); // Never erase Wine's delayed-render owner before reading it.
+    assert(request.fds.size() == 1 && wineSelection && !hasSelection);
+    WineClipboardFocus(nullptr);
+    assert(!NullSelection(Receive(clientB, b[1]), devices.back())); // Focus loss is not clipboard deletion.
+    WineClipboardFocus(surfaceB);
+    assert(!NullSelection(Receive(clientB, b[1]), devices.back())); // Pending read is not an empty selection.
+    assert(write(request.fds[0], "wine guest", 10) == 10); close(request.fds[0]); Dispatch();
+    assert(Snapshot() == "wine guest");
+    auto exported = Receive(clientB, b[1]); assert(exported.bytes.find(WineTag) != std::string::npos);
+    WineClipboardFocus(surfaceA);
+    assert(Receive(clientA, a[1]).bytes.find(WineTag) != std::string::npos); // Other Wine process ignores its own export.
+    WineClipboardPost("system"); Dispatch();
+    assert(Receive(clientA, a[1]).bytes.find(WineTag) == std::string::npos && !wineSelection);
+    wl_resource_destroy(wineSource); WineClipboardPost(""); Dispatch();
     int p[2]; assert(!pipe2(p, O_CLOEXEC | O_NONBLOCK)); assert(StartTransfer(p[0], false));
     assert(write(p[1], "partial", 7) == 7); Dispatch(); assert(transfers.size() == 1);
     auto* expired = transfers.front(); Timeout(expired); close(p[1]); assert(transfers.empty()); assert(Snapshot().empty());
@@ -49,5 +98,5 @@ int main() {
     WineClipboardUnregister(); assert(offers.empty() && sources.empty() && devices.empty() && managers.empty() && transfers.empty());
     wl_client_destroy(clientA); wl_client_destroy(clientB); close(a[1]); close(b[1]); wl_display_destroy(server);
     server = wl_display_create(); WineClipboardRegister(server); assert(Snapshot().empty()); WineClipboardUnregister(); wl_display_destroy(server);
-    std::cout << "PASS production Wayland clipboard: focus clients, immutable/empty offers, EOF, timeout, cancel/reset, limits and restart\n";
+    std::cout << "PASS production Wayland clipboard: multi-process Wine tag, no destructive focus/read echo, SCM_RIGHTS, immutable/empty offers, EOF, timeout, cancel/reset, limits and restart\n";
 }
