@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "selection": "branch-release-upstream-pair",
-  "selectedForVersion": "2.0.3",
+  "selectedForVersion": "2.0.4",
   "components": "Full adapted Proton Wine core and FEX; independent DXVK/VKD3D/media pins retained",
   "qualification": {
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
@@ -11,8 +11,8 @@
   },
   "wine": {
     "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
-    "lockSha256": "56b2029a9382af3293d92ed908d5a64b70ba242270dd8d73e3f87672e87a64d9",
-    "adaptedCommit": "9e5e178c08e2cb3f43cc90b7b1cf21af95012301",
+    "lockSha256": "37a0ac70bcbf74d4a19c974021a4fd0affbf85bc709fb8d0c14dd69e9a007d13",
+    "adaptedCommit": "527cd6255d4f26c21ff0a7111fc0c37e35eac9ba",
     "upstreamCommit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
   },
   "fex": {
@@ -162,16 +162,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 448144706,
-      "sha256": "2e3e6ede78d2444fc58ca02ae2e0ee6f56243b362478c9b8aa29e34b60941965"
+      "bytes": 448377142,
+      "sha256": "609900a2334d95f1301a9a3fc821e1a44a9128088b9811c9792ab37d310b51a9"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 16276,
-      "sha256": "0c789b50b5def544f788fe33df47615ad24a1b3a1fbe8dacf84f5a7bd1364237"
+      "bytes": 22051,
+      "sha256": "ce290408d83541577efc07717ee0e84dd0fd472247dcfb7c5c293e7e5dd8c44d"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 193,
-      "sha256": "2c1488374ac61783ed47e6bdd18e9885b5d89af8f1f6a8c720b772c536b8cfec"
+      "sha256": "fca7c14a1f45f5b6baf2fbd59030a98de4fdedac9ade37b3f7ebde8eff185670"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1006736,
@@ -210,8 +210,8 @@
       "sha256": "696ad0daaa334e1683c96b44a7a3a5d4fb263de07c926f9b6dcc87adc4ec8131"
     },
     "libs/arm64-v8a/libgallium-25.0.1.so": {
-      "bytes": 14663480,
-      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
+      "bytes": 14665032,
+      "sha256": "22cde6b49cffdafb60ebcbfca3cd9f786836b62bef15e226c300783f4932f8c3"
     },
     "libs/arm64-v8a/libGLESv1_CM.so.1": {
       "bytes": 20256,
@@ -222,25 +222,25 @@
       "sha256": "f2cbfa88afcaab965965943471ab2138c5553762fddc74430db5bf9f4505095e"
     },
     "libs/arm64-v8a/virtio_gpu_dri.so": {
-      "bytes": 14663480,
-      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
+      "bytes": 14665032,
+      "sha256": "22cde6b49cffdafb60ebcbfca3cd9f786836b62bef15e226c300783f4932f8c3"
     },
     "libs/arm64-v8a/swrast_dri.so": {
-      "bytes": 14663480,
-      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
+      "bytes": 14665032,
+      "sha256": "22cde6b49cffdafb60ebcbfca3cd9f786836b62bef15e226c300783f4932f8c3"
     },
     "libs/arm64-v8a/kms_swrast_dri.so": {
-      "bytes": 14663480,
-      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
+      "bytes": 14665032,
+      "sha256": "22cde6b49cffdafb60ebcbfca3cd9f786836b62bef15e226c300783f4932f8c3"
     }
   },
   "graphics": {
     "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
-    "sourceLockSha256": "9c1de4d2747a1446cdac4429e097b41c71ddc62fa299c0765765a6be43a86ff3",
+    "sourceLockSha256": "ed2f50ecca9e6fa81e5bc96a271b31cf6382805c7a43f359ddde9cc4a95f93a1",
     "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
-    "textureLockSha256": "24c85e96c2eaf0d38ae2b61dc58bef62c54d2e45a2d0c23688fd66e96c42f356",
-    "qualification": "mini-sampled-host-validated",
-    "report": "docs/graphics/mini-release-readiness-20261115.zh-CN.md"
+    "textureLockSha256": "eb1e8b6226cb6f2de21d55ee31edad9b967c38e99e16dae6f290d274a00b968e",
+    "qualification": "host-validated-mini-components-tested-integrated-package-pending",
+    "report": "docs/upstream-sync/release-2.0.4.zh-CN.md"
   },
   "controller": {
     "patchFile": "patches/wine/0083-winebus-multiple-gamepads.patch",

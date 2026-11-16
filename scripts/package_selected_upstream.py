@@ -24,6 +24,7 @@ def run(*command):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('hap', 'hap-unsigned', 'app', 'app-unsigned'))
+    parser.add_argument('--product', choices=('default', 'proRelease'), default='default')
     args = parser.parse_args()
     lock = load_lock()
     supplied = os.environ.get('VPP_UPSTREAM_RUNTIME_HAP')
@@ -54,8 +55,8 @@ def main():
     run('python3', str(script / 'prepare_windows_steam_runtime.py'), '--verify-only')
     target = 'assembleApp' if args.mode.startswith('app') else 'assembleHap'
     run('hvigorw', '--mode', 'project' if target == 'assembleApp' else 'module',
-        '-p', 'product=default', '-p', 'buildMode=release', target, '--no-daemon')
-    hap = ROOT / 'entry/build/default/outputs/default/entry-default-unsigned.hap'
+        '-p', 'product=' + args.product, '-p', 'buildMode=release', target, '--no-daemon')
+    hap = ROOT / 'entry/build' / args.product / 'outputs/default/entry-default-unsigned.hap'
     verify_hap(hap, lock)
     run('python3', str(script / 'verify_ci_release.py'), 'artifact', '--manifest', str(source_path),
         '--hap', str(hap), '--output', str(ROOT / 'build/selected-app-artifact.json'))
@@ -66,7 +67,7 @@ def main():
         run(*command, *(['--hap'] if check != 'runtime_library_guard.py' else []), str(hap))
     app = None
     if target == 'assembleApp':
-        apps = list((ROOT / 'build/outputs/default').glob('*-unsigned.app'))
+        apps = list((ROOT / 'build/outputs' / args.product).glob('*-unsigned.app'))
         if len(apps) != 1:
             raise ValueError('Expected one unsigned App container')
         app = apps[0]
