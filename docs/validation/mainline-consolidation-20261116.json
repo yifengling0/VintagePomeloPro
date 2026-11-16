@@ -1,0 +1,151 @@
+{
+  "date": "2026-11-16",
+  "productVersion": "2.0.3",
+  "productVersionCode": 2000030,
+  "featureBaseline": "4ba188e4fc2cf72971fe583d2dd943706d820d05",
+  "relatedBranchMerge": "e3fe557e08e1f27ce459787fbf05c91a342214bd",
+  "mergeTreeEqualsFeatureBaseline": true,
+  "vendorPreservation": {
+    "modules": 10,
+    "filesVerified": 241,
+    "changed": []
+  },
+  "graphicsContract": {
+    "command": [
+      "python3",
+      "scripts/verify_graphics_contract.py"
+    ],
+    "exitCode": 0
+  },
+  "hostTests": [
+    {
+      "name": "multiple_gamepads",
+      "command": [
+        "python3",
+        "host_tests/multiple_gamepads_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "wine_multiple_gamepads",
+      "command": [
+        "python3",
+        "host_tests/wine_multiple_gamepads_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "gamepad_bridge",
+      "command": [
+        "python3",
+        "host_tests/gamepad_bridge_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "subsurface_resource",
+      "command": [
+        "python3",
+        "host_tests/subsurface_resource_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "gpu_scene_input",
+      "command": [
+        "python3",
+        "host_tests/gpu_scene_input_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "thread_exit_runtime_guard",
+      "command": [
+        "python3",
+        "host_tests/thread_exit_runtime_guard_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "runtime_library_guard",
+      "command": [
+        "python3",
+        "host_tests/runtime_library_guard_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "guest_gfx_build_identity",
+      "command": [
+        "python3",
+        "host_tests/guest_gfx_build_identity_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "upstream_release_runtime",
+      "command": [
+        "python3",
+        "host_tests/upstream_release_runtime_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "fex_vm_contract",
+      "command": [
+        "python3",
+        "host_tests/fex_vm_contract_test.py"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "game-backend",
+      "command": [
+        "node",
+        "host_tests/game_graphics_backend_test.cjs",
+        "/home/liufeng/vp-sdk/command-line-tools/codelinter/node_modules/typescript/lib/typescript.js"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "steam-service",
+      "command": [
+        "node",
+        "scripts/run_steam_local_service_tests.cjs",
+        "/home/liufeng/vp-sdk/command-line-tools/codelinter/node_modules/typescript/lib/typescript.js"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "membership-service",
+      "command": [
+        "node",
+        "scripts/run_value_added_service_tests.cjs",
+        "--source",
+        "/home/liufeng/vp-sdk/command-line-tools/codelinter/node_modules/typescript/lib/typescript.js"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "membership-ui",
+      "command": [
+        "node",
+        "scripts/run_membership_checkout_ui_tests.cjs",
+        "/home/liufeng/vp-sdk/command-line-tools/codelinter/node_modules/typescript/lib/typescript.js"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "membership-backend",
+      "command": [
+        "npm",
+        "test",
+        "--prefix",
+        "server/value-added"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "hardwareValidatedThisTask": false,
+  "rebuiltOrResignedThisTask": false
+}

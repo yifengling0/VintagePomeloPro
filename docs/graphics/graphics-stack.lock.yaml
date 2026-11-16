@@ -12,6 +12,10 @@
       "hslHead": "5543074a51a795ea51d87199eabd91d961801cca",
       "hslPublicFixes": "11c14d95bede922b6b60217eb01a62056e0bdb6e",
       "qualification": "host-validated-device-pending"
+    },
+    "mainline_consolidation": {
+      "date": "2026-11-16",
+      "note": "Register existing repository overlay inventory and multi-gamepad Winebus identities; no additional rendering overlay enabled. Mesa 0014 remains a diagnostic-only patch absent from the production apply recipe."
     }
   },
   "architecture": {
@@ -354,6 +358,10 @@
       {
         "path": "patches/wine/0082-ntdll-explicit-dxvk9-overlay.patch",
         "sha256": "3e551346d3cba87c2656f053cf3bad01baff2184f3b68c032fab430b52051283"
+      },
+      {
+        "path": "patches/wine/0083-winebus-multiple-gamepads.patch",
+        "sha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37"
       }
     ],
     "virglrenderer": [
@@ -506,6 +514,10 @@
       {
         "path": "patches/mesa/0013-virgl-vtest-write-command-pair.patch",
         "sha256": "b04dbde3a7c84f90052c5170447066d1ac0a49cac7309799fc00aaab2a782683"
+      },
+      {
+        "path": "patches/mesa/0014-zink-opt-in-instance-diagnostic.patch",
+        "sha256": "19f40d282a5d6e25b9ff994d0ff562681af76d6abdc0e0140143bbdf84deae88"
       },
       {
         "path": "patches/mesa/0015-zink-opt-in-shadow-readback.patch",
@@ -796,8 +808,8 @@
       "dlls/win32u/win32u_private.h": "49ceaca0721fc28a9ea98242209a92d4c42dd8a496d40aba3ceffc09be765797",
       "dlls/win32u/window.c": "b5bb628f3837a8db7507637ee477de15bc592a023f5a99df8be60f8c6771449e",
       "dlls/win32u/winstation.c": "5e188f7244499c155891f9054b1b2736606d4d541c1470861f84f864bdc76d13",
-      "dlls/winebus.sys/bus_ohos.c": "04b538467b003d4dabbdc0620313a82e7eebd065807207bf0c690044627b2691",
-      "dlls/winebus.sys/winehua_gamepad_protocol.h": "e4912c72659029ab5d60209d607e352dfab20c1f363ecf1d3d12e82c1940eb96",
+      "dlls/winebus.sys/bus_ohos.c": "f86fdb380a31b4eb917d652cb510b79989775cc37d5739e0dea957cba4f63abd",
+      "dlls/winebus.sys/winehua_gamepad_protocol.h": "0ca4750c41c05bc54f0d8584c490d9bb75cf9aa566f4137446a6ba58cc80667c",
       "dlls/winecrt0/arm64ec.c": "09dea127d5f1288a4fa1c50db026715886f610a48c828bb1602a19d1268c4bde",
       "dlls/wined3d/adapter_gl.c": "4b70af1e7bd6b17dc6fc9c848041877379cfd69c99e6bcc539e3feb440c359ca",
       "dlls/wined3d/buffer.c": "3816921068b67552a85564fed54aaba4da4bdd132c606055b3abec69fae0c90f",
@@ -896,7 +908,7 @@
       "scripts/build_xwayland.sh": "966b47239037202c72c875f2efbb0cfc026311f06035c770f32aacaf51993e37",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "ae129c03abaa9248a622caf2acabc57dfd38bb7eef70478d179435ed95262a1a",
+      "scripts/build_wine.sh": "5a84276c968f8662ac39faa46b31ad0aab8015b39e4a76bf30b9cb2541fb345c",
       "scripts/env.sh": "7114cabf2d9d65d1fe3c64a954a97ab2ad6d56fe266f5a3318e345cf9437e7e8",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }

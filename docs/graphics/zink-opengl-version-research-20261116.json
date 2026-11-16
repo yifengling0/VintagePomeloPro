@@ -1,0 +1,86 @@
+{
+  "scope": "Research only; no new device run, override, build or rendering change",
+  "date": "2026-11-16",
+  "sourceBaseline": "4ba188e4fc2cf72971fe583d2dd943706d820d05",
+  "mesaVersion": "25.0.1",
+  "device": "Virtio-GPU Venus (Maleoon 910)",
+  "evidence": "workspace_temp/mini-virgl-performance/backend-heaven-comparison/zink-r12-vulkan-capabilities/probe.txt",
+  "evidenceSha256": "d308176a784c3eb1e8095ef73632e0e2d2ec52f7a028c7b3d9061c2d6eed082b",
+  "note": "Recorded query-only physical-device capabilities, not DXVK enabled-feature logs; incremental profile comparison is not cumulative conformance certification",
+  "comparison": [
+    {
+      "incrementalProfile": "gl21_baseline",
+      "recordedMissing": [
+        "feature:logicOp",
+        "feature:customBorderColorWithoutFormat",
+        "feature:rectangularLines",
+        "extension:VK_EXT_custom_border_color",
+        "extension:VK_EXT_line_rasterization",
+        "extension:VK_KHR_swapchain_mutable_format",
+        "extension:VK_KHR_incremental_present",
+        "extension:VK_EXT_border_color_swizzle"
+      ],
+      "notCaptured": [
+        "feature:borderColorSwizzleFromImage"
+      ]
+    },
+    {
+      "incrementalProfile": "gl30_baseline",
+      "recordedMissing": [
+        "feature:transformFeedback",
+        "extension:VK_EXT_transform_feedback"
+      ],
+      "notCaptured": [
+        "formatProperties: query not captured"
+      ]
+    },
+    {
+      "incrementalProfile": "gl31_baseline",
+      "recordedMissing": [],
+      "notCaptured": []
+    },
+    {
+      "incrementalProfile": "gl32_baseline",
+      "recordedMissing": [],
+      "notCaptured": []
+    },
+    {
+      "incrementalProfile": "gl33_baseline",
+      "recordedMissing": [
+        "feature:dualSrcBlend",
+        "extension:VK_EXT_vertex_attribute_divisor"
+      ],
+      "notCaptured": [
+        "feature:vertexAttributeInstanceRateDivisor"
+      ]
+    },
+    {
+      "incrementalProfile": "gl40_baseline",
+      "recordedMissing": [
+        "extension:VK_KHR_maintenance4",
+        "extension:VK_KHR_maintenance5"
+      ],
+      "notCaptured": [
+        "feature:maintenance4",
+        "feature:maintenance5",
+        "formatProperties: query not captured"
+      ]
+    },
+    {
+      "incrementalProfile": "gl41_baseline",
+      "recordedMissing": [
+        "feature:multiViewport",
+        "limit:maxImageDimension1D=8192<16384",
+        "limit:maxImageDimension2D=8192<16384",
+        "limit:maxImageDimensionCube=8192<16384",
+        "limit:maxViewports=1<16"
+      ],
+      "notCaptured": []
+    }
+  ],
+  "activeTarget": "OpenGL 3.1 parity with VirGL",
+  "higherVersions": "Paused by user; comparison rows retained as prior research",
+  "lowCostFinding": "VirGL forwards GLES Transform Feedback; Zink requires Vulkan TF which is absent from recorded device capabilities. No directly reusable low-cost implementation found.",
+  "reuseProbe": "scripts/probes/wgl_srgb_surface_probe.c",
+  "evidenceRole": "Historical external workspace evidence; not a build input or a new device validation"
+}

@@ -1,0 +1,17 @@
+--- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+@@ -183,9 +183,14 @@
+ 
+     ldp<ARMEmitter::IndexType::OFFSET>(TMP2, TMP1, TMP1, 0);
+ 
++    // A matching guest tag alone is not a usable cache entry. Invalidation
++    // can leave the host target empty; take the regular dispatcher miss path.
++    ARMEmitter::ForwardLabel L1Miss;
++    (void)cbz(ARMEmitter::Size::i64Bit, TMP2, &L1Miss);
+     // Note: sub+cbnz used over cmp+br to preserve flags.
+     sub(TMP1, TMP1, RipReg.X());
+     (void)cbz(ARMEmitter::Size::i64Bit, TMP1, &SkipFullLookup);
++    (void)Bind(&L1Miss);
+     ldr(TMP2, STATE, offsetof(FEXCore::Core::CpuStateFrame, Pointers.DispatcherLoopTop));
+     str(RipReg.X(), STATE, offsetof(FEXCore::Core::CpuStateFrame, State.rip));
+ 
