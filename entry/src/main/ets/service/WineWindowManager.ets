@@ -1,3 +1,4 @@
+import { resolveOutputScale } from '../model/DisplayScalePolicy';
 import { common, Want } from '@kit.AbilityKit';
 import { window, display } from '@kit.ArkUI';
 import { hilog } from './LogService';
@@ -50,7 +51,7 @@ export class WineWindowManager {
   private uiAbilityContext: common.UIAbilityContext | null = null;
   // 设备显示密度 + 屏幕尺寸 (用于缩放)
   private displayScale: number = 1.0;
-  private scaleBoost: number = 1.0;  // 放大系数, 使 effectiveScale = displayScale × boost = 2.0
+  private scaleBoost: number = 1.0;  // 放大系数, 使 effectiveScale = displayScale × boost = outputScalePercent / 100
   private outputScalePercent: number = 100;
   // Accepted desktop geometry, independent of the library window/display.
   // Index finishes loading settings asynchronously, often before the desktop
@@ -242,6 +243,7 @@ export class WineWindowManager {
     } catch (_) {
       hilog.warn(DOMAIN, TAG, '[MW] DesktopModeService init failed, fallback policy');
     }
+    testNapi.setWineLogPixels(192);
     this.applyModePolicy();
     hilog.info(DOMAIN, TAG, '[MW] configured presentation mode=%{public}s', this.presentationMode);
 
@@ -251,9 +253,9 @@ export class WineWindowManager {
       const safe = this.desktopDisplaySafeSize(d.width, d.height);
       this.syncOutputSize(safe.width, safe.height);
     } catch (_) {
-      this.displayScale = 1.61;
-      this.scaleBoost = 2.0 / 1.61;
-      hilog.warn(DOMAIN, TAG, '[MW] display query failed, using displayScale=1.61 boost=1.24');
+      this.displayScale = 1.0;
+      this.scaleBoost = this.outputScalePercent / 100;
+      hilog.warn(DOMAIN, TAG, '[MW] display query failed, using output scale without density metadata');
       testNapi.setDisplayScale(this.displayScale * this.scaleBoost);
     }
 
@@ -364,10 +366,11 @@ export class WineWindowManager {
       }
       const currentDisplay = display.getDefaultDisplaySync();
       this.displayScale = Math.max(0.1, currentDisplay.densityPixels);
-      const effectiveScale = 2.0 * this.outputScalePercent / 100;
-      this.scaleBoost = effectiveScale / this.displayScale;
-      const outW = Math.max(1, Math.round(widthPx / effectiveScale));
-      const outH = Math.max(1, Math.round(heightPx / effectiveScale));
+      const geometry = resolveOutputScale(this.outputScalePercent, widthPx, heightPx, this.displayScale);
+      const effectiveScale = geometry.scale;
+      this.scaleBoost = geometry.boost;
+      const outW = geometry.width;
+      const outH = geometry.height;
       testNapi.setDisplayScale(effectiveScale);
       testNapi.setOutputSize(outW, outH);
       this.outputHostWidth = widthPx;
@@ -1221,7 +1224,7 @@ export class WineWindowManager {
           const h = obj.h as number;
           if (w && h) {
             const barH = 0; //  标题栏已通过 setWindowDecorVisible(false) 隐藏
-            const s = this.displayScale * this.scaleBoost;  // effective scale = 2.0
+            const s = this.displayScale * this.scaleBoost;  // effective scale = outputScalePercent / 100
             const winW = Math.round(w * s);
             const winH = Math.round(h * s + barH);
             //  保存目标尺寸, 供 surface 事件校准 titleBarH + 重新 resize

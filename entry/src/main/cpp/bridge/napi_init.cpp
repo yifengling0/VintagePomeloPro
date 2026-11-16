@@ -1800,6 +1800,19 @@ static napi_value CaptureNativePerformance(napi_env env, napi_callback_info) {
     return result;
 }
 
+static napi_value SetWineLogPixelsNapi(napi_env env, napi_callback_info info)
+{
+    size_t argc = 1;
+    napi_value argv[1], result;
+    double value = 0;
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+    bool accepted = argc == 1 && napi_get_value_double(env, argv[0], &value) == napi_ok &&
+        std::isfinite(value) && value >= 96 && value <= 480 && std::floor(value) == value &&
+        SetWineLogPixels(static_cast<int>(value));
+    napi_get_boolean(env, accepted, &result);
+    return result;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
     OH_LOG_WARN(LOG_APP, "[MW-NAPI]  Init called, env=%{public}p", env);
     LogWineScheme("libentry.so (主进程)");
@@ -1904,6 +1917,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"resizeRenderer",  nullptr, ResizeRenderer,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"destroyRenderer", nullptr, DestroyRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setOutputSize",   nullptr, SetOutputSize,   nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setWineLogPixels", nullptr, SetWineLogPixelsNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDisplayScale",  nullptr, SetDisplayScale,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDesktopMode",   nullptr, SetDesktopMode,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setPhoneMode",     nullptr, SetPhoneMode,     nullptr, nullptr, nullptr, napi_default, nullptr},

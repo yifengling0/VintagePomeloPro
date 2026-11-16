@@ -1,6 +1,7 @@
 #include "proc/ncp_dispatch.h"
 /* Broker v2: bounded readers feed one serialized NCP dispatcher. */
 #include "broker.h"
+#include "wine/wine_env.h"
 #include "spawn_codec.h"
 #include "wine_image_policy.h"
 #include "wine_spawn_compatibility.h"
@@ -103,6 +104,7 @@ static void LaunchJob(BrokerJob& job) {
         return;
     }
     request.home = gBrokerHomeDir;
+    AppendWineDpiEnv(request.env);
     if (!gBrokerPrefixDir.empty()) request.env.emplace_back("WINEPREFIX=" + gBrokerPrefixDir);
     const bool freshImage = winehua::spawn::RequiresFreshWineProcess(request);
     const auto freshGraphics = winehua::spawn::ConfigureFreshWineGraphics(request, freshImage, request.bin);
