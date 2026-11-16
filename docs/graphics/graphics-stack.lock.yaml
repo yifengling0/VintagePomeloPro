@@ -20,7 +20,7 @@
     "shadow_transfer_sync": {
       "date": "2026-11-16",
       "qualification": "host-validation-only",
-      "note": "0026 corrects the remote buffer read offset and releases references after failed maps. Existing shadow readback switch only."
+      "note": "0026 corrects remote buffer read offset and failed-map references; 0027 uses isolated staging and exact image copy regions. Existing shadow switches only. No Maleoon ShaderLayer workaround enabled."
     }
   },
   "architecture": {
@@ -571,6 +571,10 @@
       {
         "path": "patches/mesa/0026-zink-shadow-buffer-map-offset.patch",
         "sha256": "6c806c6ee5b3171b2c114ea91c2c902e7232bcd79d5735dd64dcb96fd9d35a53"
+      },
+      {
+        "path": "patches/mesa/0027-zink-isolate-shadow-image-staging.patch",
+        "sha256": "57b4f8575fb552a8977b7fc076363674fd5e0991912cba5951fb0111fea872bc"
       }
     ],
     "vkd3d-proton": [
@@ -898,8 +902,8 @@
       "src/vrend/vrend_decode.c": "d9b134d63bf516d6c1ca156b2bfb11dcd39bc59f99e7fa4f54babd052ef79872"
     },
     "mesa": {
-      "src/gallium/drivers/zink/zink_resource.c": "4ab077c992dbe3b67e3808c3d226806f1ea25a86c60de70a5f99ec273d4cf611",
-      "src/gallium/drivers/zink/zink_resource.h": "2a4301d7cd509916f6a469067807416fe2679d2aabcc5eaf336954b06d264a6e"
+      "src/gallium/drivers/zink/zink_resource.c": "d1d963a9df6e75ed09680f8f64539ccc1527eedff94542f440c295935de4147d",
+      "src/gallium/drivers/zink/zink_resource.h": "302c7c60b93064f6d77f1af70db0025ab55c40fbb8753330c35fe5b55eea79ae"
     }
   },
   "capability_decisions": {
@@ -950,6 +954,7 @@
     "patches/mesa/0023-zink-opt-in-slice-3d-pbo-upload.patch",
     "patches/mesa/0024-zink-opt-in-batch-private-uploads.patch",
     "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
-    "patches/mesa/0026-zink-shadow-buffer-map-offset.patch"
+    "patches/mesa/0026-zink-shadow-buffer-map-offset.patch",
+    "patches/mesa/0027-zink-isolate-shadow-image-staging.patch"
   ]
 }

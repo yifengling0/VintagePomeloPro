@@ -1192,11 +1192,14 @@ test-virgl-present-context:
 	python3 $(ROOT)/host_tests/virgl_present_context_test.py --source "$(GFX_EFFECTIVE_VIRGL)"
 graphics-migration-check: test-virgl-present-context
 
-.PHONY: test-zink-shadow-buffer
+.PHONY: test-zink-shadow-buffer test-zink-shadow-image test-zink-shadow-transfers
 GFX_MESA_GIT ?= $(ROOT)/thirdparty/mesa
 test-zink-shadow-buffer:
 	python3 $(ROOT)/host_tests/zink_shadow_buffer_test.py --mesa-git "$(GFX_MESA_GIT)"
-graphics-migration-check: test-zink-shadow-buffer
+test-zink-shadow-image:
+	python3 $(ROOT)/host_tests/zink_shadow_image_test.py --mesa-git "$(GFX_MESA_GIT)"
+test-zink-shadow-transfers: test-zink-shadow-buffer test-zink-shadow-image
+graphics-migration-check: test-zink-shadow-transfers
 
 .PHONY: test-renderer-scopes
 test-renderer-scopes:
