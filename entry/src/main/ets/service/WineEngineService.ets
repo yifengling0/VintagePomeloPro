@@ -962,8 +962,8 @@ export class WineEngineService {
           }
           await new Promise<void>((resolve: () => void) => setTimeout(resolve, 100));
         }
-        X11ClipboardService.start();
       }
+      X11ClipboardService.start();
       // Native runs wineboot --init only for a new prefix. Existing prefixes
       // are migrated above before any wineserver process starts.
       // proton 方案③ launchClient 参数布局 (containerSession 语义):
@@ -1346,6 +1346,7 @@ export class WineEngineService {
 
   private failStartup(generation: number, message: string, drain: boolean = true): void {
     if (!this.startupCurrent(generation)) return;
+    X11ClipboardService.stop();
     this.captureInitializationDiagnostic();
     ++this.startupGeneration;
     this.nativeGeneration = 0;

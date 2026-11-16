@@ -148,6 +148,7 @@ add_library(entry SHARED
     common/process_utils.cpp
     common/ring_buffer.cpp
     input/seat.cpp
+    input/data_device.cpp
     graphics/shader_utils.cpp
     common/string_utils.cpp
     input/input_manager.cpp

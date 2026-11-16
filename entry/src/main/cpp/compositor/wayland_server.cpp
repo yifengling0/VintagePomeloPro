@@ -34,6 +34,7 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display);
 #define LOG_TAG "WL_Server"
 #include <hilog/log.h>
 #include "bridge/plugin_manager.h"
+#include "input/data_device.h"
 
 // 核心协议接口表与实现已剥离到 wl_core.cpp (Phase 3 纯搬移)
 
@@ -89,6 +90,7 @@ bool WaylandServer::Start(const std::string& socketPath) {
     RegisterXdgShell(display_);
     RegisterWinehuaToplevel(display_);
     Seat::GetInstance()->Register(display_);
+    WineClipboardRegister(display_);
     // 装配注入 (重构第 6A 步): 输入编排层直接引用子组件 (tmgr/resolver/
     // moveGrab/policy/rootId), 替代 WaylandServer 到业务的转发调用 —
     // 装配在 wl 事件循环启动前 (与 4C1 warpSink 同模式: 之后回调仅在
@@ -141,6 +143,7 @@ void WaylandServer::Stop() {
     DestroyAllToplevels();
     DirectWineSurfaceReset();
     InputManager::GetInstance()->Shutdown();
+    WineClipboardUnregister();
     Seat::GetInstance()->Unregister();
     TextInput::GetInstance()->Unregister();
     if (display_) {
@@ -479,6 +482,7 @@ void WaylandServer::ResetSessionState() {
     // 不在这里重复, 避免锁外写非 atomic 字段与锁内读的竞态。
     session_.firstFrame = false;   // 热重启不重走 Start, 不重置则新会话首帧不注入 focus
     moveGrab_.EndMoveGrab(toplevelMgr_);  // 幂等兜底 (grab 窗口非 root 时已随销毁复位)
+    WineClipboardReset();
     InputManager::GetInstance()->ResetSessionState();
     OH_LOG_INFO(LOG_APP, "[MW] session state reset (firstFrame/grab/input focus+keys)");
 }
