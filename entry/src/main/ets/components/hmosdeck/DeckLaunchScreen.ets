@@ -1,5 +1,4 @@
 import { DeckMotion } from './DeckMotion';
-import { BootStatusLine } from '../BootStatusLine';
 
 /** One opaque launch surface; no library badge, fallback title or dialog chrome. */
 @Component
@@ -8,7 +7,6 @@ export struct DeckLaunchScreen {
   @Prop @Watch('coverChanged') cover: string = '';
   @Prop builtin: Resource | undefined = undefined;
   @Prop message: string = '';
-  @Prop elapsedSec: number = 0;
   @StorageLink('hmosdeck.motion') private motion: boolean = true;
   @State private entered: boolean = false;
   @State private artworkFailed: boolean = false;
@@ -45,8 +43,9 @@ export struct DeckLaunchScreen {
         }
         Text(this.title).fontSize(28).fontWeight(FontWeight.Bold).fontColor('#F2F4F7')
           .textAlign(TextAlign.Center).maxLines(2).width('100%').id('deck-launch-title')
-        BootStatusLine({ message: this.message, elapsedSec: this.elapsedSec })
-          .width('100%').id('deck-launch-status')
+        LoadingProgress().width(26).height(26).color('#1A9FFF')
+        Text(this.message).fontSize(14).fontColor('#9AA3AF').textAlign(TextAlign.Center)
+          .maxLines(3).width('100%').id('deck-launch-status')
       }.width('84%').constraintSize({ maxWidth: 440 }).padding({ top: 24, bottom: 24 })
         .opacity(this.entered ? 1 : 0).translate({ y: this.entered ? 0 : 8 })
         .scale({ x: this.entered ? 1 : 0.97, y: this.entered ? 1 : 0.97 })

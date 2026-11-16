@@ -5,7 +5,6 @@ import { EngineStateListener, WineEngineService } from '../service/WineEngineSer
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { DeckLaunchFeedback, DeckLaunchFeedbackListener, DeckLaunchFeedbackService } from '../service/DeckLaunchFeedbackService';
 import { DeckLaunchScreen } from './hmosdeck/DeckLaunchScreen';
-import { BootStatusLine } from './BootStatusLine';
 
 /**
  * Blocks the actual Wine host window while the native runtime is preparing.
@@ -66,42 +65,58 @@ export struct WineEngineBlockingOverlay {
     }
   }
 
-  private statusLine(): string {
-    if (this.state === EngineState.ERROR) return this.message;
-    if (this.isBusy()) {
-      if (this.phaseText) return this.phaseText;
-      return this.state === EngineState.SWITCHING ? '正在重建显示会话' : '正在准备运行组件';
-    }
-    return this.launch ? this.launch.message : this.message;
+  private title(): string {
+    if (this.state === EngineState.ERROR) return 'Wine 启动未完成';
+    return this.state === EngineState.SWITCHING ? '正在重建 Wine 桌面' : '正在初始化 Wine';
+  }
+
+  private detail(): string {
+    const elapsed = '（已 ' + this.elapsedSec + ' 秒）';
+    if (this.phaseText) return '当前阶段：' + this.phaseText + elapsed;
+    if (this.state === EngineState.SWITCHING) return '正在关闭旧会话并重新建立 Wayland 显示' + elapsed;
+    return '首次启动会准备运行组件并初始化 Windows' + elapsed;
+  }
+
+  private panelTitle(): string {
+    if (this.isBusy()) return this.title();
+    return this.launch && this.state !== EngineState.ERROR ? this.launch.title : this.title();
+  }
+
+  private panelMessage(): string {
+    if (this.isBusy()) return this.message;
+    return this.launch && this.state !== EngineState.ERROR ? this.launch.message : this.message;
+  }
+
+  private panelDetail(): string {
+    if (this.state === EngineState.ERROR) return '可重新启动，或返回主页检查 Wine 设置';
+    if (this.isBusy()) return this.detail();
+    if (this.launch) return 'Wine 已就绪，正在等待游戏创建窗口';
+    return this.detail();
   }
 
   build() {
     if (this.launch && !this.launch.classic && this.state !== EngineState.ERROR) {
       DeckLaunchScreen({ title: this.launch.title, cover: this.launch.cover,
-        builtin: this.launch.builtin, message: this.statusLine(), elapsedSec: this.elapsedSec })
+        builtin: this.launch.builtin, message: this.launch.message })
         .width('100%').height('100%').zIndex(1000)
-    } else if (this.state !== EngineState.ERROR && (this.launch || this.isBusy())) {
-      Stack({ alignContent: Alignment.Center }) {
-        BootStatusLine({ message: this.statusLine(), elapsedSec: this.elapsedSec })
-          .width('84%').constraintSize({ maxWidth: 440 })
-          .id('wine-engine-progress-panel')
-      }.width('100%').height('100%').backgroundColor(skinColor('start_window_background'))
-        .zIndex(1000).hitTestBehavior(HitTestMode.Block).id('wine-engine-blocking-overlay')
-    } else if (this.state === EngineState.ERROR) {
+    } else if (this.launch || this.isBusy() || this.state === EngineState.ERROR) {
       Stack() {
         Column()
           .width('100%').height('100%')
           .backgroundColor('#E80B1220')
           .hitTestBehavior(HitTestMode.Block)
         Column({ space: 16 }) {
-          Text('Wine 启动未完成')
+          if (this.isBusy() || (this.launch && this.state !== EngineState.ERROR)) {
+            LoadingProgress().width(56).height(56).color(skinColor('accent'))
+          }
+          Text(this.panelTitle())
             .fontSize(22).fontWeight(FontWeight.Bold).fontColor(skinColor('text_primary'))
             .textAlign(TextAlign.Center)
             .id('wine-engine-blocking-title')
-          Text(this.message)
+          Text(this.panelMessage())
             .fontSize(15).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
-          Text('可重新启动，或返回主页检查 Wine 设置')
+          Text(this.panelDetail())
             .fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
           if (this.state === EngineState.ERROR) {
