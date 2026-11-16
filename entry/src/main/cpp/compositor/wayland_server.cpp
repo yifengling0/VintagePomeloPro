@@ -35,6 +35,7 @@ extern "C" void RegisterWlCoreGlobals(wl_display* display);
 #include <hilog/log.h>
 #include "bridge/plugin_manager.h"
 #include "input/data_device.h"
+#include "bridge/system_open.h"
 
 // 核心协议接口表与实现已剥离到 wl_core.cpp (Phase 3 纯搬移)
 
@@ -482,6 +483,7 @@ void WaylandServer::ResetSessionState() {
     // 不在这里重复, 避免锁外写非 atomic 字段与锁内读的竞态。
     session_.firstFrame = false;   // 热重启不重走 Start, 不重置则新会话首帧不注入 focus
     moveGrab_.EndMoveGrab(toplevelMgr_);  // 幂等兜底 (grab 窗口非 root 时已随销毁复位)
+    ResetSystemOpenRequests();
     WineClipboardReset();
     InputManager::GetInstance()->ResetSessionState();
     OH_LOG_INFO(LOG_APP, "[MW] session state reset (firstFrame/grab/input focus+keys)");

@@ -1,3 +1,4 @@
+#include "bridge/system_open.h"
 #include "wine/prefix_reset.h"
 #include <napi/native_api.h>
 #include "common/fs_utils.h"
@@ -1814,6 +1815,7 @@ static napi_value SetWineLogPixelsNapi(napi_env env, napi_callback_info info)
 }
 
 static napi_value Init(napi_env env, napi_value exports) {
+    RegisterSystemOpen(env, exports);
     OH_LOG_WARN(LOG_APP, "[MW-NAPI]  Init called, env=%{public}p", env);
     LogWineScheme("libentry.so (主进程)");
 

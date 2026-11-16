@@ -590,6 +590,7 @@ export interface GlobalSettings {
   /** Original OHOS Wine 32-bit WoW64 backend; ARM64EC remains unchanged. */
   wineTranslationEngine: WineTranslationEngine;
   wineDisplayRoute?: string;
+  systemOpenEnabled?: boolean;
   defaultDisplayMode: DisplayMode;
   /** Windows/Wine system language. Existing installs migrate to Chinese. */
   wineLanguage: WineLanguage;
@@ -1248,6 +1249,7 @@ export function createDefaultGlobalSettings(): GlobalSettings {
   return {
     wineTranslationEngine: WineTranslationEngine.FEX,
     wineDisplayRoute: 'wayland',
+    systemOpenEnabled: false,
     defaultDisplayMode: DisplayMode.DESKTOP,
     wineLanguage: WineLanguage.CHINESE,
     desktopOrientation: ScreenOrientationSetting.SENSOR_LANDSCAPE,

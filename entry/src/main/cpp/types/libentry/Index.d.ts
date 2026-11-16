@@ -320,3 +320,6 @@ export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>
 export const getSteamZipProgress: () => SteamZipProgress;
 
 export const setToplevelIsolated: (id: number, isolated: boolean) => void;
+
+export const setSystemOpenEnabled: (enabled: boolean) => void;
+export const setOpenTargetCallback: (callback: ((target: string) => boolean) | null) => void;

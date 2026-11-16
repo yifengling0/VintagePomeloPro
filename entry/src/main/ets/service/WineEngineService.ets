@@ -5,6 +5,7 @@ import { BusinessError, zlib } from '@kit.BasicServicesKit';
 import { hilog } from './LogService';
 import displayRoute from 'libdisplay_route_napi.so';
 import { X11ClipboardService } from './X11ClipboardService';
+import { SystemOpenService } from './SystemOpenService';
 import testNapi, { ProductDirectProbeResult } from 'libentry.so';
 import {
   D3DRendererPreference,
@@ -676,6 +677,7 @@ export class WineEngineService {
 
   initialize(context: common.UIAbilityContext): void {
     this.context = context;
+    SystemOpenService.initialize(context);
     if (this.callbackInstalled) return;
     this.callbackInstalled = true;
     testNapi.setStateCallback((raw: string) => this.handleNativeState(raw));
@@ -938,6 +940,7 @@ export class WineEngineService {
       const prefixDirectory = this.activePrefixMode === 'clean' ?
         FILES_BASE + '/containers/clean/prefix' : PREFIX_DIR;
       const socket = prefixDirectory + '/wine-wayland';
+      SystemOpenService.start(prefixDirectory);
       this.requireSelectedCpuModule(settings.wineTranslationEngine);
       if (this.activePrefixMode === 'clean') {
         this.syncManagedFexModules(prefixDirectory);
@@ -1192,6 +1195,7 @@ export class WineEngineService {
 
   private async performNativeStop(): Promise<void> {
     X11ClipboardService.stop();
+    SystemOpenService.stop();
     testNapi.stopAll();
     await this.waitForNativeShutdown();
     displayRoute.stopDisplayRouteChain();
@@ -1346,6 +1350,7 @@ export class WineEngineService {
 
   private failStartup(generation: number, message: string, drain: boolean = true): void {
     if (!this.startupCurrent(generation)) return;
+    SystemOpenService.stop();
     X11ClipboardService.stop();
     this.captureInitializationDiagnostic();
     ++this.startupGeneration;

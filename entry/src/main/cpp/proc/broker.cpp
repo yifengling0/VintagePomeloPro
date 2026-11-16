@@ -1,6 +1,8 @@
+#include "proc/open_protocol.h"
 #include "proc/ncp_dispatch.h"
 /* Broker v2: bounded readers feed one serialized NCP dispatcher. */
 #include "broker.h"
+#include "bridge/system_open.h"
 #include "wine/wine_env.h"
 #include "spawn_codec.h"
 #include "wine_image_policy.h"
@@ -76,8 +78,17 @@ static constexpr size_t kQueueCapacity = 16;
 static constexpr size_t kReaderCount = 4;
 
 static bool ReceiveJob(BrokerJob& job) {
+    unsigned char prefix[4];
+    if (vp_recv_bytes(job.conn, prefix, 4, &job.fds, job.acceptedMs + 1000)) return false;
+    if (!memcmp(prefix, "OPEN", 4)) {
+        std::string target;
+        bool accepted = ReceiveOpenTarget(job.conn, job.fds, job.acceptedMs + 1000, target) &&
+            DispatchSystemOpen(target);
+        Reply(job.conn, accepted ? 0 : -1, 0);
+        return false;
+    }
     vp_spawn_spec spec{};
-    const int result = vp_recv_request(job.conn, &spec, &job.fds, job.acceptedMs + 3000);
+    const int result = vp_recv_request_prefix(job.conn, &spec, &job.fds, job.acceptedMs + 3000, prefix);
     const int error = errno;
     if (!result) winehua::spawn::Copy(spec, job.request);
     vp_free_spec(&spec);
