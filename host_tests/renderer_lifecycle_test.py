@@ -16,6 +16,7 @@ prefix=r"""
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <algorithm>
 #include <cstdio>
@@ -31,10 +32,19 @@ struct OHNativeWindow {};
 static OHNativeWindow window;
 static int windowResult;
 static int OH_NativeWindow_CreateNativeWindowFromSurfaceId(uint64_t, OHNativeWindow** out){*out=&window;return windowResult;}
+static void OH_NativeWindow_DestroyNativeWindow(OHNativeWindow*){}
+// These tests exercise the EGL route. X11 owns its windows separately.
+static bool winehua_x11_is_desktop(uint32_t){return false;}
+static bool x11_toplevel_owns(uint32_t){return false;}
+static bool x11_toplevel_attach_window(uint32_t,OHNativeWindow*,int,int){return true;}
+static void x11_toplevel_detach_window(uint32_t){}
+static void WineHua_DisplayRoute_StartWithSurface(int64_t,bool,int,int,bool,bool){}
+static void WineHua_DisplayRoute_DetachCanvas(){}
 struct EglRenderer {
     unsigned id=0;bool paused=false,valid=true;int64_t surface=0;
     explicit EglRenderer(int){}
     void SetToplevelId(unsigned x){id=x;}
+    void SetIsolatedToplevel(bool){}
     void SetPaused(bool x){paused=x;}
     void SetSurfaceId(int64_t x){surface=x;}
     int64_t GetSurfaceId(){return surface;}
@@ -51,6 +61,8 @@ struct WaylandServer {
 struct PluginManager {
     std::unordered_map<uint32_t,std::unique_ptr<EglRenderer>> toplevelRenderers_;
     std::unordered_map<uint32_t,bool> rendererPaused_;
+    std::unordered_map<uint32_t,int64_t> x11Surfaces_;
+    std::unordered_set<uint32_t> isolatedToplevels_;
     void CreateRenderer(uint32_t,int64_t);
     void DestroyToplevel(uint32_t);
     void MoveRendererToToplevel(uint32_t,uint32_t);

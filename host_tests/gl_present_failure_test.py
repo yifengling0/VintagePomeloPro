@@ -16,6 +16,7 @@ code=r"""
 #include <mutex>
 #include <cstdio>
 #include "graphics/present_pacing.h"
+#include "graphics/surface_queue_recovery.h"
 #include "hilog/log.h"
 using GLenum=unsigned;using GLuint=unsigned;using GLint=int;using GLsizei=int;using GLsync=void*;
 using EGLDisplay=int;using EGLContext=int;using EGLSurface=int;using EGLBoolean=int;using EGLint=int;
@@ -62,7 +63,9 @@ struct Target {
  uint64_t frames_=0,failures_=0,timestampFailures_=0,throttled_=0,lastPresentNs_=0;
  uint32_t width_=0,height_=0;int display_=6,surface_=6,context_=6,program_=1,sampler_=1,textureLocation_=0;
  winehua::GlPresentFailureBackoff failureBackoff_;
- void ResetGlLocked(){width_=height_=0;}
+ winehua::SurfaceQueueRecovery recovery_;
+ EGLContext sourceContext_=EGL_NO_CONTEXT;
+ void ResetGlLocked(){width_=height_=0;sourceContext_=EGL_NO_CONTEXT;recovery_.Reset();}
  bool EnsureGlLocked(EGLDisplay,EGLContext,uint32_t w,uint32_t h){if(mode==2)return false;width_=w;height_=h;return true;}
 """+methods+r"""
 };
