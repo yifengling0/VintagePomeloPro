@@ -9,6 +9,7 @@ import struct
 from zipfile import BadZipFile, ZipFile
 
 from wine_audio_contract import shared_audio_format
+from normalize_runtime_identity import load_identity
 
 
 class RuntimeLibraryError(RuntimeError):
@@ -138,12 +139,66 @@ def validate_archive(data, label):
     with ZipFile(io.BytesIO(data)) as archive:
         if len(archive.namelist()) != len(set(archive.namelist())):
             raise RuntimeLibraryError(f'{label}: duplicate archive members')
+        validate_mesa_aliases(archive, label)
+        validate_mesa_metadata(archive, label)
         validate_thread_exit_metadata(archive, label)
         for name in archive.namelist():
             if '.so' in Path(name).name:
                 validate_library(archive.read(name), f'{label}/{name}')
             elif name.endswith('wine-data.zip'):
                 validate_archive(archive.read(name), f'{label}/{name}')
+
+
+def validate_mesa_aliases(archive, label):
+    """A Mesa megadriver and its DRI aliases must contain the same build.
+
+    Phone forks load the bundle copy, while tablet children may load the data
+    copy. An alias from an older build can carry a different pipe_screen ABI.
+    Ignore only non-loadable release-strip metadata when comparing aliases.
+    """
+    names = set(archive.namelist())
+    for name in sorted(names):
+        path = Path(name)
+        if not (path.name.startswith('libgallium-') and path.name.endswith('.so')):
+            continue
+        parent = path.parent
+        expected = load_identity(archive.read(name))
+        for alias in sorted(names):
+            candidate = Path(alias)
+            if not candidate.name.endswith('_dri.so'):
+                continue
+            if candidate.parent not in (parent, parent / 'dri'):
+                continue
+            if load_identity(archive.read(alias)) != expected:
+                raise RuntimeLibraryError(f'{label}/{alias}: mismatched Mesa megadriver; rebuild and stage EGL/Gallium together')
+
+
+def validate_mesa_metadata(archive, label):
+    suffix = 'resources/rawfile/wine-runtime-manifest.json'
+    for name in archive.namelist():
+        if not name.endswith(suffix):
+            continue
+        record = json.loads(archive.read(name)).get('mesaRuntime')
+        if record is None:
+            continue
+        if record.get('schemaVersion') != 1:
+            raise RuntimeLibraryError(f'{label}: unsupported paired Mesa record')
+        prefix = name[:-len(suffix)]
+        groups = {}
+        for member, item in record['libraries'].items():
+            blob = archive.read(prefix + member)
+            if len(blob) != item['bytes'] or hashlib.sha256(blob).hexdigest() != item['sha256']:
+                raise RuntimeLibraryError(f'{label}/{member}: stale member of paired EGL/Gallium set')
+            previous = groups.setdefault(item['library'], blob)
+            if previous != blob:
+                raise RuntimeLibraryError(f'{label}/{member}: inconsistent Mesa aliases')
+        if set(groups) != {'egl', 'gles1', 'gles2', 'gallium'}:
+            raise RuntimeLibraryError(f'{label}: incomplete paired EGL/Gallium set')
+        with ZipFile(io.BytesIO(archive.read(prefix + 'resources/rawfile/wine-data.zip'))) as runtime:
+            for member, item in record['nestedMembers'].items():
+                blob = runtime.read(member)
+                if blob != groups[item['library']]:
+                    raise RuntimeLibraryError(f'{label}/{member}: bundle/data Mesa copies differ')
 
 
 def main():

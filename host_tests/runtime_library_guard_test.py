@@ -1,5 +1,7 @@
 """Synthetic ELF SDK stub vs real implementation; safe generated-output reuse."""
 import io
+import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -89,6 +91,46 @@ class RuntimeLibraryGuardTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeLibraryError, 'bypass phone dispatch'):
                 validate_library(library.read_bytes(), str(library))
         validate_library(self.real, str(library))
+
+    def test_mesa_driver_alias_cannot_come_from_another_build(self):
+        for prefix in ('libs/arm64-v8a/', 'bin/guest_gfx/lib/'):
+            alias = prefix + ('dri/' if prefix.startswith('bin/') else '') + 'virtio_gpu_dri.so'
+            def package(driver):
+                data = io.BytesIO()
+                with ZipFile(data, 'w') as out:
+                    out.writestr(prefix + 'libgallium-25.0.1.so', self.real)
+                    out.writestr(alias, driver)
+                return data.getvalue()
+            validate_archive(package(self.real), 'paired.hap')
+            with self.assertRaisesRegex(RuntimeLibraryError, 'mismatched Mesa megadriver'):
+                validate_archive(package(self.stub), 'mixed.hap')
+
+    def test_paired_mesa_record_rejects_stale_egl_and_data_copy(self):
+        def package(stale_egl=False, stale_data=False):
+            names = {'egl': 'libEGL.so', 'gles1': 'libGLESv1_CM.so',
+                     'gles2': 'libGLESv2.so', 'gallium': 'libgallium-25.0.1.so'}
+            libraries = {'libs/arm64-v8a/' + name: dict(library=kind,
+                         bytes=len(self.real), sha256=hashlib.sha256(self.real).hexdigest())
+                         for kind, name in names.items()}
+            nested = {'bin/guest_gfx/lib/' + name: dict(library=kind)
+                      for kind, name in names.items()}
+            payload = io.BytesIO()
+            with ZipFile(payload, 'w') as out:
+                for member in nested:
+                    out.writestr(member, self.stub if stale_data and member.endswith('libEGL.so') else self.real)
+            data = io.BytesIO()
+            with ZipFile(data, 'w') as out:
+                for member in libraries:
+                    out.writestr(member, self.stub if stale_egl and member.endswith('libEGL.so') else self.real)
+                out.writestr('resources/rawfile/wine-data.zip', payload.getvalue())
+                out.writestr('resources/rawfile/wine-runtime-manifest.json', json.dumps(dict(mesaRuntime=dict(
+                    schemaVersion=1, libraries=libraries, nestedMembers=nested))))
+            return data.getvalue()
+        validate_archive(package(), 'paired.hap')
+        with self.assertRaisesRegex(RuntimeLibraryError, 'stale member of paired'):
+            validate_archive(package(stale_egl=True), 'mixed-egl.hap')
+        with self.assertRaisesRegex(RuntimeLibraryError, 'bundle/data Mesa copies differ'):
+            validate_archive(package(stale_data=True), 'mixed-data.hap')
 
 
 if __name__ == '__main__': unittest.main()

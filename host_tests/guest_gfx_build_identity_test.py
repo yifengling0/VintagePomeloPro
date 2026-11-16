@@ -20,6 +20,8 @@ class GuestGraphicsIdentityTest(unittest.TestCase):
         (self.build / 'meson-info').mkdir(parents=True)
         self.library = self.install / 'lib/libgallium-25.0.1.so'
         self.library.write_bytes(b'fixture - driver bundle A')
+        (self.install / 'lib/libEGL.so').write_bytes(b'fixture - paired EGL')
+        (self.install / 'lib/libGLESv2.so').write_bytes(b'fixture - paired GLES')
 
     def cli(self, action, arch='aarch64'):
         command = [sys.executable, str(SCRIPT), action, '--install-root', str(self.install), '--arch', arch]
@@ -54,6 +56,24 @@ class GuestGraphicsIdentityTest(unittest.TestCase):
     def test_stale_library_rejected(self):
         self.record(['zink', 'virgl', 'softpipe'])
         self.library.write_bytes(b'fixture - rebuilt driver bundle B')
+        self.assertNotEqual(self.cli('verify-zink').returncode, 0)
+
+    def test_egl_cannot_be_replaced_after_recording_gallium_pair(self):
+        egl = self.install / 'lib/libEGL.so'
+        egl.write_bytes(b'fixture - paired EGL')
+        self.record(['zink', 'virgl', 'softpipe'])
+        self.assertEqual(self.cli('verify-zink').returncode, 0)
+        egl.write_bytes(b'fixture - stale EGL from another build')
+        self.assertNotEqual(self.cli('verify-zink').returncode, 0)
+
+    def test_old_gallium_only_manifest_requires_full_rebuild(self):
+        self.record(['zink', 'virgl', 'softpipe'])
+        manifest = self.install / 'share/winehua/guest-gfx-build.json'
+        data = json.loads(manifest.read_text())
+        data['schemaVersion'] = 1
+        data['libraries'] = {name: value for name, value in data['libraries'].items()
+                             if Path(name).name.startswith('libgallium')}
+        manifest.write_text(json.dumps(data))
         self.assertNotEqual(self.cli('verify-zink').returncode, 0)
 
     def test_symlink_to_unrecorded_external_artifact_rejected(self):

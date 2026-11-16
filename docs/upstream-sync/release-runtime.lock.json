@@ -162,16 +162,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 447770613,
-      "sha256": "f6c82491a68eba3b8ef10ee04f9f2aef41e0c502e4b3ecc81b2065a498145d2f"
+      "bytes": 447913043,
+      "sha256": "5547e13f5c566c08f2659a6c3759e2306cb1e284c72fffdce6f66e95e6a92937"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 10906,
-      "sha256": "dd00a3173c6b0355d7ce1c412b56834dea3adfc077875fb37915327c8d0473d1"
+      "bytes": 15973,
+      "sha256": "abd51b8e096f47719a0bea0e94da74df94fcf16ca7800d88829bddd04cd880de"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 167,
-      "sha256": "caee45ce5ff07fcd92cb628ce74ef8f46808398407b324c60707068950c66e32"
+      "sha256": "165610a6ec9da46a6d15ab2ebafd464763fe32c3b425e7c4d2f825d74a4a7de9"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1006736,
@@ -187,27 +187,27 @@
     },
     "libs/arm64-v8a/libGLESv1_CM.so.1.1.0": {
       "bytes": 20256,
-      "sha256": "3f74bccab59db173046074e594cab4db1d2152018273ebc215bf2f7cb00b80d4"
+      "sha256": "98af0147568dca610029c267cf1bd2a3e157614a3fe94955f8e93072e7d1202b"
     },
     "libs/arm64-v8a/libGLESv2.so": {
       "bytes": 46320,
-      "sha256": "193ab2798c125b795e18bc479dc8167ab593fbc9a45d785076cd1d901727fc2e"
+      "sha256": "696ad0daaa334e1683c96b44a7a3a5d4fb263de07c926f9b6dcc87adc4ec8131"
     },
     "libs/arm64-v8a/libEGL.so.1": {
       "bytes": 376248,
-      "sha256": "e8b812078741c373427ef360f2c0670ab60b67260ea8cf784201bbd0ca8a207f"
+      "sha256": "f2cbfa88afcaab965965943471ab2138c5553762fddc74430db5bf9f4505095e"
     },
     "libs/arm64-v8a/libGLESv1_CM.so": {
       "bytes": 20256,
-      "sha256": "3f74bccab59db173046074e594cab4db1d2152018273ebc215bf2f7cb00b80d4"
+      "sha256": "98af0147568dca610029c267cf1bd2a3e157614a3fe94955f8e93072e7d1202b"
     },
     "libs/arm64-v8a/libGLESv2.so.2": {
       "bytes": 46320,
-      "sha256": "193ab2798c125b795e18bc479dc8167ab593fbc9a45d785076cd1d901727fc2e"
+      "sha256": "696ad0daaa334e1683c96b44a7a3a5d4fb263de07c926f9b6dcc87adc4ec8131"
     },
     "libs/arm64-v8a/libGLESv2.so.2.0.0": {
       "bytes": 46320,
-      "sha256": "193ab2798c125b795e18bc479dc8167ab593fbc9a45d785076cd1d901727fc2e"
+      "sha256": "696ad0daaa334e1683c96b44a7a3a5d4fb263de07c926f9b6dcc87adc4ec8131"
     },
     "libs/arm64-v8a/libgallium-25.0.1.so": {
       "bytes": 14663480,
@@ -215,23 +215,23 @@
     },
     "libs/arm64-v8a/libGLESv1_CM.so.1": {
       "bytes": 20256,
-      "sha256": "3f74bccab59db173046074e594cab4db1d2152018273ebc215bf2f7cb00b80d4"
+      "sha256": "98af0147568dca610029c267cf1bd2a3e157614a3fe94955f8e93072e7d1202b"
     },
     "libs/arm64-v8a/libEGL.so": {
       "bytes": 376248,
-      "sha256": "e8b812078741c373427ef360f2c0670ab60b67260ea8cf784201bbd0ca8a207f"
+      "sha256": "f2cbfa88afcaab965965943471ab2138c5553762fddc74430db5bf9f4505095e"
     },
     "libs/arm64-v8a/virtio_gpu_dri.so": {
-      "bytes": 13482512,
-      "sha256": "9892ddd3e85d0dd6a117f1b5f4813499c8ad5d4fe10dcdf0b022e0080de0e867"
+      "bytes": 14663480,
+      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
     },
     "libs/arm64-v8a/swrast_dri.so": {
-      "bytes": 13482512,
-      "sha256": "9892ddd3e85d0dd6a117f1b5f4813499c8ad5d4fe10dcdf0b022e0080de0e867"
+      "bytes": 14663480,
+      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
     },
     "libs/arm64-v8a/kms_swrast_dri.so": {
-      "bytes": 13482512,
-      "sha256": "9892ddd3e85d0dd6a117f1b5f4813499c8ad5d4fe10dcdf0b022e0080de0e867"
+      "bytes": 14663480,
+      "sha256": "a982211e74eaff711dbc142392caf249c3197ce6e2fdc154ab320ee1241fa994"
     }
   },
   "graphics": {

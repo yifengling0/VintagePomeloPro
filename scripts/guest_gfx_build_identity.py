@@ -24,11 +24,12 @@ def main():
             parser.error("record requires --build-root")
         options = json.loads((args.build_root / "meson-info/intro-buildoptions.json").read_text())
         options = {entry["name"]: entry["value"] for entry in options}
-        libraries = sorted(path for path in (root / "lib").glob("libgallium*.so") if path.is_file())
-        if not libraries:
+        libraries = sorted({path for pattern in ("libgallium*.so", "libEGL.so*", "libGLES*.so*")
+                            for path in (root / "lib").glob(pattern) if path.is_file()})
+        if not any(path.name.startswith('libgallium') for path in libraries):
             parser.error("no installed Gallium driver library")
         data = {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "arch": args.arch,
             "galliumDrivers": options["gallium-drivers"],
             "platforms": options["platforms"],
@@ -41,13 +42,16 @@ def main():
         if not manifest.is_file():
             parser.error("Zink requires guest-gfx-build.json from build_ohos_guest_gfx.sh; rebuild Mesa")
         data = json.loads(manifest.read_text())
-        if data.get("schemaVersion") != 1 or data.get("arch") != args.arch:
+        if data.get("schemaVersion") != 2 or data.get("arch") != args.arch:
             parser.error("Mesa build identity has a different schema or architecture")
         if "zink" not in data.get("galliumDrivers", []) or not data.get("opengl"):
             parser.error("Mesa was not built with the Zink OpenGL driver")
         libraries = data.get("libraries", {})
         if not libraries:
             parser.error("Mesa build identity has no Gallium library hashes")
+        for family in ('libgallium', 'libEGL.so', 'libGLESv2.so'):
+            if not any(Path(name).name.startswith(family) for name in libraries):
+                parser.error("Incomplete Mesa EGL/Gallium build identity; rebuild the complete graphics bundle")
         for name, expected in libraries.items():
             path = (root / name).resolve()
             if not path.is_relative_to(root.resolve()) or not path.is_file() or digest(path) != expected:
