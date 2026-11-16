@@ -666,7 +666,7 @@ export class WineWindowManager {
     if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
   }
 
-  private startHostAbility(want: Want): Promise<void> {
+  private hostAbilityContext(): common.UIAbilityContext | null {
     let context = (this.desktopAbilityForeground && this.desktopAbilityCtx) ? this.desktopAbilityCtx : this.uiAbilityContext;
     let source = this.desktopAbilityForeground && this.desktopAbilityCtx ? 'desktop' : 'entry';
     this.foregroundAbilities.forEach((id: number): void => {
@@ -676,10 +676,28 @@ export class WineWindowManager {
         source = `window:${id}`;
       }
     });
+    hilog.info(DOMAIN, TAG, '[MW] host context from=%{public}s', source);
+    return context;
+  }
+
+  private startHostAbility(want: Want): Promise<void> {
+    const context = this.hostAbilityContext();
     if (!context) return Promise.reject(new Error('Foreground host context unavailable'));
-    hilog.info(DOMAIN, TAG, '[MW] host start ability=%{public}s from=%{public}s', want.abilityName ?? '', source);
     try {
       return context.startAbility(want);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  }
+
+  openSystemTarget(uri: string, flags: number): Promise<void> {
+    // EntryAbility can be backgrounded while the desktop or a Wine window is
+    // foreground. Use the same live context selection as host-window launches.
+    const context = this.hostAbilityContext();
+    if (!context) return Promise.reject(new Error('Foreground host context unavailable'));
+    try {
+      return /^https?:/i.test(uri) ? context.openLink(uri, { appLinkingOnly: false }) :
+        context.startAbility({ action: 'ohos.want.action.viewData', uri, flags });
     } catch (error) {
       return Promise.reject(error);
     }

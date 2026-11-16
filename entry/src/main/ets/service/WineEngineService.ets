@@ -677,7 +677,7 @@ export class WineEngineService {
 
   initialize(context: common.UIAbilityContext): void {
     this.context = context;
-    SystemOpenService.initialize(context);
+    SystemOpenService.initialize();
     if (this.callbackInstalled) return;
     this.callbackInstalled = true;
     testNapi.setStateCallback((raw: string) => this.handleNativeState(raw));

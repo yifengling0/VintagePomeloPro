@@ -1,13 +1,13 @@
-import { common, wantConstant } from '@kit.AbilityKit';
+import { wantConstant } from '@kit.AbilityKit';
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { promptAction } from '@kit.ArkUI';
 import { hilog } from './LogService';
 import testNapi from 'libentry.so';
 import { AppSettingsStore } from './AppSettingsStore';
+import { WineWindowManager } from './WineWindowManager';
 import { parseSystemOpenTarget } from '../model/SystemOpenTarget';
 
 export class SystemOpenService {
-  private static context: common.UIAbilityContext | null = null;
   private static prefix: string = '';
   private static active: boolean = false;
   private static subscribed: boolean = false;
@@ -15,8 +15,7 @@ export class SystemOpenService {
     testNapi.setSystemOpenEnabled(SystemOpenService.active &&
       AppSettingsStore.getInstance().getGlobalSettings().systemOpenEnabled === true);
   };
-  static initialize(context: common.UIAbilityContext): void {
-    SystemOpenService.context = context;
+  static initialize(): void {
     if (!SystemOpenService.subscribed) {
       AppSettingsStore.getInstance().subscribeGlobalChanges(SystemOpenService.settingsChanged);
       SystemOpenService.subscribed = true;
@@ -36,8 +35,7 @@ export class SystemOpenService {
     SystemOpenService.prefix = '';
   }
   private static open(target: string): boolean {
-    const context = SystemOpenService.context;
-    if (!context || !SystemOpenService.active ||
+    if (!SystemOpenService.active ||
       AppSettingsStore.getInstance().getGlobalSettings().systemOpenEnabled !== true) return false;
     const parsed = parseSystemOpenTarget(target, SystemOpenService.prefix);
     if (!parsed) return false;
@@ -57,10 +55,7 @@ export class SystemOpenService {
       } catch (_) { return false; }
     }
     try {
-      // HTTP links use the system link resolver (including the default browser).
-      // Generic viewData alone can fail to match a browser on HarmonyOS.
-      const launch = /^https?:/i.test(uri) ? context.openLink(uri, { appLinkingOnly: false }) :
-        context.startAbility({ action: 'ohos.want.action.viewData', uri, flags });
+      const launch = WineWindowManager.getInstance().openSystemTarget(uri, flags);
       void launch.catch((error: Error): void => {
         hilog.warn(0, 'SystemOpen', 'System open failed: %{public}s', JSON.stringify(error));
         promptAction.showToast({ message: '系统应用未能打开链接或文件，请检查是否安装了对应应用' });

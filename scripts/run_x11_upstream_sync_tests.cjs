@@ -49,15 +49,58 @@ const {SystemOpenService: service} = load('service/SystemOpenService', {
   '@kit.ArkUI': {promptAction: {showToast: x => errors.push(x.message)}},
   'libentry.so': {default:{setSystemOpenEnabled:x=>{enabled=x;}, setOpenTargetCallback:f=>{callback=f;}}},
   './AppSettingsStore': {AppSettingsStore:{getInstance:()=>settings}},
+  './WineWindowManager': {WineWindowManager: {getInstance: () => ({openSystemTarget: (uri, flags) => {
+    opened.push({uri,flags}); return failLaunch ? Promise.reject(Error('no handler')) : Promise.resolve();
+  }})}},
   '../model/SystemOpenTarget': {parseSystemOpenTarget:parse}
 });
+async function checkForegroundOpenContext() {
+  const {WineWindowManager} = load('service/WineWindowManager', {
+    '../model/DisplayScalePolicy': {resolveOutputScale}, './InputRouter': {InputRouter},
+    '@kit.AbilityKit': {}, '@kit.ArkUI': {}, '@kit.BasicServicesKit': {}, '@kit.InputKit': {},
+    './LogService': {hilog: {info(){}, warn(){}}}, 'libentry.so': {default: {}},
+    './HostWindowTasks': {}, './InputDispatcher': {},
+    '../model/AppModels': {WinePresentationMode: {DESKTOP:'desktop'}},
+    './PopupWindowManager': {}, './ModalWindowManager': {}, './FusionWindowManager': {},
+    './AppSettingsStore': {}, './DesktopModeService': {}, '../common/DeviceCapabilityPolicy': {}
+  });
+  const wm=WineWindowManager.getInstance(), accepted=[];
+  const carrier=name=>({startAbility:async want=>{accepted.push([name,want]);},
+    openLink:async(uri,options)=>{accepted.push([name,{uri,options}]);}});
+  wm.uiAbilityContext=carrier('entry');
+  const steam=carrier('steam'), game=carrier('game');
+  wm.abilityContexts.set(21,steam);wm.noteAbilityForeground(21,true);
+  wm.abilityContexts.set(22,game);wm.noteAbilityForeground(22,true);
+  wm.noteAbilityForeground(21,true);
+  await wm.openSystemTarget('https://example.com',0);
+  assert.equal(accepted.at(-1)[0],'steam','HTTP uses most recent foreground carrier');
+  assert.equal(accepted.at(-1)[1].options.appLinkingOnly,false);
+  wm.noteAbilityForeground(21,false);
+  await wm.openSystemTarget('http://example.com',0);
+  assert.equal(accepted.at(-1)[0],'game','HTTP follows foreground changes');
+  wm.destroyed.add(22);wm.desktopAbilityForeground=true;wm.desktopAbilityCtx=steam;
+  await wm.openSystemTarget('file://com.vintage.pomelopro/files/a.txt',1);
+  assert.equal(accepted.at(-1)[0],'steam','files exclude destroyed windows and use live desktop');
+  assert.equal(accepted.at(-1)[1].flags,1,'file retains read-only URI grant');
+  assert.equal(accepted.at(-1)[1].action,'ohos.want.action.viewData');
+  await wm.openSystemTarget('mailto:a@example.com',0);
+  assert.equal(accepted.at(-1)[1].uri,'mailto:a@example.com');
+  steam.openLink=()=>{throw Error('launch rejected');};
+  await assert.rejects(wm.openSystemTarget('https://example.com',0),/launch rejected/);
+  wm.desktopAbilityForeground=false;
+  await wm.startHostAbility({abilityName:'EntryAbility'});
+  assert.equal(accepted.at(-1)[0],'entry','host launches retain Entry fallback');
+  wm.uiAbilityContext=null;
+  await assert.rejects(wm.openSystemTarget('https://example.com',0),/context unavailable/);
+}
 (async () => {
-  service.initialize({openLink: (uri, options) => {assert.equal(options.appLinkingOnly,false); opened.push({uri,options}); return failLaunch ? Promise.reject(Error('no browser')) : Promise.resolve();}, startAbility: want => {opened.push(want);return failLaunch ? Promise.reject(Error('no handler')) : Promise.resolve();}});
+  await checkForegroundOpenContext();
+  service.initialize();
   service.start('/prefix'); assert(!enabled); assert(!callback('https://example.com'));
   allow = true; changed(); assert(enabled); assert(callback('https://example.com')); assert.equal(opened.length, 1);
   missing = true; assert(!callback('file:///C:/a.txt')); assert.equal(opened.length,1, 'unmapped file falls back');
   missing = false; assert(callback('file:///C:/a.txt')); assert.equal(opened.at(-1).flags,1); assert.equal(closed,1);
   failLaunch = true; assert(callback('https://example.com')); await Promise.resolve(); assert.equal(errors.length,1, 'accepted launch failure is visible');
   const old = callback; service.stop(); assert.equal(callback,null); assert(!enabled); assert(!old('https://example.com'), 'old callback cannot open after stop');
-  console.log('PASS upstream sync: URI parsing, OPEN acceptance/fallback/error/teardown, per-window/source keys, physical repeat');
+  console.log('PASS upstream sync: URI parsing, foreground OPEN context, acceptance/fallback/error/teardown, per-window/source keys, physical repeat');
 })().catch(e => {console.error(e);process.exitCode=1;});
