@@ -21,7 +21,8 @@ int main() {
     auto* seatB = wl_resource_create(clientB, &wl_seat_interface, 2, 0);
     Bind(clientA, nullptr, 2, 0); auto* managerA = managers.back(); GetDevice(clientA, managerA, 0, seatA);
     Bind(clientB, nullptr, 2, 0); auto* managerB = managers.back(); GetDevice(clientB, managerB, 0, seatB);
-    WineClipboardFocus(surfaceA); WineClipboardPost("host"); Dispatch();
+    WineClipboardFocus(surfaceA); WineClipboardPost("host"); assert(Snapshot().empty()); Dispatch();
+    assert(Snapshot() == "host");
     assert(!offers.empty()); for (auto* offer : offers) assert(wl_resource_get_client(offer->resource) == clientA);
     WineClipboardFocus(surfaceB); assert(wl_resource_get_client(offers.back()->resource) == clientB);
     // Host empty text remains a valid offer, and old offers retain their snapshot.

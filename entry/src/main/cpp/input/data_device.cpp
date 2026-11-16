@@ -200,6 +200,7 @@ int Posted(int fd, uint32_t, void*) {
     if (apply) {
         Invalidate(); if (selection) wl_data_source_send_cancelled(selection);
         selection = nullptr; selectionText = std::make_shared<const std::string>(std::move(text)); hasSelection = true; SendSelections();
+        Publish(*selectionText); // Acknowledge only after the loop applied the host selection.
     }
     return 0;
 }

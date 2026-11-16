@@ -11,18 +11,18 @@ const data = text => ({getPrimaryText: () => text});
 async function flush() { for(let i=0;i<12;++i) await Promise.resolve(); }
 function fixture() {
   let tick, listener, guest={version:0,text:''}, read=()=>Promise.resolve(data('system'));
-  let write=()=>Promise.resolve(), subscriptionFailure=false;
+  let write=()=>Promise.resolve(), subscriptionFailure=false, acknowledge=true;
   const pushed=[], written=[];
   const board={on(_,fn){if(subscriptionFailure)throw Error('denied');listener=fn;}, off(){listener=undefined;},
     getData(){return read();}, setData(value){written.push(value.getPrimaryText());return write();}};
-  const context={exports:{}, Promise,
+  const context={exports:{}, Promise, Date, setTimeout, clearTimeout,
     setInterval(fn){tick=fn;return 1;},clearInterval(){tick=undefined;},
     require(name){if(name==='@kit.BasicServicesKit')return {pasteboard:{getSystemPasteboard:()=>board,createData:(_,text)=>data(text),MIMETYPE_TEXT_PLAIN:'text/plain'}};
-      if(name==='libdisplay_route_napi.so')return {default:{getDisplayRouteClipboard:()=>({...guest}),setDisplayRouteClipboard:text=>pushed.push(text)}};
+      if(name==='libdisplay_route_napi.so')return {default:{getDisplayRouteClipboard:()=>({...guest}),setDisplayRouteClipboard:text=>{pushed.push(text);if(acknowledge)guest={version:guest.version+1,text};}}};
       throw Error(name);}};
   vm.runInNewContext(compiled,context);
   return {service:context.exports.X11ClipboardService,pushed,written,
-    read(fn){read=fn;},write(fn){write=fn;},deny(){subscriptionFailure=true;},
+    ack(value){acknowledge=value;},read(fn){read=fn;},write(fn){write=fn;},deny(){subscriptionFailure=true;},
     guest(text){guest={version:guest.version+1,text};},changed(){listener?.();},tick(){tick?.();},hasTimer:()=>!!tick};
 }
 (async()=>{
@@ -50,5 +50,17 @@ function fixture() {
   assert(f.hasTimer());f.guest('retry');f.write(()=>Promise.reject(Error('busy')));f.tick();await flush();
   f.write(()=>Promise.resolve());f.tick();await flush();assert.deepEqual(f.written,['retry','retry']);
   f.guest('x'.repeat(262145));f.tick();await flush();assert.equal(f.written.length,2);f.service.stop();
+  f=fixture();f.service.start();await flush();f.read(()=>Promise.resolve(data('authorized system')));
+  assert.equal(await f.service.prepareSystemPaste(),true);assert.equal(f.pushed.at(-1),'authorized system');
+  f.tick();await flush();assert.equal(f.written.length,0);f.service.stop();
+  f=fixture();f.service.start();await flush();f.ack(false);f.read(()=>Promise.resolve(data('unapplied')));
+  assert.equal(await f.service.prepareSystemPaste(),false);f.service.stop();
+  f=fixture();f.service.start();await flush();f.read(()=>Promise.reject(Error('permission denied')));
+  assert.equal(await f.service.prepareSystemPaste(),false);f.service.stop();
+  f=fixture();f.service.start();await flush();const paste=deferred();f.read(()=>paste.promise);
+  const pendingPaste=f.service.prepareSystemPaste();f.service.stop();paste.resolve(data('obsolete'));
+  assert.equal(await pendingPaste,false);assert(!f.pushed.includes('obsolete'));
+  f=fixture();f.service.start();await flush();f.read(()=>new Promise(()=>{}));
+  assert.equal(await f.service.prepareSystemPaste(),false);f.service.stop();
   console.log('PASS production X11 clipboard: bidirectional text, epochs, stale reads, serial writes, denied permissions and retry');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { X11ClipboardService } from '../service/X11ClipboardService';
 import { common, Want } from '@kit.AbilityKit';
 import { mapMouseButton } from '../common/MouseMap';
 import {
@@ -905,6 +906,25 @@ struct InputOverlayPage {
     }
   }
 
+  private async pasteSystemText(): Promise<void> {
+    const session = this.snapshot.session.sessionId;
+    const input = InputRouter.getInstance();
+    const top = input.getActiveToplevel();
+    if (!this.snapshot.visible || top <= 0) return;
+    const prepared = await X11ClipboardService.prepareSystemPaste();
+    if (!this.snapshot.visible || session !== this.snapshot.session.sessionId ||
+      top !== input.getActiveToplevel()) return;
+    if (!prepared) {
+      this.getUIContext().getPromptAction().showToast({ message: '无法读取系统剪贴板，请重试粘贴' });
+      return;
+    }
+    // Source ownership preserves Ctrl held by hardware or another overlay key.
+    input.sendWindowKey(top, 'clipboard-paste', 29, true);
+    input.sendWindowKey(top, 'clipboard-paste', 47, true);
+    input.sendWindowKey(top, 'clipboard-paste', 47, false);
+    input.sendWindowKey(top, 'clipboard-paste', 29, false);
+  }
+
   build() {
     Stack() {
       // 宿主键盘载体: 平时不可见/不参与命中, 聚焦后唤起系统输入法。
@@ -956,6 +976,16 @@ struct InputOverlayPage {
           onUnhandledAxis: (event?: AxisEvent): void => this.handleDirectAxis(event, 'virtual')
         })
         .zIndex(10)
+      }
+      if (this.snapshot.visible && this.hostKeyboardActive) {
+        // Keep the security component outside the toolbar's gesture handler.
+        Row() {
+          PasteButton()
+            .id('wine-system-paste')
+            .onClick((_event: ClickEvent, result: PasteButtonOnClickResult): void => {
+              if (result === PasteButtonOnClickResult.SUCCESS) void this.pasteSystemText();
+            })
+        }.position({ x: 12, y: 12 }).zIndex(60)
       }
       // 触摸板虚拟光标统一由 VirtualInputOverlay 显示 (新状态机), 此处禁用
       // 避免切换瞬间双光点。保留 cursorX/Y 状态供 InputDispatcher 逻辑使用。

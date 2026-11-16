@@ -98,3 +98,6 @@ entry/src/main/resources/rawfile/linux-proton/gnu-proton.zip
 
 # Rebuilt from the pinned, complete GE module contract.
 /entry/src/main/resources/rawfile/linux-proton/modules-support/
+
+# Generated application source receipt, packaged alongside the runtime receipt.
+/entry/src/main/resources/rawfile/application-build.json

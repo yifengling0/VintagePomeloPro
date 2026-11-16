@@ -1419,4 +1419,5 @@ test-x11-upstream-sync:
 	$(HOST_TEST_DIR)/open_protocol_test
 	g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I $(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/wayland_clipboard_lifecycle_test.cpp -lwayland-server -pthread -o $(HOST_TEST_DIR)/wayland_clipboard_lifecycle_test
 	$(HOST_TEST_DIR)/wayland_clipboard_lifecycle_test
+	$(TOOL_HOME)/tool/node/bin/node $(ROOT)/scripts/run_x11_clipboard_tests.cjs $(TOOL_HOME)/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/typescript.js
 	$(TOOL_HOME)/tool/node/bin/node $(ROOT)/scripts/run_x11_upstream_sync_tests.cjs $(TOOL_HOME)/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/typescript.js

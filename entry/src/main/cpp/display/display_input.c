@@ -1093,6 +1093,9 @@ static void ApplySetClipboard(char *text) /* loop 线程, 接管 text 所有权 
     g_clip_text = text; /* send 回调读, 同 loop 线程 */
     g_clip_serial++;
     wlr_seat_set_selection(g_seat, src, g_clip_serial);
+    pthread_mutex_lock(&g_clip_cache_mutex);
+    free(g_clip_cache); g_clip_cache = strdup(g_clip_text); ++g_clip_version;
+    pthread_mutex_unlock(&g_clip_cache_mutex);
     OHLOG("clipboard set (%zu bytes)", strlen(g_clip_text));
 }
 
