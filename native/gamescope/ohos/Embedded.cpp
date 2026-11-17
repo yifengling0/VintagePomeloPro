@@ -21,7 +21,7 @@ bool CVulkanTexture::BInitOhosStorageOutput(VkImage image, uint32_t width, uint3
     return true;
 }
 
-bool CVulkanTexture::BInitNativeBuffer(void* buffer, uint32_t width, uint32_t height) {
+bool CVulkanTexture::BInitNativeBuffer(void* buffer, uint32_t width, uint32_t height, bool opaque) {
     if (!buffer || !width || !height || width > 8192 || height > 8192) return false;
     auto get = reinterpret_cast<PFN_vkGetNativeBufferPropertiesOHOS>(
         g_device.vk.GetDeviceProcAddr(g_device.device(), "vkGetNativeBufferPropertiesOHOS"));
@@ -55,7 +55,7 @@ bool CVulkanTexture::BInitNativeBuffer(void* buffer, uint32_t width, uint32_t he
     }
     if (g_device.vk.BindImageMemory(g_device.device(), m_vkImage, m_vkImageMemory, 0) != VK_SUCCESS) return false;
     const auto memory = m_vkImageMemory;
-    const bool views = BInitFromSwapchain(m_vkImage, width, height, format.format);
+    const bool views = BInitFromSwapchain(m_vkImage, width, height, format.format, opaque);
     m_vkImageMemory = memory; m_bOutputImage = false;
     if (!views || !OhosNativeBufferReference(buffer)) return false;
     m_ohosBuffer = buffer;

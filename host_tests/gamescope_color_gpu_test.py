@@ -57,6 +57,8 @@ def main():
                                  ('raw-normalization-color',['--raw'],True),
                                  ('missing-encode',['--missing-encode'],False),
                                  ('double-encode',['--double-encode'],False),
+                                 ('opaque-window-bounds',['--window-bounds'],True),
+                                 ('legacy-window-erases-desktop',['--legacy-window-bounds'],False),
                                  ('easu-fp32-odd-extent',['--easu-fp32'],True),
                                  ('easu-fp16-odd-extent',['--easu-fp16'],True),
                                  ('rcas-quad-edge',['--rcas-quad'],True), ('rcas-1px-edge',['--rcas-1px'],True)]:

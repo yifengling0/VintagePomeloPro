@@ -51,8 +51,10 @@ int main(int argc, char** argv) {
     const bool easu = fp16 || (argc == 2 && std::strcmp(argv[1], "--easu-fp32") == 0);
     const bool rcas1px = argc == 2 && std::strcmp(argv[1], "--rcas-1px") == 0;
     const bool rcas = rcas1px || (argc == 2 && std::strcmp(argv[1], "--rcas-quad") == 0);
-    if (argc > 2 || (argc == 2 && !raw && !missingEncode && !doubleEncode && !gray && !easu && !rcas)) return 64;
-    const unsigned side = easu ? 17u : 1u; // odd extent exercises all EASU edge guards
+    const bool legacyBounds = argc == 2 && std::strcmp(argv[1], "--legacy-window-bounds") == 0;
+    const bool windowBounds = legacyBounds || (argc == 2 && std::strcmp(argv[1], "--window-bounds") == 0);
+    if (argc > 2 || (argc == 2 && !raw && !missingEncode && !doubleEncode && !gray && !easu && !rcas && !windowBounds)) return 64;
+    const unsigned side = easu ? 17u : windowBounds ? 8u : 1u; // odd extent exercises all EASU edge guards
     constexpr unsigned bufferBytes = 4096;
     setvbuf(stdout, nullptr, _IONBF, 0); alarm(25);
     void* loader = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
@@ -135,7 +137,7 @@ int main(int argc, char** argv) {
         // A nonzero sampled input and a separate storage output distinguish
         // real compositing from a no-op shader or aliased read/write image.
         // Midtones, unlike white/black, expose a missing or duplicate EOTF.
-        const unsigned char input[4] = {uint8_t(gray ? 128 : 64),128,uint8_t(gray ? 128 : 192),255};
+        const unsigned char input[4] = {uint8_t(gray ? 128 : 64),128,uint8_t(gray ? 128 : 192),uint8_t(windowBounds ? 0 : 255)};
         std::memcpy(mapped, input, sizeof(input));
         float* uniform = reinterpret_cast<float*>(static_cast<unsigned char*>(mapped) + 512);
         for (unsigned i = 0; i < 8; ++i) {
@@ -145,6 +147,18 @@ int main(int argc, char** argv) {
         const uint32_t nearest = 1;
         std::memcpy(uniform+139, &nearest, sizeof(nearest));
         uniform[141] = uniform[142] = uniform[143] = uniform[144] = 1.0f;
+        if (windowBounds) {
+            // A full desktop behind a raised 4x4 opaque taskbar/popup. Its
+            // producer leaves alpha zero; the input sampling view supplies
+            // opacity only inside the actual window rectangle.
+            uniform[0]=uniform[1]=1.0f/side;
+            uniform[2]=uniform[3]=0.25f;
+            uniform[18]=-2; uniform[19]=-4;
+            const uint32_t border=legacyBounds ? 2u : 0u;
+            const uint32_t alphaMode=legacyBounds ? (2u<<2) : 0u;
+            std::memcpy(uniform+136,&border,sizeof(border));
+            std::memcpy(uniform+140,&alphaMode,sizeof(alphaMode));
+        }
         if (easu) {
             FsrEasuCon(reinterpret_cast<AU1*>(uniform),reinterpret_cast<AU1*>(uniform+4),
                 reinterpret_cast<AU1*>(uniform+8),reinterpret_cast<AU1*>(uniform+12),
@@ -242,6 +256,16 @@ int main(int argc, char** argv) {
             write.pImageInfo = descriptors[i].data();
         }
         descriptors[1][0].imageView = descriptors[2][0].imageView = outputView;
+        VkImageView opaqueView=VK_NULL_HANDLE;
+        if (windowBounds) {
+            VkImageViewCreateInfo opaqueInfo={}; opaqueInfo.sType=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            opaqueInfo.image=fallback.image(fallback.Rgba); opaqueInfo.viewType=VK_IMAGE_VIEW_TYPE_2D;
+            opaqueInfo.format=VK_FORMAT_R8G8B8A8_UNORM;
+            opaqueInfo.components.a=VK_COMPONENT_SWIZZLE_ONE;
+            opaqueInfo.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+            CHECK(CreateImageView(device,&opaqueInfo,nullptr,&opaqueView));
+            descriptors[3][0].imageView=descriptors[3][1].imageView=opaqueView;
+        }
         UpdateDescriptorSets(device, writes.size(), writes.data(), 0, nullptr);
         CHECK(GetFenceStatus(device, fence));
         VkPushConstantRange colorState = {VK_SHADER_STAGE_COMPUTE_BIT, 0, 4};
@@ -260,7 +284,7 @@ int main(int argc, char** argv) {
         VkComputePipelineCreateInfo pipelineInfo = {}; pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO; pipelineInfo.layout = pipelineLayout;
         pipelineInfo.stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_COMPUTE_BIT, shader, "main", nullptr};
         // Match descriptor_set.h: sRGB=1, passthru=4, Gamma22=0, Count=2.
-        const uint32_t constants[7] = {1,0,0,0, raw || doubleEncode ? 4u : 1u,
+        const uint32_t constants[7] = {windowBounds ? 2u : 1u,0,0,0, windowBounds ? 9u : raw || doubleEncode ? 4u : 1u,
             raw || missingEncode ? 2u : 0u,0};
         std::array<VkSpecializationMapEntry,7> entries = {};
         for (uint32_t i = 0; i < entries.size(); ++i)
@@ -308,13 +332,15 @@ int main(int argc, char** argv) {
             const unsigned char* pixel = static_cast<unsigned char*>(mapped)+2048;
             std::printf("VPP_GAMESCOPE_COMPOSITE_PIXEL mask=%u rgba=%u,%u,%u,%u\n",mask,pixel[0],pixel[1],pixel[2],pixel[3]);
             for (unsigned i=0;i<side*side*4;++i) {
-                const int expected = i%4==3 || easu || raw || !(mask&1) ? input[i%4] : 0;
+                const int expected = windowBounds && i%4==3 ? 255 :
+                    i%4==3 || easu || raw || !(mask&1) ? input[i%4] : 0;
                 if (std::abs(int(pixel[i])-expected)>1) fail("actual compositor midtone",i);
             }
             std::printf("VPP_GAMESCOPE_COMPOSITE_MASK_PASS mask=%u rgba=%u,%u,%u,%u\n",mask,pixel[0],pixel[1],pixel[2],pixel[3]);
         }
         DestroyPipeline(device, pipeline, nullptr); DestroyShaderModule(device, shader, nullptr);
         DestroyPipelineLayout(device, pipelineLayout, nullptr); DestroyDescriptorPool(device, descriptorPool, nullptr);
+        if (opaqueView) DestroyImageView(device,opaqueView,nullptr);
         DestroyDescriptorSetLayout(device, layout, nullptr); DestroySampler(device, convertedSampler, nullptr); DestroySampler(device, sampler, nullptr);
         }
         DestroyFence(device, fence, nullptr); DestroyCommandPool(device, pool, nullptr);

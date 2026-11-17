@@ -229,7 +229,7 @@ public:
 protected:
     void OnBackendBlobDestroyed(BackendBlob*) override {}
     VppGamescopeFrame* embeddedFrame = nullptr;
-    struct CachedInput { OwningRc<CVulkanTexture> texture; uint64_t serial = 0, seen = 0; };
+    struct CachedInput { OwningRc<CVulkanTexture> texture; uint64_t serial = 0, seen = 0; bool opaque = false; };
     std::unordered_map<uint64_t, CachedInput> embeddedCache;
     bool PrepareEmbedded(Frame& slot, FrameInfo_t& info);
     void InputBarrier(VkCommandBuffer command, CVulkanTexture* texture, bool acquire, bool vulkan);
@@ -489,20 +489,21 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
         key = (key << 1) | (layer.native ? 1 : 0);
         auto& cached = embeddedCache[key];
         if (!cached.texture || cached.texture->width()!=layer.width || cached.texture->height()!=layer.height ||
+            cached.opaque!=bool(layer.opaque) ||
             (!layer.native && cached.serial!=layer.serial)) {
             OwningRc<CVulkanTexture> texture;
             if (layer.native) {
                 texture = new CVulkanTexture();
-                if (!texture->BInitNativeBuffer(layer.native,layer.width,layer.height)) return false;
+                if (!texture->BInitNativeBuffer(layer.native,layer.width,layer.height,layer.opaque)) return false;
             } else {
                 uploadBytes += size_t(layer.width)*layer.height*4;
                 if (!layer.pixels || uploadBytes>32u*1024*1024) return false;
                 CVulkanTexture::createFlags flags;
                 texture = vulkan_create_texture_from_bits(layer.width,layer.height,layer.width,layer.height,
-                    DRM_FORMAT_ARGB8888,flags,const_cast<void*>(layer.pixels));
+                    layer.opaque?DRM_FORMAT_XRGB8888:DRM_FORMAT_ARGB8888,flags,const_cast<void*>(layer.pixels));
                 if (!texture) return false;
             }
-            cached.texture=std::move(texture); cached.serial=layer.serial;
+            cached.texture=std::move(texture); cached.serial=layer.serial; cached.opaque=layer.opaque;
         }
         cached.seen=m_frameNumber;
         textures.push_back(cached.texture.get());
@@ -576,9 +577,13 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
         }
         auto* layer=info.layers.push(); if (!layer) return false;
         layer->tex=texture; layer->scale={texture->width()/src.w,texture->height()/src.h};
-        layer->offset={-src.x,-src.y}; layer->opacity=1; layer->blackBorder=true;
+        // A window is opaque only inside its own rectangle. Gamescope's
+        // NONE mode replaces the whole output, including samples outside the
+        // texture. Use opaque sampling views and transparent bounds instead,
+        // so a raised taskbar or popup cannot erase the desktop behind it.
+        layer->offset={-src.x,-src.y}; layer->opacity=1; layer->blackBorder=false;
         layer->filter=input.filter==1 || input.filter==2?GamescopeUpscaleFilter::NEAREST:GamescopeUpscaleFilter::LINEAR;
-        layer->eAlphaBlendingMode=src.opaque?ALPHA_BLENDING_MODE_NONE:ALPHA_BLENDING_MODE_PREMULTIPLIED;
+        layer->eAlphaBlendingMode=ALPHA_BLENDING_MODE_PREMULTIPLIED;
         layer->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
         if (i==0 && src.upscale && input.filter==3 && src.w>texture->width() && src.h>texture->height()) {
             info.useFSRLayer0=true; info.nUpscaleSharpness=input.sharpness;

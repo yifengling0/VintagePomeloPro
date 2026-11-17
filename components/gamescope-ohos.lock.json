@@ -442,13 +442,29 @@
       "originalPath": "src/rendervulkan.hpp",
       "beforeSha256": "7d319af3185c1142a5cbd8a7a805020f24968b718b03eb3bfea785b22d7ff95d",
       "afterSha256": "a6eb57a09542e28f228376bb1b33c16d6c3b758199d2a602f80a0ca3c3e05361"
+    },
+    {
+      "path": "patches/gamescope/0025-allow-opaque-native-sampling-with-transparent-bounds.patch",
+      "sha256": "4c5efaa73a14db53ce0cf11776cb6684a595c347ae1a5691740631b85f49d2fe",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "a6eb57a09542e28f228376bb1b33c16d6c3b758199d2a602f80a0ca3c3e05361",
+          "afterSha256": "38ef5de9e5c857ecd2b3bad99598ea9d4bf72b854de1771f862d9791bd324fbc"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "e38d4ac4a311831bb013b1571692f793b375232c0fe154e2e519abc03feb5a68",
+          "afterSha256": "3292283890440070e72c5d7f6c8272981febecc2c2b5f7313c1c00f121598d5b"
+        }
+      ]
     }
   ],
   "overlays": [
     {
       "source": "native/gamescope/hsl/vulkan_descriptor_fallback.h",
       "destination": "src/hsl_vulkan_descriptor_fallback.h",
-      "sha256": "f8eecac7b3e5b70c05d2ccbb35cef7fb6109331df3ddefc25018f5facfa1de8c"
+      "sha256": "c310fd7ce3194949077402ea523f04fb42f32b77f7bd84ceca99a84d61625ed9"
     },
     {
       "source": "native/gamescope/hsl/compile-gamescope-shader.py",
@@ -543,7 +559,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "41f3693c9659b3c36c77d36b1e70e0f87665a891bce91fad355ecc06c6f63d1e"
+      "sha256": "8e4c69224aa15a06437116a46d310cd921de8e696e260deb3b0f01647172df44"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
@@ -553,7 +569,7 @@
     {
       "source": "native/gamescope/ohos/Embedded.cpp",
       "destination": "src/OhosEmbedded.cpp",
-      "sha256": "e6126935b8e2eec71a4ae7efe283effeaaf6a5b317d4f14f92793e7b02baf44d"
+      "sha256": "a64cd604214ef8bc4112adc33e4bb5a38129b75dc7e680e952f308df6737a0ca"
     },
     {
       "source": "native/gamescope/ohos/EmbeddedContract.h",

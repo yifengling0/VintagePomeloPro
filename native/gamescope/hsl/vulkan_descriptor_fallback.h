@@ -22,6 +22,7 @@ public:
     ~VulkanDescriptorFallback() { reset(); }
 
     VkImageView view(Slot slot) const { return resources[slot].view; }
+    VkImage image(Slot slot) const { return resources[slot].image; }
     VkResult init(VkPhysicalDevice physical, VkDevice owner,
                   PFN_vkGetDeviceProcAddr get,
                   PFN_vkGetPhysicalDeviceImageFormatProperties2 query,
