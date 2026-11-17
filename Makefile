@@ -13,12 +13,68 @@ ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Gamescope is an opt-in OHOS port. These targets do not change the product
 # runtime or claim device support before the native compositor is qualified.
-.PHONY: gamescope-source gamescope-ohos-probe test-gamescope-shm
+.PHONY: gamescope-source gamescope-ohos-probe gamescope-ohos-deps gamescope-ohos test-gamescope-shm
 gamescope-source:
-	python3 $(ROOT)/scripts/gamescope_source.py $(if $(GAMESCOPE_SOURCE_CACHE),--cache $(GAMESCOPE_SOURCE_CACHE),)
+	python3 $(ROOT)/scripts/gamescope_source.py $(if $(GAMESCOPE_SOURCE_CACHE),--cache $(GAMESCOPE_SOURCE_CACHE),) $(if $(filter 1,$(GAMESCOPE_REFRESH_RECIPE)),--refresh-reviewed,)
 
 gamescope-ohos-probe: gamescope-source
 	python3 $(ROOT)/scripts/gamescope_ohos_probe.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+gamescope-ohos-deps:
+	python3 $(ROOT)/scripts/build_gamescope_ohos_deps.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+gamescope-ohos: gamescope-source gamescope-ohos-deps
+	python3 $(ROOT)/scripts/build_gamescope_ohos.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+.PHONY: gamescope-loader-runtime
+gamescope-loader-runtime:
+	python3 $(ROOT)/scripts/stage_gamescope_runtime.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+.PHONY: gamescope-app-native
+GAMESCOPE_APP_CMAKE ?= $(ROOT)/entry/.cxx/proRelease/default/release/arm64-v8a
+gamescope-app-native:
+	cmake --build $(GAMESCOPE_APP_CMAKE) --target gamescope_child entry -j4
+
+.PHONY: gamescope-debug-hap
+gamescope-debug-hap:
+	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony \
+	  --signing-config "$(GAMESCOPE_SIGNING_CONFIG)" --signing-material "$(GAMESCOPE_SIGNING_MATERIAL)" \
+	  --output $(ROOT)/workspace_temp/gamescope-port
+
+.PHONY: test-gamescope-workers test-gamescope-platform
+test-gamescope-platform: gamescope-source
+	python3 $(ROOT)/host_tests/gamescope_mangoapp_policy_test.py $(ROOT)/build/gamescope/arm64-v8a/source/src/mangoapp.cpp
+
+test-gamescope-workers:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -pthread -o $(ROOT)/build/host-tests/gamescope_workers_test $(ROOT)/host_tests/gamescope_workers_test.cpp
+	$(ROOT)/build/host-tests/gamescope_workers_test
+
+.PHONY: test-gamescope-transport test-gamescope-recipe
+test-gamescope-transport:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -pthread -o $(ROOT)/build/host-tests/gamescope_transport_test $(ROOT)/host_tests/gamescope_transport_test.cpp
+	$(ROOT)/build/host-tests/gamescope_transport_test
+
+test-gamescope-recipe:
+	python3 $(ROOT)/host_tests/gamescope_recipe_test.py
+
+.PHONY: test-gamescope-session
+test-gamescope-session:
+	mkdir -p $(ROOT)/build/gamescope/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -pthread -I$(ROOT)/native/gamescope/ohos \
+	  -I$(ROOT)/host_tests/gamescope_stubs \
+	  $(ROOT)/host_tests/gamescope_session_test.cpp $(ROOT)/entry/src/main/cpp/gamescope/runtime_session.cpp \
+	  -o $(ROOT)/build/gamescope/host-tests/session
+	$(ROOT)/build/gamescope/host-tests/session
+
+.PHONY: test-gamescope-process-backend
+test-gamescope-process-backend:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -I$(ROOT)/host_tests/gamescope_stubs -I$(ROOT)/entry/src/main/cpp \
+	  $(ROOT)/host_tests/gamescope_process_backend_test.cpp $(ROOT)/entry/src/main/cpp/gamescope/process_backend.cpp \
+	  -o $(ROOT)/build/host-tests/gamescope_process_backend_test
+	$(ROOT)/build/host-tests/gamescope_process_backend_test
 
 GAMESCOPE_OHOS_SDK ?= /apps/harmony/sdk/default/openharmony/native
 GAMESCOPE_HOST_PREFIX ?= $(ROOT)/build/host-ext/arm64-v8a/usr

@@ -248,6 +248,99 @@
       "originalPath": "src/rendervulkan.cpp",
       "beforeSha256": "79c90f560c5b6a92ca508399185270b8111fa00c3beaf447336b8ce6c23212c2",
       "afterSha256": "3a2653828280bbfbeb007a7152f6f7404183e5bbfe778bc2638aa600606e413d"
+    },
+    {
+      "path": "patches/gamescope/0014-add-optional-ohos-native-build.patch",
+      "sha256": "353607e751f0818c2ad84bb6fe0b1e10dd19af7004584cbd721dcf13b80ea5c8",
+      "files": [
+        {
+          "originalPath": "meson_options.txt",
+          "beforeSha256": "8e0f4163cd882fb4e84668c3d3415cb1b11c4e9b6ac7d52f73ce659314d788a8",
+          "afterSha256": "876c254448bd8974dae33f986cda6b4e548ca2235ba1a109d928a39cd850136c"
+        },
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "524cc269e6e590e3709cb5dc9ec001903561f968d20f70c9249600890ffb916b",
+          "afterSha256": "3acf1eea15bf884d9ad4ccc0d5e7c3e8b040400f43ba26e265d4c13e834fd4b0"
+        },
+        {
+          "originalPath": "src/main.cpp",
+          "beforeSha256": "213d0a6b3b45f090818c698245b223086529ad94b6b6508594d2c9ed3dfbdcdd",
+          "afterSha256": "e31860cee537218ab1d193f6c3954a0765e206acadc31e4798d8c265e47c911a"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "b648f3e7b34f19b4eb031b888d594052506cf6fb82551dd8701670afafbce2fa",
+          "afterSha256": "4521cfda17243256a6a4e07fe0a6e0bc02dbbd0e681765f0642131e54b97619a"
+        },
+        {
+          "originalPath": "src/convar.h",
+          "beforeSha256": "4978157e2e2c0d5fe36a1f1469d89c579e808e9427c4ca0098fa60887ba00d94",
+          "afterSha256": "4931de0a26e2b17bdbaf1009aac0a2eca1ae042485f061a3fb2283b5a00b3337"
+        },
+        {
+          "originalPath": "src/backends.h",
+          "beforeSha256": "4538f9537f630c3d83f3106ea8b146cd0a6a2510b2997b5dc79b4533282397b7",
+          "afterSha256": "924e825a2911b638155706fa837e0f6a01353988ba0b760e5eadbc8f6f784d08"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "053beabacb6c29896a480a1f674ffc0ec01664fd755f343b4ebd0bebe6923d55",
+          "afterSha256": "55d748eea6cf3ee0bb1c74a84a3287b4785e46dfe20ef3c16c64d03b5b12e9cd"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "3a2653828280bbfbeb007a7152f6f7404183e5bbfe778bc2638aa600606e413d",
+          "afterSha256": "e9d5c711d94ce8d50d09e738edda903de9922c20302864d0862e0e54167a2fb1"
+        },
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "a6ed0d24ba3c9280b1c65fe0150bcbcb75199bf3568524af73cb276e1e9feb8e",
+          "afterSha256": "ac112f7d80dda39521ada0f4da7033b425fd6ed07da0c76c5392199cde4bb822"
+        },
+        {
+          "originalPath": "src/steamcompmgr.hpp",
+          "beforeSha256": "cf6240481083a6d65dd68c3dad237defd87929e3b938b19aadf39344fb1e30fe",
+          "afterSha256": "eaf0b40bfe78455908ccb57f66957e8f770197e7642fb7ddb1f45a99aad8ccb8"
+        },
+        {
+          "originalPath": "src/convar.cpp",
+          "beforeSha256": "8738adf06b18369aa29e22f8d62d42a9e8a24131e18750250a47180199cc611e",
+          "afterSha256": "4530ec16dcf89bf959c03097e276aa3728e9d8dae7e768a7568d48e41538b971"
+        },
+        {
+          "originalPath": "src/log.cpp",
+          "beforeSha256": "21f2d48c1934e5c303475c27b01d0ab1b52844f2f042faeab41aba8f8ca55657",
+          "afterSha256": "1ff5b7e7ade393f128ca1434585118e51895ecea167412e1356914f951f2d880"
+        },
+        {
+          "originalPath": "src/WaylandServer/GamescopeActionBinding.h",
+          "beforeSha256": "5d6f8553d89bb466eac1c064aea46fc10431dc8b414a8e3c3a9888978359e563",
+          "afterSha256": "107fecf520df103417f15e17a41e79026f5e44e581eb7318aa94cbc694e3758a"
+        },
+        {
+          "originalPath": "src/reshade_effect_manager.cpp",
+          "beforeSha256": "c96d5d78d652a74f6f3431160532adb632859b02c7a042c35cafba53e365e723",
+          "afterSha256": "466894db7eebef7a2e145773a772a066522f151ac9252aa54d4138042c74fbb7"
+        },
+        {
+          "originalPath": "src/Utils/Parsers.h",
+          "beforeSha256": "7addbef3afef5914efea80b9a34f06f6fb5003e25878e0dcd2709889f769e227",
+          "afterSha256": "3b3888fe6db999a411c51d6aaf2d591a86cb71d8033109e258dd59e83354924e"
+        },
+        {
+          "originalPath": "src/Timeline.cpp",
+          "beforeSha256": "ba2eccbebab7b488c0f861fddbb0f3b746ee052d65df48018bfa41cd87f4a4b7",
+          "afterSha256": "df61bbae7f7dd54b3e9b862c3fe1dcf081364cf3ec1e1f45c499067728e0b170"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0015-disable-linux-mangoapp-ipc-on-ohos.patch",
+      "sha256": "5f863340f6f8fd36a8cde78beb84e8cb6ec756566af199c7bffe65f4a3ba26c6",
+      "originalPath": "src/mangoapp.cpp",
+      "beforeSha256": "fa543f0e3c0afc7733174408aa18e91358ad623df3d40febe72f18da23d41e22",
+      "afterSha256": "b21afd681f4321a3cc5f134445ade89cd9224d04c5e1ec53089b1b8ade2164c2"
     }
   ],
   "overlays": [
@@ -290,6 +383,66 @@
       "source": "native/gamescope/hsl/HslShmUpload.h",
       "destination": "src/HslShmUpload.h",
       "sha256": "6e225395cf502d1990354a2ee3e78da621762286513f25dbf64e6af4cbaa7b84"
+    },
+    {
+      "source": "native/gamescope/ohos/JoiningThread.h",
+      "destination": "src/OhosJoiningThread.h",
+      "sha256": "dd3c5011cc8d7f98e57c93a8bad23ec564f0d4fd1076136ff7d145ce0730ff55"
+    },
+    {
+      "source": "native/gamescope/ohos/AtomicShared.h",
+      "destination": "src/OhosAtomicShared.h",
+      "sha256": "a98d3b2fb9ead81f2baca8cf6eb671964322a7ff0b0f8ce2b39d4915b75f232c"
+    },
+    {
+      "source": "native/gamescope/ohos/Compat.h",
+      "destination": "src/OhosCompat.h",
+      "sha256": "a5187548b153bd4f8e4b86638f0e352061072a8c9fbfa24afe2c49ab003184cb"
+    },
+    {
+      "source": "native/gamescope/ohos/Window.h",
+      "destination": "src/OhosWindow.h",
+      "sha256": "f8bc3ad8f29c52c50510126dc3673a0df0d5770540627d1a4bf25153b3fa6b07"
+    },
+    {
+      "source": "native/gamescope/ohos/Window.cpp",
+      "destination": "src/OhosWindow.cpp",
+      "sha256": "a6e52b25afb2b77faa48eadf4a803525db4d37525aca9f297baae59f94fbd205"
+    },
+    {
+      "source": "native/gamescope/ohos/BrokerProtocol.h",
+      "destination": "src/BrokerProtocol.h",
+      "sha256": "985378b8909188380ab9361953fd4ca648cac699917c47c7ebec93e4dca1861f"
+    },
+    {
+      "source": "native/gamescope/ohos/BrokerTransport.h",
+      "destination": "src/BrokerTransport.h",
+      "sha256": "446a12f1a70e16ccd8d41303ae6eb8a9e6c6599106a1d2cb98297a75a6e6ab79"
+    },
+    {
+      "source": "native/gamescope/ohos/ProcessBroker.cpp",
+      "destination": "src/OhosProcessBroker.cpp",
+      "sha256": "4e5e8a552bbc3de12538d71fef6b9cd94e02c82fc0ffc697ef6f470ea60afeb3"
+    },
+    {
+      "source": "native/gamescope/ohos/Runtime.cpp",
+      "destination": "src/OhosRuntime.cpp",
+      "sha256": "5be4378d7ed79bfdb5288d7efac3172c125649abcb6711e95bc6f4ab4caea042"
+    },
+    {
+      "source": "native/gamescope/ohos/Runtime.h",
+      "destination": "src/Runtime.h",
+      "sha256": "3ec6ee279845cab7623666f9fa3742ff0d682fe6cf89f27d7dc090122c5c09e0"
+    },
+    {
+      "source": "native/gamescope/ohos/SessionProtocol.h",
+      "destination": "src/SessionProtocol.h",
+      "sha256": "e1574778a9c5b56184feb72f73dce2893b44d1eae689c8c94ec19ff5452a1aa8"
+    },
+    {
+      "source": "native/gamescope/ohos/OhosBackend.cpp",
+      "destination": "src/Backends/OhosBackend.cpp",
+      "sha256": "8fce1c45fca933412a94df50ec8ffc6ef02cb69d7762362fd7deb264c0d0ab79"
     }
   ],
   "options": [
@@ -301,7 +454,11 @@
     "-Drt_cap=disabled",
     "-Denable_openvr_support=false",
     "-Denable_gamescope_wsi_layer=false",
-    "-Denable_tests=false"
+    "-Denable_tests=false",
+    "-Dohos_native=true",
+    "-Dwayland_backend=disabled",
+    "-Dscripting=disabled",
+    "-Dlibinput=disabled"
   ],
   "abiBoundary": "OHOS ARM64 native only; GNU libraries and executables are reference inputs, never payloads"
 }
