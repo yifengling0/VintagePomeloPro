@@ -590,6 +590,12 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
                 if (count++ >= 16) continue;
                 const auto* state = tmgr_.FindToplevelLocked(layer.toplevelId);
                 if (!state) continue;
+                const auto& pixels = state->Pixels();
+                const size_t center = (static_cast<size_t>(std::max(0, state->Height() / 2)) *
+                    std::max(0, state->Width()) + std::max(0, state->Width() / 2)) * 4;
+                uint32_t centerPixel = 0;
+                if (center + sizeof(centerPixel) <= pixels.size())
+                    std::memcpy(&centerPixel, pixels.data() + center, sizeof(centerPixel));
                 const char* reason = !layer.visible ? "not-visible" :
                     ShouldSkipFullscreenCascade(layer, fullscreenId, fullscreenId != 0, tmgr_)
                         ? "fullscreen-cascade" : "included";
@@ -600,6 +606,11 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
                     static_cast<unsigned long long>(state->FsPriority()), state->HasFrame(),
                     zc_.HasActiveContent(layer.toplevelId), layer.fullscreen, state->IsBackground(),
                     state->IsMinimized(), state->ModalOwnerId(), reason);
+                OH_LOG_INFO(LOG_APP, "[SCENE-PIXELS] sample=%{public}llu top=%{public}u size=%{public}dx%{public}d "
+                    "bytes=%{public}zu serial=%{public}llu format=%{public}u center=%{public}08x",
+                    static_cast<unsigned long long>(out.diagnosticSerial), layer.toplevelId,
+                    state->Width(), state->Height(), pixels.size(),
+                    static_cast<unsigned long long>(state->FrameSerial()), state->ShmFormat(), centerPixel);
             }
             OH_LOG_INFO(LOG_APP, "[SCENE-CANDIDATES-END] sample=%{public}llu total=%{public}zu truncated=%{public}zu",
                 static_cast<unsigned long long>(out.diagnosticSerial), count, count > 16 ? count - 16 : 0);
