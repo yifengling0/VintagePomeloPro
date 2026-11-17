@@ -35,6 +35,8 @@
 #include "Runtime.h"
 #include "Embedded.h"
 #include "EmbeddedContract.h"
+#include "OutputTransport.h"
+#include "convar.h"
 #include <unordered_map>
 #include <unistd.h>
 #include <cmath>
@@ -95,6 +97,7 @@ class COhosBackend final : public CBaseBackend {
         std::vector<OwningRc<CVulkanTexture>> upright;
     };
     struct Output {
+        bool storage = false;
         VkSwapchainKHR swapchain = VK_NULL_HANDLE;
         std::vector<VkImage> images;
         std::vector<OwningRc<CVulkanTexture>> targets;
@@ -123,6 +126,13 @@ public:
     }
     int EmbeddedPresent(VppGamescopeFrame& frame);
     bool Init() override {
+        if (embeddedOutput) {
+            // Embedding does not run main's environment/config parser. Match
+            // HSL's gamescope_shader_precompile=0 explicitly before device init.
+            // Compile/cache only the actual session's pipelines on demand.
+            std::array<std::string_view,2> args{"shader_precompile","0"};
+            if (!ConCommand::Exec(args)) return error("shader compile policy", VK_ERROR_INITIALIZATION_FAILED);
+        }
         const char* text = getenv("VPP_GAMESCOPE_SURFACE_ID");
         if (!embeddedOutput && (!text || !*text || *text == '-')) return error("output surface id", VK_ERROR_INITIALIZATION_FAILED);
         char* end = nullptr; errno = 0;
@@ -262,7 +272,9 @@ bool COhosBackend::recreateOutput() {
     fprintf(stderr, "VPP_GAMESCOPE_SURFACE_CAPS usage=0x%x alpha=0x%x extent=%ux%u minImages=%u maxImages=%u transforms=0x%x currentTransform=0x%x\n",
         caps.supportedUsageFlags, caps.supportedCompositeAlpha, caps.currentExtent.width, caps.currentExtent.height,
         caps.minImageCount, caps.maxImageCount, caps.supportedTransforms, caps.currentTransform);
-    if (!(caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT)) return error("output transfer usage", VK_ERROR_FEATURE_NOT_PRESENT);
+    const bool storage = VppGamescopeStorageOutput(caps.supportedUsageFlags);
+    const bool copy = (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) != 0;
+    if (!storage && !copy) return error("output image usage", VK_ERROR_FEATURE_NOT_PRESENT);
     VkCompositeAlphaFlagBitsKHR alpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     bool alphaFound = false;
     for (auto candidate : {VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR,
@@ -300,7 +312,7 @@ bool COhosBackend::recreateOutput() {
     VkSwapchainCreateInfoKHR info{}; info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     info.surface = m_surface; info.minImageCount = imageCount; info.imageFormat = VK_FORMAT_R8G8B8A8_UNORM;
     info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR; info.imageExtent = extent; info.imageArrayLayers = 1;
-    info.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT; info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     // The final texture is already drawn in XComponent coordinates. Prefer
     // an unrotated buffer instead of rotating the logical frame a second time
     // with the display's current orientation when WSI supports that contract.
@@ -314,33 +326,56 @@ bool COhosBackend::recreateOutput() {
         if (result != VK_SUCCESS) return error("resize drain", result);
         g_device.waitIdle();
     }
-    result = g_device.vk.CreateSwapchainKHR(g_device.device(), &info, nullptr, &next.swapchain);
-    if (result != VK_SUCCESS) return error("output swapchain", result);
-    result = g_device.vk.GetSwapchainImagesKHR(g_device.device(), next.swapchain, &count, nullptr);
-    if (result != VK_SUCCESS || count < 2 || count > 8) { destroyOutput(next); return error("output images", result == VK_SUCCESS ? VK_ERROR_INITIALIZATION_FAILED : result); }
-    next.images.resize(count); next.targets.resize(count);
-    result = g_device.vk.GetSwapchainImagesKHR(g_device.device(), next.swapchain, &count, next.images.data());
-    if (result != VK_SUCCESS) { destroyOutput(next); return error("output image list", result); }
-    if (count != next.images.size()) { destroyOutput(next); return error("changed output image count", VK_ERROR_INITIALIZATION_FAILED); }
-    next.rendered.resize(count, VK_NULL_HANDLE);
-    for (auto& semaphore : next.rendered) {
-        const VkSemaphoreCreateInfo create{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        result = g_device.vk.CreateSemaphore(g_device.device(), &create, nullptr, &semaphore);
-        if (result != VK_SUCCESS) { destroyOutput(next); return error("present semaphore", result); }
-    }
-    for (auto& target : next.targets) {
-        target = new CVulkanTexture(); CVulkanTexture::createFlags flags;
-        flags.bStorage = true; flags.bSampled = true; flags.bTransferSrc = true;
-        if (!target->BInit(extent.width, extent.height, 1, VulkanFormatToDRM(VK_FORMAT_R8G8B8A8_UNORM), flags)) {
-            destroyOutput(next); return error("compute target", VK_ERROR_INITIALIZATION_FAILED);
+    auto create = [&](bool direct) -> VkResult {
+        next.storage = direct; info.imageUsage = VppGamescopeOutputUsage(direct);
+        VkResult status = g_device.vk.CreateSwapchainKHR(g_device.device(), &info, nullptr, &next.swapchain);
+        if (status != VK_SUCCESS) return status;
+        count = 0;
+        status = g_device.vk.GetSwapchainImagesKHR(g_device.device(), next.swapchain, &count, nullptr);
+        if (status != VK_SUCCESS) return status;
+        if (count < 2 || count > 8) return VK_ERROR_INITIALIZATION_FAILED;
+        next.images.resize(count); next.targets.resize(count);
+        status = g_device.vk.GetSwapchainImagesKHR(g_device.device(), next.swapchain, &count, next.images.data());
+        if (status != VK_SUCCESS) return status;
+        if (count != next.images.size()) return VK_ERROR_INITIALIZATION_FAILED;
+        next.rendered.resize(count, VK_NULL_HANDLE);
+        for (auto& semaphore : next.rendered) {
+            const VkSemaphoreCreateInfo semaphoreInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+            status = g_device.vk.CreateSemaphore(g_device.device(), &semaphoreInfo, nullptr, &semaphore);
+            if (status != VK_SUCCESS) return status;
         }
+        for (size_t i = 0; i < next.targets.size(); ++i) {
+            auto& target = next.targets[i]; target = new CVulkanTexture();
+            if (direct) {
+                if (!target->BInitOhosStorageOutput(next.images[i],extent.width,extent.height))
+                    return VK_ERROR_INITIALIZATION_FAILED;
+            } else {
+                CVulkanTexture::createFlags flags;
+                flags.bStorage = flags.bSampled = flags.bTransferSrc = true;
+                if (!target->BInit(extent.width,extent.height,1,DRM_FORMAT_ABGR8888,flags))
+                    return VK_ERROR_INITIALIZATION_FAILED;
+            }
+        }
+        return VK_SUCCESS;
+    };
+    result = create(storage);
+    if (result != VK_SUCCESS && storage && copy) {
+        fprintf(stderr,"VPP_GAMESCOPE_STORAGE_FALLBACK result=%d\n",int(result));
+        // Passing oldSwapchain retires it even when creation fails. Retry
+        // with the new chain if one exists, otherwise with no predecessor.
+        Output rejected = std::move(next); next = Output{};
+        info.oldSwapchain = rejected.swapchain;
+        result = create(false);
+        destroyOutput(rejected);
     }
+    if (result != VK_SUCCESS) { destroyOutput(next); return error("output swapchain targets",result); }
     destroyOutput(m_output); m_output = std::move(next);
     g_nOutputWidth = extent.width; g_nOutputHeight = extent.height;
     currentOutputWidth = extent.width; currentOutputHeight = extent.height;
     m_connector.mode.uWidth = extent.width; m_connector.mode.uHeight = extent.height;
     m_resize = false;
-    fprintf(stderr, "VPP_GAMESCOPE_OUTPUT_READY width=%u height=%u slots=%u cpuPixelCopies=0\n", extent.width, extent.height, count);
+    fprintf(stderr, "VPP_GAMESCOPE_OUTPUT_READY width=%u height=%u slots=%u storageOutput=%u gpuOutputCopies=%u cpuPixelCopies=0\n",
+        extent.width, extent.height, count, m_output.storage, !m_output.storage);
     ohos::ReportRuntimeStage(ohos::SessionStage::OutputReady, "native-window-swapchain");
     return true;
 }
@@ -362,6 +397,13 @@ int COhosBackend::present(const FrameInfo_t* info) {
     if (embeddedFrame) {
         if (!PrepareEmbedded(frame, embeddedInfo)) { error("native input bridge", VK_ERROR_INITIALIZATION_FAILED); return -EIO; }
         info = &embeddedInfo;
+    } else if (m_output.storage) {
+        // Standalone SHM diagnostics have no native-input submission in which
+        // to consume acquisition. Order the compute write after WSI release.
+        const VkPipelineStageFlags stage = VppGamescopeOutputWaitStage(true);
+        const VkSubmitInfo acquired{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,1,&frame.acquired,&stage};
+        result = g_device.vk.QueueSubmit(g_device.queue(),1,&acquired,VK_NULL_HANDLE);
+        if (result != VK_SUCCESS) { error("acquire storage output",result); return -EIO; }
     }
     auto target = m_output.targets[index];
     if (m_frameNumber == 0 && info->layers.count() && info->layers.get(0).tex) {
@@ -377,20 +419,8 @@ int COhosBackend::present(const FrameInfo_t* info) {
     const VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, nullptr, VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, nullptr};
     result = g_device.vk.BeginCommandBuffer(frame.command, &begin);
     if (result != VK_SUCCESS) { error("begin output command", result); return -EIO; }
-    std::array<VkImageMemoryBarrier, 2> barriers{};
-    for (auto& b : barriers) { b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER; b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED; b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1}; }
-    barriers[0].image = target->vkImage(); barriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL; barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    barriers[0].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; barriers[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    barriers[1].image = m_output.images[index]; barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED; barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    barriers[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    g_device.vk.CmdPipelineBarrier(frame.command, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,0,nullptr,0,nullptr,barriers.size(),barriers.data());
-    const VkImageCopy copy{{VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},{0,0,0},{VK_IMAGE_ASPECT_COLOR_BIT,0,0,1},{0,0,0},{target->width(),target->height(),1}};
-    g_device.vk.CmdCopyImage(frame.command, target->vkImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_output.images[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-    barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL; barriers[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-    barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT; barriers[0].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-    barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; barriers[1].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; barriers[1].dstAccessMask = 0;
-    g_device.vk.CmdPipelineBarrier(frame.command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,0,nullptr,0,nullptr,barriers.size(),barriers.data());
+    VppGamescopeRecordOutput(g_device.vk,frame.command,target->vkImage(),m_output.images[index],
+                             target->width(),target->height(),m_output.storage);
     if (embeddedFrame) {
         size_t nativeIndex = 0;
         for (uint32_t i = 0; i < embeddedFrame->count; ++i)
@@ -401,9 +431,9 @@ int COhosBackend::present(const FrameInfo_t* info) {
     if (result != VK_SUCCESS) { error("end output command", result); return -EIO; }
     result = g_device.vk.ResetFences(g_device.device(), 1, &frame.fence);
     if (result != VK_SUCCESS) { error("reset output fence", result); return -EIO; }
-    const VkPipelineStageFlags wait = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    const VkPipelineStageFlags wait = VppGamescopeOutputWaitStage(false);
     const VkSemaphore signals[] = {m_output.rendered[index], frame.released};
-    const VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,1,&frame.acquired,&wait,1,&frame.command,
+    const VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,m_output.storage ? 0u : 1u,&frame.acquired,&wait,1,&frame.command,
         embeddedFrame ? 2u : 1u,signals};
     result = g_device.vk.QueueSubmit(g_device.queue(), 1, &submit, frame.fence);
     if (result != VK_SUCCESS) { error("output GPU copy", result); return -EIO; }
@@ -495,6 +525,9 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
         InputBarrier(slot.acquire,cached.texture.get(),true,layer.vulkan);
     }
     if (g_device.vk.EndCommandBuffer(slot.acquire)!=VK_SUCCESS) return false;
+    if (m_output.storage) {
+        waits.push_back(slot.acquired); stages.push_back(VppGamescopeOutputWaitStage(true));
+    }
     const VkSubmitInfo acquire{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,uint32_t(waits.size()),waits.data(),stages.data(),1,&slot.acquire};
     if (g_device.vk.QueueSubmit(g_device.queue(),1,&acquire,VK_NULL_HANDLE)!=VK_SUCCESS) return false;
     // Storage writes do not apply framebuffer sRGB encoding. Decode input

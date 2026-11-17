@@ -277,6 +277,17 @@
       "sourceState": "reviewed-working-tree",
       "hashEncoding": "LF",
       "vppSha256": "2e9073106c74673a4420b796d6046548b73168acfe726753b844b14428a76ac4"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "926b32cf44fe93ac1b2a4509046c59fde124897b",
+      "originalPath": "native/gnu/probes/gamescope_color.cpp",
+      "destination": "host_tests/gamescope_color_gpu_test.cpp",
+      "sha256": "5d780b19ba1a526a0519c9ff52e28ba6cc8b014675a350b04cea015a83b2c8ca",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "cec4413d97e2b5e43a15af91c07a483b15b5dc584ce34a7d3d15ee2bb82db054",
+      "adaptation": "Host lavapipe execution of actual compositor and FSR SPIR-V: SDR midtones, gray, raw normalization, missing/double encoding negative controls, FP32/FP16 odd extents and RCAS edge samples. No GNU child or production readback."
     }
   ],
   "excludedWorkingTreeChanges": [

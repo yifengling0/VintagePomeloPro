@@ -1,0 +1,10 @@
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -165,6 +165,7 @@
+ 
+ 	bool BInit( uint32_t width, uint32_t height, uint32_t depth, uint32_t drmFormat, createFlags flags, wlr_dmabuf_attributes *pDMA = nullptr, uint32_t contentWidth = 0, uint32_t contentHeight = 0, CVulkanTexture *pExistingImageToReuseMemory = nullptr, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb = nullptr );
+ 	bool BInitNativeBuffer(void* buffer, uint32_t width, uint32_t height);
++	bool BInitOhosStorageOutput(VkImage image, uint32_t width, uint32_t height);
+ 	bool BInitFromSwapchain( VkImage image, uint32_t width, uint32_t height, VkFormat format );
+ 
+ 	uint32_t IncRef();

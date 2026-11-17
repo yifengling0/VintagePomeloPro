@@ -1,0 +1,19 @@
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -1062,14 +1062,9 @@
+ 	}
+ 	if (m_bSupportsFp16)
+ 	{
+-#if HAVE_OHOS_BACKEND
+-        // Use full precision for the OHOS EASU path until half-precision
+-        // filtering is qualified on the platform driver, independently of
+-        // the device's general shaderFloat16 capability.
+-        SHADER(EASU, cs_easu);
+-#else
++        // Use the upstream capability-gated kernel. The OHOS corruption was
++        // isolated to BGRA compute intermediates, independently of precision.
+         SHADER(EASU, cs_easu_fp16);
+-#endif
+ 		SHADER(NIS, cs_nis_fp16);
+ 		SHADER(NIS_HDR_LINEAR, cs_nis_hdr_linear_fp16);
+ 	}

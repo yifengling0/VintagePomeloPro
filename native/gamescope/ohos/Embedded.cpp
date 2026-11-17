@@ -4,6 +4,23 @@
 
 extern bool OhosNativeBufferReference(void*);
 
+bool CVulkanTexture::BInitOhosStorageOutput(VkImage image, uint32_t width, uint32_t height) {
+    if (!image || !width || !height) return false;
+    m_vkImage=image; m_width=m_contentWidth=width; m_height=m_contentHeight=height;
+    m_depth=1; m_format=VK_FORMAT_R8G8B8A8_UNORM; m_drmFormat=DRM_FORMAT_ABGR8888;
+    m_bOutputImage=true;
+    // Borrow the swapchain image. An sRGB sampling view would require
+    // mutable-format/sampled WSI support; output needs only a UNORM view.
+    const VkImageViewUsageCreateInfo usage{VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO,nullptr,VK_IMAGE_USAGE_STORAGE_BIT};
+    VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,&usage};
+    view.image=image; view.viewType=VK_IMAGE_VIEW_TYPE_2D; view.format=m_format;
+    view.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+    if (g_device.vk.CreateImageView(g_device.device(),&view,nullptr,&m_srgbView)!=VK_SUCCESS) return false;
+    // No VkDeviceMemory is owned, so destruction releases only this view.
+    m_bInitialized=true;
+    return true;
+}
+
 bool CVulkanTexture::BInitNativeBuffer(void* buffer, uint32_t width, uint32_t height) {
     if (!buffer || !width || !height || width > 8192 || height > 8192) return false;
     auto get = reinterpret_cast<PFN_vkGetNativeBufferPropertiesOHOS>(

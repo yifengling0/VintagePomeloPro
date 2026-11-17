@@ -73,6 +73,15 @@ test-gamescope-transport:
 test-gamescope-recipe:
 	python3 $(ROOT)/host_tests/gamescope_recipe_test.py
 
+.PHONY: test-gamescope-color-gpu
+# Uses the actual shader emitted by gamescope-ohos; explicitly host-only.
+test-gamescope-color-gpu:
+	python3 $(ROOT)/host_tests/gamescope_color_gpu_test.py --vulkan-headers $(GAMESCOPE_VULKAN_HEADERS)
+
+.PHONY: test-gamescope-output
+test-gamescope-output:
+	python3 $(ROOT)/host_tests/gamescope_output_test.py --vulkan-headers $(GAMESCOPE_VULKAN_HEADERS)
+
 .PHONY: test-gamescope-session
 test-gamescope-session:
 	mkdir -p $(ROOT)/build/gamescope/host-tests

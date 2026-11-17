@@ -428,6 +428,20 @@
       "originalPath": "src/rendervulkan.cpp",
       "beforeSha256": "69872cba24c2fbf106b10a7df753d787cb4ab38923aec1a2782fcc8784456c85",
       "afterSha256": "768b0874a23fb17ca478fb8a72f96f3f235431acf65371eac6266b957de0e131"
+    },
+    {
+      "path": "patches/gamescope/0023-restore-capability-gated-easu-precision.patch",
+      "sha256": "7394fa89047213b8144823e71e4c5afab2bd2a5be1a5e16e4df312a71b30a7e1",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "768b0874a23fb17ca478fb8a72f96f3f235431acf65371eac6266b957de0e131",
+      "afterSha256": "e38d4ac4a311831bb013b1571692f793b375232c0fe154e2e519abc03feb5a68"
+    },
+    {
+      "path": "patches/gamescope/0024-declare-borrowed-ohos-storage-output.patch",
+      "sha256": "b14d1040ecf1bf0f2878958e62ba7f3ae46f9fcbfba4b43428a409d4eb062eec",
+      "originalPath": "src/rendervulkan.hpp",
+      "beforeSha256": "7d319af3185c1142a5cbd8a7a805020f24968b718b03eb3bfea785b22d7ff95d",
+      "afterSha256": "a6eb57a09542e28f228376bb1b33c16d6c3b758199d2a602f80a0ca3c3e05361"
     }
   ],
   "overlays": [
@@ -529,7 +543,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "7b3de849532e5e9e71823e785cd0fcc6a8bbf2805a66c2775b8a2cc05bf0f20e"
+      "sha256": "41f3693c9659b3c36c77d36b1e70e0f87665a891bce91fad355ecc06c6f63d1e"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
@@ -539,12 +553,17 @@
     {
       "source": "native/gamescope/ohos/Embedded.cpp",
       "destination": "src/OhosEmbedded.cpp",
-      "sha256": "1f291bf09873537c142c72a8f20290ff4d3059fc645ca1fe8b5baa5068279bb6"
+      "sha256": "e6126935b8e2eec71a4ae7efe283effeaaf6a5b317d4f14f92793e7b02baf44d"
     },
     {
       "source": "native/gamescope/ohos/EmbeddedContract.h",
       "destination": "src/EmbeddedContract.h",
       "sha256": "197238d61a87d7640bb0bb7a7d46c3e12c636afdde694ace8f31a09a9e67e467"
+    },
+    {
+      "source": "native/gamescope/ohos/OutputTransport.h",
+      "destination": "src/OutputTransport.h",
+      "sha256": "1389dcee98abca5881fc5f3222b57ee2155f48f80a229fb30fab9e50cf5d9211"
     }
   ],
   "options": [
