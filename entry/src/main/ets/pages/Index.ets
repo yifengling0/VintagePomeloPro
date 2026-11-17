@@ -3357,7 +3357,7 @@ struct Index {
       WineEngineBlockingOverlay()
     }
     .width('100%').height('100%')
-    .backgroundColor(skinColor('page_background'))
+    .backgroundColor(this.gameBrowsing ? '#0A0B0D' : skinColor('page_background'))
     .onAreaChange((_oldValue: Area, area: Area): void => {
       const width = area.width as number;
       const height = area.height as number;

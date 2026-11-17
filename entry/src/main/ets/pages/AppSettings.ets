@@ -876,6 +876,7 @@ struct AppSettingsPage {
               ForEach(['follow', 'on', 'off'], (mode: GameModeOverride) => {
                 Button(mode === 'follow' ? '跟随当前模式' : mode === 'on' ? '开启' : '关闭')
                   .height(36).margin({ right: 8, bottom: 8 }).fontSize(13)
+                  .fontColor((this.value.gameModeOverride ?? 'follow') === mode ? Color.White : skinColor('text_primary'))
                   .backgroundColor((this.value.gameModeOverride ?? 'follow') === mode ? '#2874BC' : skinColor('search_background'))
                   .onClick((): void => this.setGameOverride(mode)).id('app-game-mode-' + mode)
               })

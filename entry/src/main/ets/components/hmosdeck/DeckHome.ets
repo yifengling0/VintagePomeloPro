@@ -190,6 +190,7 @@ export struct DeckHome {
   private inset(): number { return this.layout().inset; }
   private contentHeight(): number { return this.layout().contentHeight; }
   private railSelected(id: string): boolean { return id === 'deck-nav-' + (this.page === 'options' ? 'steam' : this.page); }
+  private scopeId(id: string): string { return this.gameMode ? 'game-' + id : id; }
   private hot(id: string): boolean { return this.focus === id || this.hovered === id; }
   private buttonScale(id: string): number { return this.pressed === id ? 0.955 : this.hot(id) ? 1.02 : 1; }
   private tileScale(id: string): number { return this.pressed === id ? 0.97 : this.hot(id) ? 1.04 : 1; }
@@ -246,7 +247,7 @@ export struct DeckHome {
     });
     this.sheetStep(firstFrame + 380, (): void => {
       this.sheetPieces = true;
-      try { focusControl.requestFocus(this.focus); } catch (_) {}
+      try { focusControl.requestFocus(this.scopeId(this.focus)); } catch (_) {}
     });
   }
   private closeSheet(): void {
@@ -260,7 +261,7 @@ export struct DeckHome {
       if (generation !== this.sheetGeneration || this.sheetOpen) return;
       this.sheet = false;
       this.focus = this.page === 'steam' ? 'deck-steam' : 'deck-nav-' + this.page;
-      if (this.active) try { focusControl.requestFocus(this.focus); } catch (_) {}
+      if (this.active) try { focusControl.requestFocus(this.scopeId(this.focus)); } catch (_) {}
     } }, (): void => { this.sheetLift = 0; });
   }
   private sheetHeight(): number { return Math.min(this.sheetKind === 'more' ? 430 : 500, this.heightVp - 30); }
@@ -269,7 +270,7 @@ export struct DeckHome {
       ['deck-more-options', 'deck-settings', 'deck-sheet-classic'] : [])];
     const ids = this.portrait() ? ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-more'] :
       ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-settings', 'deck-classic'];
-    if (!this.gameMode) ids.push('deck-game-mode');
+    if (!this.gameMode) ids.push(this.portrait() ? 'deck-library-game-mode' : 'deck-game-mode');
     if (!this.portrait() && DeviceCapabilityPolicy.supportsValueAddedFeatures()) ids.push('deck-membership', 'deck-support');
     if (this.page === 'steam') ids.push('deck-steam', 'deck-open-sheet');
     else if (this.page === 'options') ids.push('deck-options-back', 'deck-components', 'deck-big-picture', 'deck-desktop', 'deck-steam-downloads', 'deck-account');
@@ -300,7 +301,7 @@ export struct DeckHome {
       this.lastNavigation = Date.now();
       const next = Math.max(0, Math.min(ids.length - 1, Math.max(0, ids.indexOf(this.focus)) + delta));
       this.focus = ids[next];
-      try { focusControl.requestFocus(this.focus); } catch (_) {}
+      try { focusControl.requestFocus(this.scopeId(this.focus)); } catch (_) {}
       return true;
     }
     if ([2301, 2050, 2054, 2016].includes(code)) { this.activateFocus(); return true; }
@@ -308,7 +309,7 @@ export struct DeckHome {
   }
   private activateFocus(): void {
     const id = this.focus;
-    if (id === 'deck-game-mode') { this.onGameMode(); return; }
+    if (id === 'deck-game-mode' || id === 'deck-library-game-mode') { this.onGameMode(); return; }
     if (id === 'deck-classic' || id === 'deck-sheet-classic') this.onClassic();
     else if (id === 'deck-settings' || id === 'deck-nav-settings') this.openSettings();
     else if (id === 'deck-membership') this.onMembership();
@@ -414,7 +415,7 @@ export struct DeckHome {
       .onTouch((event: TouchEvent): void => this.touch(id, event))
       .onHover((value: boolean): void => { this.hovered = value ? id : ''; })
       .onFocus((): void => { this.focus = id; }).onBlur((): void => { if (this.focus === id) this.focus = ''; })
-      .onClick(callback).id(id).accessibilityText(label)
+      .onClick(callback).id(this.scopeId(id)).accessibilityText(label)
   }
   @Builder
   private Rail() {
@@ -445,7 +446,7 @@ export struct DeckHome {
       this.RailItem('更多', $r('sys.symbol.square_grid_2x2'), 'deck-nav-more', false, (): void => this.openSheet('more'))
     }.width('100%').height(this.layout().bottomHeight).padding({ left: 16, right: 16 })
       .justifyContent(FlexAlign.SpaceBetween).backgroundColor('#121417')
-      .border({ width: { top: 1 }, color: '#262A31' }).id('deck-bottom-nav')
+      .border({ width: { top: 1 }, color: '#262A31' }).id(this.scopeId('deck-bottom-nav'))
   }
   @Builder
   private Primary() {
@@ -465,7 +466,7 @@ export struct DeckHome {
       .onHover((value: boolean): void => { this.hovered = value ? 'deck-steam' : ''; })
       .onFocus((): void => { this.focus = 'deck-steam'; }).onBlur((): void => { if (this.focus === 'deck-steam') this.focus = ''; })
       .onTouch((event: TouchEvent): void => this.touch('deck-steam', event))
-      .onClick((): void => { void this.open('library'); }).id('deck-steam')
+      .onClick((): void => { void this.open('library'); }).id(this.scopeId('deck-steam'))
   }
   @Builder
   private SteamHome() {
@@ -491,9 +492,9 @@ export struct DeckHome {
           }.padding({ left: 16, right: 16 }).height(32)
         }.padding(0).borderRadius({ bottomLeft: 12, bottomRight: 12 }).backgroundColor('#121417')
           .border({ width: 1, color: this.hot('deck-open-sheet') ? '#1A9FFF' : '#262A31', radius: { bottomLeft: 12, bottomRight: 12 } })
-          .onFocus((): void => { this.focus = 'deck-open-sheet'; }).onClick((): void => this.openSheet()).id('deck-open-sheet')
-        if (this.busy) Text('正在准备 Windows 运行环境…').fontSize(12).fontColor('#9AA3AF').maxLines(2).width('100%').margin({ top: 14 }).id('deck-busy')
-        if (this.error) Text(this.error).fontSize(12).fontColor('#FF8A80').maxLines(3).width('100%').margin({ top: 14 }).id('deck-error')
+          .onFocus((): void => { this.focus = 'deck-open-sheet'; }).onClick((): void => this.openSheet()).id(this.scopeId('deck-open-sheet'))
+        if (this.busy) Text('正在准备 Windows 运行环境…').fontSize(12).fontColor('#9AA3AF').maxLines(2).width('100%').margin({ top: 14 }).id(this.scopeId('deck-busy'))
+        if (this.error) Text(this.error).fontSize(12).fontColor('#FF8A80').maxLines(3).width('100%').margin({ top: 14 }).id(this.scopeId('deck-error'))
       }.width(Math.min(380, this.layout().contentWidth - this.inset() * 2)).alignItems(HorizontalAlign.Start)
         .margin({ left: this.inset(), top: this.tall() ? this.inset() + 52 : 0, bottom: this.tall() ? 0 : this.heightVp < 460 ? 24 : 52 })
         .translate({ y: this.sheetPull - this.sheetLift * 22 + (this.entered ? 0 : 18) })
@@ -503,7 +504,7 @@ export struct DeckHome {
         Text('A  确认').fontSize(11).fontColor('#69727F')
         Text('B  返回').fontSize(11).fontColor('#69727F')
       }.position({ x: this.inset(), y: this.heightVp - 24 })
-    }.width('100%').height('100%').id('deck-steam-home')
+    }.width('100%').height('100%').id(this.scopeId('deck-steam-home'))
       .gesture(PanGesture({ direction: PanDirection.Up, distance: 60 }).onActionEnd((): void => this.openSheet()))
   }
   @Builder
@@ -523,7 +524,7 @@ export struct DeckHome {
       .backgroundColor(this.hot(id) ? '#1A1D22' : '#121417')
       .border({ width: 1, color: this.focus === id ? '#1A9FFF' : '#262A31', radius: 14 })
       .onHover((hot: boolean): void => { this.hovered = hot ? id : ''; })
-      .onFocus((): void => { this.focus = id; }).onClick(callback).id(id)
+      .onFocus((): void => { this.focus = id; }).onClick(callback).id(this.scopeId(id))
   }
   @Builder
   private SteamOptions() {
@@ -533,7 +534,7 @@ export struct DeckHome {
           Button({ type: ButtonType.Normal }) {
             SymbolGlyph($r('sys.symbol.chevron_left')).fontSize(18).fontColor(['#F2F4F7'])
           }.width(44).height(44).padding(0).borderRadius(12).backgroundColor('#1A1D22')
-            .onClick((): void => this.choose('steam')).id('deck-options-back').accessibilityText('返回 Steam 首页')
+            .onClick((): void => this.choose('steam')).id(this.scopeId('deck-options-back')).accessibilityText('返回 Steam 首页')
           Column({ space: 6 }) {
             Text('Steam 选项').fontSize(this.tall() ? 26 : 32).fontWeight(FontWeight.Bold).fontColor('#F2F4F7')
             Text('组件与客户端操作').fontSize(13).fontColor('#9AA3AF')
@@ -563,9 +564,9 @@ export struct DeckHome {
             .rowsGap(12).columnsGap(12).width('100%').height(this.tall() || this.widthVp < 850 ? 452 : 220)
             .scrollBar(BarState.Off)
         }.width('100%')
-        if (this.error) Text(this.error).fontSize(13).fontColor('#FF8A80').width('100%').id('deck-options-error')
+        if (this.error) Text(this.error).fontSize(13).fontColor('#FF8A80').width('100%').id(this.scopeId('deck-options-error'))
       }.width('100%').padding(this.inset()).alignItems(HorizontalAlign.Start)
-    }.width('100%').height('100%').align(Alignment.TopStart).id('deck-options-page')
+    }.width('100%').height('100%').align(Alignment.TopStart).id(this.scopeId('deck-options-page'))
   }
   @Builder
   private SectionHeading(title: string, subtitle: string) {
@@ -574,21 +575,31 @@ export struct DeckHome {
       Text(subtitle).fontSize(13).fontColor('#9AA3AF')
     }.alignItems(HorizontalAlign.Start).width('100%').margin({ bottom: 24 })
   }
+  private libraryCount(tab: string): number {
+    const local = this.localGames.filter((g: AppDescriptor): boolean => g.source !== AppSource.BUILTIN);
+    if (tab === 'all') return this.games.length + local.length;
+    if (tab === 'local') return local.length;
+    if (tab === 'steam') return this.games.length;
+    if (tab === 'tools') return this.localGames.length - local.length;
+    const recent = AppSettingsStore.getInstance().getRecentLaunches();
+    return this.games.filter((g: DeckSteamGame): boolean => recent.includes(g.windowsCard.id)).length +
+      local.filter((g: AppDescriptor): boolean => recent.includes(g.id)).length;
+  }
   @Builder
   private LibraryTab(label: string, tab: string, count: number) {
-    Button(label + '  ' + count).height(40).fontSize(this.portrait() ? 12 : 14).fontWeight(FontWeight.Medium).borderRadius(10)
+    Button(label + '  ' + this.libraryCount(tab)).height(40).fontSize(this.portrait() ? 12 : 14).fontWeight(FontWeight.Medium).borderRadius(10)
       .padding({ left: this.portrait() ? 12 : 16, right: this.portrait() ? 12 : 16 }).flexShrink(0)
       .fontColor(this.libraryTab === tab ? '#C9E6FF' : '#9AA3AF')
       .backgroundColor(this.libraryTab === tab ? '#201A9FFF' : '#1A1D22')
       .border({ width: 1, color: this.libraryTab === tab ? '#601A9FFF' : '#262A31', radius: 10 })
       .onFocus((): void => { this.focus = 'deck-category-' + tab; })
-      .onClick((): void => this.chooseLibraryTab(tab)).id('deck-category-' + tab)
+      .onClick((): void => this.chooseLibraryTab(tab)).id(this.scopeId('deck-category-' + tab))
   }
   @Builder
   private Library() {
     Scroll(this.scroll) {
       Column() {
-        if (!this.gameMode) Button('进入 Game 模式').onClick(this.onGameMode).id('deck-library-game-mode')
+        if (!this.gameMode) Button('进入 Game 模式').onClick(this.onGameMode).id(this.scopeId('deck-library-game-mode'))
         this.SectionHeading(this.gameMode ? 'Game 游戏库' : '游戏库', '已安装的游戏，一处开始。')
         Scroll() {
           Row({ space: this.portrait() ? 8 : 10 }) {
@@ -600,13 +611,13 @@ export struct DeckHome {
           if (!this.gameMode) this.LibraryTab('内建工具', 'tools', this.localGames.filter((g: AppDescriptor): boolean => g.source === AppSource.BUILTIN).length)
           this.LibraryTab('本地游戏', 'local', this.localGames.filter((g: AppDescriptor): boolean => g.source !== AppSource.BUILTIN).length)
           }
-        }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).margin({ bottom: 20 }).id('deck-category-tabs')
+        }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).margin({ bottom: 20 }).id(this.scopeId('deck-category-tabs'))
         Row({ space: 12 }) {
           TextInput({ placeholder: '搜索游戏', text: this.query }).height(42).fontSize(14).fontColor('#F2F4F7')
             .placeholderColor('#69727F').backgroundColor('#1A1D22').borderRadius(10).layoutWeight(1)
-            .onChange((text: string): void => { this.query = text; }).id('deck-search')
+            .onChange((text: string): void => { this.query = text; }).id(this.scopeId('deck-search'))
           Button('刷新').height(42).fontSize(13).fontColor('#9AA3AF').backgroundColor('#1A1D22').borderRadius(10)
-            .onClick((): void => { void this.refreshLibrary(); }).id('deck-refresh')
+            .onClick((): void => { void this.refreshLibrary(); }).id(this.scopeId('deck-refresh'))
         }.margin({ bottom: 24 })
         if (this.filtered().length + this.filteredLocal().length > 0) {
           Grid() {
@@ -614,7 +625,7 @@ export struct DeckHome {
               GridItem() {
                 Column({ space: 10 }) {
                   Button({ type: ButtonType.Normal }) {
-                    DeckArtwork({ name: game.name, source: this.cover(game), appId: game.key,
+                    DeckArtwork({ name: game.name, source: this.cover(game), appId: this.gameMode ? 'game-' + game.key : game.key,
                       badge: 'Steam · Windows' })
                   }.width('100%').height(this.coverHeight()).padding(0).borderRadius(14).backgroundColor('#1A1D22')
                     .border({ width: this.hot('deck-game-' + game.key) ? 2 : 0, color: '#1A9FFF', radius: 14 })
@@ -628,7 +639,7 @@ export struct DeckHome {
                     .onTouch((event: TouchEvent): void => this.touch('deck-game-' + game.key, event))
                     .onHover((hot: boolean): void => { this.hovered = hot ? 'deck-game-' + game.key : ''; })
                     .onFocus((): void => { this.selected = game.key; this.focus = 'deck-game-' + game.key; })
-                    .onClick((): void => { void this.openGame(game); }).id('deck-game-' + game.key)
+                    .onClick((): void => { void this.openGame(game); }).id(this.scopeId('deck-game-' + game.key))
                   Text(game.name).fontSize(13).fontColor('#F2F4F7').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
                   Text('已安装').fontSize(11).fontColor('#69727F').width('100%')
                 }.width('100%').height('100%')
@@ -653,14 +664,14 @@ export struct DeckHome {
                     .onTouch((event: TouchEvent): void => this.touch('deck-local-' + game.id, event))
                     .onHover((hot: boolean): void => { this.hovered = hot ? 'deck-local-' + game.id : ''; })
                     .onFocus((): void => { this.focus = 'deck-local-' + game.id; })
-                    .onClick((): void => { void this.openLocal(game); }).id('deck-local-' + game.id)
+                    .onClick((): void => { void this.openLocal(game); }).id(this.scopeId('deck-local-' + game.id))
                   Text(game.title).fontSize(13).fontColor('#F2F4F7').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
                   Row() {
                     Text(game.available ? '已添加' : '需配置启动程序').fontSize(11).fontColor('#69727F').layoutWeight(1).maxLines(1)
                     Button('设置').fontSize(11).height(24).padding({ left: 8, right: 8 }).fontColor('#9AA3AF')
                       .backgroundColor('#1A1D22').borderRadius(6)
                       .onFocus((): void => { this.focus = 'deck-local-settings-' + game.id; })
-                      .onClick((): void => this.onLocalSettings(game)).id('deck-local-settings-' + game.id)
+                      .onClick((): void => this.onLocalSettings(game)).id(this.scopeId('deck-local-settings-' + game.id))
                   }.width('100%').height(18)
                 }.width('100%').height('100%')
               }.height(this.coverHeight() + 54)
@@ -675,22 +686,22 @@ export struct DeckHome {
               '在 Steam 中下载后，会自动显示在这里。' : '从经典界面添加或扫描 games 目录中的游戏。').fontSize(13).fontColor('#9AA3AF')
             if (this.libraryTab === 'steam') {
               Button('打开 Steam 游戏库').height(42).fontColor('#03111F').backgroundColor('#1A9FFF')
-                .onClick((): void => { void this.open('library'); }).id('deck-empty-open')
+                .onClick((): void => { void this.open('library'); }).id(this.scopeId('deck-empty-open'))
             } else {
               Button('打开经典界面').height(42).fontColor('#03111F').backgroundColor('#1A9FFF')
-                .onClick(this.onClassic).id('deck-empty-classic')
+                .onClick(this.onClassic).id(this.scopeId('deck-empty-classic'))
             }
-          }.width('100%').padding({ top: 50, bottom: 50 }).id('deck-empty')
+          }.width('100%').padding({ top: 50, bottom: 50 }).id(this.scopeId('deck-empty'))
         }
       }.width('100%').padding(this.inset()).alignItems(HorizontalAlign.Start)
-    }.width('100%').height('100%').scrollBar(BarState.Auto).align(Alignment.TopStart).id('deck-library-page')
+    }.width('100%').height('100%').scrollBar(BarState.Auto).align(Alignment.TopStart).id(this.scopeId('deck-library-page'))
   }
   @Builder
   private Running() {
     Scroll() {
       Column({ space: 14 }) {
         this.SectionHeading('继续游玩', '回到正在运行的 Steam 或游戏。')
-        if (!this.tasks.length) Text('还没有运行中的窗口。').fontSize(15).fontColor('#9AA3AF').padding({ top: 30 }).id('deck-no-tasks')
+        if (!this.tasks.length) Text('还没有运行中的窗口。').fontSize(15).fontColor('#9AA3AF').padding({ top: 30 }).id(this.scopeId('deck-no-tasks'))
         ForEach(this.tasks, (task: HostWindowTask) => {
           Button({ type: ButtonType.Normal }) {
             Row({ space: 16 }) {
@@ -702,21 +713,21 @@ export struct DeckHome {
               Text('继续').fontSize(14).fontColor('#1A9FFF')
             }.padding(20)
           }.width('100%').padding(0).borderRadius(12).backgroundColor('#121417').border({ width: 1, color: '#262A31', radius: 12 })
-            .onFocus((): void => { this.focus = 'deck-task-' + task.key; }).onClick((): void => { void this.restoreTask(task.key); }).id('deck-task-' + task.key)
+            .onFocus((): void => { this.focus = 'deck-task-' + task.key; }).onClick((): void => { void this.restoreTask(task.key); }).id(this.scopeId('deck-task-' + task.key))
           if (HostWindowTasks.getInstance().canControlGame(task.key)) {
             Row({ space: 12 }) {
               Button(task.phase === 'starting' ? '取消启动' : '关闭游戏').fontSize(13).height(40).fontColor('#CBD2DC').backgroundColor('#1A1D22').borderRadius(10)
-                .onClick((): void => { void this.controlGame(task.key, false); }).id('deck-task-close-' + task.key)
+                .onClick((): void => { void this.controlGame(task.key, false); }).id(this.scopeId('deck-task-close-' + task.key))
               Button('强制结束').fontSize(13).height(40).fontColor('#FF9292').backgroundColor('#26191C').borderRadius(10)
-                .onClick((): void => { void this.controlGame(task.key, true); }).id('deck-task-kill-' + task.key)
+                .onClick((): void => { void this.controlGame(task.key, true); }).id(this.scopeId('deck-task-kill-' + task.key))
             }.width('100%')
             Text('强制结束不会保存进度。').fontSize(11).fontColor('#69727F').width('100%')
           }
         }, (task: HostWindowTask): string => task.key)
         if (this.steamRunning) Button('显示 Steam').height(46).fontColor('#03111F').backgroundColor('#1A9FFF')
-          .onClick((): void => { void this.open('library'); }).id('deck-running-steam')
+          .onClick((): void => { void this.open('library'); }).id(this.scopeId('deck-running-steam'))
       }.padding(this.inset()).width('100%').alignItems(HorizontalAlign.Start)
-    }.width('100%').height('100%').align(Alignment.TopStart).id('deck-running-page')
+    }.width('100%').height('100%').align(Alignment.TopStart).id(this.scopeId('deck-running-page'))
   }
   @Builder
   private SheetRow(label: string, detail: string, id: string, icon: Resource, callback: () => void, beat: number) {
@@ -740,13 +751,13 @@ export struct DeckHome {
       .animation({ duration: this.motion ? (this.sheetOpen ? 220 : 90) : 0,
         delay: this.motion && this.sheetOpen ? beat * 55 : 0, curve: DeckMotion.ease })
       .enabled(this.sheetOpen && this.sheetPieces)
-      .onClick(callback).id(id)
+      .onClick(callback).id(this.scopeId(id))
   }
   @Builder
   private SettingsSheet() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column().width('100%').height('100%').backgroundColor('#6B000000').opacity(this.sheetSink)
-        .onClick((): void => this.closeSheet()).id('deck-sheet-scrim')
+        .onClick((): void => this.closeSheet()).id(this.scopeId('deck-sheet-scrim'))
       Column({ space: 20 }) {
         Row() {
           Column({ space: 6 }) {
@@ -754,7 +765,7 @@ export struct DeckHome {
             Text(this.sheetKind === 'more' ? '组件管理与应用偏好' : '显示模式与 Steam 客户端操作').fontSize(13).fontColor('#9AA3AF')
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
           Button('关闭').height(38).fontSize(13).fontColor('#9AA3AF').backgroundColor('#1A1D22')
-            .onClick((): void => this.closeSheet()).id('deck-sheet-close')
+            .onClick((): void => this.closeSheet()).id(this.scopeId('deck-sheet-close'))
         }.width('100%')
           .gesture(PanGesture({ direction: PanDirection.Down, distance: 70 }).onActionEnd((): void => this.closeSheet()))
         Scroll() {
@@ -769,7 +780,7 @@ export struct DeckHome {
       }.padding(this.portrait() ? 16 : this.widthVp < 700 ? 22 : 32).width(this.portrait() ? '100%' : this.widthVp < 700 ? '94%' : '70%')
         .height(this.sheetHeight()).borderRadius({ topLeft: 24, topRight: 24 })
         .backgroundColor('#0E1013').border({ width: 1, color: '#262A31', radius: { topLeft: 24, topRight: 24 } })
-        .translate({ y: (1 - this.sheetLift) * this.sheetHeight() }).id('deck-settings-sheet')
+        .translate({ y: (1 - this.sheetLift) * this.sheetHeight() }).id(this.scopeId('deck-settings-sheet'))
     }.width('100%').height('100%')
   }
   build() {
@@ -778,17 +789,17 @@ export struct DeckHome {
         Column({ space: 0 }) {
           this.PageContent()
           this.BottomNav()
-        }.width('100%').height('100%').id('deck-portrait-layout')
+        }.width('100%').height('100%').id(this.scopeId('deck-portrait-layout'))
       } else {
         Row() {
           this.Rail()
           this.PageContent()
-        }.width('100%').height('100%').id('deck-landscape-layout')
+        }.width('100%').height('100%').id(this.scopeId('deck-landscape-layout'))
       }
       if (this.sheet) this.SettingsSheet()
     }.width('100%').height('100%').backgroundColor('#0A0B0D')
       .onAreaChange((_old: Area, area: Area): void => { this.widthVp = Number(area.width); this.heightVp = Number(area.height); })
-      .id('hmosdeck-home')
+      .id(this.scopeId('hmosdeck-home'))
   }
   @Builder
   private PageContent() {
