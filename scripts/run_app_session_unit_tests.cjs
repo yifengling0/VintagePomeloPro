@@ -58,7 +58,8 @@ function fixture() {
     prepareRuntimeHelper: async () => {}, prepareLibraryPerformance: async () => {},
     isCompatibility: () => false, getClientDirectory: () => 'C:/Steam',
     getCards: () => steamCards,
-    processesFor: (app, processes) => processes.filter(p => p.path === app.launchTarget.executable && p.state === 'running') };
+    processesFor: (app, processes, includeUi = false) => processes.filter(p => p.state === 'running' &&
+      (p.path === app.launchTarget.executable || (includeUi && p.path === 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe'))) };
   const dependencies = {
     'libentry.so': { default: native },
     './LogService': { hilog: { info() {}, warn() {}, error() {} } },
@@ -379,6 +380,22 @@ function fixture() {
     assert.equal(ready.pid, 82); assert.equal(ready.sessionId, 'real-client');
     assert.equal(resumed, ready); assert.equal(ready.toplevelId, 91);
     assert.equal(waits, 2); assert.equal(ready.automaticForeground, true);
+  }
+  { // The managed CEF window belongs to another native session than steam.exe.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'cef-browser', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    tasks.onEvent(94, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    let resumed; f.service.resume = async session => { resumed = session; };
+    const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
+    assert.equal(ready.sessionId, 'real-client'); assert.equal(ready.pid, 82);
+    assert.equal(ready.toplevelId, 94); assert.equal(resumed, ready);
+    assert.equal(f.service.sessions.size, 1, 'Do not register CEF as a separate game or client');
+    f.processes[1].sessionId = 'recycled-cef';
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    f.processes[1].sessionId = 'cef-browser'; f.processes[0].state = 'stopped';
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
   }
   { // Warm URI forwarding uses the existing real client, respecting navigation.
     const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);

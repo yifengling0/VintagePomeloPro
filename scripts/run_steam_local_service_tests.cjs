@@ -35,6 +35,7 @@ const mocks={
  './PortableGameConfigurationService':{PortableGameConfigurationService:{getInstance:()=>({discover:async(_directory,_exe,id)=>id})}},
  '../steam/SteamLocalService':{SteamLocalService:{getInstance:()=>local}},
  './WineEngineService':{WineEngineService:{getInstance:()=>engine}},
+ './GameModeService':{GameModeService:{begin(){},finish(){},reset(){},enabled:()=>false,noteActiveApp(){}}},
  './WineWindowManager':{WineWindowManager:{getInstance:()=>({isDesktopMode:false})}},
  './InputOverlayWindowCoordinator':{}, './AppCatalogService':{}
 };
@@ -95,6 +96,15 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  {pid:2,path:'Z:\\Steam\\steamapps\\common\\中文 游戏\\game.exe',state:'running'},
  {pid:3,path:'Z:\\Steam\\steamapps\\common\\中文 游戏\\UnityCrashHandler64.exe',state:'running'});
  assert.deepEqual(Array.from(local.processesFor(game,processes),p=>p.pid),[2]);
+ const uiProcesses=[...processes,
+ {pid:10,path:'Z:\\Steam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe',state:'running'},
+ {pid:11,path:'Z:\\Steam\\bin\\cef\\cef.win7\\steamwebhelper.exe',state:'running'},
+ {pid:12,path:'C:\\OtherSteam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe',state:'running'},
+ {pid:13,path:'Z:\\Steam\\steamapps\\common\\game\\steamwebhelper.exe',state:'running'},
+ {pid:14,path:'Z:\\Steam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe',state:'stopped'}];
+ assert.deepEqual(Array.from(local.processesFor(local.clientCard(),uiProcesses),p=>p.pid),[1]);
+ assert.deepEqual(Array.from(local.processesFor(local.clientCard(),uiProcesses,true),p=>p.pid),[1,10,11]);
+ assert.deepEqual(Array.from(local.processesFor(game,uiProcesses,true),p=>p.pid),[2]);
  assert.equal(local.hasRunningProcesses(),true);assert.equal(local.hasForeignClient(),false);
  processes.push({pid:4,path:'C:\\OldSteam\\steam.exe',state:'running'});assert.equal(local.hasForeignClient(),true);processes.pop();
  put(client+'/bin/existing.dll');local.context={resourceManager:{getRawFileContent:async()=>new Uint8Array(1024).fill(13)}};

@@ -492,15 +492,19 @@ export class AppSessionService {
         if (Array.isArray(processes)) {
           this.reconcile(processes);
           const clients = steam.processesFor(app, processes);
+          // CEF owns the actual client windows and has its own native process
+          // session. It is a window owner, not a replacement Steam client/game.
+          const owners = steam.processesFor(app, processes, true);
           const window = tasks.snapshot().find((task): boolean => !task.minimized &&
-            task.toplevelId > 0 && clients.some((process: NativeProcessInfo): boolean =>
+            task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
               (task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)) ||
               (!!task.sessionId && task.sessionId === process.sessionId) ||
               (!!task.sessionId && task.sessionId === launched.sessionId && process.pid === launched.pid &&
                 (!process.sessionId || process.sessionId === launched.sessionId))));
           if (window) {
             const client = Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
-              item.appId === app.id && (item.sessionId === window.sessionId || item.pid === window.clientPid));
+              item.appId === app.id && clients.some((process: NativeProcessInfo): boolean =>
+                item.pid === process.pid && (!process.sessionId || item.sessionId === process.sessionId)));
             if (client) {
               client.toplevelId = window.toplevelId;
               ready = client;
