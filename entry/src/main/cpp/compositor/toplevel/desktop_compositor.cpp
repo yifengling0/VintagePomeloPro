@@ -477,6 +477,7 @@ void DesktopCompositor::ClearDirectDesktopContentSizes()
 {
     auto lock = tmgr_.Lock();
     directDesktopContentSizes_.clear();
+    directDesktopSourceSizes_.clear();
     directDesktopVisibleToplevels_.clear();
 }
 
@@ -507,6 +508,7 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
     };
     std::unordered_map<uint32_t, std::vector<std::pair<SurfaceData*, GpuDesktopLayer>>> clients;
     directDesktopContentSizes_.clear();
+    directDesktopSourceSizes_.clear();
     directDesktopVisibleToplevels_.clear();
     for (const auto& source : direct) {
         const uint64_t key = (uint64_t(source.pid) << 32) | source.wlSurface;
@@ -526,6 +528,7 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         if (!ComputeDirectViewport(client->directViewport, source.width, source.height,
                                    image.w, image.h, image.sampling)) continue;
         image.sourceW = source.width; image.sourceH = source.height;
+        directDesktopSourceSizes_[key] = {image.w, image.h};
         // The full client, rather than an auxiliary tiny CEF child, determines
         // fullscreen/input scaling. All actual drawables remain composited.
         directDesktopVisibleToplevels_.insert(source.toplevel);
@@ -668,7 +671,8 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
             out.layers.push_back(std::move(black));
         }
         const bool fullscreenDirect = fullscreenWindow && fullscreenUsesGpuContent && clients.count(fullscreenId);
-        if (!fullscreenDirect && !(layer.zcActive && !zeroCopy.empty()) && snapshot(item, *pixels))
+        const bool gameClient = fullscreenWindow && fullscreenFit.clientOnly;
+        if (!fullscreenDirect && !gameClient && !(layer.zcActive && !zeroCopy.empty()) && snapshot(item, *pixels))
             out.layers.push_back(std::move(item));
         else if (!fullscreenDirect && !zeroCopy.empty()) out.layers.push_back(std::move(item));
         if (layer.type == CompositorLayer::Type::Toplevel) {
@@ -978,6 +982,15 @@ bool DesktopCompositor::ComputeFullscreenFitLocked(uint32_t toplevelId, int root
     // 注释; preFs 已从输入路径移除)。
     const auto* st = tmgr_.FindToplevelLocked(toplevelId);
     if (!st) return false;
+    int clientX = 0, clientY = 0, clientW = 0, clientH = 0;
+    if (st->IsGamePresentation() && GetGameClientRectLocked(toplevelId, clientX, clientY, clientW, clientH)) {
+        if (!ComputeFitRect(rootW, rootH, clientW, clientH, out)) return false;
+        out.srcX = clientX; out.srcY = clientY;
+        out.clientOnly = true;
+        // The parent decoration must never be magnified behind a client canvas.
+        if (gpuContent) *gpuContent = HasZeroCopyLayerForToplevelLocked(toplevelId);
+        return true;
+    }
     int layerW = 0, layerH = 0;
     const bool hasZC = GetZeroCopyContentSizeLocked(toplevelId, layerW, layerH);
     if (gpuContent) *gpuContent = hasZC;
@@ -985,6 +998,40 @@ bool DesktopCompositor::ComputeFullscreenFitLocked(uint32_t toplevelId, int root
     SelectFullscreenContentSize(layerW, layerH, st->Width(), st->Height(), hasZC,
                                 contentW, contentH);
     return ComputeFitRect(rootW, rootH, contentW, contentH, out);
+}
+
+bool DesktopCompositor::GetGameClientRectLocked(uint32_t id, int& x, int& y, int& w, int& h) const
+{
+    const auto* state = tmgr_.FindToplevelLocked(id);
+    auto* parent = tmgr_.GetSurfaceForToplevel(id);
+    if (!state || !parent) return false;
+    const SurfaceData* selected = nullptr;
+    for (const auto& [key, resource] : tmgr_.SurfaceResources()) {
+        const auto* child = tmgr_.FindRegisteredSurfaceDataLocked(resource);
+        if (!child || !child->isSubsurface || child->parentSurface != parent ||
+            !DisplayPolicy::IsInlineClientSurface(child->inputRegionEmpty, child->vpSrcW)) continue;
+        // A second inline client may be a video/CEF view. Do not guess a canvas.
+        if (selected && selected != child) return false;
+        selected = child;
+    }
+    if (!selected) return false;
+    w = DisplaySizeAfterViewport(selected->vpDstW, selected->w);
+    h = DisplaySizeAfterViewport(selected->vpDstH, selected->h);
+    if (const auto source = directDesktopSourceSizes_.find(selected->surfaceKey);
+        source != directDesktopSourceSizes_.end()) {
+        w = source->second.first; h = source->second.second;
+    }
+    uint64_t owner = 0; uint32_t top = 0; int nativeW = 0, nativeH = 0;
+    if (zc_.ActiveOwner(selected->surfaceKey, owner, top, nativeW, nativeH) &&
+        owner == selected->surfaceKey && top == id) {
+        w = DisplaySizeAfterViewport(selected->vpDstW, nativeW);
+        h = DisplaySizeAfterViewport(selected->vpDstH, nativeH);
+    }
+    x = selected->subsurfaceX; y = selected->subsurfaceY;
+    // Without a frame/native queue the child may be an uncommitted placeholder.
+    const bool hasPixels = selected->shmCommitSerial || nativeW > 0 || selected->directVisible;
+    return hasPixels && x >= 0 && y >= 0 && w > 0 && h > 0 &&
+        int64_t(x) + w <= state->Width() && int64_t(y) + h <= state->Height();
 }
 
 bool DesktopCompositor::ShouldSkipFullscreenCascade(const CompositorLayer& layer,

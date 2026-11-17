@@ -17,6 +17,7 @@ class DesktopCompositor;
 // 消费者, 4C2 顺手项已从 InputTarget 删除 (局部变量传给纯函数)。
 struct InputTarget {
     uint32_t toplevelId = 0;         // 事件归属 toplevel (raise/键盘焦点)
+    int contentX = 0, contentY = 0;  // client origin, also invalidates relative baseline
     wl_resource* surface = nullptr;  // pointer enter 目标
     // 终态: 可注入的 surface 局部坐标 (双精度)。由 resolver 在锁内完成
     // 逆映射 (ComputeLocalPoint): (桌面逻辑坐标 - origin) / scale, 已按

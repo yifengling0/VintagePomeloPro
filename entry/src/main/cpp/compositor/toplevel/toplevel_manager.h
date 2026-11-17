@@ -111,6 +111,7 @@ public:
         // Host presentation must never advertise xdg fullscreen or trigger a
         // guest resize. Render and input share this effective fit predicate.
         bool IsPresentationFullscreen() const { return fullscreen_ || gamePresentation_; }
+        bool IsGamePresentation() const { return gamePresentation_; }
         void SetGamePresentation(bool on) { gamePresentation_ = on; MarkDirty(); }
         // maximized 权威字段 (重构第 5C 步: 自 SurfaceData::maximized 迁入 —
         // PLAN §2.4 窗口状态三元组分裂修复, 与 minimized/fullscreen 同权威)。

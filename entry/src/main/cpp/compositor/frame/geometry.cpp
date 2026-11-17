@@ -9,6 +9,8 @@ bool ComputeFitRect(int rootW, int rootH, int winW, int winH, FitRect& out)
     if (rootW <= 0 || rootH <= 0 || winW <= 0 || winH <= 0) return false;
     out.srcW = winW;
     out.srcH = winH;
+    out.srcX = out.srcY = 0;
+    out.clientOnly = false;
     out.scale = std::min(rootW / static_cast<double>(winW), rootH / static_cast<double>(winH));
     // Integer enlargement falls back to fit when the source is larger; never crop.
     if (winehua::game::Integer() && out.scale >= 1.0) out.scale = std::floor(out.scale);

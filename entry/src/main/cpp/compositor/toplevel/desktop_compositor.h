@@ -230,6 +230,9 @@ public:
     // 返回是否有 ZC 层; 无 ZC 层时 outW/outH 保持 0 (SelectFullscreenContentSize
     // 退化为 buffer 尺寸)。调用方须已持有 tmgr mutex。
     bool GetZeroCopyContentSizeLocked(uint32_t toplevelId, int& outW, int& outH) const;
+    // The live Wine inline client is authoritative; ambiguous children keep
+    // the whole-window fallback. Caller holds the toplevel lock.
+    bool GetGameClientRectLocked(uint32_t id, int& x, int& y, int& w, int& h) const;
 
 private:
     // toplevel 的 zero-copy subsurface 层查找 (上面两个查询的单一实现,
@@ -297,6 +300,7 @@ private:
      * 级"根帧又新了"的全局序号, 后者是 each-toplevel 内容版本号。 */
     std::atomic<uint64_t> desktopRootFrameSerial_{0};
     std::unordered_map<uint32_t, std::pair<int, int>> directDesktopContentSizes_;
+    std::unordered_map<uint64_t, std::pair<int, int>> directDesktopSourceSizes_;
     std::unordered_set<uint32_t> directDesktopVisibleToplevels_;
     // TakeToplevelFrame 快照缓冲池 (仅渲染线程访问): 跨帧复用容量,
     // 避免每帧新建多 MB vector 的分配+缺页开销 — 见 cpp 快照阶段注释

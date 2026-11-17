@@ -397,6 +397,47 @@ int main() {
             CHECK(st.IsFullscreen() && st.IsPresentationFullscreen(), "leaving Game preserves real fullscreen");
         }
     }
+    { // Decorated game: crop by the live inline client, not a guessed border width.
+        Scene s(1600, 900); s.setWindow(2, 806, 656, 0xffffffff);
+        s.sub(3, 53, 800, 600, 0xff123456);
+        { auto lk = s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetGamePresentation(true); }
+        Activate(s);
+        const auto scene = Snapshot(s);
+        CHECK(Rect(Native(scene), 200, 0, 1200, 900), "Game presents the client without Wine decoration");
+        CHECK(BackgroundPixel(scene, 100, 50) == 0xff000000,
+              "Game letterbox contains no title or retained desktop pixels");
+        InputTarget hit;
+        CHECK(s.input.FindInputTargetAt(800, 450, hit) && hit.surface == &s.parent &&
+              hit.localX == 403 && hit.localY == 353, "client center maps to Wine window coordinates");
+        CHECK(s.input.FindInputTargetAt(0, 450, hit) && hit.swallow && hit.localX == 3,
+              "black bar clamps at the client origin, outside decoration");
+        double x = 0, y = 0;
+        CHECK(s.input.SurfaceLocalToDesktop(&s.parent, 403, 353, x, y) && x == 800 && y == 450,
+              "decorated client warp and hit mapping are inverse");
+        { auto lk = s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetGamePresentation(false); }
+        CHECK(s.tm.FindToplevelLocked(2)->Width() == 806 &&
+              s.tm.FindToplevelLocked(2)->Height() == 656, "Game leaves the Wine outer geometry intact");
+    }
+    { // The same client geometry applies to bounded SHM upload and Direct.
+        Scene s(1600, 900); s.setWindow(2, 806, 656, 0xffffffff);
+        s.sub(3, 53, 800, 600, 0xff123456);
+        { auto lk = s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetGamePresentation(true); }
+        CHECK(s.take() && s.frame.kind == PresentedFrame::Kind::DirectPass &&
+              s.width == 800 && s.height == 600 && s.pixel(0,0) == 0xff123456,
+              "SHM client bypass keeps only original game pixels");
+        CHECK(Rect(DirectLayer(DirectSnapshot(s, 800, 600)), 200, 0, 1200, 900),
+              "Direct shares the client fit used by VirGL/Venus");
+        // A second declared client is ambiguous; do not select a video by area.
+        SurfaceData extra; wl_resource resource{&extra};
+        extra.isSubsurface = true; extra.parentSurface = &s.parent;
+        extra.inputRegionEmpty = true; extra.surfaceKey = 99;
+        s.tm.RegisterSurfaceResource(99, &resource);
+        FitRect fit;
+        { auto lk = s.tm.Lock();
+          CHECK(s.comp.ComputeFullscreenFitLocked(2,1600,900,fit) && !fit.clientOnly,
+                "ambiguous clients retain whole-window fallback"); }
+        s.tm.UnregisterSurfaceResource(99);
+    }
     std::printf("compositor migration: %d checks, %d failures\n",checks,failures);
     return failures ? 1 : 0;
 }

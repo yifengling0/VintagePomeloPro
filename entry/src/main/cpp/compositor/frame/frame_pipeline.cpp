@@ -381,9 +381,10 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                         // 覆盖窗口内容区 = 内容层 (游戏画面, 候选直传源); 不覆盖
                         // = 叠加其上的浮层 (菜单/提示) — 像素不在窗口帧里, 须判
                         // 遮挡回退 CPU 合成
-                        if (!SubsurfaceCoversContentRect(layer, plan.fullscreenX,
-                                                         plan.fullscreenY,
-                                                         fsTop->Width(), fsTop->Height())) {
+                        if (!SubsurfaceCoversContentRect(layer,
+                                                         plan.fullscreenX + plan.transform.srcX,
+                                                         plan.fullscreenY + plan.transform.srcY,
+                                                         plan.transform.srcW, plan.transform.srcH)) {
                             topOccluded = true;
                             break;
                         }
@@ -404,7 +405,8 @@ bool FramePlanner::TryShmFullscreenDirectLocked(uint32_t id,
                                 classified->opaqueCheckedSerial = sl.shmCommitSerial;
                             }
                             if ((sl.shmFormat != 0 || sl.opaque) &&
-                                layer.x == plan.fullscreenX && layer.y == plan.fullscreenY &&
+                                layer.x == plan.fullscreenX + plan.transform.srcX &&
+                                layer.y == plan.fullscreenY + plan.transform.srcY &&
                                 (sl.vpDstW <= 0 || sl.vpDstW == sl.w) &&
                                 (sl.vpDstH <= 0 || sl.vpDstH == sl.h))
                                 contentSub = &sl;
@@ -496,6 +498,9 @@ uint64_t FramePlanner::ComputeCompositionSignatureLocked(uint32_t id,
     mixSignature(plan.fullscreenContentCovered);
     mixSignature(static_cast<uint32_t>(plan.transform.srcW));
     mixSignature(static_cast<uint32_t>(plan.transform.srcH));
+    mixSignature(static_cast<uint32_t>(plan.transform.srcX));
+    mixSignature(static_cast<uint32_t>(plan.transform.srcY));
+    mixSignature(plan.transform.clientOnly);
     mixSignature(static_cast<uint32_t>(plan.transform.offX));
     mixSignature(static_cast<uint32_t>(plan.transform.offY));
     mixSignature(static_cast<uint32_t>(plan.transform.dstW));
@@ -711,7 +716,8 @@ void FramePlanner::SnapshotBlitSourcesLocked(ToplevelManager::ToplevelState* rst
             bs.shmFormat = cst->ShmFormat();
             comp_.lastTopSerial_[layer.toplevelId] = cst->FrameSerial();  // 局部合成基准
             // ZC 游戏整幅填黑不读像素, 省下全屏拷贝 (pixels 留空)
-            if (!(layer.toplevelId == plan.fullscreenId && plan.hasFullscreen && plan.isZcGame)) {
+            if (!(layer.toplevelId == plan.fullscreenId && plan.hasFullscreen &&
+                  (plan.isZcGame || plan.transform.clientOnly))) {
                 auto& buf = comp_.snapPool_[li];
                 const auto& src = cst->Pixels();
                 buf.assign(src.begin(), src.end());
@@ -808,15 +814,15 @@ void FrameBlitter::BlitToplevel(const FramePlan& plan, const CompositorLayer& la
                    plan.dmg.full ? 0 : plan.dmg.w, plan.dmg.full ? 0 : plan.dmg.h);
         return;
     }
-    if (layer.toplevelId == plan.fullscreenId && plan.hasFullscreen && plan.isZcGame) {
+    if (layer.toplevelId == plan.fullscreenId && plan.hasFullscreen &&
+        (plan.isZcGame || plan.transform.clientOnly)) {
         // ZC 游戏: 整幅填黑, 跳过 SHM BlitScaled — 其 SHM 内容是
         // explorer 桌面而非游戏画面, 实际画面由 GL ZC 层渲染
         // (egl_renderer zeroCopyFullscreen_ 路径)。
         // 必须填不透明黑 0xFF000000, 不能图省事 memset 0:
         // 渲染 context 不开 GL_BLEND 时 alpha=0 恰好无害, 但那是
         // 隐式依赖 — 一旦以后给桌面纹理开混合, 黑边就会变透明
-        std::fill_n(reinterpret_cast<uint32_t*>(composited.data()),
-                    composited.size() / 4, 0xFF000000u);
+        FillBlackRect(composited, plan.rootW, plan.dmg, 0, 0, plan.rootW, plan.rootH);
         return;
     }
     const auto& childPx = *bs.pixels;
