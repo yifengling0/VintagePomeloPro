@@ -549,6 +549,10 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
         });
     auto layers = BuildLayerListLocked(out.width, out.height);
     const auto fullscreenId = PickFullscreenLayerLocked(layers);
+    FitRect fullscreenFit;
+    bool fullscreenUsesGpuContent = false;
+    if (fullscreenId) ComputeFullscreenFitLocked(fullscreenId, out.width, out.height,
+                                                fullscreenFit, &fullscreenUsesGpuContent);
     std::unordered_set<uint64_t> orderedDrawables;
     for (const auto& layer : layers) if (layer.type == CompositorLayer::Type::Subsurface)
         orderedDrawables.insert(layer.sub->surfaceKey);
@@ -560,6 +564,13 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
             nextSceneDiagnosticUs_ = now + 2000000;
             out.diagnosticSerial = ++sceneDiagnosticSerial_;
             out.diagnosticUs = now;
+            OH_LOG_INFO(LOG_APP, "[SCENE-FIT] top=%{public}u root=%{public}dx%{public}d "
+                "src=(%{public}d,%{public}d %{public}dx%{public}d) dst=(%{public}d,%{public}d %{public}dx%{public}d) "
+                "scale=%{public}.5f client=%{public}d gpu=%{public}d",
+                fullscreenId, out.width, out.height, fullscreenFit.srcX, fullscreenFit.srcY,
+                fullscreenFit.srcW, fullscreenFit.srcH, fullscreenFit.offX, fullscreenFit.offY,
+                fullscreenFit.dstW, fullscreenFit.dstH, fullscreenFit.scale,
+                fullscreenFit.clientOnly, fullscreenUsesGpuContent);
             InputResolver probe(tmgr_, *this, desktopRootToplevelId_, outputW_, outputH_);
             InputTarget hit;
             const double cx = out.width / 2.0, cy = out.height / 2.0;
@@ -594,10 +605,6 @@ bool DesktopCompositor::SnapshotGpuDesktopScene(const std::vector<GpuDesktopDire
                 static_cast<unsigned long long>(out.diagnosticSerial), count, count > 16 ? count - 16 : 0);
         }
     }
-    FitRect fullscreenFit;
-    bool fullscreenUsesGpuContent = false;
-    if (fullscreenId) ComputeFullscreenFitLocked(fullscreenId, out.width, out.height,
-                                                fullscreenFit, &fullscreenUsesGpuContent);
     std::unordered_set<uint64_t> used;
     auto snapshot = [&](GpuDesktopLayer& layer, const std::vector<uint8_t>& pixels) {
         if (layer.sourceW <= 0 || layer.sourceH <= 0 ||
