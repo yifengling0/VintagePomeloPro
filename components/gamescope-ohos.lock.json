@@ -421,6 +421,13 @@
       "originalPath": "src/rendervulkan.cpp",
       "beforeSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95",
       "afterSha256": "1589792438fe3e3e1a019dc67524e69728d1417fa2f7184e250277501a66b5a0"
+    },
+    {
+      "path": "patches/gamescope/0022-diagnostic-fsr-files-path.patch",
+      "sha256": "83dfc5d446973ac38ea971f70f9edfb4a9ae90804715a1881e71b267e10b99d5",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "1589792438fe3e3e1a019dc67524e69728d1417fa2f7184e250277501a66b5a0",
+      "afterSha256": "346584fadccd774651ecf0ab7942d562f354e0693fbd39866dce0c9bc9c4b6dc"
     }
   ],
   "overlays": [
@@ -522,7 +529,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "76512a4a3ff13cfe5e71d371e73c91e2fca2fb5d3c87003e5ce7d740dde9fd0a"
+      "sha256": "99d2a62d7323392430fcc7c0d284ae43d4407b8bda7c59c1a82de525285f95aa"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
