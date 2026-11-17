@@ -42,6 +42,9 @@ test-game-presentation:
 	  $(ROOT)/host_tests/game_presentation_test.cpp $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp \
 	  -o $(ROOT)/build/host-tests/game_presentation_test
 	$(ROOT)/build/host-tests/game_presentation_test
+	g++ -std=c++17 -O2 -ffast-math -Wall -Wextra -Werror -I$(ROOT)/native/gamescope/ohos \
+	  $(ROOT)/host_tests/gamescope_embedded_contract_test.cpp -o $(ROOT)/build/host-tests/gamescope_embedded_contract_test
+	$(ROOT)/build/host-tests/gamescope_embedded_contract_test
 
 test-game-mode-models:
 	MODEL_TEST_SCOPE=game bash $(ROOT)/scripts/run_model_unit_tests.sh

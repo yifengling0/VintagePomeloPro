@@ -57,7 +57,7 @@ export class GameModeService {
 
   private static publish(value: GamePresentation | null): void {
     const enabled = value?.enabled === true;
-    testNapi.configureGamePresentation(enabled, value?.settings.scaling ?? 'linear', value?.settings.frameLimit ?? 0);
+    testNapi.configureGamePresentation(enabled, value?.settings.scaling ?? 'linear', value?.settings.frameLimit ?? 0, value?.settings.sharpness ?? 10);
     AppStorage.setOrCreate<boolean>('vpp.game.session', enabled);
   }
 }

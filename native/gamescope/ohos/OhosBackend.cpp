@@ -33,6 +33,11 @@
 #include "refresh_rate.h"
 #include "OhosWindow.h"
 #include "Runtime.h"
+#include "Embedded.h"
+#include "EmbeddedContract.h"
+#include <unordered_map>
+#include <unistd.h>
+#include <cmath>
 #include <vulkan/vulkan_ohos.h>
 #include <atomic>
 #include <cstdlib>
@@ -46,6 +51,9 @@ extern int g_nPreferredOutputWidth, g_nPreferredOutputHeight;
 extern PFN_vkGetInstanceProcAddr g_pfn_vkGetInstanceProcAddr;
 extern uint64_t get_time_in_nanos();
 
+extern void* OhosCloneOutputWindow(void*);
+extern "C" bool VppGamescopeSetOutputWindow(void*);
+namespace { bool embeddedOutput = false; std::atomic<bool> embeddedActive{false}; }
 namespace gamescope {
 class COhosBackend;
 class COhosConnector final : public CBaseBackendConnector {
@@ -79,7 +87,11 @@ class COhosBackend final : public CBaseBackend {
     struct Frame {
         VkSemaphore acquired = VK_NULL_HANDLE;
         VkFence fence = VK_NULL_HANDLE;
-        VkCommandBuffer command = VK_NULL_HANDLE;
+        VkCommandBuffer command = VK_NULL_HANDLE, acquire = VK_NULL_HANDLE;
+        VkSemaphore released = VK_NULL_HANDLE;
+        std::vector<VkSemaphore> waits;
+        std::vector<Rc<CVulkanTexture>> inputs;
+        std::vector<OwningRc<CVulkanTexture>> upright;
     };
     struct Output {
         VkSwapchainKHR swapchain = VK_NULL_HANDLE;
@@ -98,6 +110,8 @@ public:
             g_device.waitIdle();
             destroyOutput(m_output);
             for (auto& f : m_frames) {
+                for (auto sem : f.waits) g_device.vk.DestroySemaphore(g_device.device(), sem, nullptr);
+                if (f.released) g_device.vk.DestroySemaphore(g_device.device(), f.released, nullptr);
                 if (f.acquired) g_device.vk.DestroySemaphore(g_device.device(), f.acquired, nullptr);
                 if (f.fence) m_destroyFence(g_device.device(), f.fence, nullptr);
             }
@@ -106,12 +120,13 @@ public:
         if (m_surface && m_destroySurface) m_destroySurface(vulkan_get_instance(), m_surface, nullptr);
         if (m_window) DestroyOutputWindow(m_window);
     }
+    int EmbeddedPresent(VppGamescopeFrame& frame);
     bool Init() override {
         const char* text = getenv("VPP_GAMESCOPE_SURFACE_ID");
-        if (!text || !*text || *text == '-') return error("output surface id", VK_ERROR_INITIALIZATION_FAILED);
+        if (!embeddedOutput && (!text || !*text || *text == '-')) return error("output surface id", VK_ERROR_INITIALIZATION_FAILED);
         char* end = nullptr; errno = 0;
-        const auto surfaceId = strtoull(text, &end, 10);
-        if (errno || !end || *end || !surfaceId || !(m_window = CreateOutputWindow(surfaceId)))
+        const auto surfaceId = embeddedOutput ? 1ull : strtoull(text, &end, 10);
+        if ((!embeddedOutput && (errno || !end || *end)) || !surfaceId || !(m_window = CreateOutputWindow(surfaceId)))
             return error("output NativeWindow", VK_ERROR_INITIALIZATION_FAILED);
         const int height = g_nPreferredOutputHeight ? g_nPreferredOutputHeight : 720;
         const int width = g_nPreferredOutputWidth ? g_nPreferredOutputWidth : height * 16 / 9;
@@ -129,7 +144,7 @@ public:
         const VkSurfaceCreateInfoOHOS info{VK_STRUCTURE_TYPE_SURFACE_CREATE_INFO_OHOS, nullptr, 0, m_window};
         VkResult result = createSurface(instance, &info, nullptr, &m_surface);
         if (result != VK_SUCCESS) return error("OHOS surface", result);
-        if (!vulkan_init(instance, m_surface) || !wlsession_init()) return false;
+        if (!vulkan_init(instance, m_surface) || (!embeddedOutput && !wlsession_init())) return false;
         m_destroyFence = reinterpret_cast<PFN_vkDestroyFence>(g_device.vk.GetDeviceProcAddr(g_device.device(), "vkDestroyFence"));
         if (!m_destroyFence) return error("fence function", VK_ERROR_INITIALIZATION_FAILED);
         const VkCommandPoolCreateInfo pool{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, nullptr,
@@ -147,6 +162,13 @@ public:
                 VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
             result = g_device.vk.AllocateCommandBuffers(g_device.device(), &command, &f.command);
             if (result != VK_SUCCESS) return error("frame command", result);
+            result = g_device.vk.AllocateCommandBuffers(g_device.device(), &command, &f.acquire);
+            if (result != VK_SUCCESS) return error("input command", result);
+            VkExportSemaphoreCreateInfo exportInfo{VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO};
+            exportInfo.handleTypes = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+            const VkSemaphoreCreateInfo releaseInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &exportInfo};
+            result = g_device.vk.CreateSemaphore(g_device.device(), &releaseInfo, nullptr, &f.released);
+            if (result != VK_SUCCESS) return error("input release semaphore", result);
         }
         return recreateOutput();
     }
@@ -155,7 +177,11 @@ public:
         static const char* const extensions[] = {VK_KHR_SURFACE_EXTENSION_NAME, VK_OHOS_SURFACE_EXTENSION_NAME};
         return extensions;
     }
-    std::span<const char* const> GetDeviceExtensions(VkPhysicalDevice) const override { return {}; }
+    std::span<const char* const> GetDeviceExtensions(VkPhysicalDevice) const override {
+        static const char* const extensions[] = {VK_OHOS_EXTERNAL_MEMORY_EXTENSION_NAME,
+            VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME, VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME};
+        return extensions;
+    }
     VkImageLayout GetPresentLayout() const override { return VK_IMAGE_LAYOUT_GENERAL; }
     void GetPreferredOutputFormat(uint32_t* primary, uint32_t* overlay) const override {
         *primary = *overlay = VulkanFormatToDRM(VK_FORMAT_R8G8B8A8_UNORM);
@@ -191,6 +217,12 @@ public:
     int present(const FrameInfo_t* info);
 protected:
     void OnBackendBlobDestroyed(BackendBlob*) override {}
+    VppGamescopeFrame* embeddedFrame = nullptr;
+    struct CachedInput { OwningRc<CVulkanTexture> texture; uint64_t serial = 0, seen = 0; };
+    std::unordered_map<uint64_t, CachedInput> embeddedCache;
+    bool PrepareEmbedded(Frame& slot, FrameInfo_t& info);
+    void InputBarrier(VkCommandBuffer command, CVulkanTexture* texture, bool acquire, bool vulkan);
+
 private:
     bool error(const char* stage, VkResult result) {
         fprintf(stderr, "VPP_GAMESCOPE_BACKEND_ERROR stage=%s result=%d\n", stage, int(result));
@@ -323,6 +355,12 @@ int COhosBackend::present(const FrameInfo_t* info) {
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) { error("acquire output", result); return -EIO; }
     if (result == VK_SUBOPTIMAL_KHR) m_resize = true;
     if (index >= m_output.targets.size()) { error("output image index", VK_ERROR_INITIALIZATION_FAILED); return -EIO; }
+    frame.inputs.clear();
+    FrameInfo_t embeddedInfo{};
+    if (embeddedFrame) {
+        if (!PrepareEmbedded(frame, embeddedInfo)) { error("native input bridge", VK_ERROR_INITIALIZATION_FAILED); return -EIO; }
+        info = &embeddedInfo;
+    }
     auto target = m_output.targets[index];
     if (m_frameNumber == 0 && info->layers.count() && info->layers.get(0).tex) {
         const auto& layer = info->layers.get(0);
@@ -351,14 +389,28 @@ int COhosBackend::present(const FrameInfo_t* info) {
     barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; barriers[1].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT; barriers[1].dstAccessMask = 0;
     g_device.vk.CmdPipelineBarrier(frame.command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0,0,nullptr,0,nullptr,barriers.size(),barriers.data());
+    if (embeddedFrame) {
+        size_t nativeIndex = 0;
+        for (uint32_t i = 0; i < embeddedFrame->count; ++i)
+            if (embeddedFrame->layers[i].native)
+                InputBarrier(frame.command, frame.inputs[nativeIndex++].get(), false, embeddedFrame->layers[i].vulkan);
+    }
     result = g_device.vk.EndCommandBuffer(frame.command);
     if (result != VK_SUCCESS) { error("end output command", result); return -EIO; }
     result = g_device.vk.ResetFences(g_device.device(), 1, &frame.fence);
     if (result != VK_SUCCESS) { error("reset output fence", result); return -EIO; }
     const VkPipelineStageFlags wait = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    const VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,1,&frame.acquired,&wait,1,&frame.command,1,&m_output.rendered[index]};
+    const VkSemaphore signals[] = {m_output.rendered[index], frame.released};
+    const VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,1,&frame.acquired,&wait,1,&frame.command,
+        embeddedFrame ? 2u : 1u,signals};
     result = g_device.vk.QueueSubmit(g_device.queue(), 1, &submit, frame.fence);
     if (result != VK_SUCCESS) { error("output GPU copy", result); return -EIO; }
+    if (embeddedFrame) {
+        VkSemaphoreGetFdInfoKHR fdInfo{VK_STRUCTURE_TYPE_SEMAPHORE_GET_FD_INFO_KHR};
+        fdInfo.semaphore = frame.released; fdInfo.handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
+        if (!g_device.vk.GetSemaphoreFdKHR || g_device.vk.GetSemaphoreFdKHR(g_device.device(), &fdInfo,
+                &embeddedFrame->completion) != VK_SUCCESS) return -EIO;
+    }
     const VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,nullptr,1,&m_output.rendered[index],1,&m_output.swapchain,&index,nullptr};
     result = g_device.vk.QueuePresentKHR(g_device.queue(), &present);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) m_resize = true;
@@ -369,8 +421,146 @@ int COhosBackend::present(const FrameInfo_t* info) {
         ohos::ReportRuntimeStage(ohos::SessionStage::Presented, "vulkan-composite-present");
     }
     g_device.garbageCollect();
-    GetVBlankTimer().UpdateWasCompositing(true);
+    if (!embeddedOutput) GetVBlankTimer().UpdateWasCompositing(true);
     return result == VK_ERROR_OUT_OF_DATE_KHR ? -EAGAIN : 0;
+}
+
+void COhosBackend::InputBarrier(VkCommandBuffer command, CVulkanTexture* texture, bool acquire, bool vulkan) {
+    VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    b.image = texture->vkImage(); b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+    const auto foreign = vulkan ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_GENERAL;
+    b.oldLayout = acquire ? foreign : VK_IMAGE_LAYOUT_GENERAL;
+    b.newLayout = acquire ? VK_IMAGE_LAYOUT_GENERAL : foreign;
+    b.srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_FOREIGN_EXT : g_device.queueFamily();
+    b.dstQueueFamilyIndex = acquire ? g_device.queueFamily() : VK_QUEUE_FAMILY_FOREIGN_EXT;
+    b.srcAccessMask = acquire ? 0 : VK_ACCESS_SHADER_READ_BIT;
+    b.dstAccessMask = acquire ? VK_ACCESS_SHADER_READ_BIT : 0;
+    g_device.vk.CmdPipelineBarrier(command,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        0,0,nullptr,0,nullptr,1,&b);
+}
+
+bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
+    auto& input = *embeddedFrame;
+    if (g_device.vk.ResetCommandBuffer(slot.acquire,0) != VK_SUCCESS) return false;
+    const VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,nullptr,VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
+    if (g_device.vk.BeginCommandBuffer(slot.acquire,&begin) != VK_SUCCESS) return false;
+    std::vector<VkSemaphore> waits; std::vector<VkPipelineStageFlags> stages;
+    std::vector<Rc<CVulkanTexture>> textures;
+    slot.upright.resize(input.count);
+    size_t uploadBytes = 0;
+    for (uint32_t i=0;i<input.count;++i) {
+        const auto& layer = input.layers[i];
+        if (!layer.width || !layer.height || layer.width>8192 || layer.height>8192 ||
+            !std::isfinite(layer.w) || !std::isfinite(layer.h) || layer.w<=0 || layer.h<=0) return false;
+        uint64_t key = layer.native ? uint64_t(reinterpret_cast<uintptr_t>(layer.native)) : layer.key;
+        // GPU and SHM identities occupy separate cache namespaces.
+        key = (key << 1) | (layer.native ? 1 : 0);
+        auto& cached = embeddedCache[key];
+        if (!cached.texture || cached.texture->width()!=layer.width || cached.texture->height()!=layer.height ||
+            (!layer.native && cached.serial!=layer.serial)) {
+            OwningRc<CVulkanTexture> texture;
+            if (layer.native) {
+                texture = new CVulkanTexture();
+                if (!texture->BInitNativeBuffer(layer.native,layer.width,layer.height)) return false;
+            } else {
+                uploadBytes += size_t(layer.width)*layer.height*4;
+                if (!layer.pixels || uploadBytes>32u*1024*1024) return false;
+                CVulkanTexture::createFlags flags;
+                texture = vulkan_create_texture_from_bits(layer.width,layer.height,layer.width,layer.height,
+                    DRM_FORMAT_ARGB8888,flags,const_cast<void*>(layer.pixels));
+                if (!texture) return false;
+            }
+            cached.texture=std::move(texture); cached.serial=layer.serial;
+        }
+        cached.seen=m_frameNumber;
+        textures.push_back(cached.texture.get());
+        if (!layer.native) continue;
+        slot.inputs.push_back(cached.texture.get());
+        if (layer.fence>=0) {
+            const size_t n=waits.size();
+            if (n>=slot.waits.size()) {
+                VkSemaphore sem; const VkSemaphoreCreateInfo create{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+                if (g_device.vk.CreateSemaphore(g_device.device(),&create,nullptr,&sem)!=VK_SUCCESS) return false;
+                slot.waits.push_back(sem);
+            }
+            int fd=dup(layer.fence); if (fd<0) return false;
+            VkImportSemaphoreFdInfoKHR import{VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR};
+            import.semaphore=slot.waits[n]; import.flags=VK_SEMAPHORE_IMPORT_TEMPORARY_BIT;
+            import.handleType=VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT; import.fd=fd;
+            if (g_device.vk.ImportSemaphoreFdKHR(g_device.device(),&import)!=VK_SUCCESS) { close(fd); return false; }
+            waits.push_back(slot.waits[n]); stages.push_back(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
+        }
+        InputBarrier(slot.acquire,cached.texture.get(),true,layer.vulkan);
+    }
+    if (g_device.vk.EndCommandBuffer(slot.acquire)!=VK_SUCCESS) return false;
+    const VkSubmitInfo acquire{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,uint32_t(waits.size()),waits.data(),stages.data(),1,&slot.acquire};
+    if (g_device.vk.QueueSubmit(g_device.queue(),1,&acquire,VK_NULL_HANDLE)!=VK_SUCCESS) return false;
+    info.outputEncodingEOTF=EOTF_Gamma22;
+    for (uint32_t i=0;i<input.count;++i) {
+        const auto& src=input.layers[i]; auto texture=textures[i];
+        // Normalize GLES row direction and client cropping on GPU at source
+        // resolution. FSR then receives upright client pixels, never borders.
+        const bool normalize=src.u0!=0 || src.u1!=1 || src.v0!=0 || src.v2!=1;
+        if (normalize) {
+            const uint32_t w=std::lround(std::abs(src.u1)*src.width), h=std::lround(std::abs(src.v2)*src.height);
+            if (!w || !h || w>8192 || h>8192) return false;
+            auto& upright=slot.upright[i];
+            if (!upright || upright->width()!=w || upright->height()!=h) {
+                upright=new CVulkanTexture(); CVulkanTexture::createFlags flags;
+                flags.bStorage=flags.bSampled=true;
+                if (!upright->BInit(w,h,1,DRM_FORMAT_ARGB8888,flags)) return false;
+            }
+            FrameInfo_t normalizeInfo{}; auto* l=normalizeInfo.layers.push(); l->tex=texture;
+            l->scale={src.u1*src.width/w,src.v2*src.height/h};
+            l->offset={src.u0*src.width/l->scale.x,src.v0*src.height/l->scale.y};
+            l->opacity=1; l->eAlphaBlendingMode=src.opaque?ALPHA_BLENDING_MODE_NONE:ALPHA_BLENDING_MODE_PREMULTIPLIED;
+            l->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
+            const auto outputW=g_nOutputWidth, outputH=g_nOutputHeight;
+            g_nOutputWidth=w; g_nOutputHeight=h;
+            auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright.get(),false);
+            g_nOutputWidth=outputW; g_nOutputHeight=outputH;
+            if (!submitted) return false;
+            texture=upright.get();
+        }
+        if (info.layers.count()==k_nMaxLayers) {
+            // Preserve arbitrary desktop/UI stacking using bounded core passes.
+            // VPP never composites a complete desktop before this entry point.
+            OwningRc<CVulkanTexture> accumulated=new CVulkanTexture(); CVulkanTexture::createFlags flags;
+            flags.bStorage=flags.bSampled=true;
+            if (!accumulated->BInit(g_nOutputWidth,g_nOutputHeight,1,DRM_FORMAT_ARGB8888,flags) ||
+                !vulkan_composite(&info,nullptr,false,accumulated.get(),false)) return false;
+            info=FrameInfo_t{}; info.outputEncodingEOTF=EOTF_Gamma22;
+            auto* base=info.layers.push(); base->tex=accumulated.get(); base->scale={1,1}; base->offset={0,0};
+            base->opacity=1; base->eAlphaBlendingMode=ALPHA_BLENDING_MODE_NONE;
+            base->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
+        }
+        auto* layer=info.layers.push(); if (!layer) return false;
+        layer->tex=texture; layer->scale={texture->width()/src.w,texture->height()/src.h};
+        layer->offset={-src.x,-src.y}; layer->opacity=1; layer->blackBorder=true;
+        layer->filter=input.filter==1 || input.filter==2?GamescopeUpscaleFilter::NEAREST:GamescopeUpscaleFilter::LINEAR;
+        layer->eAlphaBlendingMode=src.opaque?ALPHA_BLENDING_MODE_NONE:ALPHA_BLENDING_MODE_PREMULTIPLIED;
+        layer->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
+        if (i==0 && src.upscale && input.filter==3 && src.w>texture->width() && src.h>texture->height()) {
+            info.useFSRLayer0=true; info.nUpscaleSharpness=input.sharpness;
+            ++input.fsrPasses;
+        }
+    }
+    for (auto it=embeddedCache.begin();it!=embeddedCache.end();)
+        if (it->second.seen!=m_frameNumber) it=embeddedCache.erase(it); else ++it;
+    return true;
+}
+int COhosBackend::EmbeddedPresent(VppGamescopeFrame& frame) {
+    if (!VppGamescopeValidFrame(frame)) return -EINVAL;
+    frame.completion=-1;
+    frame.fsrPasses=0; frame.gpuLayers=0;
+    for (uint32_t i=0;i<frame.count;++i) frame.gpuLayers+=frame.layers[i].native!=nullptr;
+    if (frame.width!=m_output.targets[0]->width() || frame.height!=m_output.targets[0]->height()) {
+        g_nOutputWidth=frame.width; g_nOutputHeight=frame.height; m_resize=true;
+    }
+    embeddedFrame=&frame; int result=present(nullptr); embeddedFrame=nullptr;
+    frame.width=g_nOutputWidth; frame.height=g_nOutputHeight;
+    if (result && result!=-EAGAIN) { g_device.vk.QueueWaitIdle(g_device.queue()); g_device.waitIdle(); }
+    return result;
 }
 
 namespace {
@@ -401,3 +591,23 @@ bool COhosBackend::PollState() {
 int COhosConnector::Present(const FrameInfo_t* info, bool) { return m_backend->present(info); }
 template<> bool IBackend::Set<COhosBackend>() { return Set(new COhosBackend{}); }
 } // namespace gamescope
+
+extern "C" __attribute__((visibility("default"))) bool VppGamescopeEmbeddedStart(void* window,uint32_t width,uint32_t height) {
+    if (!window || !width || !height || width>8192 || height>8192 || embeddedActive.exchange(true)) return false;
+    auto* producer=OhosCloneOutputWindow(window);
+    if (!producer || !VppGamescopeSetOutputWindow(producer)) { embeddedActive=false; return false; }
+    embeddedOutput=true; g_nPreferredOutputWidth=width; g_nPreferredOutputHeight=height;
+    if (!gamescope::IBackend::Set<gamescope::COhosBackend>() || !vulkan_init_formats() || !vulkan_make_output()) {
+        gamescope::IBackend::Set(nullptr); embeddedOutput=false; embeddedActive=false; return false;
+    }
+    fprintf(stderr,"VPP_GAMESCOPE_EMBEDDED_READY gpuBridge=NativeBuffer cpuGameCopies=0 ncp=0\n");
+    return true;
+}
+extern "C" __attribute__((visibility("default"))) int VppGamescopeEmbeddedPresent(VppGamescopeFrame* frame) {
+    if (!frame || !embeddedActive.load() || !GetBackend()) return -EINVAL;
+    return static_cast<gamescope::COhosBackend*>(GetBackend())->EmbeddedPresent(*frame);
+}
+extern "C" __attribute__((visibility("default"))) void VppGamescopeEmbeddedStop() {
+    if (!embeddedActive.load()) return;
+    gamescope::IBackend::Set(nullptr); embeddedOutput=false; embeddedActive=false;
+}

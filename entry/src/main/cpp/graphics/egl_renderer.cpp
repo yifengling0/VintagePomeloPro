@@ -739,9 +739,9 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     width_ = w;
     height_ = h;
 
-    if (RootCompositing() && winehua::direct::DirectDesktopVulkanEnabled()) {
+    if (RootCompositing() && (winehua::game::Enabled() || winehua::direct::DirectDesktopVulkanEnabled())) {
         vulkanDesktop_ = std::make_unique<winehua::direct::DirectVulkanDesktopCompositor>(compositor_);
-        if (!vulkanDesktop_->Initialize(window)) { vulkanDesktop_.reset(); return false; }
+        if (!vulkanDesktop_->Initialize(window,w,h)) { vulkanDesktop_.reset(); return false; }
         running_ = true;
         thread_ = std::thread(&EglRenderer::VulkanRenderLoop, this);
         return true;

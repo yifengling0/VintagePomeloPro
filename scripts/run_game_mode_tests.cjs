@@ -6,13 +6,18 @@ const root = path.resolve(process.argv[2]);
 const ts = require(path.resolve(process.argv[3]));
 const models = require(path.join(root, 'model/AppModels.js'));
 const rules = require(path.join(root, 'model/GameModeSettings.js'));
-assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'bad', frameLimit: 120 }), { scaling: 'linear', frameLimit: 0 });
+assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'bad', frameLimit: 120 }), { scaling: 'linear', frameLimit: 0, sharpness: 10 });
+assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'fsr', frameLimit: 60, sharpness: 0 }), { scaling: 'fsr', frameLimit: 60, sharpness: 0 });
+assert.equal(rules.normalizeGameModeSettings({ scaling: 'fsr', sharpness: NaN }).sharpness, 10);
+assert.equal(rules.normalizeGameModeSettings({ scaling: 'fsr', sharpness: 21 }).sharpness, 10);
+assert.equal(rules.sameGamePresentation({ enabled: true, settings: { scaling: 'fsr', frameLimit: 30, sharpness: 0 } },
+  { enabled: true, settings: { scaling: 'fsr', frameLimit: 30, sharpness: 20 } }), false);
 assert.equal(rules.resolveGamePresentation(true, 'off').enabled, false);
 assert.equal(rules.resolveGamePresentation(false, 'on').enabled, true);
 assert.equal(rules.resolveGamePresentation(true, undefined).enabled, true);
 assert.equal(rules.resolveGamePresentation(false, undefined).enabled, false);
 assert.deepEqual(rules.resolveGamePresentation(true, 'follow', { scaling: 'linear', frameLimit: 60 },
-  { scaling: 'integer', frameLimit: 30 }).settings, { scaling: 'integer', frameLimit: 30 });
+  { scaling: 'integer', frameLimit: 30 }).settings, { scaling: 'integer', frameLimit: 30, sharpness: 10 });
 const clone = models.cloneAppSettings({ ...models.createDefaultAppSettings('game'),
   gameModeOverride: 'on', gameModeSettings: { scaling: 'nearest', frameLimit: 30 } });
 assert.equal(clone.gameModeOverride, 'on');
@@ -40,7 +45,7 @@ global.gameMode = { scaling: 'nearest', frameLimit: 30 };
   const f = fixture(); f.values.set('vpp.game.browsing', true);
   assert.equal(f.calls.length, 0); // entering library does not start a presenter
   f.service.begin(app, global, false);
-  assert.deepEqual(f.calls[0], [true, 'nearest', 30]);
+  assert.deepEqual(f.calls[0], [true, 'nearest', 30, 10]);
   f.service.reset(); // startup restart cannot clear a reserved policy
   assert.equal(f.values.get('vpp.game.session'), true);
   f.service.finish(true);

@@ -341,6 +341,27 @@
       "originalPath": "src/mangoapp.cpp",
       "beforeSha256": "fa543f0e3c0afc7733174408aa18e91358ad623df3d40febe72f18da23d41e22",
       "afterSha256": "b21afd681f4321a3cc5f134445ade89cd9224d04c5e1ec53089b1b8ade2164c2"
+    },
+    {
+      "path": "patches/gamescope/0016-ohos-embedded-native-buffer-compositor.patch",
+      "sha256": "865726111a7ddcbaed90db3a01dbfd7aaf27aa1ca133649f1ddcf083911b7cba",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "55d748eea6cf3ee0bb1c74a84a3287b4785e46dfe20ef3c16c64d03b5b12e9cd",
+          "afterSha256": "f371e3c04e24622247d38c51f97a63f9b805847d77d3bf408995541dfdc0a7bd"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "e9d5c711d94ce8d50d09e738edda903de9922c20302864d0862e0e54167a2fb1",
+          "afterSha256": "3980ca15e4421000f235d87e53f4934e1bda0aac1449c4fe9d9e73d140d4d73f"
+        },
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "3acf1eea15bf884d9ad4ccc0d5e7c3e8b040400f43ba26e265d4c13e834fd4b0",
+          "afterSha256": "2d3ebdc5171faab1736bcbb18b5deafc4808b2fee14a7c0bc5e9b1566a6aedea"
+        }
+      ]
     }
   ],
   "overlays": [
@@ -407,7 +428,7 @@
     {
       "source": "native/gamescope/ohos/Window.cpp",
       "destination": "src/OhosWindow.cpp",
-      "sha256": "a6e52b25afb2b77faa48eadf4a803525db4d37525aca9f297baae59f94fbd205"
+      "sha256": "ad477421398da1695d56f270e6c7f6ca8b716e669f34f139ec382421ae9d3c6f"
     },
     {
       "source": "native/gamescope/ohos/BrokerProtocol.h",
@@ -442,7 +463,22 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "8fce1c45fca933412a94df50ec8ffc6ef02cb69d7762362fd7deb264c0d0ab79"
+      "sha256": "ff01ad282f0bba3b93beab19f63879d25691637cc5a53e029ee1bdfa1cbf0249"
+    },
+    {
+      "source": "native/gamescope/ohos/Embedded.h",
+      "destination": "src/Embedded.h",
+      "sha256": "ec8c9c8b2cf23419e3f063d0265508ae0b4c5133f0dc7a5f060bb5fe5368cd7b"
+    },
+    {
+      "source": "native/gamescope/ohos/Embedded.cpp",
+      "destination": "src/OhosEmbedded.cpp",
+      "sha256": "1f291bf09873537c142c72a8f20290ff4d3059fc645ca1fe8b5baa5068279bb6"
+    },
+    {
+      "source": "native/gamescope/ohos/EmbeddedContract.h",
+      "destination": "src/EmbeddedContract.h",
+      "sha256": "197238d61a87d7640bb0bb7a7d46c3e12c636afdde694ace8f31a09a9e67e467"
     }
   ],
   "options": [

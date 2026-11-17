@@ -25,6 +25,13 @@ int main() {
     assert(deadline.Ready(500, 10));
     assert(!deadline.Ready(501, 10)); // late frames have no catch-up debt
     assert(deadline.Ready(501, 0));
+    Configure(true, false, false, 60, true, 20);
+    assert(Fsr() && !Nearest() && !Integer() && Sharpness()==20);
+    assert(LimitPeriodNs()==16666667); // sharpness must not contaminate FPS
+    Configure(true, false, false, 0, true, -10);
+    assert(Sharpness()==0 && LimitPeriodNs()==0);
+    Configure(true, false, false, 30, true, 99);
+    assert(Sharpness()==20 && LimitPeriodNs()==33333334);
     Configure(false, false, false, 0);
     assert(!Enabled() && !Integer() && !Nearest() && LimitPeriodNs() == 0);
 }

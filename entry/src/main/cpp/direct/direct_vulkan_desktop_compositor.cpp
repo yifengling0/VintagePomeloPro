@@ -1,4 +1,6 @@
 #include "graphics/game_presentation.h"
+#include "Embedded.h"
+#include <dlfcn.h>
 #include "direct_vulkan_desktop_compositor.h"
 #include "direct_vulkan_context.h"
 #include "direct_wine_surface_controller.h"
@@ -131,6 +133,14 @@ public:
     explicit VulkanDesktopRenderer(DesktopCompositor& compositor) : compositor_(compositor) {}
     ~VulkanDesktopRenderer() {
         desktopVulkanActive.store(false, std::memory_order_relaxed);
+        if (gamescopeStop_) {
+            // Drain core reads and release FOREIGN ownership before queues.
+            gamescopeStop_();
+            for (auto& [id, layer] : layers_) Retire(layer.current);
+            for (auto& [key, layer] : glLayers_) ReleaseGlLayer(*layer);
+            for (auto& buffer : retired_) Return(buffer, -1);
+            retired_.clear(); layers_.clear(); glLayers_.clear();
+        }
         if (core_) {
             auto& g = *core_;
             if (g.Device()) {
@@ -173,7 +183,23 @@ public:
             (unsigned long long)releaseFences_, (unsigned long long)producerRetired_, (unsigned long long)releaseErrors_);
     }
 
-    bool Initialize(OHNativeWindow* window) {
+    bool Initialize(OHNativeWindow* window, int width, int height) {
+        if (winehua::game::Enabled()) {
+            // Keep core loaded: its process-wide Vulkan device/compiler state
+            // outlives individual output sessions. Never call core main().
+            static void* library = dlopen("libgamescope_core.so", RTLD_NOW | RTLD_LOCAL);
+            if (!library) { OH_LOG_ERROR(LOG_APP,"Gamescope load failed: %{public}s",dlerror()); return false; }
+            auto start = reinterpret_cast<bool(*)(void*,uint32_t,uint32_t)>(dlsym(library,"VppGamescopeEmbeddedStart"));
+            gamescopePresent_ = reinterpret_cast<int(*)(VppGamescopeFrame*)>(dlsym(library,"VppGamescopeEmbeddedPresent"));
+            auto stop = reinterpret_cast<void(*)()>(dlsym(library,"VppGamescopeEmbeddedStop"));
+            if (!start || !gamescopePresent_ || !stop || !start(window,width,height)) return false;
+            gamescopeStop_=stop; gamescopeWidth_=width; gamescopeHeight_=height;
+            cadence_.Initialize();
+            if (!SetDirectDesktopConsumer(this,true)) return false;
+            desktopVulkanActive.store(true,std::memory_order_relaxed);
+            OH_LOG_INFO(LOG_APP,"[GAMESCOPE] native GPU compositor active ncp=0 cpuGameCopies=0");
+            return true;
+        }
         uint64_t surfaceId = 0;
         if (OH_NativeWindow_GetSurfaceId(window, &surfaceId) != 0 || !surfaceId) return false;
         core_ = std::make_unique<DirectVulkanContext>(DirectVulkanConfig{surfaceId, 2, true, true});
@@ -198,6 +224,7 @@ public:
     }
 
     bool Render(int expectedW, int expectedH, bool paused, bool repaint) {
+        if (gamescopeStop_) return RenderGamescope(expectedW,expectedH,paused,repaint);
         // Visibility changes do not stop queue consumption. Drain submitted
         // reads once on background entry, then return retired buffers with
         // their original acquire fences without acquiring/presenting output.
@@ -478,13 +505,118 @@ public:
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || suboptimal) return Recreate();
         return Check(result, "scene_present");
     }
-    int Width() const { return core_ ? core_->OutputExtent().width : 0; }
-    int Height() const { return core_ ? core_->OutputExtent().height : 0; }
+    int Width() const { return gamescopeStop_ ? gamescopeWidth_ : core_ ? core_->OutputExtent().width : 0; }
+    int Height() const { return gamescopeStop_ ? gamescopeHeight_ : core_ ? core_->OutputExtent().height : 0; }
     int ContentWidth() const { return scene_.width; }
     int ContentHeight() const { return scene_.height; }
     uint64_t PresentationSerial() const { return presentationSerial_; }
 
 private:
+    bool RenderGamescope(int width, int height, bool paused, bool repaint) {
+        if (paused!=background_ || cadence_.Refresh(winehua::PerfNowUs())) {
+            for (const auto& [key,layer]:glLayers_)
+                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key,
+                    paused?100000000ull:winehua::game::ProducerPeriodNs(cadence_.PeriodNs()));
+        }
+        background_=paused;
+        if (!UpdateSources()) return false;
+        UpdateGlSources();
+        for (auto& buffer:retired_) Return(buffer,-1);
+        retired_.clear();
+        if (paused) return true;
+        PublishFrameRates();
+        std::vector<GpuDesktopDirectSource> direct;
+        for (const auto& [id,layer]:layers_) if (layer.current.image)
+            direct.push_back({uint32_t(layer.source.token.clientPid),layer.source.token.toplevelId,layer.source.token.wlSurfaceId,
+                layer.current.image->width,layer.current.image->height,layer.source.token.generation});
+        std::vector<GpuDesktopLayer> gl;
+        for (const auto& [key,layer]:glLayers_) if (layer->current.image) {
+            auto source=MakeNativeWindowLayer(key,layer->geometry,layer->width,layer->height);
+            SetNativeProducerSampling(source,layer->vulkan); gl.push_back(source);
+        }
+        GpuDesktopScene next;
+        if (!compositor_.SnapshotGpuDesktopScene(direct,snapshots_,next,gl)) {
+            next.width=width; next.height=height;
+        }
+        bool fresh=false;
+        for (auto& [id,layer]:layers_) fresh|=layer.current.accepted.pending;
+        for (auto& [key,layer]:glLayers_) fresh|=layer->current.accepted.pending;
+        if (!fresh && !repaint && SameGpuDesktopScene(next,scene_) && width==gamescopeWidth_ && height==gamescopeHeight_) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(8)); return true;
+        }
+        scene_=std::move(next);
+        FitRect fit; ComputeFitRect(width,height,scene_.width,scene_.height,fit);
+        std::vector<VppGamescopeLayer> inputs;
+        std::vector<Buffer*> buffers;
+        static const uint32_t black=0xff000000;
+        for (const auto& layer:scene_.layers) {
+            if (layer.solidBlack) { inputs.clear(); buffers.clear(); continue; }
+            VppGamescopeLayer input;
+            input.key=layer.key; input.serial=layer.serial; input.opaque=layer.opaque;
+            input.x=FitMapDisplayX(fit,layer.x); input.y=FitMapDisplayY(fit,layer.y);
+            input.w=FitSizeDisplayW(fit,layer.w); input.h=FitSizeDisplayH(fit,layer.h);
+            if (input.w<=0 || input.h<=0) continue;
+            Buffer* buffer=nullptr;
+            if (layer.directSurfaceKey) {
+                auto it=layers_.find(layer.directSurfaceKey); if (it!=layers_.end()) buffer=&it->second.current;
+            } else if (layer.zeroCopyKey) {
+                auto it=glLayers_.find(layer.zeroCopyKey); if (it!=glLayers_.end()) buffer=&it->second->current;
+            }
+            if (buffer && buffer->image) {
+                input.native=buffer->image->native; input.fence=buffer->acquireFence;
+                input.width=buffer->image->width; input.height=buffer->image->height;
+                input.vulkan=!buffer->glSource;
+                if (layer.zeroCopyKey) input.vulkan=glLayers_.at(layer.zeroCopyKey)->vulkan;
+                if (layer.sampling.u[2]!=0 || layer.sampling.v[1]!=0) return Fail("gamescope_rotated_buffer",VK_ERROR_FORMAT_NOT_SUPPORTED);
+                input.u0=layer.sampling.u[0]; input.u1=layer.sampling.u[1];
+                input.v0=layer.sampling.v[0]; input.v2=layer.sampling.v[2];
+                input.upscale=1;
+            } else if (layer.pixels) {
+                input.pixels=layer.pixels->data(); input.width=layer.sourceW; input.height=layer.sourceH;
+                input.pixelBytes=layer.pixels->size();
+                if (size_t(input.width)*input.height*4>layer.pixels->size()) return false;
+            } else continue;
+            // Opaque client content covering the canvas hides all older
+            // desktop/decorations. Keep later popup/SHM layers above the game.
+            if (input.native && input.opaque && input.x<=fit.offX && input.y<=fit.offY &&
+                input.x+input.w>=fit.offX+fit.dstW && input.y+input.h>=fit.offY+fit.dstH) {
+                inputs.clear(); buffers.clear();
+            }
+            inputs.push_back(input); buffers.push_back(buffer);
+        }
+        if (inputs.empty()) {
+            VppGamescopeLayer input; input.key=UINT64_MAX; input.width=input.height=1;
+            input.w=width; input.h=height; input.pixels=&black; input.pixelBytes=4; inputs.push_back(input); buffers.push_back(nullptr);
+        }
+        VppGamescopeFrame frame; frame.width=width; frame.height=height;
+        frame.filter=winehua::game::Fsr()?3:winehua::game::Integer()?2:winehua::game::Nearest()?1:0;
+        frame.sharpness=winehua::game::Sharpness(); frame.count=inputs.size(); frame.layers=inputs.data();
+        const int result=gamescopePresent_(&frame);
+        // Even a present error may follow successful GPU submission. Always
+        // adopt its completion before returning a sampled buffer to producer.
+        if (frame.completion>=0) {
+            for (auto* buffer:buffers) if (buffer) {
+                const int fd=dup(frame.completion);
+                if (fd<0) { close(frame.completion); return false; }
+                if (buffer->acquireFence>=0) close(buffer->acquireFence);
+                buffer->acquireFence=fd;
+            }
+            close(frame.completion);
+        }
+        if (result==-EAGAIN) return true;
+        if (result) return Fail("gamescope_gpu_present",VK_ERROR_INITIALIZATION_FAILED);
+        gamescopeWidth_=frame.width; gamescopeHeight_=frame.height;
+        bool gameFrame=false;
+        for (auto* buffer:buffers) if (buffer) gameFrame|=buffer->accepted.Presented(true,true);
+        ++presentationSerial_; ++presents_; desktopPresents.fetch_add(1,std::memory_order_relaxed);
+        if (gameFrame) { desktopGamePresents.fetch_add(1,std::memory_order_relaxed); rootRate_.Record(); }
+        else if (direct.empty() && gl.empty()) rootRate_.Record();
+        if (presents_==1 || presents_%300==0 || frame.gpuLayers!=lastGameGpuLayers_ || frame.fsrPasses!=lastGameFsrPasses_) OH_LOG_INFO(LOG_APP,
+            "[GAMESCOPE] presents=%{public}llu native=%{public}u filter=%{public}u fsrPasses=%{public}u cpuGameCopies=0",
+            (unsigned long long)presents_,frame.gpuLayers,frame.filter,frame.fsrPasses);
+        lastGameGpuLayers_=frame.gpuLayers; lastGameFsrPasses_=frame.fsrPasses;
+        return true;
+    }
     bool Fail(const char* stage, VkResult result) {
         OH_LOG_ERROR(LOG_APP, "stage=%{public}s vk=%{public}d", stage, result); return false;
     }
@@ -759,6 +891,12 @@ private:
         vkUpdateDescriptorSets(g.Device(), 1, &write, 0, nullptr); return true;
     }
     std::shared_ptr<Image> Import(OH_NativeBuffer* native, int width, int height) {
+        if (gamescopeStop_) {
+            auto image=std::make_shared<Image>();
+            if (OH_NativeBuffer_Reference(native)!=0) return nullptr;
+            image->native=native; image->width=width; image->height=height;
+            return image;
+        }
         auto& g = *core_;
         auto image = std::make_shared<Image>();
         image->pool = pool_;
@@ -909,6 +1047,10 @@ private:
     }
 
     DesktopCompositor& compositor_;
+    void (*gamescopeStop_)() = nullptr;
+    int (*gamescopePresent_)(VppGamescopeFrame*) = nullptr;
+    int gamescopeWidth_=0, gamescopeHeight_=0;
+    uint32_t lastGameGpuLayers_=0, lastGameFsrPasses_=0;
     std::unique_ptr<DirectVulkanContext> core_;
     VkSampler sampler_ = VK_NULL_HANDLE;
     VkDescriptorSetLayout descriptorLayout_ = VK_NULL_HANDLE;
@@ -940,7 +1082,7 @@ private:
 DirectVulkanDesktopCompositor::DirectVulkanDesktopCompositor(DesktopCompositor& compositor)
     : renderer_(std::make_unique<VulkanDesktopRenderer>(compositor)) {}
 DirectVulkanDesktopCompositor::~DirectVulkanDesktopCompositor() = default;
-bool DirectVulkanDesktopCompositor::Initialize(OHNativeWindow* window) { return renderer_->Initialize(window); }
+bool DirectVulkanDesktopCompositor::Initialize(OHNativeWindow* window, int width, int height) { return renderer_->Initialize(window,width,height); }
 bool DirectVulkanDesktopCompositor::Render(int width, int height, bool paused, bool repaint) { return renderer_->Render(width, height, paused, repaint); }
 uint64_t DirectVulkanDesktopCompositor::PresentationSerial() const { return renderer_->PresentationSerial(); }
 int DirectVulkanDesktopCompositor::Width() const { return renderer_->Width(); }

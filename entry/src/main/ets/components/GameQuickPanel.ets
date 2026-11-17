@@ -43,7 +43,7 @@ export struct GameQuickPanel {
   }
   private navigate(code: number): boolean {
     const ids = ['game-panel-resume', 'game-panel-library', 'game-panel-hud',
-      'game-scaling-linear', 'game-scaling-nearest', 'game-scaling-integer', 'game-limit-0', 'game-limit-30', 'game-limit-60']
+      'game-scaling-linear', 'game-scaling-nearest', 'game-scaling-integer', 'game-scaling-fsr', 'game-limit-0', 'game-limit-30', 'game-limit-60']
       .concat(this.tasks.map((task: HostWindowTask): string => 'game-panel-close-' + task.key));
     if (code === 2302 || code === 2070) { this.onResume(); return true; }
     const delta = code === 2012 || code === 2014 ? -1 : code === 2013 || code === 2015 ? 1 : 0;
@@ -54,9 +54,9 @@ export struct GameQuickPanel {
       if (this.focusIndex === 0) this.onResume();
       else if (this.focusIndex === 1) { this.onResume(); void HostWindowTasks.getInstance().showLauncher(); }
       else if (this.focusIndex === 2) void this.toggleHud();
-      else if (this.focusIndex < 6) void this.save({ scaling: this.focusIndex === 3 ? 'linear' : this.focusIndex === 4 ? 'nearest' : 'integer', frameLimit: this.settings.frameLimit });
-      else if (this.focusIndex < 9) void this.save({ scaling: this.settings.scaling, frameLimit: [0, 30, 60][this.focusIndex - 6] });
-      else { const task = this.tasks[this.focusIndex - 9]; if (task) void this.close(task); }
+      else if (this.focusIndex < 7) void this.save({ scaling: this.focusIndex === 3 ? 'linear' : this.focusIndex === 4 ? 'nearest' : this.focusIndex === 5 ? 'integer' : 'fsr', frameLimit: this.settings.frameLimit, sharpness: this.settings.sharpness });
+      else if (this.focusIndex < 10) void this.save({ scaling: this.settings.scaling, frameLimit: [0, 30, 60][this.focusIndex - 7], sharpness: this.settings.sharpness });
+      else { const task = this.tasks[this.focusIndex - 10]; if (task) void this.close(task); }
     }
     return true;
   }

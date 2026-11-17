@@ -20,7 +20,7 @@ class DirectVulkanDesktopCompositor {
 public:
     explicit DirectVulkanDesktopCompositor(DesktopCompositor& compositor);
     ~DirectVulkanDesktopCompositor();
-    bool Initialize(OHNativeWindow* window);
+    bool Initialize(OHNativeWindow* window, int width, int height);
     bool Render(int width, int height, bool paused = false, bool repaint = false);
     uint64_t PresentationSerial() const;
     int Width() const;
