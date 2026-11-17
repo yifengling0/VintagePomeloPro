@@ -1,0 +1,57 @@
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -4877,21 +4877,38 @@
+         const char* names[] = {"input", "easu", "output"};
+         for (unsigned n = 0; n < 3; ++n) {
+             auto src = sources[n];
+-            gamescope::OwningRc<CVulkanTexture> readback = new CVulkanTexture();
+-            CVulkanTexture::createFlags flags;
+-            flags.bMappable = flags.bTransferDst = true;
+-            if (!readback->BInit(src->width(), src->height(), 1, src->drmFormat(), flags)) continue;
++            VkBuffer buffer = VK_NULL_HANDLE;
++            VkDeviceMemory memory = VK_NULL_HANDLE;
++            const VkBufferCreateInfo create{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,nullptr,0,VkDeviceSize(src->width())*src->height()*4,VK_BUFFER_USAGE_TRANSFER_DST_BIT,VK_SHARING_MODE_EXCLUSIVE};
++            if (g_device.vk.CreateBuffer(g_device.device(),&create,nullptr,&buffer)!=VK_SUCCESS) continue;
++            VkMemoryRequirements req{}; g_device.vk.GetBufferMemoryRequirements(g_device.device(),buffer,&req);
++            const auto type=findMemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,req.memoryTypeBits);
++            const VkMemoryAllocateInfo alloc{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,nullptr,req.size,type};
++            if (type==~0u || g_device.vk.AllocateMemory(g_device.device(),&alloc,nullptr,&memory)!=VK_SUCCESS) { g_device.vk.DestroyBuffer(g_device.device(),buffer,nullptr); continue; }
++            g_device.vk.BindBufferMemory(g_device.device(),buffer,memory,0);
+             auto copy = g_device.commandBuffer();
+-            copy->copyImage(src, readback.get());
++            VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
++            barrier.image=src->vkImage(); barrier.oldLayout=barrier.newLayout=VK_IMAGE_LAYOUT_GENERAL;
++            barrier.srcQueueFamilyIndex=barrier.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;
++            barrier.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
++            barrier.srcAccessMask=VK_ACCESS_SHADER_WRITE_BIT; barrier.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;
++            g_device.vk.CmdPipelineBarrier(copy->rawBuffer(),VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&barrier);
++            VkBufferImageCopy region{}; region.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1}; region.imageExtent={src->width(),src->height(),1};
++            auto transfer=reinterpret_cast<PFN_vkCmdCopyImageToBuffer>(g_device.vk.GetDeviceProcAddr(g_device.device(),"vkCmdCopyImageToBuffer"));
++            transfer(copy->rawBuffer(),src->vkImage(),VK_IMAGE_LAYOUT_GENERAL,buffer,1,&region);
++            VkMemoryBarrier host{VK_STRUCTURE_TYPE_MEMORY_BARRIER,nullptr,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_HOST_READ_BIT};
++            g_device.vk.CmdPipelineBarrier(copy->rawBuffer(),VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,1,&host,0,nullptr,0,nullptr);
+             const auto copied = g_device.submit(std::move(copy));
+             g_device.wait(copied, false);
++            void* mapped=nullptr;
++            g_device.vk.MapMemory(g_device.device(),memory,0,VK_WHOLE_SIZE,0,&mapped);
+             char path[160];
+             snprintf(path, sizeof(path), "/data/storage/el2/base/files/gs-fsr-%s.ppm", names[n]);
+             if (FILE* f = fopen(path, "wb")) {
+                 fprintf(f, "P6\n%u %u\n255\n", src->width(), src->height());
+                 const bool bgr = src->format() == VK_FORMAT_B8G8R8A8_UNORM;
+                 for (uint32_t y = 0; y < src->height(); ++y) {
+-                    auto row = readback->mappedData() + size_t(y) * readback->rowPitch();
++                    auto row = static_cast<uint8_t*>(mapped) + size_t(y)*src->width()*4;
+                     for (uint32_t x = 0; x < src->width(); ++x) {
+                         const unsigned char rgb[] = {row[x*4+(bgr?2:0)], row[x*4+1], row[x*4+(bgr?0:2)]};
+                         fwrite(rgb, 1, 3, f);
+@@ -4899,6 +4916,9 @@
+                 }
+                 fclose(f);
+             }
++            g_device.vk.UnmapMemory(g_device.device(),memory);
++            g_device.vk.DestroyBuffer(g_device.device(),buffer,nullptr);
++            g_device.vk.FreeMemory(g_device.device(),memory,nullptr);
+         }
+         EasuPushData_t constants(&frameInfo->layers.get(0), sources[0]->width(), sources[0]->height(), sources[1]->width(), sources[1]->height());
+         if (FILE* f = fopen("/data/storage/el2/base/files/gs-fsr-constants.bin", "wb")) {
