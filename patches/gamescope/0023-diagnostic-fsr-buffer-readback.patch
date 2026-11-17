@@ -13,7 +13,7 @@
 +            const VkBufferCreateInfo create{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,nullptr,0,VkDeviceSize(src->width())*src->height()*4,VK_BUFFER_USAGE_TRANSFER_DST_BIT,VK_SHARING_MODE_EXCLUSIVE};
 +            if (g_device.vk.CreateBuffer(g_device.device(),&create,nullptr,&buffer)!=VK_SUCCESS) continue;
 +            VkMemoryRequirements req{}; g_device.vk.GetBufferMemoryRequirements(g_device.device(),buffer,&req);
-+            const auto type=g_device.findMemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,req.memoryTypeBits);
++            const uint32_t type=g_device.findMemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,req.memoryTypeBits);
 +            const VkMemoryAllocateInfo alloc{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,nullptr,req.size,type};
 +            if (type==~0u || g_device.vk.AllocateMemory(g_device.device(),&alloc,nullptr,&memory)!=VK_SUCCESS) { g_device.vk.DestroyBuffer(g_device.device(),buffer,nullptr); continue; }
 +            g_device.vk.BindBufferMemory(g_device.device(),buffer,memory,0);
