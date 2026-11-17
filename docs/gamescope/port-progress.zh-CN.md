@@ -3,8 +3,9 @@
 基线为 VPP `release/2.0.4@043a1cc0`，工作分支为 `feature/gamescope-port`。
 HSL 参考提交为 `46fe1daabd26085c617c74033f470ac9e5d912b1`，
 Gamescope 源码固定于 `e6674a98118ca7b098b98a3874b8f195ae1bf750`。
-原有界面、图形后端默认值、用户配置和正式 2.0.4 包保留。新增仅调试签名可见的
-“Gamescope 呈现检查”；完整 Game 页面尚未实现。
+原有界面、图形后端默认值、用户配置和正式 2.0.4 包保留。已新增独立 Game 游戏库、
+快捷面板和 VPP 自有合成器的 Game 呈现；仅调试签名可见的“Gamescope 呈现检查”
+继续用于独立 core 验证。真实 GPU 游戏尚未经过 Gamescope core，FSR 尚未接入。
 
 ## 已迁入和验证
 
@@ -93,20 +94,38 @@ NativeBuffer 输出已解决。手机不调用平板专用的 `StartOutputChild`
 
 按用户要求，Game 产品层共用，手机沿现有 App 内合成链适配类似的呈现功能；
 不能把独立 Gamescope 可用性当作进入 Game 页面的前置。具体实现边界见
-[手机适配方案](phone-support.zh-CN.md)。手机呈现与 FSR/限帧尚未实现或真机验收。
+[手机适配方案](phone-support.zh-CN.md)。共用 Game 页面、App 内缩放和限帧接线已实现；
+手机真机、限帧实际效果与 FSR 尚未验收。
+
+## Game 产品层与客户区呈现
+
+- Game 入口复用 Deck 的数据与卡片，提供全部、最近、Steam、本地及搜索；进入页面不启动 Wine/Steam。
+- 全局和单游戏设置在启动前解析，单游戏可跟随、开启、关闭。保持原图形后端，已有 Windows 会话设置冲突时拒绝热切换。
+- 快捷面板支持返回游戏、保留会话回库、性能浮层、下次会话的线性/最近邻/整数缩放及默认/30/60 FPS、正常退出。面板键盘 Down/Up 和手柄沿已有输入所有权管理，不向 Wine 重复投递。
+- `2ca3d728` 修复 Game 画面包含标题栏的问题：从协议关系识别唯一存活 InlineClient，以真实客户区尺寸和偏移计算缩放、层位置与输入逆映射，不猜边框宽度；含糊窗口保持安全整窗回退。保留游戏分辨率、Wine DPI 和窗口状态。
+- Mini 的 PAL4 主菜单和存档页已确认去标题栏、800×600 客户区等比放大、4:3 双侧黑边；点选存档和读取确认框的坐标正确，中文正常。该路径是现有 Wayland/VPP 合成器，X11 的 Game 专用裁切尚未接通。
+- `d74507f1` 的面板键盘隔离已在 Mini 验证：Down+Enter 返回游戏库，保留原会话，未将两键传给 Wine。
+- `042600eb` 新增退出监测：仅在 native 呈现接收后开始，真实进程及最后窗口均退出才返回；查询失败、残留子进程和其他前台窗口不能触发返回。Steam 复用原客户端；游戏库恢复非输入框焦点，避免搜索键盘自动弹出。行为测试通过；Mini 已验证保留会话回库、从运行中恢复和 PAL4 菜单退出后自动返回 Game（保留此前子页面）。Steam 返回只有主机测试，尚未真机验收。
+- 已接入帧调度与生产者节拍设置，但尚无完整同条件游戏 3×60 秒测量；不能把宿主上屏计数视为游戏 FPS。
+- 载入 PAL4 存档时仍见既有 Zink 白地面/几何异常；与本次标题栏修复分开记录，未将其标为已解决。
+
+本轮主机通过 `test-game-mode-models`、`test-game-presentation` 和 `test-compositor-migration`
+（92 项，零失败）。完整 suite 中旧 Linux Steam 接口测试，以及缺少展开 Wine 子模块的
+手柄 replay 尚未全过，不以本轮定向测试代替完整验收。
 
 ## 尚未完成的交付范围
 
 1. GPU 游戏 NativeBuffer/fence importer、窗口关联与消费退役，覆盖 Direct/Venus/VirGL。
    HSL `HslImage` 的 GNU 私有传输仍为参考；不得跨 VkDevice 使用原始 VkImage。
-2. 单一输入通道、焦点/黑边逆映射、相对鼠标、IME、授权剪贴板与多手柄接入。
-3. 完整 Game 游戏库、Steam 大屏入口、单游戏覆盖、持久化设置、快捷面板与正常退出。
-4. FSR、限帧实效与手机合成链；PAL4、Heaven、DX11、Steam 派发及严格性能对照。
+2. X11 Game 最终裁切与对应输入；扩大相对鼠标、IME、授权剪贴板与实体多手柄回归。
+3. Game 库与快捷面板的完整生命周期、Steam 派发/退出返回及单游戏覆盖真机验收。
+4. FSR、限帧实效与手机真机；PAL4、Heaven、DX11 及严格性能对照。
 5. 完整生命周期、资源增长和手机真机回归。
 
 调试包与回退包位于固定 `workspace_temp/gamescope-port/`，各有大小和 SHA-256 收据。
-最终 HAP 为 633,763,667 字节，SHA-256：
-`d6367ab76394f95a07603c139b240311a94d7fcc620f2cab05ec71ac4a70a011`。
+当前代码包对应 `042600ebd491827293a05835b0199bf3e2c4bc51`，调试 HAP 为
+633,843,538 字节，SHA-256：
+`289143c1cba350f76f144a9647d7198b7b6e6bd7423ed7a29baf330fc01a9cfe`。
 所有与 PAL4 调试基线共有的包成员均做 SHA-256 对照，没有成员删除；Wine 数据
 ZIP 和原有 native 载荷（除 App 控制层 libentry）一致。新增七个 native 成员。
 Gamescope core 经 Hvigor 去符号后，所有 ELF allocated section 与已链接 core 相同。
