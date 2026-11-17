@@ -31,6 +31,8 @@ function fixture() {
   let acceptStop = false;
   let gameEnabled = false, nativeSession = null, queryThrows = false;
   const timers = new Map();
+  let clock = 100000, waitAction = () => {};
+  const steamCards = [];
   const native = {
     stopWineSession(id) { stopRequests.push(id); return acceptStop; },
     killProcess(pid) { killRequests.push(pid); return true; },
@@ -52,6 +54,11 @@ function fixture() {
   const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root,
     isDesktopAbilityForeground:()=>false, usesEmbeddedDesktopHost:()=>false,
     resumeDesktopHost:async()=>{ starts.push({abilityName:'DesktopAbility',parameters:{toplevelId:root}}); } };
+  const steam = { canLaunch: () => true, ensureGpuDependencies: async () => {},
+    prepareRuntimeHelper: async () => {}, prepareLibraryPerformance: async () => {},
+    isCompatibility: () => false, getClientDirectory: () => 'C:/Steam',
+    getCards: () => steamCards,
+    processesFor: (app, processes) => processes.filter(p => p.path === app.launchTarget.executable && p.state === 'running') };
   const dependencies = {
     'libentry.so': { default: native },
     './LogService': { hilog: { info() {}, warn() {}, error() {} } },
@@ -59,7 +66,7 @@ function fixture() {
     '../model/GraphicsBackendSettings': require(path.join(compiledRoot, 'model/GraphicsBackendSettings.js')),
     '../model/AppCatalogRules': rules,
     './GameModeService': { GameModeService: { begin() {}, finish() {}, reset() {},
-      present: () => gameEnabled, enabled: () => gameEnabled } },
+      present: () => gameEnabled, enabled: () => gameEnabled, noteActiveApp() {} } },
     './WineEngineService': { WineEngineService: { getInstance: () => engine } },
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,
@@ -70,14 +77,17 @@ function fixture() {
     }) } },
     './InputOverlayWindowCoordinator': {},
     './AppCatalogService': {},
-    '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => ({ getCards: () => [], processesFor: () => [] }) } },
-    '../steam/SteamLocalRules': { STEAM_CLIENT_ID: 'steam-client-default' },
+    '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => steam } },
+    '../steam/SteamLocalRules': { STEAM_CLIENT_ID: 'steam-client-default', steamLaunchArguments: () => ['steam://open/games'] },
     '@ohos.file.fs': { default: { mkdirSync() {}, OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 }, openSync() { return { fd: 1 }; }, writeSync() {}, closeSync() {} } },
     './GameContainer': { DEFAULT_GAME_CONTAINER_ID: 'default', wineDriveCForContainer: () => '/data/storage/el2/base/files/.wine/drive_c' }
   };
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    Date: { now: () => clock },
+    setTimeout: (action, delay) => { clock += delay; waitAction(); queueMicrotask(action); return 1; },
+    clearTimeout() {},
     setInterval: action => { const id = timers.size + 1; timers.set(id, action); return id; },
     clearInterval: id => timers.delete(id),
     require(name) {
@@ -96,7 +106,7 @@ function fixture() {
     enableGame: () => { gameEnabled = true; },
     setNativeSession: value => { nativeSession = value; },
     failProcessQuery: value => { queryThrows = value; },
-    timers
+    timers, steam, steamCards, onWait: action => { waitAction = action; }
   };
 }
 
@@ -328,4 +338,77 @@ function fixture() {
     assert.equal(returns, 1);
   }
   console.log('AppSession startup/root, stop acceptance, process reconciliation and Game exit return: PASS');
+  const steamApp = { id: 'steam-client-default', steam: { state: 'client' },
+    launchTarget: { executable: 'C:/Steam/steam.exe', arguments: [], workingDirectory: 'C:/Steam' } };
+  const launched = { appId: steamApp.id, sessionId: 'sender', pid: 42, toplevelId: 0 };
+  { // Cold launch registers its carrier but never presents an empty desktop.
+    const f = fixture(); f.setState(models.EngineState.READY);
+    f.service.associateToplevel('desktop', 0, 7);
+    const result = await f.service.launchReady(steamApp, f.globalSettings, models.DisplayMode.DESKTOP,
+      models.WinePresentationMode.DESKTOP, '/games');
+    assert.equal(f.launches.length, 1); assert.equal(f.starts.length, 0);
+    assert.equal(result.automaticForeground, false);
+    f.steam.ensureGpuDependencies = async () => { throw Error('Steam GPU dependency failed'); };
+    await assert.rejects(f.service.launchReady(steamApp, f.globalSettings, models.DisplayMode.DESKTOP,
+      models.WinePresentationMode.DESKTOP, '/games'), /GPU dependency failed/);
+    assert.equal(f.launches.length, 1); assert.equal(f.starts.length, 0);
+  }
+  { // Desktop and a same-title unrelated app cannot satisfy Steam readiness.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    tasks.onEvent(7, 'desktop_root', '{}');
+    tasks.onEvent(90, 'created', JSON.stringify({ sessionId: 'other', clientPid: 999 }));
+    tasks.onEvent(90, 'title', JSON.stringify({ title: 'Steam' }));
+    f.processes.push({ pid: 42, sessionId: 'sender', path: 'C:/Steam/steam.exe', state: 'running' });
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    assert.equal(f.starts.length, 0, 'Do not show an empty desktop as successful startup');
+    assert.equal(f.killRequests.length, 0, 'Timeout never kills the imported client');
+    assert.equal(f.timers.size, 0, 'No background polling leaks after timeout');
+  }
+  { // Bootstrap exits; the real client/window belongs to a new native session.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    let waits = 0, resumed = null;
+    f.service.resume = async session => { resumed = session; };
+    f.onWait(() => {
+      if (++waits !== 2) return;
+      f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' });
+      tasks.onEvent(91, 'created', JSON.stringify({ sessionId: 'real-client', clientPid: 82 }));
+    });
+    const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
+    assert.equal(ready.pid, 82); assert.equal(ready.sessionId, 'real-client');
+    assert.equal(resumed, ready); assert.equal(ready.toplevelId, 91);
+    assert.equal(waits, 2); assert.equal(ready.automaticForeground, true);
+  }
+  { // Warm URI forwarding uses the existing real client, respecting navigation.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    const navigation = tasks.navigationSerial(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'warm-client', path: 'C:/Steam/steam.exe', state: 'running' });
+    tasks.onEvent(92, 'created', JSON.stringify({ sessionId: 'warm-client', clientPid: 82 }));
+    let resumed = false; f.service.resume = async () => { resumed = true; };
+    assert.equal((await f.service.waitForSteamClientWindow(steamApp, launched, navigation)).pid, 82);
+    assert.equal(resumed, false, 'A later user navigation wins over startup auto-focus');
+    f.setState(models.EngineState.ERROR);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, navigation), /会话已停止/);
+  }
+  { // Queued setup errors retain their cause rather than silently returning null.
+    const f = fixture(); f.setState(models.EngineState.READY);
+    let failure;
+    f.service.launchReady = async () => { throw Error('Steam helper is unavailable'); };
+    f.service.pendingLaunches.push({ app: steamApp, settings: f.globalSettings,
+      presentationMode: models.WinePresentationMode.DESKTOP, resolve() { assert.fail('Failure was swallowed'); },
+      reject: error => { failure = error; } });
+    f.service.drainPendingLaunches(); await Promise.resolve(); await Promise.resolve();
+    assert.match(failure.message, /helper is unavailable/);
+  }
+  { // A recycled PID at the same Steam path cannot claim an old live window.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 42, sessionId: 'new-incarnation', path: 'C:/Steam/steam.exe', state: 'running' });
+    tasks.onEvent(93, 'created', JSON.stringify({ sessionId: 'sender', clientPid: 42 }));
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    assert.equal(f.starts.length, 0);
+  }
+  console.log('Steam real-window readiness, bootstrap handoff, warm navigation, bounded timeout and error propagation: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

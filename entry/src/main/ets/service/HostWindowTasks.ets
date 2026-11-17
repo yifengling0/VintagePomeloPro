@@ -69,6 +69,7 @@ export class HostWindowTasks {
   }
   markDesktopForeground(): void { this.launcherForeground = false; }
   isLauncherForeground(): boolean { return this.launcherForeground; }
+  navigationSerial(): number { return this.request; }
   async showLauncher(): Promise<void> {
     this.markLauncherForeground();
     if (this.launcher) await this.launcher();
