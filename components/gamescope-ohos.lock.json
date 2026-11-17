@@ -369,6 +369,13 @@
       "originalPath": "src/rendervulkan.hpp",
       "beforeSha256": "f371e3c04e24622247d38c51f97a63f9b805847d77d3bf408995541dfdc0a7bd",
       "afterSha256": "7d319af3185c1142a5cbd8a7a805020f24968b718b03eb3bfea785b22d7ff95d"
+    },
+    {
+      "path": "patches/gamescope/0018-ohos-opaque-fsr-output.patch",
+      "sha256": "915c886650a0a66eaa754f1ccf57a307ddebe0f88123b40aef4b5538c87eca03",
+      "originalPath": "src/shaders/cs_composite_rcas.comp",
+      "beforeSha256": "7ea8db52ebff8f8e4e518a31294993671ecf0f843d0626b1fc66c41beaf7d987",
+      "afterSha256": "03cd0a98c30171f33b97fea461373dbd255d10b69e0ed077d7fefadea355f832"
     }
   ],
   "overlays": [
