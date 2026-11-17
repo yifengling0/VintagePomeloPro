@@ -1,5 +1,8 @@
 # Game 侧栏、系统模式开关与 Steam 启动修复
 
+本文为当时未连接设备的历史检查点。后续 Mini 安装、Steam 派发游戏与退出验证见
+[2026-11-18 真机评价](steam-game-mode-evaluation-20261118.zh-CN.md)，不再以本文“未安装”描述当前状态。
+
 ## 本轮范围
 
 基于 `feature/gamescope-port@b3dc9fc3`，产品变更分为：
