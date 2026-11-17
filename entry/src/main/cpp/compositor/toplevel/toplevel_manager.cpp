@@ -102,7 +102,7 @@ ToplevelManager::SizeCommitEffect ToplevelManager::HandleCommittedSizeLocked(
 
 void ToplevelManager::SyncFullscreenContentSizeLocked(uint32_t id, int32_t w, int32_t h) {
     auto* st = FindToplevelLocked(id);
-    if (!st || w <= 0 || h <= 0 || !st->IsFullscreen()) return;
+    if (!st || w <= 0 || h <= 0 || !st->IsPresentationFullscreen()) return;
     if (st->ClientContentW() == w && st->ClientContentH() == h) return;
     if (w >= st->Width() && h >= st->Height()) return;
     /*

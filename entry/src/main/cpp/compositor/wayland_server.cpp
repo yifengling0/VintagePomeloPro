@@ -260,7 +260,7 @@ void WaylandServer::RaiseToplevel(uint32_t id, bool userInitiated) {
     // 先于首帧 commit 时经此路径取号), 与"不重新取号"不冲突。
     // 见 ToplevelState::fsPriority
     if (userInitiated) {
-        if (const auto* rst = toplevelMgr_.FindToplevelLocked(id); rst && rst->IsFullscreen())
+        if (const auto* rst = toplevelMgr_.FindToplevelLocked(id); rst && rst->IsPresentationFullscreen())
             toplevelMgr_.BumpFsPriorityLocked(id);
     }
     // 任务栏始终在顶层 (app_id == "explorer.exe.taskbar");
@@ -401,6 +401,7 @@ void WaylandServer::OnToplevelDestroyed(uint32_t toplevelId) {
                 desktopCompositor_.zc().InvalidateBindingsForSurface(sd->clientPid, sd->protocolId);
         }
         toplevelMgr_.EraseToplevelLocked(toplevelId);
+        if (gamePresentationTarget_ == toplevelId) gamePresentationTarget_ = 0;
         // 会话状态读写经 DesktopSessionState (重构第 6B 步: 旧为宿主私有字段,
         // 清空点/时机/锁域逐字不变)
         if (session_.pendingDesktopRootToplevelId == toplevelId)
@@ -478,6 +479,7 @@ void WaylandServer::TryBeginSessionFirstFrame(uint32_t toplevelId, wl_resource* 
 }
 
 void WaylandServer::ResetSessionState() {
+    PresentGameToplevel(0);
     // Wine 会话终结统一收口。只重置「进程级一次性/漂移状态」— 随 toplevel
     // 销毁自愈的字段 (root/pending/taskbar, OnToplevelDestroyed 锁内清理)
     // 不在这里重复, 避免锁外写非 atomic 字段与锁内读的竞态。
@@ -594,6 +596,24 @@ void WaylandServer::SetToplevelFullscreen(uint32_t id, bool on) {
     }
     InputManager::GetInstance()->InvalidateRelativePointerBaseline(
         on ? "fullscreen-enter" : "fullscreen-exit");
+}
+
+bool WaylandServer::PresentGameToplevel(uint32_t id) {
+    // X11 uses its own desktop canvas; never send EWMH fullscreen as a
+    // substitute for a presentation-only transform.
+    if (id && x11_toplevel_owns(id)) return false;
+    {
+        auto lock = toplevelMgr_.Lock();
+        auto* target = id ? toplevelMgr_.FindToplevelLocked(id) : nullptr;
+        if (id && (!target || id == session_.desktopRootToplevelId)) return false;
+        if (gamePresentationTarget_ == id) return true;
+        if (auto* old = toplevelMgr_.FindToplevelLocked(gamePresentationTarget_)) old->SetGamePresentation(false);
+        gamePresentationTarget_ = id;
+        if (target) target->SetGamePresentation(true);
+        MarkDesktopRootDirtyLocked();
+    }
+    InputManager::GetInstance()->InvalidateRelativePointerBaseline("game-presentation-target");
+    return true;
 }
 
 void WaylandServer::ForceToplevelRedraw(uint32_t id) {

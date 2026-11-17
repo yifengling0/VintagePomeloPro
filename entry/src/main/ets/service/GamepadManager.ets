@@ -37,6 +37,12 @@ export class GamepadManager {
   private connected: boolean = false;
   private outputMode: ControllerOutputMode = 'dinput';
   private hostNavigation: boolean = false;
+  private uiCapture: boolean = false;
+  setUiCapture(captured: boolean): void {
+    if (captured === this.uiCapture) return;
+    this.releaseAll(); this.uiCapture = captured;
+    try { testNapi.controllerSetUiCapture(captured); } catch (_) {}
+  }
 
   setHostNavigation(enabled: boolean): void {
     if (this.hostNavigation === enabled) return;
@@ -215,6 +221,7 @@ export class GamepadManager {
       this.navigationPressed.delete(keyCode);
       return true;
     }
+    if (this.uiCapture) return true;
     // dinput: Physical already feeds ControllerHub in native; skip evdev mapping.
     if (this.outputMode === 'dinput') {
       if (this.buttonMappings.has(keyCode)) {
@@ -238,6 +245,7 @@ export class GamepadManager {
   }
 
   handleRightStick(x: number, y: number): void {
+    if (this.uiCapture) return;
     if (this.outputMode === 'dinput') {
       if (Math.abs(x) >= this.deadzone || Math.abs(y) >= this.deadzone) this.notifyActivity();
       return;
@@ -276,6 +284,7 @@ export class GamepadManager {
       this.lastNavigationAxis = direction;
       if (direction && this.lastNavigationAxisHandled) return;
     }
+    if (this.uiCapture) return;
     if (this.outputMode === 'dinput') {
       const active = Math.abs(x) >= this.deadzone || Math.abs(y) >= this.deadzone;
       if (active) this.notifyActivity();

@@ -1,3 +1,4 @@
+#include "input/controller/controller_hub.h"
 #include "bridge/system_open.h"
 #include "graphics/game_presentation.h"
 #include "gamescope/runtime_napi.h"
@@ -1842,8 +1843,23 @@ static napi_value Init(napi_env env, napi_value exports) {
                 (strcmp(scaling, "linear") && strcmp(scaling, "nearest") && strcmp(scaling, "integer"))) {
                 napi_throw_type_error(env, nullptr, "Invalid Game presentation settings"); return nullptr;
             }
+            if (!enabled) WaylandServer::GetInstance()->PresentGameToplevel(0);
             winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"), fps);
             napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"controllerSetUiCapture", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
+            size_t count = 1; napi_value arg; bool capture = false;
+            napi_get_cb_info(env, info, &count, &arg, nullptr, nullptr);
+            if (count == 1 && napi_get_value_bool(env, arg, &capture) == napi_ok)
+                winehua::controller::ControllerHub::Instance().SetUiCapture(capture);
+            napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"presentGameToplevel", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
+            size_t count = 1; napi_value arg, result; uint32_t id = 0;
+            napi_get_cb_info(env, info, &count, &arg, nullptr, nullptr);
+            const bool accepted = count == 1 && napi_get_value_uint32(env, arg, &id) == napi_ok &&
+                winehua::game::Enabled() && WaylandServer::GetInstance()->PresentGameToplevel(id);
+            napi_get_boolean(env, accepted, &result); return result;
         }, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"prepareGamescopeProcessBackend", nullptr, winehua::gamescope::PrepareRuntime,
             nullptr, nullptr, nullptr, napi_default, nullptr},

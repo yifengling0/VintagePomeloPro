@@ -363,3 +363,7 @@ export const setSystemOpenEnabled: (enabled: boolean) => void;
 export const setOpenTargetCallback: (callback: ((target: string) => boolean) | null) => void;
 
 export const configureGamePresentation: (enabled: boolean, scaling: string, frameLimit: number) => void;
+
+export const presentGameToplevel: (id: number) => boolean;
+
+export const controllerSetUiCapture: (captured: boolean) => void;

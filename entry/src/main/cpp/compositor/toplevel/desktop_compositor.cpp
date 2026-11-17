@@ -389,7 +389,7 @@ std::vector<CompositorLayer> DesktopCompositor::BuildLayerListLocked(int rootW, 
         layer.y = cst->Y();
         layer.w = cst->Width();
         layer.h = cst->Height();
-        layer.fullscreen = cst->IsFullscreen();
+        layer.fullscreen = cst->IsPresentationFullscreen();
         laneOf.emplace(childId, zi);
         pending.push_back(std::move(p));
         const auto source = ExternalSourceLocked(childId);
@@ -823,7 +823,7 @@ bool DesktopCompositor::GetDirectDesktopLayout(uint32_t pid, uint32_t id,
     out.y = state->Y() + client->subsurfaceY;
     DirectImageSampling sampling;
     if (!ComputeDirectViewport(client->directViewport, imageW, imageH, out.w, out.h, sampling)) return reject("invalid_viewport");
-    out.fullscreen = state->IsFullscreen();
+    out.fullscreen = state->IsPresentationFullscreen();
     if (imageW <= 0 || imageH <= 0) return false;
     const auto layers = BuildLayerListLocked(root->Width(), root->Height());
     const uint32_t fullscreenId = PickFullscreenLayerLocked(layers);
@@ -996,7 +996,7 @@ bool DesktopCompositor::ShouldSkipFullscreenCascade(const CompositorLayer& layer
         return layer.fullscreen;
     if (layer.type == CompositorLayer::Type::Subsurface) {
         const auto* parent = tmgr.FindToplevelLocked(layer.toplevelId);
-        return parent && parent->IsFullscreen();
+        return parent && parent->IsPresentationFullscreen();
     }
     return false;
 }

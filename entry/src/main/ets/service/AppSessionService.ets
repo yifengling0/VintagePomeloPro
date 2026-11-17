@@ -609,6 +609,10 @@ export class AppSessionService {
       }
     }
     if (session.toplevelId > 0) {
+      if (session.appId !== STEAM_CLIENT_ID && session.appId !== DESKTOP_APP_ID &&
+        !isWineInfrastructurePath(session.executable)) {
+        try { GameModeService.present(session.toplevelId); } catch (_) {}
+      }
       try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
     }
     if (session.presentationMode === WinePresentationMode.DESKTOP) {
@@ -831,6 +835,10 @@ export class AppSessionService {
       !WineEngineService.getInstance().isReady() || session.toplevelId <= 0) return;
     hilog.info(DOMAIN, '[SESS]', 'auto-promote session=%{public}s tl=%{public}d',
       session.sessionId, session.toplevelId);
+    if (session.appId !== STEAM_CLIENT_ID && session.appId !== DESKTOP_APP_ID &&
+      !isWineInfrastructurePath(session.executable)) {
+      try { GameModeService.present(session.toplevelId); } catch (_) {}
+    }
     const tl = session.toplevelId;
     const sid = session.sessionId;
     // DWA 已在前台显示桌面时，程序窗口会直接出现在桌面合成里，无需再

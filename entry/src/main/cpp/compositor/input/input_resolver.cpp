@@ -312,7 +312,7 @@ bool InputResolver::CanMoveExternalHost(uint32_t source, uint32_t host)
     auto lock = tmgr_.Lock();
     const auto* window = tmgr_.FindToplevelLocked(host);
     return source && host && compositor_.ExternalHostLocked(source) == host && window &&
-        !window->IsMinimized() && !window->IsFullscreen();
+        !window->IsMinimized() && !window->IsPresentationFullscreen();
 }
 
 bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly,
@@ -334,7 +334,7 @@ bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, doubl
         return false;
     }
     // Do not warp through a cascaded fullscreen window that is not displayed.
-    if (st->IsFullscreen()) {
+    if (st->IsPresentationFullscreen()) {
         // 与 FindInputTargetAt 全屏分支同一几何 (ComputeFullscreenFitLocked),
         // 保证 warp 锚点与输入逆映射互为正反变换
         int rootW, rootH;

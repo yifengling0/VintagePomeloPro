@@ -17,6 +17,7 @@ public:
     static ControllerHub& Instance();
 
     void SetEnabled(bool enabled);
+    void SetUiCapture(bool captured);
     bool IsEnabled() const;
 
     void SetButton(ControllerSourceId source, uint32_t slot, LogicalButton button, bool pressed);
@@ -62,6 +63,7 @@ private:
 
     mutable std::mutex mutex_;
     bool enabled_ = false;
+    bool uiCapture_ = false;
     float innerDeadzone_ = 0.10f;
     SlotState slots_[kMaxControllerSlots];
     StateListener listener_;

@@ -119,6 +119,8 @@ public:
     void SetToplevelMaximizedState(uint32_t id, bool on);
     // 全屏状态登记 (desktop 合成按保比例缩放+黑边绘制, 输入按同一变换逆映射)
     void SetToplevelFullscreen(uint32_t id, bool on);
+    // Host-only fit: preserve guest buffer size, DPI and xdg configure state.
+    bool PresentGameToplevel(uint32_t id);
     // surface 尺寸变化后强制下次渲染循环取帧重绘 (避免旧 viewport 贴新 surface 导致黑边)
     void ForceToplevelRedraw(uint32_t id);
     // 鸿蒙侧 surface 尺寸变化时调用: 发 configure 通知 Wine 用新尺寸渲染。
@@ -296,6 +298,7 @@ private:
 
     // toplevel 状态存储已移入 ToplevelManager (compositor/toplevel_manager.h)
     ToplevelManager toplevelMgr_;
+    uint32_t gamePresentationTarget_ = 0; // guarded by toplevelMgr_
 
     void MarkDesktopRootDirtyLocked() { desktopRootMgr_.MarkRootDirtyLocked(); }
 

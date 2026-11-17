@@ -372,6 +372,31 @@ int main() {
         CHECK(restored && !st.IsMinimized() && st.X() == 80 && st.Y() == 90,
               "restore ignores stale Wine geometry after a compositor drag");
     }
+    { // Game fit is local presentation, never a Wine fullscreen configure.
+        Scene s(1600, 900); s.setWindow(2, 400, 300, 0xff123456);
+        {
+            auto lk = s.tm.Lock(); auto& st = s.tm.EnsureToplevelLocked(2);
+            st.SetPosition(80, 90); st.SetWinePosition(80, 90);
+            st.SetGamePresentation(true);
+            CHECK(st.IsPresentationFullscreen() && !st.IsFullscreen(), "host fit does not change guest state");
+            CHECK(st.X() == 80 && st.Y() == 90, "host fit preserves windowed position");
+            CHECK(s.tm.HandleCommittedSizeLocked(2, 1, 400, 300, 1600, 900) ==
+                  ToplevelManager::SizeCommitEffect::ResizeEvent, "host fit never reasserts guest fullscreen size");
+        }
+        const auto scene = DirectSnapshot(s, 400, 300);
+        CHECK(Rect(DirectLayer(scene), 200, 0, 1200, 900), "Game GPU output fits original content");
+        double x = 0, y = 0;
+        CHECK(s.input.SurfaceLocalToDesktop(&s.parent, 200, 150, x, y) && x == 800 && y == 450,
+              "Game pointer warp shares the GPU fit");
+        {
+            auto lk = s.tm.Lock(); auto& st = s.tm.EnsureToplevelLocked(2);
+            st.SetGamePresentation(false);
+            CHECK(!st.IsPresentationFullscreen() && st.Width() == 400 && st.Height() == 300 &&
+                  st.X() == 80 && st.Y() == 90, "leaving Game restores exact guest geometry");
+            st.ApplyFullscreen(true); st.SetGamePresentation(true); st.SetGamePresentation(false);
+            CHECK(st.IsFullscreen() && st.IsPresentationFullscreen(), "leaving Game preserves real fullscreen");
+        }
+    }
     std::printf("compositor migration: %d checks, %d failures\n",checks,failures);
     return failures ? 1 : 0;
 }

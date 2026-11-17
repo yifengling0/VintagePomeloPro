@@ -48,6 +48,11 @@ export class GameModeService {
     GameModeService.previous = null;
   }
 
+  static present(toplevelId: number): void {
+    if (!GameModeService.owner?.enabled || toplevelId <= 0) return;
+    testNapi.presentGameToplevel(toplevelId);
+  }
+
   private static publish(value: GamePresentation | null): void {
     const enabled = value?.enabled === true;
     testNapi.configureGamePresentation(enabled, value?.settings.scaling ?? 'linear', value?.settings.frameLimit ?? 0);
