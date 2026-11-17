@@ -16,7 +16,7 @@
 
 | 平台 | 进程和最终呈现 | 当前状态 |
 | --- | --- | --- |
-| 平板/PC 和手机的 Game 会话 | App 内嵌入 OHOS Gamescope core，通过 NativeBuffer/fence 导入、最终 NativeWindow 输出和官方 EASU/RCAS 合成 | GPU 桥和 FSR 已接入；新 storage 输出、颜色和 FP16 仍需 Mini 复测，手机尚未真机验收 |
+| 平板/PC 和手机的 Game 会话 | App 内嵌入 OHOS Gamescope core，通过 NativeBuffer/fence 导入、最终 NativeWindow 输出和官方 EASU/RCAS 合成 | GPU 桥和 FSR 已接入；Mini 后续画面与 Steam 正版游戏生命周期结果见 [11 月 18 日评价](steam-game-mode-evaluation-20261118.zh-CN.md)，手机尚未真机验收 |
 | 支持 NCP 的平板/PC 的独立诊断 | 独立 OHOS Gamescope core，通过 OHIPC 交接 NativeWindow | Mini 历史 SHM 五轮启停与三次 resize 通过；不是实际游戏或新 storage 输出验收 |
 
 手机已有早期 clean fork server 可启动纯运行时子进程；没有服务或服务已死亡时不得
@@ -47,3 +47,7 @@ HDI/SAMGR 服务获取中等待，零帧。见
 手机单独验证正常初始化、游戏画面、旋转、后台恢复、五轮退出重入；以相同后端、
 实际游戏/输出尺寸比较普通模式和 Game 模式。Mini 的任何通过结果不能代替手机验收。
 本轮没有手机真机结果；共用 UI、GPU 桥和 FSR 已实现，手机的 FSR、限帧实效及上述呈现回归仍待验收。
+
+2.0.5 打包时复核了手机模式设置顺序、同进程呈现、Direct 探测保护和窄屏面板，
+相关主机行为测试通过；查询仅有平板在线，仍未以平板结果代替手机验收。
+详见 [2.0.5 交付记录](../upstream-sync/release-2.0.5.zh-CN.md)。
