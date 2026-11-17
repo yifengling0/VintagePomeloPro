@@ -604,8 +604,10 @@ bool WaylandServer::PresentGameToplevel(uint32_t id) {
     if (id && x11_toplevel_owns(id)) return false;
     {
         auto lock = toplevelMgr_.Lock();
-        auto* target = id ? toplevelMgr_.FindToplevelLocked(id) : nullptr;
-        if (id && (!target || id == session_.desktopRootToplevelId)) return false;
+        // Desktop created arrives before the first buffer. Validate the live
+        // xdg resource and retain the host fit in its initially empty state.
+        if (id && (id == session_.desktopRootToplevelId || !toplevelMgr_.FindToplevelResource(id))) return false;
+        auto* target = id ? &toplevelMgr_.EnsureToplevelLocked(id) : nullptr;
         if (gamePresentationTarget_ == id) return true;
         if (auto* old = toplevelMgr_.FindToplevelLocked(gamePresentationTarget_)) old->SetGamePresentation(false);
         gamePresentationTarget_ = id;

@@ -94,6 +94,8 @@ export struct GameQuickPanel {
           }, (task: HostWindowTask): string => task.key)
         }.width('100%').padding(24).backgroundColor(skinColor('page_background')).borderRadius(20)
       }.width('92%').constraintSize({ maxWidth: 560, maxHeight: '90%' }).scrollBar(BarState.Auto)
-    }.width('100%').height('100%').hitTestBehavior(HitTestMode.Block).id('game-quick-panel')
+    }.width('100%').height('100%').hitTestBehavior(HitTestMode.Default).id('game-quick-panel')
+      .onTouch((event: TouchEvent): void => event.stopPropagation())
+      .onMouse((event: MouseEvent): void => event.stopPropagation())
   }
 }

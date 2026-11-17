@@ -2465,7 +2465,8 @@ export struct VirtualInputOverlay {
         GameQuickPanel({ onResume: (): void => { this.gamePanel = false; } }).zIndex(100)
       }
     }
-    .width('100%').height('100%').hitTestBehavior(HitTestMode.Block).id('wine-vintage-gamepad-overlay')
+    .width('100%').height('100%')
+    .hitTestBehavior(this.gamePanel ? HitTestMode.Default : HitTestMode.Block).id('wine-vintage-gamepad-overlay')
     .onTouch((event: TouchEvent): void => this.handleOverlayTouch(event))
     .onMouse((event: MouseEvent): void => this.handleOverlayMouse(event))
     .onAxisEvent((event?: AxisEvent): void => this.onUnhandledAxis(event))
