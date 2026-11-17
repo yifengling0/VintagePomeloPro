@@ -56,6 +56,7 @@ function fixture() {
     '../model/AppModels': models,
     '../model/GraphicsBackendSettings': require(path.join(compiledRoot, 'model/GraphicsBackendSettings.js')),
     '../model/AppCatalogRules': rules,
+    './GameModeService': { GameModeService: { begin() {}, finish() {}, reset() {} } },
     './WineEngineService': { WineEngineService: { getInstance: () => engine } },
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,

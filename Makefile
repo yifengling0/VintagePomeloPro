@@ -35,6 +35,17 @@ GAMESCOPE_APP_CMAKE ?= $(ROOT)/entry/.cxx/proRelease/default/release/arm64-v8a
 gamescope-app-native:
 	cmake --build $(GAMESCOPE_APP_CMAKE) --target gamescope_child entry -j4
 
+.PHONY: test-game-presentation test-game-mode-models
+test-game-presentation:
+	mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp \
+	  $(ROOT)/host_tests/game_presentation_test.cpp $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp \
+	  -o $(ROOT)/build/host-tests/game_presentation_test
+	$(ROOT)/build/host-tests/game_presentation_test
+
+test-game-mode-models:
+	MODEL_TEST_SCOPE=game bash $(ROOT)/scripts/run_model_unit_tests.sh
+
 .PHONY: gamescope-debug-hap
 gamescope-debug-hap:
 	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony \

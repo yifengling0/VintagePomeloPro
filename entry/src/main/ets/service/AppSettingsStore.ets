@@ -1,3 +1,4 @@
+import { normalizeGameModeOverride, normalizeGameModeSettings } from '../model/GameModeSettings';
 import preferences from '@ohos.data.preferences';
 import { normalizePerformanceHud } from '../model/PerformanceHudSettings';
 import { normalizeAppGraphicsBackend } from '../model/GraphicsBackendSettings';
@@ -257,6 +258,7 @@ export class AppSettingsStore {
       wineLanguage: normalizeWineLanguage(current.wineLanguage),
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode ?? DesktopWindowMode.FULLSCREEN,
+      gameMode: normalizeGameModeSettings(current.gameMode),
       keepScreenOn: current.keepScreenOn,
       wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
@@ -332,6 +334,7 @@ export class AppSettingsStore {
         systemOpenEnabled: stored.systemOpenEnabled === true,
         box64Preset: stored.box64Preset ?? defaults.box64Preset,
         desktopInputProfileId: stored.desktopInputProfileId ?? defaults.desktopInputProfileId,
+        gameMode: normalizeGameModeSettings(stored.gameMode),
         viewMode: stored.viewMode ?? defaults.viewMode,
         uiSkin: stored.uiSkin === UiSkin.CONSOLE || stored.uiSkin === UiSkin.DECK ? UiSkin.DECK : UiSkin.CLASSIC,
         consoleCardLayout: stored.consoleCardLayout === ConsoleCardLayout.BENTO_TILES ?
@@ -399,6 +402,8 @@ export class AppSettingsStore {
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
       graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+      gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),
+      gameModeSettings: value.gameModeSettings ? normalizeGameModeSettings(value.gameModeSettings) : undefined,
       dxvkFloatControls: value.dxvkFloatControls !== false,
       fexStrictPrecision: value.fexStrictPrecision === true,
       disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager ?? defaults.disableMfDxgiDeviceManager,
@@ -435,6 +440,7 @@ export class AppSettingsStore {
       wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
+      gameMode: normalizeGameModeSettings(current.gameMode),
       keepScreenOn: current.keepScreenOn,
       wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
@@ -474,6 +480,7 @@ export class AppSettingsStore {
       wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
+      gameMode: normalizeGameModeSettings(current.gameMode),
       keepScreenOn: current.keepScreenOn,
       wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
@@ -513,6 +520,7 @@ export class AppSettingsStore {
       wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
+      gameMode: normalizeGameModeSettings(current.gameMode),
       keepScreenOn: current.keepScreenOn,
       wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
@@ -553,6 +561,7 @@ export class AppSettingsStore {
       wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
+      gameMode: normalizeGameModeSettings(current.gameMode),
       keepScreenOn: current.keepScreenOn,
       wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
@@ -592,6 +601,7 @@ export class AppSettingsStore {
       wineLanguage: current.wineLanguage,
       desktopOrientation: current.desktopOrientation,
       desktopWindowMode: current.desktopWindowMode,
+      gameMode: normalizeGameModeSettings(current.gameMode),
       keepScreenOn: current.keepScreenOn,
       wineTranslationEngine: normalizeWineTranslationEngine(current.wineTranslationEngine),
       wineDisplayRoute: current.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',

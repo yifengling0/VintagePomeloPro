@@ -1,3 +1,4 @@
+import { GameModeOverride, GameModeSettings, normalizeGameModeOverride, normalizeGameModeSettings } from './GameModeSettings';
 import { bindingToEvdevName, evdevNameToBinding } from '../common/EvdevKeyNames';
 import { PerformanceHudSettings, normalizePerformanceHud } from './PerformanceHudSettings';
 import { normalizeAppGraphicsBackend } from './GraphicsBackendSettings';
@@ -545,6 +546,8 @@ export interface AppSettings {
   graphicsLaunchPreset: string;
   /** default inherits the system renderer when launching. */
   graphicsBackend?: string;
+  gameModeOverride?: GameModeOverride;
+  gameModeSettings?: GameModeSettings;
   /** 每游戏 DXVK 浮点控制；关闭时向该游戏注入 d3d11.floatControls=False。默认开启。 */
   dxvkFloatControls: boolean;
   /** FEX 严格 x87 精度；仅影响此应用，默认保留性能策略。 */
@@ -573,6 +576,8 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
     graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+    gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),
+    gameModeSettings: value.gameModeSettings ? normalizeGameModeSettings(value.gameModeSettings) : undefined,
     dxvkFloatControls: value.dxvkFloatControls !== false,
     fexStrictPrecision: value.fexStrictPrecision === true,
     disableMfDxgiDeviceManager: value.disableMfDxgiDeviceManager === true,
@@ -587,6 +592,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
 }
 
 export interface GlobalSettings {
+  gameMode?: GameModeSettings;
   /** Original OHOS Wine 32-bit WoW64 backend; ARM64EC remains unchanged. */
   wineTranslationEngine: WineTranslationEngine;
   wineDisplayRoute?: string;
@@ -1247,6 +1253,7 @@ export function createBuiltInInputProfiles(): InputProfile[] {
 
 export function createDefaultGlobalSettings(): GlobalSettings {
   return {
+    gameMode: normalizeGameModeSettings(),
     wineTranslationEngine: WineTranslationEngine.FEX,
     wineDisplayRoute: 'wayland',
     systemOpenEnabled: false,
@@ -1302,6 +1309,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
     graphicsBackend: 'default',
+    gameModeOverride: 'follow',
     dxvkFloatControls: true,
     fexStrictPrecision: false,
     disableMfDxgiDeviceManager: false,

@@ -6,7 +6,7 @@ NODE="$TOOL_HOME/tool/node/bin/node"
 TSC="$TOOL_HOME/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/tsc.js"
 OUTPUT="${MODEL_TEST_DIR:-$ROOT/build/host_tests/models}"
 mkdir -p "$OUTPUT/ts/model" "$OUTPUT/ts/common" "$OUTPUT/js"
-sources=(model/AppModels model/GraphicsBackendSettings model/AppCatalogRules model/PerformanceHudSettings model/ValueAddedModels model/MembershipCommerce model/CloudSaveModels model/SaveBackupModels model/AccountSyncModels common/EvdevKeyNames)
+sources=(model/GameModeSettings model/AppModels model/GraphicsBackendSettings model/AppCatalogRules model/PerformanceHudSettings model/ValueAddedModels model/MembershipCommerce model/CloudSaveModels model/SaveBackupModels model/AccountSyncModels common/EvdevKeyNames)
 inputs=()
 for source in "${sources[@]}"; do
     cp "$ROOT/entry/src/main/ets/$source.ets" "$OUTPUT/ts/$source.ts"
@@ -14,9 +14,17 @@ for source in "${sources[@]}"; do
 done
 "$NODE" "$TSC" --target ES2020 --module commonjs --skipLibCheck \
     --rootDir "$OUTPUT/ts" --outDir "$OUTPUT/js" "${inputs[@]}"
+if [[ "${MODEL_TEST_SCOPE:-}" == "game" ]]; then
+    "$NODE" "$ROOT/scripts/run_game_mode_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
+    "$NODE" "$ROOT/scripts/run_catalog_unit_tests.cjs" "$OUTPUT/js/model"
+    "$NODE" "$ROOT/scripts/run_input_controls_unit_tests.cjs" "$OUTPUT/js"
+    "$NODE" "$ROOT/scripts/run_app_session_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
+    exit 0
+fi
 "$NODE" "$ROOT/scripts/run_value_added_unit_tests.cjs" "$OUTPUT/js"
 "$NODE" "$ROOT/scripts/run_catalog_unit_tests.cjs" "$OUTPUT/js/model"
 "$NODE" "$ROOT/scripts/run_input_controls_unit_tests.cjs" "$OUTPUT/js"
+"$NODE" "$ROOT/scripts/run_game_mode_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_app_session_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_host_window_task_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_deck_launch_feedback_tests.cjs" "${TSC%/tsc.js}/typescript.js"

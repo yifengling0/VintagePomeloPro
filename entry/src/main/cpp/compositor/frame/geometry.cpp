@@ -1,5 +1,6 @@
 #include "display/desktop_fit.h"
 #include "geometry.h"
+#include "graphics/game_presentation.h"
 #include <algorithm>
 #include <cmath>
 
@@ -9,6 +10,8 @@ bool ComputeFitRect(int rootW, int rootH, int winW, int winH, FitRect& out)
     out.srcW = winW;
     out.srcH = winH;
     out.scale = std::min(rootW / static_cast<double>(winW), rootH / static_cast<double>(winH));
+    // Integer enlargement falls back to fit when the source is larger; never crop.
+    if (winehua::game::Integer() && out.scale >= 1.0) out.scale = std::floor(out.scale);
     // dst 取整用 lround (而非截断): 居中偏移 (root - dst) / 2 两侧的取整方向对称,
     // 避免历史实现中截断导致的 1px 系统性偏移
     out.dstW = std::max(1, static_cast<int>(lround(winW * out.scale)));

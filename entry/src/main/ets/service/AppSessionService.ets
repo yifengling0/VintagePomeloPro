@@ -1,3 +1,4 @@
+import { GameModeService } from './GameModeService';
 import { common, Want } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
 import { hilog } from './LogService';
@@ -109,6 +110,7 @@ export class AppSessionService {
     // 引擎明确失败/停止是桌面根等待的终止信号：条件被破坏，立即放行等待者。
     WineEngineService.getInstance().subscribe((state: EngineState): void => {
       if (state === EngineState.ERROR || state === EngineState.STOPPED) {
+        GameModeService.reset();
         this.settleDesktopRootWaiters(null);
       }
     });
@@ -165,8 +167,16 @@ export class AppSessionService {
   private launchTail: Promise<void> = Promise.resolve();
 
   launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
-    const request = this.launchTail.then((): Promise<RuntimeSession | null> =>
-      this.launchQueued(app, settings, homeDirectory));
+    const request = this.launchTail.then(async (): Promise<RuntimeSession | null> => {
+      const state = WineEngineService.getInstance().getState();
+      GameModeService.begin(app, settings, state !== EngineState.STOPPED && state !== EngineState.ERROR);
+      let success = false;
+      try {
+        const result = await this.launchQueued(app, settings, homeDirectory);
+        success = result !== null;
+        return result;
+      } finally { GameModeService.finish(success); }
+    });
     this.launchTail = request.then((): void => {}, (): void => {});
     return request;
   }

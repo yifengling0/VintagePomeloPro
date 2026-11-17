@@ -1,4 +1,5 @@
 #include "bridge/system_open.h"
+#include "graphics/game_presentation.h"
 #include "gamescope/runtime_napi.h"
 #include "wine/prefix_reset.h"
 #include <napi/native_api.h>
@@ -1830,6 +1831,20 @@ static napi_value Init(napi_env env, napi_value exports) {
         OH_LOG_ERROR(LOG_APP, "[ProcReg] child reaper initialization failed");
 
     napi_property_descriptor desc[] = {
+        {"configureGamePresentation", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
+            size_t argc = 3; napi_value argv[3];
+            bool enabled = false; char scaling[16]{}; size_t length = 0; int32_t fps = 0;
+            napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+            if (argc != 3 || napi_get_value_bool(env, argv[0], &enabled) != napi_ok ||
+                napi_get_value_string_utf8(env, argv[1], scaling, sizeof(scaling), &length) != napi_ok ||
+                napi_get_value_int32(env, argv[2], &fps) != napi_ok ||
+                (fps != 0 && fps != 30 && fps != 60) ||
+                (strcmp(scaling, "linear") && strcmp(scaling, "nearest") && strcmp(scaling, "integer"))) {
+                napi_throw_type_error(env, nullptr, "Invalid Game presentation settings"); return nullptr;
+            }
+            winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"), fps);
+            napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"prepareGamescopeProcessBackend", nullptr, winehua::gamescope::PrepareRuntime,
             nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startGamescopeDiagnosticClient", nullptr, winehua::gamescope::StartDiagnosticClient,

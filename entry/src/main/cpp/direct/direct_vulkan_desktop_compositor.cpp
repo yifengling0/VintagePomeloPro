@@ -1,3 +1,4 @@
+#include "graphics/game_presentation.h"
 #include "direct_vulkan_desktop_compositor.h"
 #include "direct_vulkan_context.h"
 #include "direct_wine_surface_controller.h"
@@ -225,7 +226,7 @@ public:
         if (background_) {
             background_ = false;
             for (const auto& [key, layer] : glLayers_)
-                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, cadence_.PeriodNs());
+                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, winehua::game::ProducerPeriodNs(cadence_.PeriodNs()));
             scene_ = {};
             renderedExtent_ = {};
         }
@@ -254,9 +255,9 @@ public:
         if (!UpdateSources()) return false;
         if (cadence_.Refresh(winehua::PerfNowUs())) {
             for (const auto& [key, layer] : glLayers_)
-                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, cadence_.PeriodNs());
+                GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key, winehua::game::ProducerPeriodNs(cadence_.PeriodNs()));
             OH_LOG_INFO(LOG_APP, "[DISPLAY-CADENCE] period_ns=%{public}llu rate=%{public}.2fHz",
-                (unsigned long long)cadence_.PeriodNs(), 1e9 / cadence_.PeriodNs());
+                (unsigned long long)winehua::game::ProducerPeriodNs(cadence_.PeriodNs()), 1e9 / winehua::game::ProducerPeriodNs(cadence_.PeriodNs()));
         }
         UpdateGlSources();
         std::vector<GpuDesktopDirectSource> direct;
@@ -553,7 +554,7 @@ private:
                     layer->window.Adopt(OH_NativeImage_AcquireNativeWindow(consumer),
                                        NativeWindowReleaseMode::UnreferenceNativeObject);
                     if (!layer->window || !broker.AttachZeroCopyTarget(source.surfaceKey,
-                            layer->window.Get(), background_ ? 100000000ull : cadence_.PeriodNs(), source.vulkan)) continue;
+                            layer->window.Get(), background_ ? 100000000ull : winehua::game::ProducerPeriodNs(cadence_.PeriodNs()), source.vulkan)) continue;
                     compositor_.zc().BindSurface(source.surfaceKey, geometry.shmCommitSerial);
                     OH_LOG_INFO(LOG_APP, "[VIRGL-VK] attached key=%{public}llu size=%{public}ux%{public}u generation=%{public}llu vulkan=%{public}d",
                         (unsigned long long)source.surfaceKey, source.width, source.height,
@@ -848,7 +849,8 @@ private:
     bool InitializeSampler() {
         auto& g = *core_;
         VkSamplerCreateInfo sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
-        sampler.magFilter = sampler.minFilter = VK_FILTER_NEAREST;
+        sampler.magFilter = sampler.minFilter = winehua::game::Enabled() && !winehua::game::Nearest()
+            ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
         sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
         sampler.addressModeU = sampler.addressModeV = sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         if (!Check(vkCreateSampler(g.Device(), &sampler, nullptr, &sampler_), "scene_sampler")) return false;
