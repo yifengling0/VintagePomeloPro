@@ -1,0 +1,575 @@
+--- a/src/backend.h
++++ b/src/backend.h
+@@ -363,6 +363,11 @@
+         virtual bool SupportsTearing() const = 0;
+ 
+         virtual bool UsesVulkanSwapchain() const = 0;
++        // Separate output ownership from the external-image transport contract.
++        virtual bool UsesBackendSwapchain() const { return false; }
++        virtual bool UsesDmaBufImages() const { return true; }
++        virtual bool RequiresDynamicRendering() const { return true; }
++        virtual bool SupportsDeferredInit() const { return true; }
+         virtual bool IsSessionBased() const = 0;
+ 
+         virtual bool SupportsExplicitSync() const = 0;
+--- a/src/backends.h
++++ b/src/backends.h
+@@ -10,6 +10,7 @@
+         SDL,
+         OpenVR,
+         Headless,
++        Hsl,
+         Wayland,
+     };
+ 
+@@ -18,5 +19,6 @@
+     class CDRMBackend;
+     class COpenVRBackend;
+     class CHeadlessBackend;
++    class CHslBackend;
+     class CWaylandBackend;
+ }
+--- a/src/backend.cpp
++++ b/src/backend.cpp
+@@ -43,7 +43,7 @@
+             s_pBackend = pBackend;
+             if ( !s_pBackend->Init() )
+             {
+-                if ( g_bAllowDeferredBackend )
++                if ( g_bAllowDeferredBackend && pBackend->SupportsDeferredInit() )
+                 {
+                     s_pBackend = new CDeferredBackend( pBackend );
+                     if ( !s_pBackend->Init() )
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -195,6 +195,7 @@
+ 	"                                     openvr => use OpenVR backend (outputs as a VR overlay)\n"
+ #endif
+ 	"                                     headless => use headless backend (no window, no DRM output)\n"
++	"                                     hsl => explicit GNU HSL output (experimental)\n"
+ 	"                                     wayland => use Wayland backend\n"
+ 	"  --cursor                       path to default cursor image\n"
+ 	"  -R, --ready-fd                 notify FD when ready\n"
+@@ -432,6 +433,8 @@
+ 	} else if (strcmp(str, "openvr") == 0) {
+ 		return gamescope::GamescopeBackend::OpenVR;
+ #endif
++	} else if (strcmp(str, "hsl") == 0) {
++		return gamescope::GamescopeBackend::Hsl;
+ 	} else if (strcmp(str, "headless") == 0) {
+ 		return gamescope::GamescopeBackend::Headless;
+ 	} else if (strcmp(str, "wayland") == 0) {
+@@ -991,6 +994,10 @@
+ 			gamescope::IBackend::Set<gamescope::COpenVRBackend>();
+ 			break;
+ #endif
++		case gamescope::GamescopeBackend::Hsl:
++			gamescope::IBackend::Set<gamescope::CHslBackend>();
++			break;
++
+ 		case gamescope::GamescopeBackend::Headless:
+ 			gamescope::IBackend::Set<gamescope::CHeadlessBackend>();
+ 			break;
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -107,6 +107,7 @@
+ 
+ src = [
+   'Backends/HeadlessBackend.cpp',
++    'Backends/HslBackend.cpp',
+   'Backends/WaylandBackend.cpp',
+   'Utils/DirHelpers.cpp',
+   'Utils/TempFiles.cpp',
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -205,6 +205,9 @@
+ 		return format() == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+ 	}
+ 
++	// Set only after a host upload's GPU submission has actually completed.
++	bool hostUploadComplete() const { return m_bHostUploadComplete; }
++	void markHostUploadComplete() { m_bHostUploadComplete = true; }
+ 	int memoryFence();
+ 
+ 	CVulkanTexture( void );
+@@ -214,6 +217,7 @@
+ 
+ private:
+ 	bool m_bInitialized = false;
++	bool m_bHostUploadComplete = false;
+ 	bool m_bExternal = false;
+ 	bool m_bTransferSrc = false;
+ 	bool m_bOutputImage = false;
+@@ -759,6 +763,7 @@
+ 	VK_FUNC(CmdWriteTimestamp) \
+ 	VK_FUNC(CreateBuffer) \
+ 	VK_FUNC(CreateCommandPool) \
++	VK_FUNC(DestroyCommandPool) \
+ 	VK_FUNC(CreateComputePipelines) \
+ 	VK_FUNC(CreateDescriptorPool) \
+ 	VK_FUNC(CreateDescriptorSetLayout) \
+@@ -871,6 +876,7 @@
+ 	inline VkPipelineLayout pipelineLayout() {return m_pipelineLayout;}
+ 	inline int drmRenderFd() {return m_drmRendererFd;}
+ 	inline bool supportsModifiers() {return m_bSupportsModifiers;}
++	bool supportsDynamicRendering() const { return m_bDynamicRendering; }
+ 	inline bool hasDrmPrimaryDevId() {return m_bHasDrmPrimaryDevId;}
+ 	inline dev_t primaryDevId() {return m_drmPrimaryDevId;}
+ 	inline bool supportsFp16() {return m_bSupportsFp16;}
+@@ -941,6 +947,7 @@
+ 	uint32_t m_uUploadAlignment = 16;
+ 	bool m_bHasDrmPrimaryDevId = false;
+ 	bool m_bSupportsModifiers = false;
++	bool m_bDynamicRendering = false;
+ 	bool m_bInitialized = false;
+ 	bool m_bNullDescriptors = false;
+ 	std::unique_ptr<hsl::VulkanDescriptorFallback> m_descriptorFallback;
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -96,6 +96,7 @@
+ 	}
+ }
+ 
++extern std::string g_reshade_effect;
+ PFN_vkGetInstanceProcAddr g_pfn_vkGetInstanceProcAddr;
+ PFN_vkCreateInstance g_pfn_vkCreateInstance;
+ 
+@@ -126,6 +127,8 @@
+ VulkanOutput_t g_output;
+ 
+ uint32_t g_uCompositeDebug = 0u;
++gamescope::ConVar<bool> cv_shader_precompile{ "shader_precompile", true, "Precompile the full compositor pipeline matrix" };
++
+ gamescope::ConVar<uint32_t> cv_composite_debug{ "composite_debug", 0, "Debug composition flags" };
+ 
+ static std::map< VkFormat, std::map< uint64_t, VkDrmFormatModifierPropertiesEXT > > DRMModifierProps = {};
+@@ -325,7 +328,8 @@
+ 
+ 	m_bInitialized = true;
+ 
+-	m_pipelineThread = std::jthread([this](std::stop_token st){compileAllPipelines(st);});
++	if (cv_shader_precompile)
++		m_pipelineThread = std::jthread([this](std::stop_token st){compileAllPipelines(st);});
+ 
+ 	g_reshadeManager.init(this);
+ 
+@@ -451,7 +455,7 @@
+ 
+ 	vk.GetPhysicalDeviceMemoryProperties( physDev(), &m_memoryProperties );
+ 
+-	bool hasDrmProps = vulkan_has_drm_props();
++	bool hasDrmProps = GetBackend()->UsesDmaBufImages() && vulkan_has_drm_props();
+ 	bool supportsForeignQueue = false;
+ 	bool supportsHDRMetadata = false;
+ 	for (const auto& ext : m_supportedExts) {
+@@ -516,6 +520,7 @@
+ #endif
+ 	}
+ 
++	if (!GetBackend()->UsesDmaBufImages()) m_bSupportsModifiers = false;
+ 	if ( m_bSupportsModifiers && !supportsForeignQueue ) {
+ 		vk_log.infof( "The vulkan driver does not support foreign queues,"
+ 		              " disabling modifier support.");
+@@ -582,16 +587,42 @@
+ 			enabledExtensions.push_back( VK_EXT_HDR_METADATA_EXTENSION_NAME );
+ 	}
+ 
++	if (GetBackend()->UsesBackendSwapchain())
++		enabledExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
++
+ 	if ( m_bSupportsModifiers )
+ 	{
+ 		enabledExtensions.push_back( VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME );
+ 		enabledExtensions.push_back( VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME );
+ 	}
+ 
+-	enabledExtensions.push_back( VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME );
+-	enabledExtensions.push_back( VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME );
+-
+-	enabledExtensions.push_back( VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME );
++	if (GetBackend()->UsesDmaBufImages())
++	{
++		enabledExtensions.push_back( VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME );
++		enabledExtensions.push_back( VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME );
++		enabledExtensions.push_back( VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME );
++	}
++
++	VkPhysicalDeviceProperties physicalProperties{};
++	vk.GetPhysicalDeviceProperties(physDev(), &physicalProperties);
++	const bool dynamicCore = physicalProperties.apiVersion >= VK_API_VERSION_1_3;
++	const bool dynamicExt = std::any_of(m_supportedExts.begin(), m_supportedExts.end(), [](const auto& ext) {
++		return strcmp(ext.extensionName, VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME) == 0;
++	});
++	VkPhysicalDeviceDynamicRenderingFeatures dynamicFeatures{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES};
++	if (dynamicCore || dynamicExt)
++	{
++		VkPhysicalDeviceFeatures2 supported{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &dynamicFeatures};
++		vk.GetPhysicalDeviceFeatures2(physDev(), &supported);
++		m_bDynamicRendering = dynamicFeatures.dynamicRendering;
++	}
++	if (!m_bDynamicRendering && (GetBackend()->RequiresDynamicRendering() || !g_reshade_effect.empty()))
++	{
++		vk_log.errorf("dynamic rendering required by backend or requested ReShade effect");
++		return false;
++	}
++	if (m_bDynamicRendering && !dynamicCore)
++		enabledExtensions.push_back(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+ 
+ 	// Null descriptors are optional. The fallback binds real typed images and
+ 	// carries LUT presence separately; it does not emulate the Vulkan feature.
+@@ -646,17 +677,11 @@
+ 	};
+ #endif
+ 
+-	VkPhysicalDeviceVulkan13Features features13 = {
+-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+-#if 0
+-		.pNext = &maintenance5,
+-#endif
+-		.dynamicRendering = VK_TRUE,
+-	};
++	void* dynamicChain = m_bDynamicRendering ? &dynamicFeatures : nullptr;
+ 
+ 	VkPhysicalDevicePresentWaitFeaturesKHR presentWaitFeatures = {
+ 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_WAIT_FEATURES_KHR,
+-		.pNext = &features13,
++		.pNext = dynamicChain,
+ 		.presentWait = VK_TRUE,
+ 	};
+ 
+@@ -668,7 +693,7 @@
+ 
+ 	VkPhysicalDeviceFeatures2 features2 = {
+ 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+-		.pNext = &features13,
++		.pNext = dynamicChain,
+ 		.features = {
+ 			.shaderStorageImageWriteWithoutFormat = VK_TRUE,
+ 			.shaderInt16 = m_bSupportsFp16,
+@@ -735,6 +760,12 @@
+ 	#define VK_FUNC(x) vk.x = (PFN_vk##x) vk.GetDeviceProcAddr(device(), "vk"#x);
+ 	VULKAN_DEVICE_FUNCTIONS
+ 	#undef VK_FUNC
++	if (m_bDynamicRendering)
++	{
++		if (!vk.CmdBeginRendering) vk.CmdBeginRendering = (PFN_vkCmdBeginRendering)vk.GetDeviceProcAddr(device(), "vkCmdBeginRenderingKHR");
++		if (!vk.CmdEndRendering) vk.CmdEndRendering = (PFN_vkCmdEndRendering)vk.GetDeviceProcAddr(device(), "vkCmdEndRenderingKHR");
++		if (!vk.CmdBeginRendering || !vk.CmdEndRendering) return false;
++	}
+ 
+ 	vk.GetDeviceQueue(device(), m_queueFamily, 0, &m_queue);
+ 	if ( m_queueFamily == m_generalQueueFamily )
+@@ -1523,6 +1554,7 @@
+ 
+ std::shared_ptr<VulkanTimelineSemaphore_t> CVulkanDevice::CreateTimelineSemaphore( uint64_t ulStartPoint, bool bShared )
+ {
++	if (bShared && !GetBackend()->UsesDmaBufImages()) return nullptr;
+ 	std::shared_ptr<VulkanTimelineSemaphore_t> pSemaphore = std::make_unique<VulkanTimelineSemaphore_t>();
+ 	pSemaphore->pDevice = this;
+ 
+@@ -1559,6 +1591,7 @@
+ 
+ std::shared_ptr<VulkanTimelineSemaphore_t> CVulkanDevice::ImportTimelineSemaphore( gamescope::CTimeline *pTimeline )
+ {
++	if (!GetBackend()->UsesDmaBufImages()) return nullptr;
+ 	std::shared_ptr<VulkanTimelineSemaphore_t> pSemaphore = std::make_unique<VulkanTimelineSemaphore_t>();
+ 	pSemaphore->pDevice = this;
+ 
+@@ -2201,6 +2234,11 @@
+ 
+ bool CVulkanTexture::BInit( uint32_t width, uint32_t height, uint32_t depth, uint32_t drmFormat, createFlags flags, wlr_dmabuf_attributes *pDMA /* = nullptr */,  uint32_t contentWidth /* = 0 */, uint32_t contentHeight /* =  0 */, CVulkanTexture *pExistingImageToReuseMemory, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb )
+ {
++	if (!GetBackend()->UsesDmaBufImages() && (pDMA || flags.bExportable || flags.bFlippable))
++	{
++		vk_log.errorf("DMA-BUF import/export unavailable for selected transport");
++		return false;
++	}
+ 	m_pBackendFb = std::move( pBackendFb );
+ 	m_drmFormat = drmFormat;
+ 	VkResult res = VK_ERROR_INITIALIZATION_FAILED;
+@@ -2938,6 +2976,11 @@
+ 
+ int CVulkanTexture::memoryFence()
+ {
++	if (!GetBackend()->UsesDmaBufImages() || !g_device.vk.GetMemoryFdKHR)
++	{
++		errno = EOPNOTSUPP;
++		return -1;
++	}
+ 	const VkMemoryGetFdInfoKHR memory_get_fd_info = {
+ 		.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+ 		.memory = m_vkImageMemory,
+@@ -3042,6 +3085,7 @@
+ 	}
+ 
+ 	wlr_drm_format_set_add( &sampledShmFormats, drmFormat, DRM_FORMAT_MOD_LINEAR );
++	if (!GetBackend()->UsesDmaBufImages()) return true;
+ 
+ 	if ( g_device.supportsModifiers() )
+ 	{
+@@ -3337,7 +3381,7 @@
+ gamescope::OwningRc<CVulkanTexture> vulkan_create_flat_texture( uint32_t width, uint32_t height, uint8_t r, uint8_t g, uint8_t b, uint8_t a )
+ {
+ 	CVulkanTexture::createFlags flags;
+-	flags.bFlippable = true;
++	flags.bFlippable = GetBackend()->UsesDmaBufImages();
+ 	flags.bSampled = true;
+ 	flags.bTransferDst = true;
+ 
+@@ -3652,6 +3696,11 @@
+ 	VulkanOutput_t *pOutput = &g_output;
+ 
+ 	VkResult result;
++	if (GetBackend()->UsesBackendSwapchain())
++	{
++		GetBackend()->GetPreferredOutputFormat(&pOutput->uOutputFormat, &pOutput->uOutputFormatOverlay);
++		return pOutput->uOutputFormat != DRM_FORMAT_INVALID && pOutput->uOutputFormatOverlay != DRM_FORMAT_INVALID;
++	}
+ 	
+ 	if ( GetBackend()->UsesVulkanSwapchain() )
+ 	{
+@@ -3894,6 +3943,7 @@
+ 
+ 	g_device.submit(std::move(cmdBuffer));
+ 	g_device.waitIdle();
++	pTex->markHostUploadComplete();
+ 
+ 	return pTex;
+ }
+@@ -4514,6 +4564,11 @@
+ 		outputTF = EOTF_Count; //Disable blending stuff.
+ 
+ 	g_pLastReshadeEffect = nullptr;
++	if (!g_reshade_effect.empty() && !g_device.supportsDynamicRendering())
++	{
++		vk_log.errorf("requested ReShade effect requires dynamic rendering");
++		return std::nullopt;
++	}
+ 	if (!g_reshade_effect.empty())
+ 	{
+ 		if (frameInfo->layers.get( 0 ).tex)
+@@ -4894,7 +4949,7 @@
+ {
+ 	if (buffer_caps & WLR_BUFFER_CAP_DMABUF)
+ 	{
+-		return &sampledDRMFormats;
++		return GetBackend()->UsesDmaBufImages() ? &sampledDRMFormats : nullptr;
+ 	}
+ 	else if (buffer_caps & WLR_BUFFER_CAP_DATA_PTR)
+ 	{
+@@ -5025,7 +5080,7 @@
+ 	texCreateFlags.bSampled = true;
+ 	texCreateFlags.bTransferSrc = true;
+ 	texCreateFlags.bTransferDst = true;
+-	texCreateFlags.bFlippable = true;
++	texCreateFlags.bFlippable = GetBackend()->UsesDmaBufImages();
+ 	if ( pTex->BInit( width, height, 1u, drmFormat, texCreateFlags, nullptr, 0, 0, nullptr, pBackendFb ) == false )
+ 		return nullptr;
+ 
+@@ -5037,6 +5092,7 @@
+ 	uint64_t sequence = g_device.submit(std::move(cmdBuffer));
+ 
+ 	g_device.wait(sequence);
++	pTex->markHostUploadComplete();
+ 
+ 	g_device.vk.DestroyBuffer(g_device.device(), buffer, nullptr);
+ 	g_device.vk.FreeMemory(g_device.device(), bufferMemory, nullptr);
+--- a/src/Backends/DeferredBackend.h
++++ b/src/Backends/DeferredBackend.h
+@@ -227,6 +227,11 @@
+             return m_pChild->UsesVulkanSwapchain();
+ 		}
+ 
++        bool UsesBackendSwapchain() const override { return m_pChild->UsesBackendSwapchain(); }
++        bool UsesDmaBufImages() const override { return m_pChild->UsesDmaBufImages(); }
++        bool RequiresDynamicRendering() const override { return m_pChild->RequiresDynamicRendering(); }
++        bool SupportsDeferredInit() const override { return m_pChild->SupportsDeferredInit(); }
++
+         virtual bool IsSessionBased() const override
+ 		{
+             // Doesn't need to be 'initted' for this check.
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -832,7 +832,7 @@
+ 	free(green_data);
+ 
+ 	CVulkanTexture::createFlags texCreateFlags;
+-	texCreateFlags.bFlippable = true;
++	texCreateFlags.bFlippable = GetBackend()->UsesDmaBufImages();
+ 	texCreateFlags.bSampled = true;
+ 	s_MuraCorrectionImage[gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL] = vulkan_create_texture_from_bits(w, h, w, h, DRM_FORMAT_ABGR8888, texCreateFlags, (void*)data);
+ 	free(data);
+@@ -1848,16 +1848,21 @@
+ 		commit->fifo = false;
+ 	}
+ 
+-	if ( gamescope::OwningRc<CVulkanTexture> pTexture = s_BufferMemos.LookupVulkanTexture( buf ) )
+-	{
+-		// Going from OwningRc -> Rc now.
+-		commit->vulkanTex = pTexture;
+-		return commit;
+-	}
+-
+ 	struct wlr_dmabuf_attributes dmabuf = {0};
++	const bool bDmaBuf = wlr_buffer_get_dmabuf( buf, &dmabuf );
++	// A DMA-BUF import aliases live storage. A host upload is an immutable
++	// snapshot: SHM clients may reuse the same wl_buffer with new content.
++	// Never reuse a previous snapshot merely because its buffer id matches.
++	if ( bDmaBuf )
++	{
++		if ( auto pTexture = s_BufferMemos.LookupVulkanTexture( buf ) )
++		{
++			commit->vulkanTex = pTexture;
++			return commit;
++		}
++	}
+ 	gamescope::OwningRc<gamescope::IBackendFb> pBackendFb;
+-	if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
++	if ( bDmaBuf )
+ 	{
+ 		pBackendFb = GetBackend()->ImportDmabufToBackend( &dmabuf );
+ 	}
+@@ -1871,7 +1876,8 @@
+ 
+ 	commit->vulkanTex = pOwnedTexture;
+ 
+-	s_BufferMemos.MemoizeBuffer( buf, std::move( pOwnedTexture ) );
++	if ( bDmaBuf )
++		s_BufferMemos.MemoizeBuffer( buf, std::move( pOwnedTexture ) );
+ 
+ 	return commit;
+ }
+@@ -2321,7 +2327,7 @@
+ 	}
+ 
+ 	CVulkanTexture::createFlags texCreateFlags;
+-	texCreateFlags.bFlippable = true;
++	texCreateFlags.bFlippable = GetBackend()->UsesDmaBufImages();
+ 	if ( GetBackend()->SupportsPlaneHardwareCursor() )
+ 	{
+ 		texCreateFlags.bLinear = true; // cursor buffer needs to be linear
+@@ -8341,7 +8347,7 @@
+ 	CVulkanTexture::createFlags imageFlags;
+ 	imageFlags.bSampled = true;
+ 	imageFlags.bStorage = true;
+-	imageFlags.bFlippable = true;
++	imageFlags.bFlippable = GetBackend()->UsesDmaBufImages();
+ 	return GetPooledImage( pFocus->UpscaleImages, pFocus->uNextUpscaleImage, uWidth, uHeight, uDrmFormat, imageFlags, "upscale" );
+ }
+ 
+@@ -8351,7 +8357,7 @@
+ 	imageFlags.bSampled = true;
+ 	imageFlags.bTransferSrc = true;
+ 	imageFlags.bTransferDst = true;
+-	imageFlags.bFlippable = !GetBackend()->UsesModifiers() || GetBackend()->SupportsFormat( pLike->drmFormat() );
++	imageFlags.bFlippable = GetBackend()->UsesDmaBufImages() && (!GetBackend()->UsesModifiers() || GetBackend()->SupportsFormat( pLike->drmFormat() ));
+ 	return GetPooledImage( w->overrideBlitImages, w->uNextOverrideBlitImage, pLike->width(), pLike->height(), pLike->drmFormat(), imageFlags, "override blit" );
+ }
+ 
+@@ -8733,7 +8739,15 @@
+ 		}
+ 		else
+ 		{
+-			fence = newCommit->vulkanTex->memoryFence();
++			if (GetBackend()->UsesDmaBufImages())
++				fence = newCommit->vulkanTex->memoryFence();
++			else if (newCommit->vulkanTex->hostUploadComplete())
++				bKnownReady = true;
++			else
++			{
++				xwm_log.errorf("Local texture has no completed upload or acquire dependency");
++				return;
++			}
+ 		}
+ 	}
+ 
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -2349,7 +2349,8 @@
+ 
+ 	// Have to make this old ancient thing for compat with older XWayland.
+ 	// Someday, he will be purged.
+-	wlr_drm_create(wlserver.display, wlserver.wlr.renderer);
++	if (GetBackend()->UsesDmaBufImages())
++		wlr_drm_create(wlserver.display, wlserver.wlr.renderer);
+ 
+ 	if ( GetBackend()->SupportsExplicitSync() )
+ 	{
+--- a/src/mangoapp.cpp
++++ b/src/mangoapp.cpp
+@@ -1,4 +1,6 @@
+ #include <sys/ipc.h>
++#include <cstdlib>
++extern bool env_to_bool(const char*);
+ #include <unistd.h>
+ #include <sys/msg.h>
+ #include <algorithm>
+@@ -14,6 +16,12 @@
+ #include "steamcompmgr.hpp"
+ #include "refresh_rate.h"
+ #include "main.hpp"
++
++static bool mangoapp_queue_enabled()
++{
++    static const bool enabled = !env_to_bool(getenv("GAMESCOPE_MANGOAPP_SOCKET_DISABLE"));
++    return enabled;
++}
+ 
+ static bool inited = false;
+ static int msgid = 0;
+@@ -72,6 +80,7 @@
+ // The queue outlives gamescope and types start over every run, so leave nothing behind.
+ void mangoapp_drop_stream( uint32_t uMsgType )
+ {
++    if (!mangoapp_queue_enabled()) return ;
+     if (!inited)
+         init_mangoapp();
+ 
+@@ -92,6 +101,7 @@
+ 
+ void mangoapp_set_connector_snapshots( std::unordered_map<uint32_t, MangoappSnapshot_t> snapshots )
+ {
++    if (!mangoapp_queue_enabled()) return ;
+     std::unique_lock lock( s_SnapshotMutex );
+     s_ConnectorSnapshots = std::move( snapshots );
+ }
+@@ -110,6 +120,7 @@
+ // Sends still waiting for room, in order. Returns how many remain.
+ uint32_t mangoapp_flush_control( const std::vector<uint32_t> &msgTypes )
+ {
++    if (!mangoapp_queue_enabled()) return 0;
+     if (!inited)
+         init_mangoapp();
+ 
+@@ -126,6 +137,7 @@
+ 
+ MangoappControlRelay_t mangoapp_relay_control( const std::vector<uint32_t> &msgTypes )
+ {
++    if (!mangoapp_queue_enabled()) return {};
+     MangoappControlRelay_t relay;
+ 
+     // Finish the last fan-out first, so no instance sees commands out of order.
+@@ -169,6 +181,7 @@
+ // A fresh instance starts on the file alone, so what mangohudctl asked goes over its own control type.
+ void mangoapp_post_control( uint32_t uMsgType, uint8_t uNoDisplay, bool bStartLogging )
+ {
++    if (!mangoapp_queue_enabled()) return ;
+     if (!inited)
+         init_mangoapp();
+ 
+@@ -193,6 +206,7 @@
+ }
+ 
+ void mangoapp_update( uint64_t visible_frametime, uint64_t app_frametime_ns, uint64_t latency_ns, uint32_t uMsgType ) {
++    if (!mangoapp_queue_enabled()) return;
+     if (!inited)
+         init_mangoapp();
+ 
+@@ -246,6 +260,7 @@
+ 
+ void mangoapp_nudge_app_frame( uint32_t uMsgType, uint64_t ulNow )
+ {
++    if (!mangoapp_queue_enabled()) return ;
+     uint64_t frametime;
+     {
+         std::unique_lock lock( s_FrameTimeMutex );

@@ -1,0 +1,23 @@
+From: HSL maintainers
+Subject: [PATCH] compositor: use output refresh when no DRM mode cache exists
+
+The DRM backend owns g_nDynamicRefreshHz. A nested-only build still uses
+the real output refresh, without linking DRM state or inventing a mode.
+
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -3460,9 +3460,11 @@
+ 		//
+ 		// Check what we cached for the current dynamic refresh Hz we put in -- otherwise, convert
+ 		// g_nOutputRefresh -> Hz rounded.
+-		int32_t nCurrentDynamicOutputHz = g_nDynamicRefreshHz
+-			? g_nDynamicRefreshHz
+-			: gamescope::ConvertmHzToHz( g_nOutputRefresh );
++		int32_t nCurrentDynamicOutputHz = gamescope::ConvertmHzToHz( g_nOutputRefresh );
++#if HAVE_DRM
++		if ( g_nDynamicRefreshHz )
++			nCurrentDynamicOutputHz = g_nDynamicRefreshHz;
++#endif
+ 
+ 		if ( nCurrentDynamicOutputHz == nTargetRefreshHz )
+ 		{

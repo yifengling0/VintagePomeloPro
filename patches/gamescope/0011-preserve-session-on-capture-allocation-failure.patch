@@ -1,0 +1,24 @@
+From: HSL maintainers
+Subject: [PATCH] vulkan: report optional capture allocation failure without abort
+
+Keep real allocation/format errors, discard the failed pool entry, and use the
+existing null-result caller handling. Do not claim a screenshot was produced.
+
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -3984,9 +3984,13 @@
+ 			}
+ 
+ 			bool bSuccess = pTexture->BInit( width, height, 1u, drmFormat, textureFlags );
++			if (!bSuccess)
++			{
++				// Unsupported optional capture resources must not abort the compositor.
++				pTexture = nullptr;
++				return nullptr;
++			}
+ 			pTexture->setStreamColorspace(colorspace);
+-
+-			assert( bSuccess );
+ 		}
+ 
+ 		if (pTexture->GetRefCount() != 0 ||

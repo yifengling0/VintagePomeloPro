@@ -1,0 +1,53 @@
+From: HSL maintainers
+Subject: [PATCH] vulkan: bound uniform descriptors to uploaded constants
+
+The upload arena is larger than maxUniformBufferRange on valid devices.
+VK_WHOLE_SIZE exposes all remaining arena bytes and violates VUID 00332.
+Track each constant allocation and bind its actual size, preserving offsets
+and the existing upload/submission lifetime. No capability override.
+
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -1784,16 +1784,20 @@
+ 		sampler = {};
+ 
+ 	m_target = nullptr;
++	m_renderBufferSize = 0;
+ 	m_useSrgb.reset();
+ }
+ 
+ template<class PushData, class... Args>
+ void CVulkanCmdBuffer::uploadConstants(Args&&... args)
+ {
++	// Core Vulkan guarantees at least 16 KiB per uniform descriptor.
++	static_assert(sizeof(PushData) <= 16384);
+ 	PushData data(std::forward<Args>(args)...);
+ 
+ 	auto [ptr, offset] = m_device->uploadBufferData(sizeof(data));
+ 	m_renderBufferOffset = offset;
++	m_renderBufferSize = sizeof(data);
+ 	memcpy(ptr, &data, sizeof(data));
+ }
+ 
+@@ -1895,7 +1899,10 @@
+ 
+ 	scratchDescriptor.buffer = m_device->m_uploadBuffer;
+ 	scratchDescriptor.offset = m_renderBufferOffset;
+-	scratchDescriptor.range = VK_WHOLE_SIZE;
++	// The upload arena also holds pixels/LUTs and can exceed the device
++	// uniform-buffer limit. Only expose this dispatch's constant allocation.
++	assert(m_renderBufferSize != 0);
++	scratchDescriptor.range = m_renderBufferSize;
+ 
+ 	for (uint32_t i = 0; i < VKR_SAMPLER_SLOTS; i++)
+ 	{
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -1081,6 +1081,7 @@
+ 	std::vector<VulkanTimelinePoint_t> m_ExternalSignals;
+ 
+ 	uint32_t m_renderBufferOffset = 0;
++	uint32_t m_renderBufferSize = 0;
+ };
+ 
+ uint32_t VulkanFormatToDRM( VkFormat vkFormat, std::optional<bool> obHasAlphaOverride = std::nullopt );

@@ -1,0 +1,409 @@
+{
+  "schemaVersion": 1,
+  "runtimeEligible": false,
+  "purpose": "Isolated GNU ARM64 nested Gamescope build, no runtime or installation qualification",
+  "origins": [
+    "https://gitlab.freedesktop.org",
+    "https://codeload.github.com",
+    "https://dri.freedesktop.org",
+    "https://cairographics.org",
+    "https://files.pythonhosted.org",
+    "https://ports.ubuntu.com"
+  ],
+  "sources": [
+    {
+      "name": "wayland",
+      "version": "1.24.0",
+      "archiveRoot": "wayland-1.24.0",
+      "url": "https://gitlab.freedesktop.org/wayland/wayland/-/archive/1.24.0/wayland-1.24.0.tar.gz",
+      "archive": "wayland-1.24.0.tar.gz",
+      "bytes": 375087,
+      "sha256": "7800858844751fc7113d7df3678dc6b58b26a056176a65c49a059763045bffd5"
+    },
+    {
+      "name": "wayland-protocols",
+      "version": "1.47",
+      "archiveRoot": "wayland-protocols-1.47",
+      "url": "https://gitlab.freedesktop.org/wayland/wayland-protocols/-/archive/1.47/wayland-protocols-1.47.tar.gz",
+      "archive": "wayland-protocols-1.47.tar.gz",
+      "bytes": 218381,
+      "sha256": "dd2df14ab5f41038257aaedcc4b5fb9ac0ee018f3f0f94af9097028e60d33223"
+    },
+    {
+      "name": "libdrm",
+      "version": "2.4.129",
+      "archiveRoot": "libdrm-2.4.129",
+      "url": "https://dri.freedesktop.org/libdrm/libdrm-2.4.129.tar.xz",
+      "archive": "libdrm-2.4.129.tar.xz",
+      "bytes": 433392,
+      "sha256": "5978183f978d697e26a50ba066174964efb0ab97caa1ecaa1b861fbe5ddf77dc"
+    },
+    {
+      "name": "libxkbcommon",
+      "version": "1.8.1",
+      "archiveRoot": "libxkbcommon-xkbcommon-1.8.1",
+      "url": "https://codeload.github.com/xkbcommon/libxkbcommon/tar.gz/refs/tags/xkbcommon-1.8.1",
+      "archive": "libxkbcommon-1.8.1.tar.gz",
+      "bytes": 983334,
+      "sha256": "c65c668810db305c4454ba26a10b6d84a96b5469719fe3c729e1c6542b8d0d87"
+    },
+    {
+      "name": "pixman",
+      "version": "0.46.0",
+      "archiveRoot": "pixman-0.46.0",
+      "url": "https://cairographics.org/releases/pixman-0.46.0.tar.gz",
+      "archive": "pixman-0.46.0.tar.gz",
+      "bytes": 826896,
+      "sha256": "02d9ff7b8458ef61731c3d355f854bbf461fd0a4d3563c51f1c1c7b00638050d"
+    },
+    {
+      "name": "meson",
+      "version": "1.8.5",
+      "archive": "meson-1.8.5-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/22/a3/9b9ca250146b2eace017d7931cabb44a65c04b79f6f046d74e9c94bd5da3/meson-1.8.5-py3-none-any.whl",
+      "bytes": 1014961,
+      "sha256": "15ab2cca08271bc055bc33a4929b7c58f15ad67df4c1fa65dc223e822b882bef"
+    },
+    {
+      "name": "glslang",
+      "version": "15.2.0",
+      "archiveRoot": "glslang-15.2.0",
+      "url": "https://codeload.github.com/KhronosGroup/glslang/tar.gz/refs/tags/15.2.0",
+      "archive": "glslang-15.2.0.tar.gz",
+      "bytes": 3954004,
+      "sha256": "45e3920d264d5c2cc3bfaec0e5dbb66cffd549255e0aaaf38cd283918e35c8ba"
+    },
+    {
+      "name": "vulkan-headers",
+      "revision": "234c4b7370a8ea3239a214c9e871e4b17c89f4ab",
+      "archive": "Vulkan-Headers-234c4b7370a8ea3239a214c9e871e4b17c89f4ab.tar.gz",
+      "url": "https://codeload.github.com/KhronosGroup/Vulkan-Headers/tar.gz/234c4b7370a8ea3239a214c9e871e4b17c89f4ab",
+      "bytes": 2497311,
+      "sha256": "b5dc57fc79fade0a2bc563bdbacf4f0902d0144c5ba85e9e162ab2995f9ac2ea",
+      "archiveRoot": "Vulkan-Headers-234c4b7370a8ea3239a214c9e871e4b17c89f4ab",
+      "reuseCache": "workspace_temp/hsl-bootstrap/dxvk-fork/archives"
+    },
+    {
+      "name": "libei",
+      "version": "1.3.0",
+      "archiveRoot": "libei-1.3.0",
+      "url": "https://gitlab.freedesktop.org/libinput/libei/-/archive/1.3.0/libei-1.3.0.tar.gz",
+      "archive": "libei-1.3.0.tar.gz",
+      "bytes": 232783,
+      "sha256": "162dc7b0d86a4575cdde1d3cb04f364f89a8b1ba6d95fe0b442564e0444d851d"
+    }
+  ],
+  "developmentPackages": "components/gamescope-build-deps.lock.json",
+  "shaderCompilerOptions": [
+    "-DENABLE_OPT=OFF",
+    "-DENABLE_GLSLANG_BINARIES=ON",
+    "-DBUILD_TESTING=OFF",
+    "-DENABLE_SPVREMAPPER=OFF"
+  ],
+  "xwaylandPc": {
+    "sha256": "3140f1996c6cd2767016a2d43e6cf4e2b285a67aff4d6a60266eab5a27054982",
+    "version": "24.1.3",
+    "normalization": "Replace private X11 deps/usr prefix with /usr; LF newlines"
+  },
+  "options": [
+    "-Ddrm_backend=disabled",
+    "-Dsdl2_backend=disabled",
+    "-Dpipewire=disabled",
+    "-Dinput_emulation=enabled",
+    "-Davif_screenshots=disabled",
+    "-Drt_cap=disabled",
+    "-Denable_openvr_support=false",
+    "-Denable_gamescope_wsi_layer=false",
+    "-Denable_tests=false",
+    "-Dwlroots:session=disabled",
+    "-Dwlroots:backends=[]"
+  ],
+  "patches": [
+    {
+      "path": "patches/gamescope/0001-use-available-drm-hdr-types-in-nested-builds.patch",
+      "sha256": "ffa74d94bda7107df51381c8c1ccdd5979536cea2ed177a9db53747aa70704c8",
+      "originalPath": "src/hdmi.h",
+      "beforeSha256": "21656a0f86d2b78a415f2fb87cf87e532488e5b31f740412be9832cb70872a30",
+      "afterSha256": "834e933bd32f4d93c72755fb9d5de278ace3336bfb816f45256fb101c0103a8d"
+    },
+    {
+      "path": "patches/gamescope/0002-qualify-physical-device-controls-by-backend.patch",
+      "sha256": "41ee113d284ddb7689ef58048f4d00e7bab94e990c5faed72e207497c2a9824d",
+      "originalPath": "src/wlserver.cpp",
+      "beforeSha256": "a1e00bc4e6e832dc70ce1cb62d1cb1b1d549be370bb3a8c984d1d52d447a906f",
+      "afterSha256": "5ced12b041985ffad07357b9d437f89fb79fd82350682995f7ff87576a1e74c1"
+    },
+    {
+      "path": "patches/gamescope/0003-use-output-refresh-without-drm-mode-cache.patch",
+      "sha256": "5eff7b9bf1af6ff6cb6e53058e1980e6358f37011daf4669cf5aa7b76d0b31a5",
+      "originalPath": "src/steamcompmgr.cpp",
+      "beforeSha256": "e0ade3485ca4c3cff7db36aa7e5c8c4985af3a5c5e2bb87b5ad94c6d4f4c9920",
+      "afterSha256": "eabf8ad5518378eaf737f032ba994fc59e514cf615bdeac016c12f0b0d5acdcd"
+    },
+    {
+      "path": "patches/gamescope/0004-scope-presentation-features-to-swapchain-output.patch",
+      "sha256": "a5724742dc3542d747e34323a62dafbbcac79dca483aa6fd2495eef76c2990c0",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "79bb0b6e3fd9593a5e848fa48c9fcf3de4d5bd0e70f0372524bdfb72a11fbea2",
+      "afterSha256": "b752ac4c0a4e19bfa7da0c00b5a1b965929ef0246d16346478d93efe2ae4c54f"
+    },
+    {
+      "path": "patches/gamescope/0005-use-typed-descriptors-and-explicit-lut-state.patch",
+      "sha256": "576809a1c248b3ad6800e4cc1f96d16f06e315f7ff74f941bfa847c7a36e055f",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "b752ac4c0a4e19bfa7da0c00b5a1b965929ef0246d16346478d93efe2ae4c54f",
+          "afterSha256": "7a33cd36fae8400727d65087bb86bc98dc4c0786c7ac20485b3efcf17379b1ac"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "92b19d99ea12f06b10828b23ab056b7e2537c389ddcc7ec69627e08446d60658",
+          "afterSha256": "52a37141e51b6eb36cfad3cf658c260892b0c2c9b5a7273f79dd97c2d5005faa"
+        },
+        {
+          "originalPath": "src/shaders/descriptor_set.h",
+          "beforeSha256": "9faa430cf3ddc360088eaeb32e13140d61354c07dbcc4301388e2eef7dd2c330",
+          "afterSha256": "ca9825df18b52b1b4803ea5f9e15cb89a483bd47bc822efac5bf7df73cd91b28"
+        },
+        {
+          "originalPath": "src/shaders/composite.h",
+          "beforeSha256": "ba82667ceed0b577067233a7294e43f8737913a11c4681ade73aa1eba2de8e91",
+          "afterSha256": "1090becf0e28aaa9e28460c4b43402ea639c3b642088e7d51f241d3929a5e672"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0006-optimize-shader-modules-before-driver-compilation.patch",
+      "sha256": "7c25a105ca64e2851a228b2f9719c77c695fa3e9980ddd91c189bc149541e5e2",
+      "originalPath": "src/meson.build",
+      "beforeSha256": "4832916bcfcd77866fb0055cac055cfe755eea17599450233ed94113ecfd91d9",
+      "afterSha256": "05f02b0c807e622334915c76565a52b0006e7117b0919066ff2bb00b8ccb7b77"
+    },
+    {
+      "path": "patches/gamescope/0007-unroll-bounded-immutable-sampler-layer-loops.patch",
+      "sha256": "79d2ef392554e58d4325d1bfba568af5cd92c6edf2d1bfab5f36e8e2a635ff43",
+      "files": [
+        {
+          "originalPath": "src/shaders/cs_composite_blit.comp",
+          "beforeSha256": "61c582930296f83fab4c992b06a568a80b8e83b72102dd2aa6c15293d50ed495",
+          "afterSha256": "ba58a9757478fbce536b41380269dcf9b23408eb5eaa1f32a334865715253f9e"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_blur.comp",
+          "beforeSha256": "b606f5833cf83fa0653d57f6bb3b34a87da331c51d49b27a920ce2c03702c36b",
+          "afterSha256": "ac25d49fb003487111898c38c84031d230df7182305ed64bca1e02135223fe97"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_blur_cond.comp",
+          "beforeSha256": "8c16399da424ca324ea10db31eceab79fd907a4576729dfea5c2d4106c599e38",
+          "afterSha256": "1f0da224dc33f43fbbae3c36de384928c2b399b7d957768e369dd0af85dfa21f"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas.comp",
+          "beforeSha256": "9a657c4932b6389240fec89ad2fbf8a362e0b4fec86252eca24df8d3dd9cd31f",
+          "afterSha256": "7ea8db52ebff8f8e4e518a31294993671ecf0f843d0626b1fc66c41beaf7d987"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
+          "beforeSha256": "1d3436456ffdce06e7273a5c741b8377d4363ec61a7254a05fa03ba58fda31bc",
+          "afterSha256": "729cb3b772e6e9f8f006eb1de36748891700db07dfd3ac31c4ce66f2a302c914"
+        },
+        {
+          "originalPath": "src/shaders/cs_gaussian_blur_horizontal.comp",
+          "beforeSha256": "9229f80fa401f3fa5e95bb3317b51187a7e8d3026a6607e51b9966c751642a9c",
+          "afterSha256": "baa61b375c3b589186cef3ec4c11af2dbd8d9d2334a23b2e5e0c952e24ea199a"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0008-add-explicit-backend-owned-output-transport.patch",
+      "sha256": "ea7f0deed6a247d94879e2c970cb01fb8c2dc00d2162279d634f454ff09571b6",
+      "files": [
+        {
+          "originalPath": "src/backend.h",
+          "beforeSha256": "d59ff7ac04fb7b341cdc824e188a074fccc26384116d21845632bb673ee55d2c",
+          "afterSha256": "63c8c94638182906a1d37441618a5c786aea2e11b4bac8619e47dc86f5b15c6b"
+        },
+        {
+          "originalPath": "src/backends.h",
+          "beforeSha256": "dc97df8ad56bdad6874a0519eeed88a0d83cb4dad562c1f8a03701727140317b",
+          "afterSha256": "4538f9537f630c3d83f3106ea8b146cd0a6a2510b2997b5dc79b4533282397b7"
+        },
+        {
+          "originalPath": "src/backend.cpp",
+          "beforeSha256": "1b6749a051ddb6e270c1a3e84be54b6479466ba0199b220b53fbe3d9aec00a4e",
+          "afterSha256": "734723a666c731d705d6e2fa05e7f5930d76fb490c30b18bda1a7f6cc58674fb"
+        },
+        {
+          "originalPath": "src/main.cpp",
+          "beforeSha256": "618bc9de81ab1b724b07985cdee14e6a9369fb4fc03057a896efbeac1c42e9cd",
+          "afterSha256": "213d0a6b3b45f090818c698245b223086529ad94b6b6508594d2c9ed3dfbdcdd"
+        },
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "05f02b0c807e622334915c76565a52b0006e7117b0919066ff2bb00b8ccb7b77",
+          "afterSha256": "84e51de05d9d4b454b6e38e24c42ee76c1e5768b2849dc365254ba1fcb92a387"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "52a37141e51b6eb36cfad3cf658c260892b0c2c9b5a7273f79dd97c2d5005faa",
+          "afterSha256": "9a7fd496463852b1e39c679b40b0545af213530a6586ef37716b51030caf3eaa"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "7a33cd36fae8400727d65087bb86bc98dc4c0786c7ac20485b3efcf17379b1ac",
+          "afterSha256": "87b2e3bce0e12bbd2ef32bcfcb18f921a0c49b39ca00a31115f6b4d6a383bb38"
+        },
+        {
+          "originalPath": "src/Backends/DeferredBackend.h",
+          "beforeSha256": "0596d4abd1aa7f0cc20030638298dcb5e5140ed4b8f0af1b4759cc3703379544",
+          "afterSha256": "0dc89a8005cab4315afadd7f8f81bd895e9f09f9e9f54523b8a920423feaa6ac"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "eabf8ad5518378eaf737f032ba994fc59e514cf615bdeac016c12f0b0d5acdcd",
+          "afterSha256": "10ad6801b40c07257735789d6a7ba135283ffbc2a4825b27f9ad210188c43a1c"
+        },
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "5ced12b041985ffad07357b9d437f89fb79fd82350682995f7ff87576a1e74c1",
+          "afterSha256": "4899aaf0bad2c8f5a7fcbc59431fa562194ed32d636d758ad60f813c5a903489"
+        },
+        {
+          "originalPath": "src/mangoapp.cpp",
+          "beforeSha256": "abbc573a53f1d56c0409cdef80a97f09945d3b1938774c1361e0553bc9d49b1c",
+          "afterSha256": "fa543f0e3c0afc7733174408aa18e91358ad623df3d40febe72f18da23d41e22"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0009-import-private-shared-image-buffers.patch",
+      "sha256": "b6224192950702258c9172141f4ec89f29d9a19af0b21bad853bef7f1741047e",
+      "files": [
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "84e51de05d9d4b454b6e38e24c42ee76c1e5768b2849dc365254ba1fcb92a387",
+          "afterSha256": "524cc269e6e590e3709cb5dc9ec001903561f968d20f70c9249600890ffb916b"
+        },
+        {
+          "originalPath": "protocol/meson.build",
+          "beforeSha256": "f4245db4d697226f67a12b00a238abf60a283a4f6f9c0b4afca88bce114e4ba8",
+          "afterSha256": "66d153fa27ff4c136a34ad6e5c33d4edcaf39c7fed1e71c833ebb1c10b937636"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "87b2e3bce0e12bbd2ef32bcfcb18f921a0c49b39ca00a31115f6b4d6a383bb38",
+          "afterSha256": "fc4e6aad4d656429163d989c495c2cbde2a6a20a34e60a03133d47fa20a4e81e"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "9a7fd496463852b1e39c679b40b0545af213530a6586ef37716b51030caf3eaa",
+          "afterSha256": "cb324bdb38fe701b13a56ff7b886c2a07f87a81ff4c756dcded908f0da2aa661"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "10ad6801b40c07257735789d6a7ba135283ffbc2a4825b27f9ad210188c43a1c",
+          "afterSha256": "b3ca301e75e13c13a0a9dc1996ae6cf0fb831107ae2f76df823aab7f7944816d"
+        },
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "4899aaf0bad2c8f5a7fcbc59431fa562194ed32d636d758ad60f813c5a903489",
+          "afterSha256": "a4fef18ad864cdc499458c048fb7ad033fe7596fe7a221ee9a0dc4d3a515a3bd"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0010-negotiate-control-version-by-backend.patch",
+      "sha256": "da9711354092d453d4c156a5544392a4a90c0c3af3baab69f6b71d582f11ee32",
+      "files": [
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "a4fef18ad864cdc499458c048fb7ad033fe7596fe7a221ee9a0dc4d3a515a3bd",
+          "afterSha256": "a6ed0d24ba3c9280b1c65fe0150bcbcb75199bf3568524af73cb276e1e9feb8e"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "b3ca301e75e13c13a0a9dc1996ae6cf0fb831107ae2f76df823aab7f7944816d",
+          "afterSha256": "b648f3e7b34f19b4eb031b888d594052506cf6fb82551dd8701670afafbce2fa"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0011-preserve-session-on-capture-allocation-failure.patch",
+      "sha256": "c1b7b48ed20b8089f3020d2f9ff439f35170fced4f8a4e5019357db457db6a4e",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "fc4e6aad4d656429163d989c495c2cbde2a6a20a34e60a03133d47fa20a4e81e",
+          "afterSha256": "e11c92158350ef1292584e6b42e5ed5d9d4d0cf23040a5365bd7114dfc340b34"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0012-bound-uniform-descriptors-to-uploaded-constants.patch",
+      "sha256": "2041ac1b00ff907983bc54ec6968fd2836e3ea3800f342d0fd01c04a1480622a",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "e11c92158350ef1292584e6b42e5ed5d9d4d0cf23040a5365bd7114dfc340b34",
+          "afterSha256": "79c90f560c5b6a92ca508399185270b8111fa00c3beaf447336b8ce6c23212c2"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "cb324bdb38fe701b13a56ff7b886c2a07f87a81ff4c756dcded908f0da2aa661",
+          "afterSha256": "053beabacb6c29896a480a1f674ffc0ec01664fd755f343b4ebd0bebe6923d55"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "source": "native/common/vulkan_descriptor_fallback.h",
+      "destination": "src/hsl_vulkan_descriptor_fallback.h",
+      "sha256": "f8eecac7b3e5b70c05d2ccbb35cef7fb6109331df3ddefc25018f5facfa1de8c"
+    },
+    {
+      "source": "scripts/compile-gamescope-shader.py",
+      "destination": "src/hsl_compile_shader.py",
+      "sha256": "0abe5a93da570e7faf0640b7d5f794d8b051707adcff3d776cb34320b2cace2d"
+    },
+    {
+      "source": "native/gnu/gamescope/HslBackend.cpp",
+      "destination": "src/Backends/HslBackend.cpp",
+      "sha256": "73140ba554ae8f2c48186b25b854c88840ea4dde49c7b925f2977e4bf923862c"
+    },
+    {
+      "source": "native/gnu/gamescope/HslImage.cpp",
+      "destination": "src/HslImage.cpp",
+      "sha256": "bfa42e3bbedcde4fd06f35ff42aef2dd2c83bc8cb25a2e6aeb5888eff0f65e46"
+    },
+    {
+      "source": "native/gnu/gamescope/HslImage.h",
+      "destination": "src/HslImage.h",
+      "sha256": "f87683723ae304282d75669b9006a8cbdd49a92a54eb549f0a0f373d3ab509de"
+    },
+    {
+      "source": "native/protocol/venus_shared_image.h",
+      "destination": "src/hsl_venus_shared_image.h",
+      "sha256": "3e342b5c73a20b4ed79bc2011abfefc6c1bda8361b02d234f62c2060e000e915"
+    },
+    {
+      "source": "native/protocol/hsl-image-v1.xml",
+      "destination": "protocol/hsl-image-v1.xml",
+      "sha256": "77519775710e460fe281ec6bd217a8d1f6fabc08dd4c9a3e02c2439ab0149fac"
+    }
+  ],
+  "shaderOptimizer": {
+    "sourceProject": "KhronosGroup/SPIRV-Tools (Ubuntu Jammy host package)",
+    "sourceRevision": "2022.1+1.3.204.0-2 amd64",
+    "originalPath": "usr/bin/spirv-opt",
+    "sha256": "bddddfc038d95bb3eaecee83738c79c0f74f84c08fe7a3c27a359fed608efb4f",
+    "versionOutput": "SPIRV-Tools v2022.2-dev unknown hash, 2022-02-16T16:37:15",
+    "hostOnly": true,
+    "options": [
+      "-O",
+      "--scalar-block-layout"
+    ]
+  }
+}

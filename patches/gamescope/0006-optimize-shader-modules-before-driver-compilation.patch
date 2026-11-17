@@ -1,0 +1,47 @@
+From: HSL maintainers
+Subject: [PATCH] build: optimize shader modules before driver compilation
+
+Run standard SPIRV-Tools optimization at build time. Preserve specialization
+constants, resource/feature contracts and genuine compiler failures.
+Use the explicit native toolchain program; add no runtime compilation.
+
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -41,20 +41,28 @@
+ 
+ glsl_compiler = find_program('glslang', 'glslangValidator', native: true)
+ 
+-# Use --depfile to rebuild shaders when included files have changed. Sadly debian based
+-# distros don't have up-to-date glslang so we need to check for support first.
++# Optimize build-time SPIR-V before passing it to the driver's compiler.
++# Resource types, specialization constants and shader behavior stay intact.
++hsl_shader_python = import('python').find_installation('python3', required: true)
++hsl_spirv_optimizer = find_program('hsl_spirv_optimizer', native: true, required: true)
++hsl_shader_arguments = [
++  meson.current_source_dir() / 'hsl_compile_shader.py',
++  '--compiler', glsl_compiler.full_path(),
++  '--optimizer', hsl_spirv_optimizer.full_path(),
++  '--source', '@INPUT@', '--output', '@OUTPUT@', '--name', '@BASENAME@',
++]
+ if run_command(glsl_compiler, ['--version', '--depfile', 'dummy.dep'], check: false).returncode() == 0
+   glsl_generator = generator(
+-    glsl_compiler,
+-    output    : ['@BASENAME@.h'],
+-    arguments : ['-V', '@INPUT@', '--vn', '@BASENAME@', '-o', '@OUTPUT@', '--depfile', '@DEPFILE@', '--quiet'],
+-    depfile   : '@BASENAME@.h.d',
++    hsl_shader_python,
++    output: ['@BASENAME@.h'],
++    arguments: hsl_shader_arguments + ['--depfile', '@DEPFILE@'],
++    depfile: '@BASENAME@.h.d',
+   )
+ else
+   glsl_generator = generator(
+-    glsl_compiler,
+-    output    : ['@BASENAME@.h'],
+-    arguments : ['-V', '@INPUT@', '--vn', '@BASENAME@', '-o', '@OUTPUT@'],
++    hsl_shader_python,
++    output: ['@BASENAME@.h'],
++    arguments: hsl_shader_arguments,
+   )
+ endif
+ 

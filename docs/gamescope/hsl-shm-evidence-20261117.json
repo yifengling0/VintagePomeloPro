@@ -1,0 +1,427 @@
+{
+  "schema": 1,
+  "date": "2026-11-17",
+  "sourceBaseCommit": "46fe1daabd26085c617c74033f470ac9e5d912b1 plus this stage",
+  "sources": [
+    {
+      "originalPath": "native/gnu/gamescope/HslShmUpload.h",
+      "sha256": "6e225395cf502d1990354a2ee3e78da621762286513f25dbf64e6af4cbaa7b84",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "patches/gamescope/0013-reuse-bounded-shm-staging-with-queue-dependencies.patch",
+      "sha256": "26db9c585ee87b74b92028f0dfca09dcf6b307611ff8fcb129f646e7fbbf9b1a",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "components/gamescope-build.lock.json",
+      "sha256": "7dd35cbbab533d09c9888c9c952a8c10e7726f5a2f19d7e621861c9d87b99d1a",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "native/gnu/gamescope/session.py",
+      "sha256": "169c452e75ba8574249dfda15c90ecbc46139d05a381ea38d0fcb19f331bc558",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "native/gnu/gamescope/xwayland.sh",
+      "sha256": "b380069aa59d3d69388019bcdadc931e661355435488d014e4d27d73d8e116f7",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "native/gnu/steam-session.sh",
+      "sha256": "0a904425100a3696e8138efbe8ac80c006547f0437ba2d59aeba3700d9988cb1",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "entry/src/main/cpp/runtime/child_main.cpp",
+      "sha256": "c87eb97c97e8bfe638a733b594e55f7f7c4093e1c6dbf9fe1820c77fbbe60dc5",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "scripts/steam-navigation-probe.py",
+      "sha256": "852e552c0b84600f2bc96b137ad2268a4ef063f744127576e437cd0b567d9a58",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "tests/gamescope_shm_upload_test.cpp",
+      "sha256": "bbc7f4994821e62bc62bb4ae9fe94e2b3dc7e6f586f0f67dcb2d31c4db18633d",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "tests/gaming_session_test.py",
+      "sha256": "48b1e84c3723400675a2b245b4e8d32511484c5ce54f52a7436172fcff0f6f9d",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "tests/device_x11_shm.py",
+      "sha256": "e5595d465fccf62e7bdf1cbd9f4c75fe1dc92d7dd6a0f34d6eb35f96839708d3",
+      "hashEncoding": "LF-normalized source"
+    },
+    {
+      "originalPath": "tests/CMakeLists.txt",
+      "sha256": "3ccfe8597ccd89353f0bf89c2311afba414c4c33e1650824d121a9e47cb257ca",
+      "hashEncoding": "LF-normalized source"
+    }
+  ],
+  "navigation": {
+    "baseline": {
+      "samples": [
+        {
+          "changed": true,
+          "milliseconds": 591.28
+        },
+        {
+          "changed": true,
+          "milliseconds": 419.59
+        },
+        {
+          "changed": true,
+          "milliseconds": 380.6
+        },
+        {
+          "changed": true,
+          "milliseconds": 330.4
+        },
+        {
+          "changed": true,
+          "milliseconds": 362.55
+        },
+        {
+          "changed": true,
+          "milliseconds": 374.73
+        },
+        {
+          "changed": true,
+          "milliseconds": 389.47
+        },
+        {
+          "changed": true,
+          "milliseconds": 353.48
+        },
+        {
+          "changed": true,
+          "milliseconds": 372.13
+        },
+        {
+          "changed": true,
+          "milliseconds": 412.03
+        },
+        {
+          "changed": true,
+          "milliseconds": 374.62
+        },
+        {
+          "changed": true,
+          "milliseconds": 361.29
+        }
+      ],
+      "medianMs": 374.675,
+      "scope": "client-drawable-with-readback"
+    },
+    "reduced": {
+      "samples": [
+        {
+          "changed": true,
+          "milliseconds": 475.09
+        },
+        {
+          "changed": true,
+          "milliseconds": 426.21
+        },
+        {
+          "changed": true,
+          "milliseconds": 366.41
+        },
+        {
+          "changed": true,
+          "milliseconds": 365.34
+        },
+        {
+          "changed": true,
+          "milliseconds": 378.03
+        },
+        {
+          "changed": true,
+          "milliseconds": 394.15
+        },
+        {
+          "changed": true,
+          "milliseconds": 369.59
+        },
+        {
+          "changed": true,
+          "milliseconds": 366.24
+        },
+        {
+          "changed": true,
+          "milliseconds": 355.16
+        },
+        {
+          "changed": true,
+          "milliseconds": 392.24
+        },
+        {
+          "changed": true,
+          "milliseconds": 433.23
+        },
+        {
+          "changed": true,
+          "milliseconds": 340.62
+        }
+      ],
+      "medianMs": 373.80999999999995,
+      "scope": "client-drawable-with-readback"
+    },
+    "optimized": {
+      "samples": [
+        {
+          "changed": true,
+          "milliseconds": 511.78
+        },
+        {
+          "changed": true,
+          "milliseconds": 467.24
+        },
+        {
+          "changed": true,
+          "milliseconds": 409.59
+        },
+        {
+          "changed": true,
+          "milliseconds": 455.3
+        },
+        {
+          "changed": true,
+          "milliseconds": 454.65
+        },
+        {
+          "changed": true,
+          "milliseconds": 446.16
+        },
+        {
+          "changed": true,
+          "milliseconds": 436.64
+        },
+        {
+          "changed": true,
+          "milliseconds": 455.08
+        },
+        {
+          "changed": true,
+          "milliseconds": 455.01
+        },
+        {
+          "changed": true,
+          "milliseconds": 469.45
+        },
+        {
+          "changed": true,
+          "milliseconds": 469.54
+        },
+        {
+          "changed": true,
+          "milliseconds": 414.35
+        }
+      ],
+      "medianMs": 455.04499999999996,
+      "scope": "client-drawable-with-readback"
+    },
+    "optimized-repeat": {
+      "samples": [
+        {
+          "changed": true,
+          "milliseconds": 696.06
+        },
+        {
+          "changed": true,
+          "milliseconds": 499.34
+        },
+        {
+          "changed": true,
+          "milliseconds": 431.32
+        },
+        {
+          "changed": true,
+          "milliseconds": 436.99
+        },
+        {
+          "changed": true,
+          "milliseconds": 422.43
+        },
+        {
+          "changed": true,
+          "milliseconds": 403.46
+        },
+        {
+          "changed": true,
+          "milliseconds": 478.03
+        },
+        {
+          "changed": true,
+          "milliseconds": 461.26
+        },
+        {
+          "changed": true,
+          "milliseconds": 435.32
+        },
+        {
+          "changed": true,
+          "milliseconds": 459.65
+        },
+        {
+          "changed": true,
+          "milliseconds": 450.67
+        },
+        {
+          "changed": true,
+          "milliseconds": 446.06
+        }
+      ],
+      "medianMs": 448.365,
+      "scope": "client-drawable-with-readback"
+    },
+    "gpu-nav-valid": {
+      "samples": [
+        {
+          "changed": true,
+          "milliseconds": 357.81
+        },
+        {
+          "changed": true,
+          "milliseconds": 270.83
+        },
+        {
+          "changed": true,
+          "milliseconds": 298.69
+        },
+        {
+          "changed": true,
+          "milliseconds": 271.84
+        },
+        {
+          "changed": true,
+          "milliseconds": 331.27
+        },
+        {
+          "changed": true,
+          "milliseconds": 265.58
+        },
+        {
+          "changed": true,
+          "milliseconds": 279.07
+        },
+        {
+          "changed": true,
+          "milliseconds": 251.67
+        },
+        {
+          "changed": true,
+          "milliseconds": 263.13
+        },
+        {
+          "changed": true,
+          "milliseconds": 271.45
+        },
+        {
+          "changed": true,
+          "milliseconds": 265.9
+        },
+        {
+          "changed": true,
+          "milliseconds": 297.2
+        }
+      ],
+      "medianMs": 271.645,
+      "scope": "client-drawable-with-readback"
+    },
+    "final-normal-entry": {
+      "samples": [
+        {
+          "changed": true,
+          "milliseconds": 336.19
+        },
+        {
+          "changed": true,
+          "milliseconds": 315.19
+        },
+        {
+          "changed": true,
+          "milliseconds": 287.55
+        },
+        {
+          "changed": true,
+          "milliseconds": 228.54
+        },
+        {
+          "changed": true,
+          "milliseconds": 196.58
+        },
+        {
+          "changed": true,
+          "milliseconds": 287.48
+        },
+        {
+          "changed": true,
+          "milliseconds": 238.84
+        },
+        {
+          "changed": true,
+          "milliseconds": 285.65
+        },
+        {
+          "changed": true,
+          "milliseconds": 239.07
+        },
+        {
+          "changed": true,
+          "milliseconds": 235.13
+        },
+        {
+          "changed": true,
+          "milliseconds": 225.48
+        },
+        {
+          "changed": true,
+          "milliseconds": 275.87
+        }
+      ],
+      "medianMs": 257.47,
+      "scope": "client-drawable-with-readback"
+    }
+  },
+  "host": {
+    "focusedCtestsPassed": 6,
+    "gamingSessionTestsPassed": 13,
+    "scope": "Production upload header with controlled completion and allocation faults; source/package/lifecycle contracts; not device performance"
+  },
+  "device": {
+    "signature": "release/internaltesting",
+    "candidate": "artifacts/hsl-dev/hsl-steam-ui-opt-gpu-20261117-signed.hap",
+    "sha256": "eab4eba8de01b8007c6b33436315ce8c6dd9552f4971bd2280fc4e1d7f4b6cff",
+    "bytes": 2480433691,
+    "version": "1.0.9 /100009",
+    "payloadAudit": "Six components and 356 repository identities verified",
+    "install": "PASS data-preserving cover install",
+    "actualNormalEntry": "PASS HSL gaming-mode entry; 12/12 settings switches; PAL4 Steam launch and in-game-menu exit back to Steam; further DXVK/exit checks in progress",
+    "temporaryContrast": {
+      "gpuCef": "12/12 measured settings switches; median 271.645 ms; 8 complete home/news frames, 8 intact loading frames, 8 dynamic Tomb Raider menu/save-selector frames",
+      "blackSnapshot": "An earlier isolated black snapshot preceded the subsequently visible dynamic menu; not classified as persistent game failure",
+      "exitBoundary": "Outer Alt+F4 closed compositor rather than the game. Probe subtree remained until scoped cleanup; GPU receiver unavailable on attempted restart. Not accepted as normal game exit/restart success."
+    },
+    "shm": {
+      "extension": "MIT-SHM 1.2 on actual nested X server",
+      "validPixels": "PASS full image and partial update on diagnostic pixmap",
+      "invalidId": "Real BadAccess X_ShmAttach retained",
+      "qt": "Distribution PyQt6 6.4.2: 120 timer ticks, 20 queued signals, 4096 correct synthetic green pixels and real cross-process QSharedMemory; click count 0 so full interactive fixture exit1, not a full pass"
+    },
+    "allocations": {
+      "frames": 7080,
+      "stagingAllocations": 3,
+      "pressureWaits": 0,
+      "scope": "Initial signed candidate with CEF software; no claim of zero CPU copies for SHM or whole-stack zero-readback"
+    }
+  },
+  "appGallery": "NOT tested; existing formal APP retained unchanged",
+  "status": "Final normal-entry device verification in progress"
+}

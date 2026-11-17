@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "purpose": "GNU nested Gamescope source preparation only; not runtime eligibility",
+  "origins": [
+    "https://codeload.github.com",
+    "https://gitlab.freedesktop.org"
+  ],
+  "maxExpandedBytes": 629145600,
+  "maxEntries": 20000,
+  "sources": [
+    {
+      "path": ".",
+      "repository": "https://github.com/ValveSoftware/gamescope",
+      "revision": "e6674a98118ca7b098b98a3874b8f195ae1bf750",
+      "url": "https://codeload.github.com/ValveSoftware/gamescope/tar.gz/e6674a98118ca7b098b98a3874b8f195ae1bf750",
+      "archive": "gamescope-e6674a98118ca7b098b98a3874b8f195ae1bf750.tar.gz",
+      "bytes": 1019124,
+      "sha256": "95dcea7456f7aa2a7b4c1b5d42b464a06090fe1b0e12886d82a72abc392232aa",
+      "archiveRoot": "gamescope-e6674a98118ca7b098b98a3874b8f195ae1bf750"
+    },
+    {
+      "path": "src/reshade",
+      "repository": "https://github.com/Joshua-Ashton/reshade",
+      "revision": "696b14cd6006ae9ca174e6164450619ace043283",
+      "url": "https://codeload.github.com/Joshua-Ashton/reshade/tar.gz/696b14cd6006ae9ca174e6164450619ace043283",
+      "archive": "reshade-696b14cd6006ae9ca174e6164450619ace043283.tar.gz",
+      "bytes": 1684777,
+      "sha256": "3aa6feda7773cc8ffa8fb012fe95e6207c776101e29198d0e0d34a0c5e339f6a",
+      "archiveRoot": "reshade-696b14cd6006ae9ca174e6164450619ace043283"
+    },
+    {
+      "path": "subprojects/libdisplay-info",
+      "repository": "https://gitlab.freedesktop.org/emersion/libdisplay-info",
+      "revision": "c67a3e9bedb05ab61c7443704a1a107e76254595",
+      "url": "https://gitlab.freedesktop.org/emersion/libdisplay-info/-/archive/c67a3e9bedb05ab61c7443704a1a107e76254595/libdisplay-info-c67a3e9bedb05ab61c7443704a1a107e76254595.tar.gz",
+      "archive": "libdisplay-info-c67a3e9bedb05ab61c7443704a1a107e76254595.tar.gz",
+      "bytes": 167362,
+      "sha256": "34f2109f3ba5a56f4e12062210261c98214f32b5568684311aa029da518bf2fd",
+      "archiveRoot": "libdisplay-info-c67a3e9bedb05ab61c7443704a1a107e76254595"
+    },
+    {
+      "path": "subprojects/libliftoff",
+      "repository": "https://gitlab.freedesktop.org/emersion/libliftoff",
+      "revision": "8b08dc1c14fd019cc90ddabe34ad16596b0691f4",
+      "url": "https://gitlab.freedesktop.org/emersion/libliftoff/-/archive/8b08dc1c14fd019cc90ddabe34ad16596b0691f4/libliftoff-8b08dc1c14fd019cc90ddabe34ad16596b0691f4.tar.gz",
+      "archive": "libliftoff-8b08dc1c14fd019cc90ddabe34ad16596b0691f4.tar.gz",
+      "bytes": 38930,
+      "sha256": "8de28aee6f90f47b7fc7037dcd2360166197c0b5d2033f3afdbd34f2ea1bf216",
+      "archiveRoot": "libliftoff-8b08dc1c14fd019cc90ddabe34ad16596b0691f4"
+    },
+    {
+      "path": "subprojects/openvr",
+      "repository": "https://github.com/ValveSoftware/openvr",
+      "revision": "ff87f683f41fe26cc9353dd9d9d7028357fd8e1a",
+      "url": "https://codeload.github.com/ValveSoftware/openvr/tar.gz/ff87f683f41fe26cc9353dd9d9d7028357fd8e1a",
+      "archive": "openvr-ff87f683f41fe26cc9353dd9d9d7028357fd8e1a.tar.gz",
+      "bytes": 154966502,
+      "sha256": "22ea84da76f0f37f15d3433aef5f202ad6f8df12c280da7caa47e0475eeb22fd",
+      "archiveRoot": "openvr-ff87f683f41fe26cc9353dd9d9d7028357fd8e1a"
+    },
+    {
+      "path": "subprojects/vkroots",
+      "repository": "https://github.com/Joshua-Ashton/vkroots",
+      "revision": "20733b938267dcac60f6ac105dbb757f9cc8df9c",
+      "url": "https://codeload.github.com/Joshua-Ashton/vkroots/tar.gz/20733b938267dcac60f6ac105dbb757f9cc8df9c",
+      "archive": "vkroots-20733b938267dcac60f6ac105dbb757f9cc8df9c.tar.gz",
+      "bytes": 482409,
+      "sha256": "863ee36f80faa84d28e1f73b588f6f52d391d210267938a57f7a8fa14b9fd1ce",
+      "archiveRoot": "vkroots-20733b938267dcac60f6ac105dbb757f9cc8df9c"
+    },
+    {
+      "path": "subprojects/wlroots",
+      "repository": "https://gitlab.freedesktop.org/wlroots/wlroots",
+      "revision": "d783533489e1f75d6886c2ab5c5960090ef268f8",
+      "url": "https://gitlab.freedesktop.org/wlroots/wlroots/-/archive/d783533489e1f75d6886c2ab5c5960090ef268f8/wlroots-d783533489e1f75d6886c2ab5c5960090ef268f8.tar.gz",
+      "archive": "wlroots-d783533489e1f75d6886c2ab5c5960090ef268f8.tar.gz",
+      "bytes": 701316,
+      "sha256": "d4d7c5f4ff5729d5eff33859b58ab7ced812aca54367b75ecbdaf9aae448fff6",
+      "archiveRoot": "wlroots-d783533489e1f75d6886c2ab5c5960090ef268f8"
+    },
+    {
+      "path": "thirdparty/SPIRV-Headers",
+      "repository": "https://github.com/KhronosGroup/SPIRV-Headers",
+      "revision": "d790ced752b5bfc06b6988baadef6eb2d16bdf96",
+      "url": "https://codeload.github.com/KhronosGroup/SPIRV-Headers/tar.gz/d790ced752b5bfc06b6988baadef6eb2d16bdf96",
+      "archive": "SPIRV-Headers-d790ced752b5bfc06b6988baadef6eb2d16bdf96.tar.gz",
+      "bytes": 463804,
+      "sha256": "90141b3f6261dba643fe546d56b4539e61fe40e307c5c3b9985ea9fa0622ac3f",
+      "archiveRoot": "SPIRV-Headers-d790ced752b5bfc06b6988baadef6eb2d16bdf96"
+    },
+    {
+      "path": "subprojects/glm",
+      "repository": "https://github.com/g-truc/glm",
+      "revision": "0af55ccecd98d4e5a8d1fad7de25ba429d60e863",
+      "url": "https://codeload.github.com/g-truc/glm/tar.gz/0af55ccecd98d4e5a8d1fad7de25ba429d60e863",
+      "archive": "glm-0af55ccecd98d4e5a8d1fad7de25ba429d60e863.tar.gz",
+      "bytes": 4569211,
+      "sha256": "e7f187d83523f505eb38dd25d297ea6c0d4ed856d733e808f18253f5a8fa88a0",
+      "archiveRoot": "glm-0af55ccecd98d4e5a8d1fad7de25ba429d60e863"
+    },
+    {
+      "path": "subprojects/stb",
+      "repository": "https://github.com/nothings/stb",
+      "revision": "5736b15f7ea0ffb08dd38af21067c314d6a3aae9",
+      "url": "https://codeload.github.com/nothings/stb/tar.gz/5736b15f7ea0ffb08dd38af21067c314d6a3aae9",
+      "archive": "stb-5736b15f7ea0ffb08dd38af21067c314d6a3aae9.tar.gz",
+      "bytes": 1393071,
+      "sha256": "d00921d49b06af62aa6bfb97c1b136bec661dd11dd4eecbcb0da1f6da7cedb4c",
+      "archiveRoot": "stb-5736b15f7ea0ffb08dd38af21067c314d6a3aae9"
+    }
+  ],
+  "mesonOverlays": {
+    "subprojects/packagefiles/glm": "subprojects/glm",
+    "subprojects/packagefiles/stb": "subprojects/stb"
+  },
+  "recursionBoundary": "Root and seven direct gitlinks plus GLM/STB wraps. ReShade nested gitlinks are not acquired; only its selected effect compiler sources are consumed. Dependency/build closure remains separately verified.",
+  "runtimeEligible": false
+}

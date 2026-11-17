@@ -11,6 +11,26 @@
 ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 .DEFAULT_GOAL := all
 
+# Gamescope is an opt-in OHOS port. These targets do not change the product
+# runtime or claim device support before the native compositor is qualified.
+.PHONY: gamescope-source gamescope-ohos-probe test-gamescope-shm
+gamescope-source:
+	python3 $(ROOT)/scripts/gamescope_source.py $(if $(GAMESCOPE_SOURCE_CACHE),--cache $(GAMESCOPE_SOURCE_CACHE),)
+
+gamescope-ohos-probe: gamescope-source
+	python3 $(ROOT)/scripts/gamescope_ohos_probe.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+GAMESCOPE_OHOS_SDK ?= /apps/harmony/sdk/default/openharmony/native
+GAMESCOPE_HOST_PREFIX ?= $(ROOT)/build/host-ext/arm64-v8a/usr
+
+test-gamescope-shm:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -I$(GAMESCOPE_VULKAN_HEADERS) \
+	    -o $(ROOT)/build/host-tests/gamescope_shm_upload_test $(ROOT)/host_tests/gamescope_shm_upload_test.cpp
+	$(ROOT)/build/host-tests/gamescope_shm_upload_test
+
+GAMESCOPE_VULKAN_HEADERS ?= $(ROOT)/thirdparty/dxvk/include
+
 # ── 配置 ──
 NATIVE_ARCH ?= x86_64
 # guest 栈架构与 Wine 对齐: arm64 原生 wine → aarch64 venus/virgl guest (同架构 dlopen);

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="hsl_image_v1">
+  <copyright>
+    Copyright 2026 HSL contributors
+    SPDX-License-Identifier: MIT
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files, to deal in the
+    Software without restriction, subject to inclusion of this notice.
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+  </copyright>
+  <interface name="hsl_image_manager_v1" version="1">
+    <description summary="private session-owned GPU image transport">
+      This protocol negotiates opaque session tickets for the separately
+      versioned HSL image transport. It never transports an OHOS handle,
+      pointer, Vulkan object or DMA-BUF descriptor. Each pool is a distinct
+      generation. The renderer authenticates its actual context and queue.
+      Supported formats and usage are checked by the real image allocator.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="create_pool">
+      <arg name="id" type="new_id" interface="hsl_image_pool_v1"/>
+      <arg name="width" type="uint"/>
+      <arg name="height" type="uint"/>
+      <arg name="format" type="uint" summary="VkFormat, fixed-width wire value"/>
+      <arg name="usage" type="uint" summary="VkImageUsageFlags"/>
+      <arg name="count" type="uint"/>
+    </request>
+  </interface>
+  <interface name="hsl_image_pool_v1" version="1">
+    <description summary="one independently retired image generation">
+      offered contains exactly HSL_IMAGE_WORDS little-endian uint32 values
+      from venus_shared_image.h, including the consumer's random ticket and
+      accepted descriptor. The producer performs HI_CREATE before creating
+      buffers. All pixels and GPU dependencies use that private transport.
+      A buffer may be attached only after HI_PUBLISH succeeds. Reuse requires
+      both wl_buffer.release and a successful HI_ACQUIRE. release does not
+      imply GPU completion: the transport imports the actual GPU dependency.
+      Destroying the pool does not prematurely free live buffers or jobs.
+    </description>
+    <request name="destroy" type="destructor"/>
+    <request name="create_buffer">
+      <arg name="id" type="new_id" interface="wl_buffer"/>
+      <arg name="index" type="uint"/>
+    </request>
+    <event name="offered">
+      <arg name="descriptor" type="array"/>
+    </event>
+    <event name="failed">
+      <arg name="result" type="int" summary="real VkResult failure"/>
+    </event>
+  </interface>
+</protocol>

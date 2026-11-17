@@ -1,0 +1,21 @@
+From: HSL maintainers
+Subject: [PATCH] hdmi: use available DRM types independently of the KMS backend
+
+The Wayland backend includes drm_include.h even when HAVE_DRM=0. That
+header already imports drm_mode.h, so declaring fallback HDR structures
+again breaks nested-only builds. Header availability does not enable the
+DRM backend, device access, or any runtime graphics feature.
+
+Keep the fallback for targets without the standard DRM header.
+
+--- a/src/hdmi.h
++++ b/src/hdmi.h
+@@ -8,7 +8,7 @@
+ #define HDMI_EOTF_ST2084 2
+ #define HDMI_EOTF_HLG 3
+ 
+-#if HAVE_DRM
++#if HAVE_DRM || __has_include(<drm_mode.h>)
+ #include <drm_mode.h>
+ #else
+ /**

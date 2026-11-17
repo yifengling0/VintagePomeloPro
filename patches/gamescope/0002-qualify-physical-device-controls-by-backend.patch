@@ -1,0 +1,91 @@
+From: HSL maintainers
+Subject: [PATCH] wlserver: qualify physical-device controls by backend
+
+Nested touch devices have no libinput/udev physical handle. Compile the
+connector heuristic only for the actual wlroots backend, and reject other
+device kinds before querying libinput. Keep touch delivery unchanged.
+
+DRM-only debug state is absent in nested-only builds. Reject physical
+display-sleep requests with a real Wayland protocol error rather than
+claiming success. This does not enable session/device access or sync.
+
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -26,7 +26,8 @@
+ #include "wlr_begin.hpp"
+ #include <wlr/backend.h>
+ #include <wlr/backend/headless.h>
+-#if HAVE_DRM
++#include <wlr/config.h>
++#if WLR_HAS_LIBINPUT_BACKEND
+ #include <wlr/backend/libinput.h>
+ #endif
+ #include <wlr/backend/multi.h>
+@@ -86,7 +87,9 @@
+ 
+ using namespace std::literals;
+ 
++#if HAVE_DRM
+ extern gamescope::ConVar<bool> cv_drm_debug_disable_explicit_sync;
++#endif
+ 
+ //#define GAMESCOPE_SWAPCHAIN_DEBUG
+ 
+@@ -435,7 +438,9 @@
+ 
+ static void wlserver_touch_associate_connector(struct wlserver_touch *touch)
+ {
++#if WLR_HAS_LIBINPUT_BACKEND
+ 	if (touch->connector != nullptr) return;
++	if (!wlr_input_device_is_libinput(&touch->wlr->base)) return;
+ 
+ 	// Heuristic to associate a monitor to a touch input device:
+ 	//  - if a touchscreen's bus is I²C, it can very likely be associated to an internal monitor.
+@@ -444,7 +449,9 @@
+ 	// because it's not uncommon for touchscreens to report wildly incorrect sizes.
+ 	gamescope::IBackendConnector* connector = nullptr;
+ 	struct libinput_device *lidev = wlr_libinput_get_device_handle(&touch->wlr->base);
++	if (!lidev) return;
+ 	struct udev_device *dev = libinput_device_get_udev_device(lidev);
++	if (!dev) return;
+ 	auto *parent = dev;
+ 	while (parent) {
+ 		const char *subsystem = udev_device_get_subsystem(parent);
+@@ -466,6 +473,7 @@
+ 			connector->GetName(), connector->GetMake(), connector->GetModel(),
+ 			libinput_device_get_name(lidev));
+ 	}
++#endif
+ }
+ 
+ static void wlserver_handle_touch_down(struct wl_listener *listener, void *data)
+@@ -1308,6 +1316,7 @@
+ 
+ static void gamescope_control_display_sleep( struct wl_client *client, struct wl_resource *resource, uint32_t display_type_flags, uint32_t flags )
+ {
++#if HAVE_DRM
+ 	if ( flags & ( GAMESCOPE_CONTROL_DISPLAY_SLEEP_FLAGS_SLEEP | GAMESCOPE_CONTROL_DISPLAY_SLEEP_FLAGS_WAKE ) )
+ 	{
+ 		const bool sleep = !!( flags & GAMESCOPE_CONTROL_DISPLAY_SLEEP_FLAGS_SLEEP );
+@@ -1317,6 +1326,10 @@
+ 		if ( display_type_flags & GAMESCOPE_CONTROL_DISPLAY_TYPE_FLAGS_INTERNAL_DISPLAY )
+ 			drm_sleep_screen( gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL, sleep );
+ 	}
++#else
++	wl_resource_post_error(resource, WL_DISPLAY_ERROR_IMPLEMENTATION,
++		"Physical display sleep requires the DRM backend");
++#endif
+ }
+ 
+ extern gamescope::ConVar<bool> cv_overlay_unmultiplied_alpha;
+@@ -1837,8 +1850,10 @@
+ {
+ 	const struct wl_interface *iface = wl_global_get_interface(global);
+ 
++#if HAVE_DRM
+ 	if ( cv_drm_debug_disable_explicit_sync && iface->name == "wp_linux_drm_syncobj_manager_v1"sv )
+ 		return false;
++#endif
+ 
+ 	if (strcmp(iface->name, wl_output_interface.name) != 0)
+ 		return true;

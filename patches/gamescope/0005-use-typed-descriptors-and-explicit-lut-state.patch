@@ -1,0 +1,265 @@
+From: HSL maintainers
+Subject: [PATCH] vulkan: use typed fallbacks and explicit color LUT presence
+
+Use valid, initialized resources when nullDescriptor is unavailable. Preserve
+NV12 conversion identity, image dimensionality, layouts and native failures.
+Carry paired LUT presence in a push constant, not a null image mip query.
+The inverse-tone-map specialization uses GLSL constant ID 7, not 6.
+The HSL-authored fallback helper is hash-pinned by the GNU build overlay.
+External memory, synchronization and output capability requirements remain.
+
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -319,6 +319,8 @@
+ 	if (!createShaders())
+ 		return false;
+ 	if (!createScratchResources())
++		return false;
++	if (!m_bNullDescriptors && !createDescriptorFallbacks())
+ 		return false;
+ 
+ 	m_bInitialized = true;
+@@ -591,7 +593,24 @@
+ 
+ 	enabledExtensions.push_back( VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME );
+ 
+-	enabledExtensions.push_back( VK_EXT_ROBUSTNESS_2_EXTENSION_NAME );
++	// Null descriptors are optional. The fallback binds real typed images and
++	// carries LUT presence separately; it does not emulate the Vulkan feature.
++	VkPhysicalDeviceRobustness2FeaturesEXT robustness2Features = {
++		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT,
++	};
++	if ( std::any_of(m_supportedExts.begin(), m_supportedExts.end(), [](const auto& ext) {
++		return strcmp(ext.extensionName, VK_EXT_ROBUSTNESS_2_EXTENSION_NAME) == 0;
++	}) )
++	{
++		VkPhysicalDeviceFeatures2 supported = {
++			.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
++			.pNext = &robustness2Features,
++		};
++		vk.GetPhysicalDeviceFeatures2(physDev(), &supported);
++		m_bNullDescriptors = robustness2Features.nullDescriptor;
++	}
++	if ( m_bNullDescriptors )
++		enabledExtensions.push_back( VK_EXT_ROBUSTNESS_2_EXTENSION_NAME );
+ #if 0
+ 	enabledExtensions.push_back( VK_KHR_MAINTENANCE_5_EXTENSION_NAME );
+ #endif
+@@ -684,11 +703,12 @@
+ 		.samplerYcbcrConversion = VK_TRUE,
+ 	};
+ 
+-	VkPhysicalDeviceRobustness2FeaturesEXT robustness2Features = {
+-		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT,
+-		.pNext = std::exchange(features2.pNext, &robustness2Features),
+-		.nullDescriptor = VK_TRUE,
+-	};
++	if ( m_bNullDescriptors )
++	{
++		robustness2Features.robustBufferAccess2 = VK_FALSE;
++		robustness2Features.robustImageAccess2 = VK_FALSE;
++		robustness2Features.pNext = std::exchange(features2.pNext, &robustness2Features);
++	}
+ 
+ 	VkResult res = vk.CreateDevice(physDev(), &deviceCreateInfo, nullptr, &m_device);
+ 	if ( res == VK_ERROR_NOT_PERMITTED_KHR && gamescope::Process::HasCapSysNice() )
+@@ -779,7 +799,12 @@
+ 		.forceExplicitReconstruction = VK_FALSE,
+ 	};
+ 
+-	vk.CreateSamplerYcbcrConversion( device(), &ycbcrSamplerConversionCreateInfo, nullptr, &m_ycbcrConversion );
++	VkResult conversionResult = vk.CreateSamplerYcbcrConversion( device(), &ycbcrSamplerConversionCreateInfo, nullptr, &m_ycbcrConversion );
++	if ( conversionResult != VK_SUCCESS )
++	{
++		vk_errorf(conversionResult, "vkCreateSamplerYcbcrConversion failed");
++		return false;
++	}
+ 
+ 	VkSamplerYcbcrConversionInfo ycbcrSamplerConversionInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO,
+@@ -797,7 +822,12 @@
+ 		.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
+ 	};
+ 	
+-	vk.CreateSampler( device(), &ycbcrSamplerInfo, nullptr, &m_ycbcrSampler );
++	VkResult samplerResult = vk.CreateSampler( device(), &ycbcrSamplerInfo, nullptr, &m_ycbcrSampler );
++	if ( samplerResult != VK_SUCCESS )
++	{
++		vk_errorf(samplerResult, "vkCreateSampler (YCbCr) failed");
++		return false;
++	}
+ 
+ 	// Create an array of our ycbcrSampler to fill up
+ 	std::array<VkSampler, VKR_SAMPLER_SLOTS> ycbcrSamplers;
+@@ -864,10 +894,13 @@
+ 		return false;
+ 	}
+ 
++	const VkPushConstantRange colorState = { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t) };
+ 	VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+ 		.setLayoutCount = 1,
+ 		.pSetLayouts = &m_descriptorSetLayout,
++		.pushConstantRangeCount = 1,
++		.pPushConstantRanges = &colorState,
+ 	};
+ 	
+ 	res = vk.CreatePipelineLayout(device(), &pipelineLayoutCreateInfo, nullptr, &m_pipelineLayout);
+@@ -1094,6 +1127,28 @@
+ 		return false;
+ 	}
+ 
++	return true;
++}
++
++bool CVulkanDevice::createDescriptorFallbacks()
++{
++	m_descriptorFallback = std::make_unique<hsl::VulkanDescriptorFallback>();
++	VkResult result = m_descriptorFallback->init(physDev(), device(), vk.GetDeviceProcAddr,
++		vk.GetPhysicalDeviceImageFormatProperties2, m_memoryProperties, m_ycbcrConversion);
++	if ( result != VK_SUCCESS )
++	{
++		vk_errorf(result, "typed descriptor fallback initialization failed");
++		return false;
++	}
++	auto [data, offset] = uploadBufferData(hsl::VulkanDescriptorFallback::UploadBytes);
++	memcpy(data, hsl::VulkanDescriptorFallback::Upload.data(), hsl::VulkanDescriptorFallback::UploadBytes);
++	auto command = commandBuffer();
++	if (!command)
++		return false;
++	m_descriptorFallback->record(command->rawBuffer(), uploadBuffer(), offset);
++	// One initialization submission. No per-frame queue/device idle or upload.
++	wait(submit(std::move(command)));
++	vk_log.infof("using real typed descriptor fallback resources");
+ 	return true;
+ }
+ 
+@@ -1158,7 +1213,7 @@
+ 		},
+ 
+ 		{
+-			.constantID = 6,
++			.constantID = 7,
+ 			.offset     = sizeof(uint32_t) * 6,
+ 			.size       = sizeof(uint32_t)
+ 		},
+@@ -1813,6 +1868,11 @@
+ 		imageDescriptors[i].sampler = m_device->sampler(m_samplerState[i]);
+ 		imageDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+ 		ycbcrImageDescriptors[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
++		if (m_device->m_descriptorFallback)
++		{
++			imageDescriptors[i].imageView = m_device->m_descriptorFallback->view(hsl::VulkanDescriptorFallback::Rgba);
++			ycbcrImageDescriptors[i].imageView = m_device->m_descriptorFallback->view(hsl::VulkanDescriptorFallback::Ycbcr);
++		}
+ 		if (m_boundTextures[i] == nullptr)
+ 			continue;
+ 
+@@ -1824,8 +1884,11 @@
+ 			imageDescriptors[i].imageView = view;
+ 	}
+ 
++	uint32_t lutMask = 0;
+ 	for (uint32_t i = 0; i < VKR_LUT3D_COUNT; i++)
+ 	{
++		if (m_shaperLut[i] && m_lut3D[i])
++			lutMask |= 1u << i;
+ 		SamplerState linearState;
+ 		linearState.bNearest = false;
+ 		linearState.bUnnormalized = false;
+@@ -1842,12 +1905,24 @@
+ 		lut3DDescriptor[i].sampler = m_device->sampler(nearestState);
+ 		lut3DDescriptor[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+ 		lut3DDescriptor[i].imageView = m_lut3D[i] ? m_lut3D[i]->srgbView() : VK_NULL_HANDLE;
++		if (m_device->m_descriptorFallback)
++		{
++			if (!m_shaperLut[i])
++				shaperLutDescriptor[i].imageView = m_device->m_descriptorFallback->view(hsl::VulkanDescriptorFallback::Shaper);
++			if (!m_lut3D[i])
++				lut3DDescriptor[i].imageView = m_device->m_descriptorFallback->view(hsl::VulkanDescriptorFallback::Lut3d);
++		}
+ 	}
+ 
+ 	if (!m_target->isYcbcr())
+ 	{
+ 		targetDescriptors[0].imageView = m_target->srgbView();
+ 		targetDescriptors[0].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
++		if (m_device->m_descriptorFallback)
++		{
++			targetDescriptors[1].imageView = m_device->m_descriptorFallback->view(hsl::VulkanDescriptorFallback::Rgba);
++			targetDescriptors[1].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
++		}
+ 	}
+ 	else
+ 	{
+@@ -1862,6 +1937,8 @@
+ 
+ 	m_device->vk.CmdBindDescriptorSets(m_cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_device->pipelineLayout(), 0, 1, &descriptorSet, 0, nullptr);
+ 
++	m_device->vk.CmdPushConstants(m_cmdBuffer, m_device->pipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
++		0, sizeof(lutMask), &lutMask);
+ 	m_device->vk.CmdDispatch(m_cmdBuffer, x, y, z);
+ 
+ 	markDirty(m_target);
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -834,6 +834,8 @@
+ 	uint64_t ulPoint;
+ };
+ 
++#include "hsl_vulkan_descriptor_fallback.h"
++
+ class CVulkanDevice
+ {
+ public:
+@@ -911,6 +913,7 @@
+ 	bool createPools();
+ 	bool createShaders();
+ 	bool createScratchResources();
++	bool createDescriptorFallbacks();
+ 	VkPipeline compilePipeline(uint32_t layerCount, uint32_t ycbcrMask, ShaderType type, uint32_t blur_layer_count, uint32_t composite_debug, uint32_t colorspace_mask, uint32_t output_eotf, bool itm_enable);
+ 	void compileAllPipelines(std::stop_token st);
+ 
+@@ -939,6 +942,8 @@
+ 	bool m_bHasDrmPrimaryDevId = false;
+ 	bool m_bSupportsModifiers = false;
+ 	bool m_bInitialized = false;
++	bool m_bNullDescriptors = false;
++	std::unique_ptr<hsl::VulkanDescriptorFallback> m_descriptorFallback;
+ 
+ 
+ 	VkPhysicalDeviceMemoryProperties m_memoryProperties;
+--- a/src/shaders/descriptor_set.h
++++ b/src/shaders/descriptor_set.h
+@@ -8,6 +8,11 @@
+ layout(constant_id = 4) const uint c_colorspaceMask = 0;
+ layout(constant_id = 5) const uint c_output_eotf = 0;
+ layout(constant_id = 7) const bool c_itm_enable = false;
++
++// Presence is logical state, independent of the backing descriptor's mip count.
++// A LUT is usable only when both its 1D shaper and 3D volume are bound.
++layout(push_constant) uniform color_mgmt_state_t { uint lut_mask; } color_mgmt;
++bool has_color_mgmt_lut(uint eotf) { return (color_mgmt.lut_mask & (1u << eotf)) != 0; }
+ 
+ const int colorspace_linear = 0;
+ const int colorspace_sRGB = 1;
+--- a/src/shaders/composite.h
++++ b/src/shaders/composite.h
+@@ -128,7 +128,7 @@
+     //
+     // We also need to do degamma here for non-linear views to blend in linear space.
+     // ie. PQ -> PQ would need us to manually do bilinear here.
+-    bool lut3d_enabled = textureQueryLevels(s_shaperLut[plane_eotf]) != 0;
++    bool lut3d_enabled = has_color_mgmt_lut(plane_eotf);
+     if (lut3d_enabled)
+     {
+         color = colorspace_plane_shaper_tf(color, colorspace);
+@@ -140,7 +140,7 @@
+ 
+ // Takes a PQ value that already went through the layer CTM, which is what the PQ shaper LUT expects.
+ vec3 apply_layer_color_mgmt_pq(vec3 pq, uint layer, uint colorspace) {
+-    bool direct = textureQueryLevels(s_shaperLut[EOTF_PQ]) != 0 &&
++    bool direct = has_color_mgmt_lut(EOTF_PQ) &&
+                   !c_itm_enable &&
+                   !(layer == 0 && checkDebugFlag(compositedebug_Heatmap));
+     if (direct)
