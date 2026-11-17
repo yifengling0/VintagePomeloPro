@@ -63,6 +63,11 @@ export class GameModeService {
     return testNapi.presentGameToplevel(toplevelId);
   }
 
+  static presentDesktop(): boolean {
+    if (!GameModeService.owner?.enabled) return false;
+    return testNapi.presentGameToplevel(0);
+  }
+
   static enabled(): boolean { return GameModeService.owner?.enabled === true; }
 
   static activeAppId(): string { return GameModeService.appId; }

@@ -26,17 +26,18 @@ clone.gameModeSettings.frameLimit = 60;
 const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/service/GameModeService.ets'), 'utf8');
 const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
 function fixture() {
-  const values = new Map(), calls = [], exports = {};
+  const values = new Map(), calls = [], targets = [], exports = {};
   let appSettings = models.createDefaultAppSettings('game');
   const dependencies = {
-    'libentry.so': { default: { configureGamePresentation: (...args) => calls.push(args) } },
+    'libentry.so': { default: { configureGamePresentation: (...args) => calls.push(args),
+      presentGameToplevel: id => { targets.push(id); return true; } } },
     '../model/AppModels': models, '../model/GameModeSettings': rules,
     './AppSettingsStore': { AppSettingsStore: { getInstance: () => ({ getAppSettings: () => appSettings }) } }
   };
   vm.runInNewContext(code, { exports, require: name => {
     assert.ok(Object.hasOwn(dependencies, name), name); return dependencies[name];
   }, AppStorage: { get: key => values.get(key), setOrCreate: (key, value) => values.set(key, value) } });
-  return { service: exports.GameModeService, values, calls, appSettings, dependencies };
+  return { service: exports.GameModeService, values, calls, targets, appSettings, dependencies };
 }
 const app = { id: 'game', launchTarget: { kind: models.LaunchKind.WINE_EXE } };
 const global = models.createDefaultGlobalSettings();
@@ -49,12 +50,17 @@ global.gameMode = { scaling: 'nearest', frameLimit: 30 };
   f.service.reset(); // startup restart cannot clear a reserved policy
   assert.equal(f.values.get('vpp.game.session'), true);
   f.service.finish(true);
+  assert.equal(f.service.present(42), true);
+  assert.equal(f.service.presentDesktop(), true);
+  assert.deepEqual(f.targets, [42, 0], 'Steam clears a previous game crop without changing the policy');
   f.service.begin({ ...app, launchTarget: { kind: models.LaunchKind.STEAM_CLIENT } }, global, true); f.service.finish(true);
   f.service.begin({ ...app, launchTarget: { kind: models.LaunchKind.STEAM_GAME } }, global, true); f.service.finish(true);
   f.appSettings.gameModeOverride = 'off';
   assert.throws(() => f.service.begin(app, global, true), /Windows/);
   assert.equal(f.values.get('vpp.game.session'), true);
   f.service.reset(); assert.equal(f.values.get('vpp.game.session'), false);
+  assert.equal(f.service.presentDesktop(), false);
+  assert.equal(f.targets.length, 2, 'Disabled mode never changes native presentation');
 }
 {
   const f = fixture(); f.values.set('vpp.game.browsing', true);

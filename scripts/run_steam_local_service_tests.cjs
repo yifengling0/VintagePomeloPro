@@ -35,7 +35,7 @@ const mocks={
  './PortableGameConfigurationService':{PortableGameConfigurationService:{getInstance:()=>({discover:async(_directory,_exe,id)=>id})}},
  '../steam/SteamLocalService':{SteamLocalService:{getInstance:()=>local}},
  './WineEngineService':{WineEngineService:{getInstance:()=>engine}},
- './GameModeService':{GameModeService:{begin(){},finish(){},reset(){},enabled:()=>false,noteActiveApp(){}}},
+ './GameModeService':{GameModeService:{begin(){},finish(){},reset(){},presentDesktop:()=>false,enabled:()=>false,noteActiveApp(){}}},
  './WineWindowManager':{WineWindowManager:{getInstance:()=>({isDesktopMode:false})}},
  './InputOverlayWindowCoordinator':{}, './AppCatalogService':{}
 };

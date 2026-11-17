@@ -22,7 +22,7 @@ function fixture() {
   let state = models.EngineState.PREPARING;
   let root = 7;
   let rootThrows = false;
-  const starts = [], launches = [];
+  const starts = [], launches = [], gameTargets = [];
   const globalSettings = models.createDefaultGlobalSettings();
   const appSettings = models.createDefaultAppSettings('cpu-test');
   const processes = [];
@@ -57,6 +57,7 @@ function fixture() {
   const steam = { canLaunch: () => true, ensureGpuDependencies: async () => {},
     prepareRuntimeHelper: async () => {}, prepareLibraryPerformance: async () => {},
     isCompatibility: () => false, getClientDirectory: () => 'C:/Steam',
+    clientCard: () => ({ id: 'steam-client-default', launchTarget: { executable: 'C:/Steam/steam.exe' } }),
     getCards: () => steamCards,
     processesFor: (app, processes, includeUi = false) => processes.filter(p => p.state === 'running' &&
       (p.path === app.launchTarget.executable || (includeUi && p.path === 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe'))) };
@@ -67,7 +68,9 @@ function fixture() {
     '../model/GraphicsBackendSettings': require(path.join(compiledRoot, 'model/GraphicsBackendSettings.js')),
     '../model/AppCatalogRules': rules,
     './GameModeService': { GameModeService: { begin() {}, finish() {}, reset() {},
-      present: () => gameEnabled, enabled: () => gameEnabled, noteActiveApp() {} } },
+      present: id => { gameTargets.push(id); return gameEnabled; },
+      presentDesktop: () => { gameTargets.push(0); return gameEnabled; },
+      enabled: () => gameEnabled, noteActiveApp() {} } },
     './WineEngineService': { WineEngineService: { getInstance: () => engine } },
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,
@@ -99,7 +102,7 @@ function fixture() {
   const service = new exports.AppSessionService();
   service.initialize({ startAbility: async want => { starts.push(want); } });
   return {
-    service, engine, starts, launches, globalSettings, appSettings, processes, queries, stopRequests, killRequests,
+    service, engine, starts, launches, gameTargets, globalSettings, appSettings, processes, queries, stopRequests, killRequests,
     acceptStop: () => { acceptStop = true; },
     setState: next => { state = next; },
     setRoot: next => { root = next; },
@@ -342,6 +345,22 @@ function fixture() {
   const steamApp = { id: 'steam-client-default', steam: { state: 'client' },
     launchTarget: { executable: 'C:/Steam/steam.exe', arguments: [], workingDirectory: 'C:/Steam' } };
   const launched = { appId: steamApp.id, sessionId: 'sender', pid: 42, toplevelId: 0 };
+  { // A replaced CEF window stays part of the desktop shell, not a game crop.
+    const f = fixture(); f.enableGame(); f.setState(models.EngineState.READY);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset();
+    f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'cef-browser', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    const client = { ...launched, executable: 'C:/Steam/steam.exe', sessionId: 'real-client', pid: 82, toplevelId: 94,
+      presentationMode: models.WinePresentationMode.DESKTOP, state: models.SessionState.RUNNING };
+    tasks.onEvent(94, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    tasks.onEvent(94, 'destroyed', '{}');
+    tasks.onEvent(95, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    await f.service.resume(client);
+    assert.equal(client.toplevelId, 95, 'Return resolves the replacement CEF window');
+    assert.equal(client.sessionId, 'real-client', 'Keep the actual Steam process identity');
+    assert.deepEqual(f.gameTargets, [0], 'Steam retains multiwindow desktop coordinates');
+    assert.equal(f.timers.size, 1, 'Normal Steam exit still returns to Game library');
+  }
   { // Cold launch registers its carrier but never presents an empty desktop.
     const f = fixture(); f.setState(models.EngineState.READY);
     f.service.associateToplevel('desktop', 0, 7);

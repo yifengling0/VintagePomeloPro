@@ -658,6 +658,17 @@ export class AppSessionService {
 
   async resume(session: RuntimeSession): Promise<void> {
     if (!this.context) return;
+    if (session.appId === STEAM_CLIENT_ID) {
+      // Login, the library and Big Picture can replace CEF windows while the
+      // real steam.exe keeps running. Resolve live ownership again on return.
+      const steam = SteamLocalService.getInstance();
+      const owners = steam.processesFor(steam.clientCard(), this.getNativeProcesses(), true);
+      const windows = HostWindowTasks.getInstance().snapshot().filter((task): boolean =>
+        !task.minimized && task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
+          task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)));
+      const window = windows.find((task): boolean => task.toplevelId === session.toplevelId) ?? windows[0];
+      if (window) session.toplevelId = window.toplevelId;
+    }
     if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
       const task = HostWindowTasks.getInstance().snapshot().find((item): boolean => item.sessionId === session.sessionId);
       if (task && await HostWindowTasks.getInstance().activate(task.key)) return;
@@ -926,7 +937,11 @@ export class AppSessionService {
 
   private presentGameSession(session: RuntimeSession): void {
     try {
-      if (!GameModeService.present(session.toplevelId)) return;
+      // Steam is the launcher shell: keep its desktop coordinate space and
+      // multiwindow UI intact. Only the actual game's canvas is magnified.
+      const presented = session.appId === STEAM_CLIENT_ID ? GameModeService.presentDesktop() :
+        GameModeService.present(session.toplevelId);
+      if (!presented) return;
     } catch (_) { return; }
     GameModeService.noteActiveApp(session.appId);
     this.gameReturnSession = session;
