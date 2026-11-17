@@ -566,7 +566,9 @@ private:
                 input.native=buffer->image->native; input.fence=buffer->acquireFence;
                 input.width=buffer->image->width; input.height=buffer->image->height;
                 input.vulkan=!buffer->glSource;
-                if (layer.zeroCopyKey) input.vulkan=glLayers_.at(layer.zeroCopyKey)->vulkan;
+                // Broker Vulkan images are Venus NativePresent copies in
+                // GENERAL, unlike Direct WSI buffers in PRESENT_SRC_KHR.
+                // Sampling direction already follows the per-surface channel.
                 if (layer.sampling.u[2]!=0 || layer.sampling.v[1]!=0) return Fail("gamescope_rotated_buffer",VK_ERROR_FORMAT_NOT_SUPPORTED);
                 input.u0=layer.sampling.u[0]; input.u1=layer.sampling.u[1];
                 input.v0=layer.sampling.v[0]; input.v2=layer.sampling.v[2];

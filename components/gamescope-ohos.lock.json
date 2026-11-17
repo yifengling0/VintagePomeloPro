@@ -362,6 +362,13 @@
           "afterSha256": "2d3ebdc5171faab1736bcbb18b5deafc4808b2fee14a7c0bc5e9b1566a6aedea"
         }
       ]
+    },
+    {
+      "path": "patches/gamescope/0017-ohos-bound-shm-upload-arena-for-tablet-desktops.patch",
+      "sha256": "dd2da5ca5c38bb589e0bdbc23aa876bdedcce25e3c7b9f45d1bda0499966aa19",
+      "originalPath": "src/rendervulkan.hpp",
+      "beforeSha256": "f371e3c04e24622247d38c51f97a63f9b805847d77d3bf408995541dfdc0a7bd",
+      "afterSha256": "7d319af3185c1142a5cbd8a7a805020f24968b718b03eb3bfea785b22d7ff95d"
     }
   ],
   "overlays": [

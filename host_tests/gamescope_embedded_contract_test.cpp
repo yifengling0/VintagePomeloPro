@@ -18,6 +18,13 @@ int main() {
     layers[1].native=nullptr; layers[1].pixels=&popup; layers[1].width=layers[1].height=1;
     assert(!VppGamescopeValidFrame(f)); // truncated SHM before GPU commands
     layers[1].pixelBytes=4; assert(VppGamescopeValidFrame(f));
+    layers[1].width=2400; layers[1].height=1600; layers[1].pixelBytes=2400u*1600*4;
+    assert(VppGamescopeValidFrame(f)); // Mini desktop exceeds the old 1080p arena
+    layers[1].width=4096; layers[1].height=2048; layers[1].pixelBytes=32u*1024*1024;
+    assert(VppGamescopeValidFrame(f));
+    layers[1].height=2049; layers[1].pixelBytes+=4096u*4;
+    assert(!VppGamescopeValidFrame(f));
+    layers[1].height=2048; layers[1].pixelBytes=32u*1024*1024;
     f.sharpness=21; assert(!VppGamescopeValidFrame(f));
     f.sharpness=0; f.size=0; assert(!VppGamescopeValidFrame(f));
 }
