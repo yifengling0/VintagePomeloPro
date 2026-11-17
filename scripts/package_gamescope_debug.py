@@ -41,9 +41,9 @@ def package(sdk, config, material, output):
     payload = ROOT/'entry/libs/arm64-v8a'
     # Freeze committed app code and the actual local vendor overlays. The
     # existing Wine/FEX payload keeps its independent component provenance.
-    source = capture(ROOT)
-    record = application_build_record(source)
-    (work/'app-source.json').write_text(json.dumps(source, indent=2)+'\n')
+    source_manifest = capture(ROOT)
+    record = application_build_record(source_manifest)
+    (work/'app-source.json').write_text(json.dumps(source_manifest, indent=2)+'\n')
     (ROOT/'entry/src/main/resources/rawfile/application-build.json').write_text(
         json.dumps(record, indent=2)+'\n')
     prepare_recipe(ROOT/'build/gamescope/cache', work)
@@ -140,8 +140,8 @@ def package(sdk, config, material, output):
                    '-outProfile', private/'actual.p7b', '-outCertChain', private/'chain.cer'])
             if sha(private/'actual.p7b') != sha(profile):
                 raise ValueError('Signed HAP has unexpected profile')
-        verify_effective(ROOT, source)
-        if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != source['commit']:
+        verify_effective(ROOT, source_manifest)
+        if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != source_manifest['commit']:
             raise ValueError('Application commit changed during packaging')
         subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--ignore-submodules=all'], cwd=ROOT, check=True)
         with zipfile.ZipFile(signed) as archive:
@@ -152,7 +152,7 @@ def package(sdk, config, material, output):
     result = {'bundle': module['app']['bundleName'], 'version': module['app']['versionName'],
               'bytes': signed.stat().st_size, 'sha256': sha(signed), 'path': str(signed),
               'debugSignatureVerified': True, 'renderQualified': False,
-              'head': source['commit'], 'applicationBuild': record,
+              'head': source_manifest['commit'], 'applicationBuild': record,
               'coreSourceReceiptSha256': receipt['sourceReceiptSha256'],
               'coreBuildSha256': receipt['sha256']}
     (output/'package.json').write_text(json.dumps(result, indent=2)+'\n')
