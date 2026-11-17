@@ -1,0 +1,28 @@
+--- a/src/shaders/cs_easu.comp
++++ b/src/shaders/cs_easu.comp
+@@ -43,7 +43,13 @@
+ {
+     if (any(greaterThanEqual(pos, uvec2(imageSize(dst))))) return;
+     vec3 color;
+-    FsrEasuF(color, pos, c1, c2, c3, c4);
++    vec2 uv = (vec2(pos) + 0.5) / vec2(imageSize(dst));
++    uint band = min(uint(uv.x * 4.0), 3u);
++    uv.x = fract(uv.x * 4.0);
++    if (band == 0u) color = texelFetch(s_samplers[0], ivec2(uv * vec2(textureSize(s_samplers[0], 0))), 0).rgb;
++    else if (band == 1u) color = textureLod(s_samplers[0], uv, 0.0).rgb;
++    else if (band == 2u) color = vec3(textureGather(s_samplers[0], uv, 0).w, textureGather(s_samplers[0], uv, 1).w, textureGather(s_samplers[0], uv, 2).w);
++    else FsrEasuF(color, uvec2(uv * vec2(imageSize(dst))), c1, c2, c3, c4);
+     imageStore(dst, ivec2(pos), vec4(easuOutput(color), 1));
+ }
+ 
+--- a/src/shaders/cs_composite_rcas_1px.comp
++++ b/src/shaders/cs_composite_rcas_1px.comp
+@@ -66,7 +66,7 @@
+         uvec2 layer0Extent = uvec2(textureSize(s_samplers[0], 0));
+ 
+         if (all(lessThan(rcasPos, layer0Extent))) {
+-            FsrRcasF(outputValue.r, outputValue.g, outputValue.b, rcasPos, u_c1.xxxx);
++            outputValue = texelFetch(s_samplers[0], ivec2(rcasPos), 0).rgb; // bounded diagnostic
+ 
+             uint colorspace = get_layer_colorspace(0);
+             if (colorspace == colorspace_linear)
