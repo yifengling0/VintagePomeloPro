@@ -451,6 +451,22 @@
           "afterSha256": "2d84b1b7983b4a08a68f15c45c790ab431c2fdda488f9bfbacebc9e576accdcf"
         }
       ]
+    },
+    {
+      "path": "patches/gamescope/0023-diagnostic-fsr-output-isolation.patch",
+      "sha256": "f8bde41e26691f772e6bdd4ed6fbd996c19718589904ed3233a46364a2defccb",
+      "files": [
+        {
+          "originalPath": "src/shaders/cs_easu.comp",
+          "beforeSha256": "44a2c2f2a39eb068970636777266a2759caaa9ed174efd22aef2c6b4a630ef89",
+          "afterSha256": "771ab14604cacaf58dcf2c0986e51afb19f0ce02cbc8d5512b01df0ab6b76705"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
+          "beforeSha256": "2d84b1b7983b4a08a68f15c45c790ab431c2fdda488f9bfbacebc9e576accdcf",
+          "afterSha256": "7a776100f47c1a915a528cfaf431594a449223288a15a153a650e4a7d7352013"
+        }
+      ]
     }
   ],
   "overlays": [
