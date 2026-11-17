@@ -27,6 +27,13 @@ export default class EntryAbility extends UIAbility {
   private membershipDelivery: string | null = null;
   private membershipRouteTimer: number = -1;
   private membershipRouteAttempts: number = 0;
+  private applyDiagnosticWant(want: Want): void {
+    // Explicit, non-persistent host diagnostics; unrelated Wants leave the
+    // current setting alone. No Wine environment or per-frame trace needed.
+    const value = want.parameters?.['winehua.frameDiagnostics'];
+    if (value === '1' || value === true) testNapi.setFrameLoopDiagnostics(true);
+    else if (value === '0' || value === false) testNapi.setFrameLoopDiagnostics(false);
+  }
   private rememberMembershipWant(want: Want): void {
     if (want.action !== 'com.vintagepomelo.action.MEMBERSHIP') return;
     const delivery = want.parameters?.deliveryId;
@@ -61,6 +68,7 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
     AppLog.init();
+    this.applyDiagnosticWant(want);
     DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
     hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
@@ -88,6 +96,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onNewWant(want: Want): void {
+    this.applyDiagnosticWant(want);
     this.rememberMembershipWant(want);
     if (this.mainWindow) this.openMembershipWant();
     // A singleton Ability may receive the next launch without another
