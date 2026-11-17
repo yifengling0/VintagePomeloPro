@@ -16,8 +16,8 @@
 
 | 平台 | 进程和最终呈现 | 当前状态 |
 | --- | --- | --- |
-| 支持 NCP 的平板/PC | 独立 OHOS Gamescope core，通过 OHIPC 交接 NativeWindow | Mini 已通过 SHM 五轮启停与三次 resize 的像素/比例检查；GPU 游戏桥未接通 |
-| 手机 | 复用现有 Venus/VirGL/Zink 与 App 内原生合成器，承载类似的 Game 呈现功能 | 共用 UI、客户区缩放和限帧接线已实现；未实现 FSR，未做手机真机验收 |
+| 平板/PC 和手机的 Game 会话 | App 内嵌入 OHOS Gamescope core，通过 NativeBuffer/fence 导入、最终 NativeWindow 输出和官方 EASU/RCAS 合成 | GPU 桥和 FSR 已接入；新 storage 输出、颜色和 FP16 仍需 Mini 复测，手机尚未真机验收 |
+| 支持 NCP 的平板/PC 的独立诊断 | 独立 OHOS Gamescope core，通过 OHIPC 交接 NativeWindow | Mini 历史 SHM 五轮启停与三次 resize 通过；不是实际游戏或新 storage 输出验收 |
 
 手机已有早期 clean fork server 可启动纯运行时子进程；没有服务或服务已死亡时不得
 回退到系统 NCP，也不在 ArkUI/GPU 已运行后临时 fork。该进程能力不等同于图形能力。
@@ -35,7 +35,7 @@ HDI/SAMGR 服务获取中等待，零帧。见
 ## 手机接入点与待验收范围
 
 1. 已在统一会话设置中解析呈现选项，注入现有 `EglRenderer` / `DesktopCompositor`。
-   继续由现有 NativeImage 消费和最终输出持有图像；不新增完整桌面的重复合成。
+   继续由现有 NativeImage 消费持有图像，最终输出交给同进程 Gamescope；不新增完整桌面的重复合成。
 2. 已将线性、最近邻、整数缩放接到最终显示矩形；输入共用呈现客户区尺寸、原点和黑边。
    Mini PAL4 已验证去掉标题栏后的客户区触摸；手机旋转、相对鼠标及 X11 路线仍须独立验收。
 3. FSR 1.0 在同进程 GPU pass 中实现 EASU/RCAS，沿用 HSL 锐化转换。必要的中间纹理
@@ -46,4 +46,4 @@ HDI/SAMGR 服务获取中等待，零帧。见
 
 手机单独验证正常初始化、游戏画面、旋转、后台恢复、五轮退出重入；以相同后端、
 实际游戏/输出尺寸比较普通模式和 Game 模式。Mini 的任何通过结果不能代替手机验收。
-本轮没有手机真机结果；共用 UI 已实现，FSR、限帧实效及上述手机呈现回归仍待完成。
+本轮没有手机真机结果；共用 UI、GPU 桥和 FSR 已实现，手机的 FSR、限帧实效及上述呈现回归仍待验收。

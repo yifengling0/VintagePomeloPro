@@ -4,8 +4,22 @@
 HSL 参考提交为 `46fe1daabd26085c617c74033f470ac9e5d912b1`，
 Gamescope 源码固定于 `e6674a98118ca7b098b98a3874b8f195ae1bf750`。
 原有界面、图形后端默认值、用户配置和正式 2.0.4 包保留。已新增独立 Game 游戏库、
-快捷面板和 VPP 自有合成器的 Game 呈现；仅调试签名可见的“Gamescope 呈现检查”
-继续用于独立 core 验证。真实 GPU 游戏尚未经过 Gamescope core，FSR 尚未接入。
+快捷面板和嵌入式 Gamescope 呈现；仅调试签名可见的“Gamescope 呈现检查”
+继续用于独立 core 验证。
+
+## 当前检查点：2026-11-17 设备断连后
+
+GPU 游戏 NativeBuffer/fence 桥和官方 FSR EASU/RCAS 已接入同进程 core，手机路线
+不依赖 NCP。已修正 OHOS BGRA compute 中间纹理异常、SDR 输出缺少编码及客户区
+归一化重复转换。新增按需管线编译、能力检测后的 EASU FP16，以及 storage 交换链
+直接输出；后者保留原 GPU copy 回退。源码锁和 24 个补丁的严格重放、OHOS 编译、
+实际 shader 主机执行与目标创建/失败回退测试已通过。
+
+Mini 断连，用户决定充电后继续实测。本轮没有新包的画面、帧率或 CPU/GPU 占用结果，
+不得把历史 SHM/客户区结果当成新链路验收。当前包身份以任务目录 `package.json` 和
+`package-audit.json` 为准；保留 `042600eb` 的最后已验证客户区回退包。
+详细分析与待测项见 [颜色与性能复核](color-performance-review.zh-CN.md) 和
+[GPU 桥说明](embedded-gpu-bridge.zh-CN.md)。以下各节为迁移过程中的分阶段记录。
 
 ## 已迁入和验证
 
@@ -115,15 +129,15 @@ NativeBuffer 输出已解决。手机不调用平板专用的 `StartOutputChild`
 
 ## 尚未完成的交付范围
 
-1. GPU 游戏 NativeBuffer/fence importer、窗口关联与消费退役，覆盖 Direct/Venus/VirGL。
-   HSL `HslImage` 的 GNU 私有传输仍为参考；不得跨 VkDevice 使用原始 VkImage。
+1. GPU 游戏 NativeBuffer/fence importer、窗口关联与消费退役已实现，Direct/Venus/VirGL
+   组合的画面与生命周期仍需分别验收；不得跨 VkDevice 使用原始 VkImage。
 2. X11 Game 最终裁切与对应输入；扩大相对鼠标、IME、授权剪贴板与实体多手柄回归。
 3. Game 库与快捷面板的完整生命周期、Steam 派发/退出返回及单游戏覆盖真机验收。
-4. FSR、限帧实效与手机真机；PAL4、Heaven、DX11 及严格性能对照。
+4. 已实现的 FSR、限帧的实际效果与手机真机；PAL4、Heaven、DX11 及严格性能对照。
 5. 完整生命周期、资源增长和手机真机回归。
 
 调试包与回退包位于固定 `workspace_temp/gamescope-port/`，各有大小和 SHA-256 收据。
-当前代码包对应 `042600ebd491827293a05835b0199bf3e2c4bc51`，调试 HAP 为
+已验证客户区的历史回退包对应 `042600ebd491827293a05835b0199bf3e2c4bc51`，调试 HAP 为
 633,843,538 字节，SHA-256：
 `289143c1cba350f76f144a9647d7198b7b6e6bd7423ed7a29baf330fc01a9cfe`。
 所有与 PAL4 调试基线共有的包成员均做 SHA-256 对照，没有成员删除；Wine 数据
