@@ -1,4 +1,42 @@
 export const startServer: (sockPath: string) => boolean;
+export interface GamescopeRuntimeStatus {
+  standaloneOutputSupported: boolean;
+  loaded: boolean;
+  renderQualified: boolean;
+  stage: string;
+  detail: string;
+  processBackend: string;
+  launchCode: number;
+  pid: number;
+}
+export const prepareGamescopeProcessBackend: () => number;
+export const startGamescopeDiagnosticClient: () => number;
+export const probeGamescopeRuntime: () => Promise<GamescopeRuntimeStatus>;
+export interface GamescopeSessionOptions {
+  surfaceId: bigint;
+  renderWidth: number;
+  renderHeight: number;
+  outputWidth: number;
+  outputHeight: number;
+  filter: number;
+  fpsLimit: number;
+  sharpness: number;
+}
+export interface GamescopeSessionStatus {
+  active: boolean;
+  outputReady: boolean;
+  displayReady: boolean;
+  presented: boolean;
+  stage: string;
+  detail: string;
+  display: string;
+  pid: number;
+  error: number;
+}
+export const startGamescopeSession: (options: GamescopeSessionOptions) => Promise<number>;
+export const stopGamescopeSession: () => boolean;
+export const getGamescopeSessionStatus: () => GamescopeSessionStatus;
+export const setGamescopeOutputState: (width: number, height: number, visible: boolean) => boolean;
 export const setFrameLoopDiagnostics: (enabled: boolean) => void;
 export interface NativePerformanceSnapshot {
   pid: number;

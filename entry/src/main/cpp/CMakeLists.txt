@@ -57,7 +57,19 @@ set(WLR_PIXMAN_INC ${WLR_DIR}/usr/include/pixman-1)
 # xwayland.h 需要 xcb/xcb.h 等 (host-ext usr/include)
 set(WLR_XCB_INC ${WLR_DIR}/usr/include)
 
+# The core stays isolated in its process; libentry contains only control/IPC.
+set(VPP_GAMESCOPE_PLATFORM ${NATIVERENDER_ROOT_PATH}/../../../../native/gamescope/ohos)
+include_directories(${VPP_GAMESCOPE_PLATFORM})
+add_library(gamescope_child SHARED gamescope/gamescope_child.cpp)
+target_include_directories(gamescope_child PRIVATE ${NATIVERENDER_ROOT_PATH})
+target_link_libraries(gamescope_child PRIVATE libdl.so libchild_process.so libipc_capi.so libnative_window.so)
+
 add_library(entry SHARED
+    gamescope/process_backend.cpp
+    gamescope/output_connection.cpp
+    gamescope/spawn_broker.cpp
+    gamescope/runtime_napi.cpp
+    gamescope/runtime_session.cpp
     display/x11_external_host.cpp
     display/display_session.cpp
     display/display_compositor.cpp

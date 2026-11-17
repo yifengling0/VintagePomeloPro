@@ -293,6 +293,7 @@ struct SystemSettingsPage {
   @State private titleContentTopInsetVp: number = 40;
   @State private navBarInsetVp: number = 0;
   @State private appVersion: string = '版本信息读取中…';
+  @State private debugBuild: boolean = false;
   // host GPU 名称 + DXVK2.6 支持判定 (马良 920 以下不支持, 经 testNapi.getHostGpuName)
   @State private gpuName: string = '';
   @State private gpuSupportDxvk26: boolean = true;
@@ -431,8 +432,9 @@ struct SystemSettingsPage {
   private loadApplicationVersion(): void {
     try {
       const info = bundleManager.getBundleInfoForSelfSync(
-        bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+        bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
       this.appVersion = '版本 ' + info.versionName + '（' + info.versionCode.toString() + '）';
+      this.debugBuild = info.appInfo.debug;
     } catch (_) {
       this.appVersion = '版本信息不可用';
     }
@@ -2610,6 +2612,10 @@ struct SystemSettingsPage {
               .id('log-clear')
               .onClick((): void => { this.clearLogs(); })
           }.width('100%')
+          if (this.debugBuild) {
+            Button('Gamescope 呈现检查').id('gamescope-diagnostics')
+              .onClick(() => { void router.pushUrl({ url: 'pages/GamescopeDiagnostics' }); })
+          }
         }
         .width('100%')
         .padding(this.cardPadding())

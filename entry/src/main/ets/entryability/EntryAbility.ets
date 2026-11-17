@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { GamescopeRuntimeService } from '../service/GamescopeRuntimeService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { ValueAddedService } from '../service/valueadded/ValueAddedService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
@@ -64,6 +65,7 @@ export default class EntryAbility extends UIAbility {
     hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
     testNapi.setPhoneMode(useForkNcp);
+    GamescopeRuntimeService.initialize();
     hilog.info(DOMAIN, 'EntryAbility', 'NCP backend=%{public}s deviceType=%{public}s',
       useForkNcp ? 'fork' : 'system', DeviceCapabilityPolicy.deviceType());
     this.ensureDownloadGamesDirectory('onCreate');

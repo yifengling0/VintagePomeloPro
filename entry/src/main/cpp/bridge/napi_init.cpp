@@ -1,4 +1,5 @@
 #include "bridge/system_open.h"
+#include "gamescope/runtime_napi.h"
 #include "wine/prefix_reset.h"
 #include <napi/native_api.h>
 #include "common/fs_utils.h"
@@ -1829,6 +1830,20 @@ static napi_value Init(napi_env env, napi_value exports) {
         OH_LOG_ERROR(LOG_APP, "[ProcReg] child reaper initialization failed");
 
     napi_property_descriptor desc[] = {
+        {"prepareGamescopeProcessBackend", nullptr, winehua::gamescope::PrepareRuntime,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startGamescopeDiagnosticClient", nullptr, winehua::gamescope::StartDiagnosticClient,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeGamescopeRuntime", nullptr, winehua::gamescope::ProbeRuntime,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startGamescopeSession", nullptr, winehua::gamescope::StartRuntimeSession,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopGamescopeSession", nullptr, winehua::gamescope::StopRuntimeSession,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getGamescopeSessionStatus", nullptr, winehua::gamescope::GetRuntimeSessionStatus,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setGamescopeOutputState", nullptr, winehua::gamescope::SetRuntimeOutputState,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
         {"captureNativePerformance", nullptr, CaptureNativePerformance, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runDirectVulkanProbe", nullptr, winehua::direct::RunVulkanProbe,
              nullptr, nullptr, nullptr, napi_default, nullptr},

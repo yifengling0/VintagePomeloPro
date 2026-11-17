@@ -2,6 +2,7 @@
   "src": [
     "pages/Index",
     "pages/HostVulkanSmoke",
+    "pages/GamescopeDiagnostics",
     "pages/SystemSettings",
     "pages/AppSettings",
     "pages/HelpCenter",
