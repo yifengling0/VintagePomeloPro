@@ -68,11 +68,18 @@ Mangoapp 的 Linux SysV 消息队列在首帧统计中初始化。补丁 0015 �
 点击正常停止收到 `returned / core-returned / 0`，相关子进程退出。
 首次点击后立即截图可能仍是黑帧，延迟两秒的实际画面才作为像素证据。
 这只证明 X11/SHM → Vulkan 合成 → NativeWindow 基础输出，不能计作 GPU 游戏验收。
-早期候选已做五轮真机启停和三次 resize 状态检查，但当时只检查四色，没有几何
-判据。随后发现系统 `currentTransform=ROTATE_90` 导致画面比例异常；优先使用
-能力中支持的 IDENTITY 后，首次输出恢复 4:3。严格 resize 验证另发现 IPC 窗口的
-buffer geometry 保留旧值，正在独立复测显式同步尺寸的修复。不能把早期状态通过
-当作尺寸/比例验收。异常客户端、后台恢复和资源增长仍待记录。
+早期候选只检查四色和状态，未包含几何判据。随后定位并修复两项问题：
+
+- 系统 `currentTransform=ROTATE_90` 导致重复变换；在实际支持时使用 IDENTITY。
+- IPC 窗口的 buffer geometry 保留旧值；resize 时显式同步生产者尺寸，再查询 WSI。
+
+修复后的同一 core 已通过带像素/几何判据的五轮启停和三次 resize。最终包
+`b107f69d` 又独立完成一轮启停和三次 resize：实际交换链为
+`2446×1231 → 1835×1231 → 1223×1231 → 2446×1231`，800×600 内容的
+截图比例分别约 1.33496、1.33496、1.33370、1.33496，偏差低于 0.13%。
+每次停止收到 `returned / core-returned / 0`，未见相关子进程残留。
+普通启动的进程列表只有 App，没有 Gamescope 探测子进程。
+这些仍只验证 X11/SHM 基础输出；异常客户端、后台恢复和资源增长仍待记录。
 
 主机通过：实际 SHM owner、工作线程、FD transport、7 项配方事务测试、手机/平板进程
 路由、五轮真实 socket 会话及异常状态测试，以及直接编译实际 Mangoapp gate/init 的
@@ -98,6 +105,11 @@ NativeBuffer 输出已解决。手机不调用平板专用的 `StartOutputChild`
 5. 完整生命周期、资源增长和手机真机回归。
 
 调试包与回退包位于固定 `workspace_temp/gamescope-port/`，各有大小和 SHA-256 收据。
-现有 Wine 数据 ZIP 及原有 native 载荷（除 App 控制层 libentry）与 PAL4 基线的
-成员 CRC/大小对照一致；该检查不等同于逐成员 SHA-256 或完整设备兼容性。
+最终 HAP 为 633,763,667 字节，SHA-256：
+`d6367ab76394f95a07603c139b240311a94d7fcc620f2cab05ec71ac4a70a011`。
+所有与 PAL4 调试基线共有的包成员均做 SHA-256 对照，没有成员删除；Wine 数据
+ZIP 和原有 native 载荷（除 App 控制层 libentry）一致。新增七个 native 成员。
+Gamescope core 经 Hvigor 去符号后，所有 ELF allocated section 与已链接 core 相同。
+嵌入的 `application-build.json` 与实际本地源码收据一致，既有 dirty DXVK overlay
+保留并记录，没有更改 gitlink。该检查不等同于完整设备兼容性。
 未合并 main、未推送、未上架，也没有替换正式交付包。
