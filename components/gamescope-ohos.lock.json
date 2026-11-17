@@ -467,6 +467,13 @@
           "afterSha256": "7a776100f47c1a915a528cfaf431594a449223288a15a153a650e4a7d7352013"
         }
       ]
+    },
+    {
+      "path": "patches/gamescope/0024-diagnostic-fsr-rgba-format.patch",
+      "sha256": "1e111c792844d5ead68c5ff70edbedbb103a449a077f1bff077f53f29cce1fc5",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "6d9e3bb1aeceae3eb6cf9df4b3228ab6959c0f066b6ed046852a57a717474acb",
+      "afterSha256": "6e00b46a4e9691c427d8f55266d33d2c58c397fed0bf403d07a747be9be7ff33"
     }
   ],
   "overlays": [
