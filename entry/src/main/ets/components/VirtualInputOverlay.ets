@@ -1,3 +1,4 @@
+import { GameQuickPanel } from './GameQuickPanel';
 import {
   ControlBarDirection,
   ControlElement,
@@ -120,6 +121,8 @@ export struct VirtualInputOverlay {
   private themeListener: ThemeSettingsListener | null = null;
   @State private stickStates: StickVisualState[] = [];
   @State private rangeTokens: string = '';
+  @StorageProp('vpp.game.session') private gameSession: boolean = false;
+  @State private gamePanel: boolean = false;
   @State private toolbarExpanded: boolean = true;
   @State private toolbarAutoHidden: boolean = false;
   @State private toolbarX: number = 4;
@@ -1358,6 +1361,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayTouch(event: TouchEvent): void {
+    if (this.gamePanel) return;
     if (!this.pointerEventGate.shouldHandleTouch(event.source, event.sourceTool)) return;
     if (event.changedTouches.length === 0) return;
     if (!this.hideToolbar && this.handleToolbarOverlayTouch(event)) return;
@@ -1495,6 +1499,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayMouse(event: MouseEvent): void {
+    if (this.gamePanel) return;
     if (!this.pointerEventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
     this.virtualCursorActive = false;
     if (!this.hideToolbar && this.handleToolbarOverlayMouse(event)) return;
@@ -2104,7 +2109,8 @@ export struct VirtualInputOverlay {
     if (action === 'launcher') {
       this.releaseAllElementTouches();
       InputDispatcher.getInstance().releaseAll('return-to-launcher');
-      void HostWindowTasks.getInstance().showLauncher();
+      if (this.gameSession) this.gamePanel = true;
+      else void HostWindowTasks.getInstance().showLauncher();
       return;
     }
     if (action === 'home') {
@@ -2455,6 +2461,9 @@ export struct VirtualInputOverlay {
         }, (element: ControlElement): string => this.elementVisualKey(element))
       }
       if (!this.hideToolbar) this.Toolbar()
+      if (this.gamePanel && this.gameSession) {
+        GameQuickPanel({ onResume: (): void => { this.gamePanel = false; } }).zIndex(100)
+      }
     }
     .width('100%').height('100%').hitTestBehavior(HitTestMode.Block).id('wine-vintage-gamepad-overlay')
     .onTouch((event: TouchEvent): void => this.handleOverlayTouch(event))

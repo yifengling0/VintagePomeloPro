@@ -31,6 +31,8 @@ export struct DeckHome {
   onLocalLaunch: (game: AppDescriptor) => Promise<void> = async (_game: AppDescriptor): Promise<void> => {};
   onLocalSettings: (game: AppDescriptor) => void = (_game: AppDescriptor): void => {};
   localArtwork: (game: AppDescriptor) => string = (game: AppDescriptor): string => game.backgroundPath ?? '';
+  @Prop gameMode: boolean = false;
+  onGameMode: () => void = (): void => {};
   @State private games: DeckSteamGame[] = [];
   @State private page: string = 'steam';
   @State private selected: string = '';
@@ -68,6 +70,7 @@ export struct DeckHome {
   private scroll: Scroller = new Scroller();
 
   aboutToAppear(): void {
+    if (this.gameMode) { this.page = 'library'; this.libraryTab = 'all'; }
     this.onBackHandler((): boolean => this.handleBack());
     this.artworkListener = (): void => { this.artRevision++; };
     SteamArtworkService.getInstance().subscribe(this.artworkListener);
@@ -105,7 +108,8 @@ export struct DeckHome {
     if (!this.active) return false;
     if (this.busy) return true;
     if (this.sheetOpen) { this.closeSheet(); return true; }
-    if (this.page !== 'steam') { this.choose('steam'); return true; }
+    const home = this.gameMode ? 'library' : 'steam';
+    if (this.page !== home) { this.choose(home); return true; }
     return false;
   }
   private detachNavigation(): void {
@@ -142,16 +146,25 @@ export struct DeckHome {
     return this.artRevision >= 0 ? SteamArtworkService.getInstance().resolve(game.appId, game.cover) : '';
   }
   private filtered(): DeckSteamGame[] {
-    if (this.libraryTab !== 'steam') return [];
+    if (this.libraryTab !== 'steam' && this.libraryTab !== 'all' && this.libraryTab !== 'recent') return [];
     const query = this.query.trim().toLocaleLowerCase();
-    return this.games.filter((g: DeckSteamGame): boolean => !query || g.name.toLocaleLowerCase().includes(query));
+    const recent = AppSettingsStore.getInstance().getRecentLaunches();
+    return this.games.filter((g: DeckSteamGame): boolean =>
+      (this.libraryTab !== 'recent' || recent.includes(g.windowsCard.id)) &&
+      (!query || g.name.toLocaleLowerCase().includes(query)))
+      .sort((a: DeckSteamGame, b: DeckSteamGame): number => this.libraryTab === 'recent' ?
+        recent.indexOf(a.windowsCard.id) - recent.indexOf(b.windowsCard.id) : 0);
   }
   private filteredLocal(): AppDescriptor[] {
     const query = this.query.trim().toLocaleLowerCase();
+    const recent = AppSettingsStore.getInstance().getRecentLaunches();
     return this.localGames.filter((g: AppDescriptor): boolean =>
-      (this.libraryTab === 'tools' ? g.source === AppSource.BUILTIN :
+      ((this.libraryTab === 'all' || this.libraryTab === 'recent') ?
+        g.source !== AppSource.BUILTIN && (this.libraryTab !== 'recent' || recent.includes(g.id)) :
+        this.libraryTab === 'tools' ? g.source === AppSource.BUILTIN :
         this.libraryTab === 'local' && g.source !== AppSource.BUILTIN) &&
-      (!query || g.title.toLocaleLowerCase().includes(query)));
+      (!query || g.title.toLocaleLowerCase().includes(query))).sort((a: AppDescriptor, b: AppDescriptor): number =>
+        this.libraryTab === 'recent' ? recent.indexOf(a.id) - recent.indexOf(b.id) : 0);
   }
   private chooseLibraryTab(tab: string): void {
     HostWindowTasks.getInstance().markLauncherForeground();
@@ -255,11 +268,13 @@ export struct DeckHome {
       ['deck-more-options', 'deck-settings', 'deck-sheet-classic'] : [])];
     const ids = this.portrait() ? ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-more'] :
       ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-settings', 'deck-classic'];
+    if (!this.gameMode) ids.push('deck-game-mode');
     if (!this.portrait() && DeviceCapabilityPolicy.supportsValueAddedFeatures()) ids.push('deck-membership', 'deck-support');
     if (this.page === 'steam') ids.push('deck-steam', 'deck-open-sheet');
     else if (this.page === 'options') ids.push('deck-options-back', 'deck-components', 'deck-big-picture', 'deck-desktop', 'deck-steam-downloads', 'deck-account');
     else if (this.page === 'library') {
-      ids.push('deck-category-steam', 'deck-category-tools', 'deck-category-local');
+      ids.push(...(this.gameMode ? ['deck-category-all', 'deck-category-recent'] : ['deck-category-tools']),
+        'deck-category-steam', 'deck-category-local');
       for (const game of this.filtered()) ids.push('deck-game-' + game.key);
       for (const game of this.filteredLocal()) ids.push('deck-local-' + game.id, 'deck-local-settings-' + game.id);
     } else for (const task of this.tasks) {
@@ -292,6 +307,7 @@ export struct DeckHome {
   }
   private activateFocus(): void {
     const id = this.focus;
+    if (id === 'deck-game-mode') { this.onGameMode(); return; }
     if (id === 'deck-classic' || id === 'deck-sheet-classic') this.onClassic();
     else if (id === 'deck-settings' || id === 'deck-nav-settings') this.openSettings();
     else if (id === 'deck-membership') this.onMembership();
@@ -413,7 +429,8 @@ export struct DeckHome {
         this.RailItem('赞助', $r('sys.symbol.heart'), 'deck-support', false, this.onSupport)
       }
       this.RailItem('设置', $r('sys.symbol.gearshape'), 'deck-nav-settings', false, (): void => this.openSettings())
-      this.RailItem('经典界面', $r('sys.symbol.rectangle_grid_1x2'), 'deck-classic', false, this.onClassic)
+      if (!this.gameMode) this.RailItem('Game 模式', $r('sys.symbol.gamecontroller'), 'deck-game-mode', false, this.onGameMode)
+      this.RailItem(this.gameMode ? '退出 Game' : '经典界面', $r('sys.symbol.rectangle_grid_1x2'), 'deck-classic', false, this.onClassic)
       }.width(this.railWidth()).constraintSize({ minHeight: this.heightVp }).padding({ left: 8, right: 8, top: 4, bottom: 12 })
     }.width(this.railWidth()).height('100%').scrollBar(BarState.Off)
       .backgroundColor('#121417').border({ width: { right: 1 }, color: '#262A31' })
@@ -463,7 +480,7 @@ export struct DeckHome {
         Text('你的游戏，随时继续').fontSize(13).fontColor('#9AA3AF').letterSpacing(1).margin({ bottom: 16 })
         Row({ space: 0 }) {
           Text('HMOS').fontSize(this.widthVp < 700 ? 34 : 46).fontWeight(FontWeight.Bold).fontColor('#F2F4F7').letterSpacing(-1.5)
-          Text('Deck').fontSize(this.widthVp < 700 ? 34 : 46).fontWeight(FontWeight.Medium).fontColor('#F2F4F7').letterSpacing(-1.5)
+          Text(this.gameMode ? 'Game' : 'Deck').fontSize(this.widthVp < 700 ? 34 : 46).fontWeight(FontWeight.Medium).fontColor('#F2F4F7').letterSpacing(-1.5)
         }.margin({ bottom: 24 })
         this.Primary()
         Button({ type: ButtonType.Normal }) {
@@ -570,11 +587,16 @@ export struct DeckHome {
   private Library() {
     Scroll(this.scroll) {
       Column() {
-        this.SectionHeading('游戏库', '已安装的游戏，一处开始。')
+        if (!this.gameMode) Button('进入 Game 模式').onClick(this.onGameMode).id('deck-library-game-mode')
+        this.SectionHeading(this.gameMode ? 'Game 游戏库' : '游戏库', '已安装的游戏，一处开始。')
         Scroll() {
           Row({ space: this.portrait() ? 8 : 10 }) {
+          if (this.gameMode) {
+            this.LibraryTab('全部', 'all', this.games.length + this.localGames.filter((g: AppDescriptor): boolean => g.source !== AppSource.BUILTIN).length)
+            this.LibraryTab('最近游玩', 'recent', AppSettingsStore.getInstance().getRecentLaunches().length)
+          }
           this.LibraryTab('Steam 游戏', 'steam', this.games.length)
-          this.LibraryTab('内建工具', 'tools', this.localGames.filter((g: AppDescriptor): boolean => g.source === AppSource.BUILTIN).length)
+          if (!this.gameMode) this.LibraryTab('内建工具', 'tools', this.localGames.filter((g: AppDescriptor): boolean => g.source === AppSource.BUILTIN).length)
           this.LibraryTab('本地游戏', 'local', this.localGames.filter((g: AppDescriptor): boolean => g.source !== AppSource.BUILTIN).length)
           }
         }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).margin({ bottom: 20 }).id('deck-category-tabs')

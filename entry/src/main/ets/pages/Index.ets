@@ -805,7 +805,7 @@ struct Index {
   }
 
   private deckImmersive(): boolean {
-    return this.settings.uiSkin === UiSkin.DECK && !DeviceCapabilityPolicy.usesManagedWineWindows() &&
+    return (this.gameBrowsing || this.settings.uiSkin === UiSkin.DECK) && !DeviceCapabilityPolicy.usesManagedWineWindows() &&
       this.viewportWidth > this.viewportHeight && this.viewportHeight > 0;
   }
 
@@ -1325,7 +1325,7 @@ struct Index {
         });
       }
     } catch (error) {
-      promptAction.showToast({ message: app.steam ? (error as Error).message : '程序启动异常，请稍后重试' });
+      promptAction.showToast({ message: (error as Error).message || '程序启动异常，请稍后重试' });
     } finally {
       feedback.finish(ticket);
       this.refreshRunningState();
@@ -1434,6 +1434,7 @@ struct Index {
   private phoneNavigationMenu(): HdsNavigationMenuContentOptions {
     return {
       value: [
+        { content: { label: 'Game 模式', icon: $r('sys.symbol.gamecontroller'), action: (): void => this.enterGameMode() } },
         { content: { label: 'Deck 模式', icon: $r('app.media.deck_mode'), action: (): void => { void this.setLauncherSkin(UiSkin.DECK); } } },
         {
           content: {
@@ -1584,6 +1585,7 @@ struct Index {
           Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary')).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
+          this.GameEntryButton(48)
           this.DeckEntryButton(48)
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([skinColor('text_primary')]) }
             .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
@@ -2020,9 +2022,34 @@ struct Index {
     return 'builtin';
   }
 
+  @StorageLink('vpp.game.browsing') private gameBrowsing: boolean = false;
+  private gameBackHandler: (() => boolean) | null = null;
   private deckBackHandler: (() => boolean) | null = null;
 
+  private enterGameMode(): void {
+    InputRouter.getInstance().releaseAllKeys();
+    GamepadManager.getInstance().releaseAll();
+    this.captureScrollOffsets();
+    this.gameBrowsing = true;
+    void this.applyPageWindowShell();
+  }
+
+  private leaveGameMode(): void {
+    if (HostWindowTasks.getInstance().controllableGames().length > 0 || SteamClientService.getInstance().isRunning()) {
+      promptAction.showToast({ message: '请先正常退出游戏和 Steam，再退出 Game 模式' });
+      return;
+    }
+    this.gameBrowsing = false;
+    void this.applyPageWindowShell();
+    setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
+  }
+
+
   onBackPress(): boolean {
+    if (this.gameBrowsing) {
+      if (!this.gameBackHandler?.()) this.leaveGameMode();
+      return true;
+    }
     if (this.settings.uiSkin === UiSkin.DECK && this.deckBackHandler?.()) return true;
     if (this.consoleDetailVisible) {
       this.consoleDetailVisible = false;
@@ -2784,6 +2811,7 @@ struct Index {
       .onClick((): void => { void this.rescan(); })
       .accessibilityText('刷新游戏库')
       .id('console-refresh')
+      this.GameEntryButton(40)
       this.DeckEntryButton(40)
       Button({ type: ButtonType.Circle }) {
         SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18)
@@ -2807,6 +2835,14 @@ struct Index {
     next.uiSkin = skin;
     await ThemeSettingsService.getInstance().update(next);
     if (skin === UiSkin.CLASSIC) setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
+  }
+
+  @Builder
+  private GameEntryButton(size: number) {
+    Button({ type: ButtonType.Circle }) {
+      SymbolGlyph($r('sys.symbol.gamecontroller')).fontSize(22).fontColor([skinColor('accent')])
+    }.width(size).height(size).backgroundColor(skinColor('selected_background'))
+      .onClick((): void => this.enterGameMode()).accessibilityText('进入 Game 模式').id('library-open-game')
   }
 
   @Builder
@@ -3209,13 +3245,13 @@ struct Index {
           .opacity(0.72)
           .hitTestBehavior(HitTestMode.None)
           // 浮窗模式全屏态: 桌面铺满, 隐藏启动器背景
-          .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+          .visibility(!this.gameBrowsing && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
           .id('library-page-background')
       }
       if (this.settings.uiSkin === UiSkin.CONSOLE) {
         Column() { this.ConsoleLayout() }
           .width('100%').height('100%')
-          .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+          .visibility(!this.gameBrowsing && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       } else {
         Row() {
           if (!this.isPhone()) {
@@ -3230,14 +3266,15 @@ struct Index {
         .width('100%')
         .height('100%')
         .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
-        .visibility(this.settings.uiSkin !== UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .visibility(!this.gameBrowsing && this.settings.uiSkin !== UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       }
       DeckHome({
-        active: this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
+        active: !this.gameBrowsing && this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
         onRefresh: (): Promise<void> => this.rescan(),
         onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
+        onGameMode: (): void => this.enterGameMode(),
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
         onBackHandler: (handler: (() => boolean) | null): void => { this.deckBackHandler = handler; },
@@ -3250,7 +3287,26 @@ struct Index {
         .padding({ top: this.deckImmersive() ? 0 : this.statusBarHeightVp + 8,
           bottom: this.deckImmersive() ? 0 : this.navBarInsetVp,
           left: this.cutoutLeftInsetVp, right: this.cutoutRightInsetVp })
-        .visibility(this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .visibility(!this.gameBrowsing && this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+      DeckHome({
+        gameMode: true,
+        active: this.gameBrowsing && this.libraryChromeVisible() && this.consolePageVisible,
+        localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
+        windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
+        onRefresh: (): Promise<void> => this.rescan(),
+        onClassic: (): void => this.leaveGameMode(),
+        onSettings: (): void => this.openSidebarPage('pages/GameSettings'),
+        onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
+        onBackHandler: (handler: (() => boolean) | null): void => { this.gameBackHandler = handler; },
+        onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),
+        localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
+        onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)
+      })
+        .padding({ top: this.deckImmersive() ? 0 : this.statusBarHeightVp + 8,
+          bottom: this.deckImmersive() ? 0 : this.navBarInsetVp,
+          left: this.cutoutLeftInsetVp, right: this.cutoutRightInsetVp })
+        .visibility(this.gameBrowsing && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .id('game-library')
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
         Stack() {
