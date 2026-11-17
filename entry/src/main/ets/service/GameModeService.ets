@@ -31,7 +31,10 @@ export class GameModeService {
     GameModeService.pending = true;
     // Native applies before any XComponent, producer queue or Wine child exists.
     try { GameModeService.publish(requested); }
-    catch (error) { GameModeService.pending = false; GameModeService.previous = null; throw error; }
+    catch (error) {
+      GameModeService.pending = false; GameModeService.previous = null;
+      throw new Error((error as Error).message);
+    }
     GameModeService.owner = requested;
   }
 

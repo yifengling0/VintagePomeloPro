@@ -3,6 +3,7 @@ import { builtinCoverResource } from '../../model/BuiltinArtwork';
 import { SteamClientAction } from '../../model/SteamClientModels';
 import { DeckSteamGame, windowsDeckSteamGames } from '../../model/DeckSteamLibrary';
 import { SteamClientService } from '../../service/SteamClientService';
+import { AppSettingsStore } from '../../service/AppSettingsStore';
 import { SteamArtworkListener, SteamArtworkService } from '../../service/SteamArtworkService';
 import { InputDispatcher } from '../../service/InputDispatcher';
 import { DeckLaunchFeedbackService } from '../../service/DeckLaunchFeedbackService';
