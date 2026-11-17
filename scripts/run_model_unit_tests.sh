@@ -19,6 +19,8 @@ if [[ "${MODEL_TEST_SCOPE:-}" == "game" ]]; then
     "$NODE" "$ROOT/scripts/run_catalog_unit_tests.cjs" "$OUTPUT/js/model"
     "$NODE" "$ROOT/scripts/run_input_controls_unit_tests.cjs" "$OUTPUT/js"
     "$NODE" "$ROOT/scripts/run_app_session_unit_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
+    "$NODE" "$ROOT/scripts/run_x11_clipboard_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+    "$NODE" "$ROOT/scripts/run_clipboard_menu_tests.cjs" "${TSC%/tsc.js}/typescript.js" "$OUTPUT/js/model/AppModels.js"
     exit 0
 fi
 "$NODE" "$ROOT/scripts/run_value_added_unit_tests.cjs" "$OUTPUT/js"
@@ -36,6 +38,7 @@ fi
 "$NODE" "$ROOT/scripts/run_desktop_restore_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_wine_ime_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_x11_clipboard_tests.cjs" "${TSC%/tsc.js}/typescript.js"
+"$NODE" "$ROOT/scripts/run_clipboard_menu_tests.cjs" "${TSC%/tsc.js}/typescript.js" "$OUTPUT/js/model/AppModels.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_cloud_tool_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_steam_library_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 "$NODE" "$ROOT/scripts/run_linux_proton_component_tests.cjs" "${TSC%/tsc.js}/typescript.js"

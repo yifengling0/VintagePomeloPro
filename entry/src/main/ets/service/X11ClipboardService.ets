@@ -104,6 +104,23 @@ export class X11ClipboardService {
     });
   }
 
+  // Menu availability checks metadata only: no content read or permission prompt.
+  static async systemTextAvailable(): Promise<boolean> {
+    const context = X11ClipboardService.foregroundContext;
+    if (!X11ClipboardService.active || !context) return false;
+    const epoch = X11ClipboardService.epoch;
+    let timer = -1;
+    try {
+      const board = pasteboard.getSystemPasteboard();
+      const available = await Promise.race<boolean>([board.hasData(), new Promise<boolean>((resolve): void => {
+        timer = setTimeout((): void => resolve(false), 1000);
+      })]);
+      return X11ClipboardService.active && epoch === X11ClipboardService.epoch &&
+        context === X11ClipboardService.foregroundContext && available && board.hasDataType(pasteboard.MIMETYPE_TEXT_PLAIN);
+    } catch (_) { return false; }
+    finally { if (timer >= 0) clearTimeout(timer); }
+  }
+
   // Called from a real PasteButton click. Its temporary system grant also
   // works when the persistent clipboard read permission has been denied.
   // Wait for the loop-owned selection before the caller sends Ctrl+V.

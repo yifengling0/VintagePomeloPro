@@ -40,6 +40,18 @@ function fixture() {
     switchWindow(){context.exports.X11ClipboardService.foreground(another);context.exports.X11ClipboardService.background(ability);}};
 }
 (async()=>{
+  {
+    const f=fixture();
+    assert.equal(await f.service.systemTextAvailable(),false,'Inactive sessions never expose a paste action');
+    f.grant(false);f.metadata(false,true);f.service.start();await flush();
+    assert.equal(await f.service.systemTextAvailable(),false);
+    f.metadata(true,false);assert.equal(await f.service.systemTextAvailable(),false,'Image-only clipboard is not plain text');
+    f.metadata(true,true);assert.equal(await f.service.systemTextAvailable(),true);
+    assert.equal(f.reads(),0,'Opening the menu checks metadata without reading clipboard contents');
+    assert.equal(f.requests(),0,'Opening the menu does not trigger clipboard permission');
+    f.background();assert.equal(await f.service.systemTextAvailable(),false);
+    f.service.stop();
+  }
   let f=fixture();f.service.start();await flush();assert.deepEqual(f.pushed,['system']);
   f.guest('中文');f.tick();await flush();assert.deepEqual(f.written,['中文']);
   f.read(()=>Promise.resolve(data('中文')));f.changed();await flush();assert.equal(f.pushed.length,1);
