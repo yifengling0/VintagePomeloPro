@@ -15,6 +15,7 @@ import { DeckArtwork } from './DeckArtwork';
 import { DeckMotion } from './DeckMotion';
 import { DeviceCapabilityPolicy } from '../../common/DeviceCapabilityPolicy';
 import { deckLayout, DeckLayout } from '../../model/DeckLayout';
+import inputMethod from '@ohos.inputMethod';
 
 // Native ArkUI shell; the official client continues to own Steam account and commerce UI.
 @Component
@@ -64,6 +65,8 @@ export struct DeckHome {
   private sheetTimers: number[] = [];
   private sheetGeneration: number = 0;
   private entryTimer: number = -1;
+  private focusTimer: number = -1;
+  private returnFocus: string = '';
   private artworkListener: SteamArtworkListener | null = null;
   private navigation: GamepadNavigationListener | null = null;
   private navigationActive: boolean = false;
@@ -83,13 +86,29 @@ export struct DeckHome {
     DeckLaunchFeedbackService.getInstance().finish(this.launchTicket); this.launchTicket = 0;
     this.onBackHandler(null);
     if (this.timer >= 0) clearInterval(this.timer);
+    this.cancelFocusRestore();
     this.cancelMotion();
     if (this.artworkListener) SteamArtworkService.getInstance().unsubscribe(this.artworkListener);
     this.detachNavigation();
   }
   private visibilityChanged(): void {
+    this.cancelFocusRestore();
     if (this.active) {
       this.refresh();
+      // Restore a library control after a game, rather than the search field
+      // that ArkUI may otherwise select automatically and reopen the IME.
+      this.focusTimer = setTimeout((): void => {
+        this.focusTimer = -1;
+        if (!this.active || this.busy || HostWindowTasks.getInstance().hasForegroundTask()) return;
+        const ids = this.focusIds();
+        const target = ids.includes(this.returnFocus) ? this.returnFocus : 'deck-nav-' + this.page;
+        try {
+          if (focusControl.requestFocus(this.scopeId(target))) {
+            this.focus = target;
+            inputMethod.getController().stopInputSession();
+          }
+        } catch (_) {}
+      }, 50);
       if (this.navigation && !this.navigationActive) {
         GamepadManager.getInstance().releaseAll();
         GamepadManager.getInstance().subscribeNavigation(this.navigation); this.navigationActive = true;
@@ -101,9 +120,14 @@ export struct DeckHome {
         if (this.active) this.getUIContext().animateTo({ duration: 450, curve: DeckMotion.ease }, (): void => { this.entered = true; });
       }, 50);
     } else {
+      if (this.focus) this.returnFocus = this.focus;
       this.detachNavigation(); this.pressed = ''; this.hovered = '';
       this.cancelMotion(); this.settleSheet(false);
     }
+  }
+  private cancelFocusRestore(): void {
+    if (this.focusTimer >= 0) clearTimeout(this.focusTimer);
+    this.focusTimer = -1;
   }
   private handleBack(): boolean {
     if (!this.active) return false;

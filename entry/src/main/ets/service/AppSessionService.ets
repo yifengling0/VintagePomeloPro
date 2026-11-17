@@ -89,6 +89,8 @@ export class AppSessionService {
   private pendingToplevels: PendingToplevelAssociation[] = [];
   private desktopRootWaiters: Array<(session: RuntimeSession | null) => void> = [];
   private promoteRetries: Map<string, number> = new Map<string, number>();
+  private gameReturnTimer: number = -1;
+  private gameReturnSession: RuntimeSession | null = null;
 
   static getInstance(): AppSessionService {
     if (!AppSessionService.instance) AppSessionService.instance = new AppSessionService();
@@ -110,6 +112,7 @@ export class AppSessionService {
     // 引擎明确失败/停止是桌面根等待的终止信号：条件被破坏，立即放行等待者。
     WineEngineService.getInstance().subscribe((state: EngineState): void => {
       if (state === EngineState.ERROR || state === EngineState.STOPPED) {
+        this.stopGameReturnMonitor();
         GameModeService.reset();
         this.settleDesktopRootWaiters(null);
       }
@@ -611,7 +614,7 @@ export class AppSessionService {
     if (session.toplevelId > 0) {
       if (session.appId !== STEAM_CLIENT_ID && session.appId !== DESKTOP_APP_ID &&
         !isWineInfrastructurePath(session.executable)) {
-        try { GameModeService.present(session.toplevelId); } catch (_) {}
+        this.presentGameSession(session);
       }
       try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
     }
@@ -837,7 +840,7 @@ export class AppSessionService {
       session.sessionId, session.toplevelId);
     if (session.appId !== STEAM_CLIENT_ID && session.appId !== DESKTOP_APP_ID &&
       !isWineInfrastructurePath(session.executable)) {
-      try { GameModeService.present(session.toplevelId); } catch (_) {}
+      this.presentGameSession(session);
     }
     const tl = session.toplevelId;
     const sid = session.sessionId;
@@ -855,6 +858,55 @@ export class AppSessionService {
         sid, err.name, err.message);
     });
     this.schedulePromoteRetry(sid, tl, 0);
+  }
+
+  private presentGameSession(session: RuntimeSession): void {
+    try {
+      if (!GameModeService.present(session.toplevelId)) return;
+    } catch (_) { return; }
+    this.gameReturnSession = session;
+    if (this.gameReturnTimer < 0) {
+      this.gameReturnTimer = setInterval((): void => this.checkGameReturn(), 750);
+    }
+  }
+
+  private stopGameReturnMonitor(): void {
+    if (this.gameReturnTimer >= 0) clearInterval(this.gameReturnTimer);
+    this.gameReturnTimer = -1;
+    this.gameReturnSession = null;
+  }
+
+  private checkGameReturn(): void {
+    const session = this.gameReturnSession;
+    if (!session || !GameModeService.enabled()) { this.stopGameReturnMonitor(); return; }
+    const tasks = HostWindowTasks.getInstance();
+    // Splash/replacement windows and a surviving process are not game exit.
+    // Failed native queries retain the session; never infer exit from an error.
+    try {
+      const native = testNapi.getWineSession(session.sessionId) as NativeWineSessionInfo | null;
+      if (native && native.state !== 'stopped' && native.state !== 'error') return;
+      const processes = testNapi.getProcessList() as NativeProcessInfo[];
+      if (!Array.isArray(processes) || processes.some((process: NativeProcessInfo): boolean =>
+        process.state === 'running' && (process.sessionId === session.sessionId || process.pid === session.pid))) return;
+    } catch (_) { return; }
+    if (tasks.snapshot().some((task): boolean => task.sessionId === session.sessionId)) return;
+    this.stopGameReturnMonitor();
+    // Returning to the library or another window explicitly wins over auto return.
+    if (tasks.isLauncherForeground() || tasks.hasForegroundTask()) return;
+    const card = SteamLocalService.getInstance().getCards().find((item: AppDescriptor): boolean => item.id === session.appId);
+    const steamGame = !!card?.steam?.appId || session.appId.startsWith('steam-default-');
+    const client = steamGame ? Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+      item.appId === STEAM_CLIENT_ID && item.state === SessionState.RUNNING) : undefined;
+    if (client) {
+      // Reuse the current Windows Steam session; do not relaunch its client.
+      this.resume(client).catch((error: Error): void => {
+        hilog.warn(DOMAIN, '[SESS]', 'Game return to Steam failed: %{public}s', error.message);
+      });
+    } else {
+      tasks.showLauncher().catch((error: Error): void => {
+        hilog.warn(DOMAIN, '[SESS]', 'Game return to library failed: %{public}s', error.message);
+      });
+    }
   }
 
   private isVenusExclusiveSmoke(appId: string): boolean {

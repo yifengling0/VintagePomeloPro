@@ -29,11 +29,13 @@ function fixture() {
   const queries = { processes: 0 };
   const stopRequests = [], killRequests = [];
   let acceptStop = false;
+  let gameEnabled = false, nativeSession = null, queryThrows = false;
+  const timers = new Map();
   const native = {
     stopWineSession(id) { stopRequests.push(id); return acceptStop; },
     killProcess(pid) { killRequests.push(pid); return true; },
     getDesktopRootId() { if (rootThrows) throw new Error('native unavailable'); return root; },
-    getWineSession() { return null; }, // Explorer is registered as @engine/explorer.
+    getWineSession() { if (queryThrows) throw new Error('native unavailable'); return nativeSession; },
     getProcessList() { ++queries.processes; return processes.slice(); },
     activateWineSession() {},
     raiseToplevel() {}
@@ -56,7 +58,8 @@ function fixture() {
     '../model/AppModels': models,
     '../model/GraphicsBackendSettings': require(path.join(compiledRoot, 'model/GraphicsBackendSettings.js')),
     '../model/AppCatalogRules': rules,
-    './GameModeService': { GameModeService: { begin() {}, finish() {}, reset() {}, present() {} } },
+    './GameModeService': { GameModeService: { begin() {}, finish() {}, reset() {},
+      present: () => gameEnabled, enabled: () => gameEnabled } },
     './WineEngineService': { WineEngineService: { getInstance: () => engine } },
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,
@@ -68,13 +71,15 @@ function fixture() {
     './InputOverlayWindowCoordinator': {},
     './AppCatalogService': {},
     '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => ({ getCards: () => [], processesFor: () => [] }) } },
-    '../steam/SteamLocalRules': {},
+    '../steam/SteamLocalRules': { STEAM_CLIENT_ID: 'steam-client-default' },
     '@ohos.file.fs': { default: { mkdirSync() {}, OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 }, openSync() { return { fd: 1 }; }, writeSync() {}, closeSync() {} } },
     './GameContainer': { DEFAULT_GAME_CONTAINER_ID: 'default', wineDriveCForContainer: () => '/data/storage/el2/base/files/.wine/drive_c' }
   };
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    setInterval: action => { const id = timers.size + 1; timers.set(id, action); return id; },
+    clearInterval: id => timers.delete(id),
     require(name) {
       assert.ok(Object.hasOwn(dependencies, name), `Unexpected dependency: ${name}`);
       return dependencies[name];
@@ -87,7 +92,11 @@ function fixture() {
     acceptStop: () => { acceptStop = true; },
     setState: next => { state = next; },
     setRoot: next => { root = next; },
-    failRootQuery: () => { rootThrows = true; }
+    failRootQuery: () => { rootThrows = true; },
+    enableGame: () => { gameEnabled = true; },
+    setNativeSession: value => { nativeSession = value; },
+    failProcessQuery: value => { queryThrows = value; },
+    timers
   };
 }
 
@@ -279,5 +288,44 @@ function fixture() {
   background.service.schedulePromoteRetry=()=>{};
   background.service.associateToplevel('ordinary',89,102);
   assert.equal(promotes,1,'Ordinary Wine launch keeps its existing automatic presentation');
-  console.log('AppSession startup/root, stop acceptance and process-incarnation reconciliation: PASS');
+  { // Return only after both the real process and all its windows are gone.
+    const f = fixture(); f.enableGame(); f.setState(models.EngineState.READY);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markDesktopForeground();
+    let returns = 0; tasks.setLauncher(async () => { ++returns; });
+    const session = { sessionId: 'game-return', appId: 'pal4', pid: 42, toplevelId: 70,
+      executable: 'C:/pal4.exe', state: models.SessionState.RUNNING,
+      presentationMode: models.WinePresentationMode.DESKTOP };
+    tasks.onEvent(70, 'created', JSON.stringify({ sessionId: session.sessionId }));
+    f.service.presentGameSession(session);
+    assert.equal(f.timers.size, 1);
+    f.setNativeSession({ state: 'running' });
+    tasks.onEvent(70, 'destroyed', '{}');
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'Splash teardown is not process exit');
+    f.setNativeSession(null); f.failProcessQuery(true);
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'Query failure retains the game');
+    f.failProcessQuery(false);
+    f.processes.push({ pid: 43, sessionId: session.sessionId, state: 'running' });
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'A surviving child retains the game session');
+    f.processes.length = 0;
+    tasks.onEvent(71, 'created', JSON.stringify({ sessionId: session.sessionId }));
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'Process exit waits for its final window');
+    tasks.onEvent(71, 'destroyed', '{}');
+    f.service.checkGameReturn(); assert.equal(returns, 1);
+    f.service.checkGameReturn(); assert.equal(returns, 1, 'Exit returns once');
+    assert.equal(f.timers.size, 0);
+    tasks.markDesktopForeground(); f.service.presentGameSession(session); tasks.markLauncherForeground();
+    f.service.checkGameReturn(); assert.equal(returns, 1, 'Explicit library navigation wins');
+    tasks.markDesktopForeground(); f.service.presentGameSession(session);
+    tasks.onEvent(80, 'created', JSON.stringify({ sessionId: 'another-game' }));
+    f.service.checkGameReturn(); assert.equal(returns, 1, 'Another foreground game wins');
+    tasks.reset(); tasks.markDesktopForeground();
+    const client = { ...session, sessionId: 'steam-client', appId: 'steam-client-default' };
+    f.service.sessions.set(client.sessionId, client);
+    let resumed = null; f.service.resume = async value => { resumed = value; };
+    f.service.presentGameSession({ ...session, appId: 'steam-default-123' });
+    f.service.checkGameReturn();
+    assert.equal(resumed, client, 'Steam-dispatched game returns to its existing client');
+    assert.equal(returns, 1);
+  }
+  console.log('AppSession startup/root, stop acceptance, process reconciliation and Game exit return: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
