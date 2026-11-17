@@ -407,6 +407,13 @@
           "afterSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95"
         }
       ]
+    },
+    {
+      "path": "patches/gamescope/0020-diagnostic-easu-isolation.patch",
+      "sha256": "82202c5669711cea787df2bd47a26859db65092d29a2193e8b9bcacd59d135b2",
+      "originalPath": "src/shaders/cs_composite_rcas.comp",
+      "beforeSha256": "ab1161f37b738cd2640c7237eb8cf56e829acad8b94c0fb9740f77809a1f1a17",
+      "afterSha256": "1cf506e001813ca12de5b3992124f86b7b2d9adff2b0af8d6a2661ce2a0cd93c"
     }
   ],
   "overlays": [

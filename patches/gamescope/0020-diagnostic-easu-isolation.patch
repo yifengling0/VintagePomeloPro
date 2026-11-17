@@ -1,0 +1,11 @@
+--- a/src/shaders/cs_composite_rcas.comp
++++ b/src/shaders/cs_composite_rcas.comp
+@@ -66,7 +66,7 @@
+         uvec2 layer0Extent = uvec2(textureSize(s_samplers[0], 0));
+ 
+         if (all(lessThan(rcasPos, layer0Extent))) {
+-            FsrRcasF(outputValue.r, outputValue.g, outputValue.b, rcasPos, u_c1.xxxx);
++            outputValue = texelFetch(s_samplers[0], ivec2(rcasPos), 0).rgb; // temporary EASU isolation
+ 
+             uint colorspace = get_layer_colorspace(0);
+             if (colorspace == colorspace_linear)
