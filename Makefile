@@ -1348,7 +1348,7 @@ graphics-migration-check: test-xdg-resource-lifecycle
 test: test-program-compat
 test-program-compat:
 	mkdir -p $(ROOT)/build/host_tests
-	$(CXX) -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/program_compat_test.cpp -o $(ROOT)/build/host_tests/program_compat_test
+	$(CXX) -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/program_compat_test.cpp $(ROOT)/entry/src/main/cpp/wine/dll_overrides.cpp -o $(ROOT)/build/host_tests/program_compat_test
 	$(ROOT)/build/host_tests/program_compat_test
 
 # Self-contained ICU is part of the ARM64 Wine payload, including upgrades.

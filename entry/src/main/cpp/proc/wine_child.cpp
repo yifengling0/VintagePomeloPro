@@ -41,6 +41,7 @@
 #include "wine/wine_cpu_policy.h"
 #include "wine/prefix_registry_io.h"
 #include "wine/steam_client_args.h"
+#include "wine/steam_webhelper_compat.h"
 #include <fcntl.h>
 #include <dirent.h>
 #include <pthread.h>
@@ -1881,6 +1882,17 @@ extern "C" void Main(NativeChildProcess_Args args)
     // 父进程 __env 可能用 DXVK PE 目录覆盖 WINEDLLPATH 并丢掉 HAP native-lib
     // 目录 (wineohos.so 所在) — 按方案重Assert运行期路径 (arm64 三方案修复)。
     reassert_arch_wine_runtime_env(binDir);
+    std::string webhelperOverrides;
+    if (winehua::SteamWebhelperD3d9Overrides(argc, argv,
+            getenv("WINEHUA_D3D_BACKEND") ? getenv("WINEHUA_D3D_BACKEND") : "",
+            getenv("WINEHUA_DXVK9_OVERLAY") ? getenv("WINEHUA_DXVK9_OVERLAY") : "",
+            getenv("WINEDLLOVERRIDES") ? getenv("WINEDLLOVERRIDES") : "",
+            webhelperOverrides))
+    {
+        setenv("WINEDLLOVERRIDES", webhelperOverrides.c_str(), 1);
+        setenv("WINEHUA_DXVK9_OVERLAY", "0", 1);
+        OH_LOG_INFO(LOG_APP, "[WineChild] Steam webhelper uses builtin D3D9 (x86-only DXVK9 overlay)");
+    }
     // Preserve the explicitly requested Steam diagnostic profile.
     if (is_steam_webhelper_exe(argc, argv) && steam_webhelper_diag_enabled())
     {

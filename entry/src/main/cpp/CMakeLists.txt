@@ -262,6 +262,7 @@ target_link_libraries(entry PUBLIC
 add_library(wine_child SHARED
     proc/wine_child.cpp
     proc/wine_child_ipc.cpp
+    wine/dll_overrides.cpp
 )
 target_link_libraries(wine_child PUBLIC libhilog_ndk.z.so libchild_process.so libipc_capi.so libnative_window.so)
 
