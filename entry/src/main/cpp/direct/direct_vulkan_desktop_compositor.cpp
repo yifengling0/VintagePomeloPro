@@ -135,6 +135,7 @@ public:
         desktopVulkanActive.store(false, std::memory_order_relaxed);
         if (gamescopeStop_) {
             // Drain core reads and release FOREIGN ownership before queues.
+            if (gamescopeTiming_) gamescopeTiming_(false,nullptr);
             gamescopeStop_();
             for (auto& [id, layer] : layers_) Retire(layer.current);
             for (auto& [key, layer] : glLayers_) ReleaseGlLayer(*layer);
@@ -193,6 +194,7 @@ public:
             gamescopePresent_ = reinterpret_cast<int(*)(VppGamescopeFrame*)>(dlsym(library,"VppGamescopeEmbeddedPresent"));
             auto stop = reinterpret_cast<void(*)()>(dlsym(library,"VppGamescopeEmbeddedStop"));
             if (!start || !gamescopePresent_ || !stop || !start(window,width,height)) return false;
+            gamescopeTiming_ = reinterpret_cast<void(*)(bool,void(*)(const char*))>(dlsym(library,"VppGamescopeEmbeddedSetTiming"));
             gamescopeStop_=stop; gamescopeWidth_=width; gamescopeHeight_=height;
             cadence_.Initialize();
             if (!SetDirectDesktopConsumer(this,true)) return false;
@@ -513,6 +515,8 @@ public:
 
 private:
     bool RenderGamescope(int width, int height, bool paused, bool repaint) {
+        if (gamescopeTiming_) gamescopeTiming_((winehua::FrameLoopDiagnosticState() & 1)!=0,
+            [](const char* detail) { OH_LOG_INFO(LOG_APP,"[GAMESCOPE-GPU] %{public}s",detail); });
         if (paused!=background_ || cadence_.Refresh(winehua::PerfNowUs())) {
             for (const auto& [key,layer]:glLayers_)
                 GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key,
@@ -1050,6 +1054,7 @@ private:
 
     DesktopCompositor& compositor_;
     void (*gamescopeStop_)() = nullptr;
+    void (*gamescopeTiming_)(bool,void(*)(const char*)) = nullptr;
     int (*gamescopePresent_)(VppGamescopeFrame*) = nullptr;
     int gamescopeWidth_=0, gamescopeHeight_=0;
     uint32_t lastGameGpuLayers_=0, lastGameFsrPasses_=0;

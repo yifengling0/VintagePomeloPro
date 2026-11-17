@@ -497,6 +497,9 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
     if (g_device.vk.EndCommandBuffer(slot.acquire)!=VK_SUCCESS) return false;
     const VkSubmitInfo acquire{VK_STRUCTURE_TYPE_SUBMIT_INFO,nullptr,uint32_t(waits.size()),waits.data(),stages.data(),1,&slot.acquire};
     if (g_device.vk.QueueSubmit(g_device.queue(),1,&acquire,VK_NULL_HANDLE)!=VK_SUCCESS) return false;
+    // Storage writes do not apply framebuffer sRGB encoding. Decode input
+    // once, blend in linear light, and explicitly encode the final SDR output.
+    info.applyOutputColorMgmt=true;
     info.outputEncodingEOTF=EOTF_Gamma22;
     for (uint32_t i=0;i<input.count;++i) {
         const auto& src=input.layers[i]; auto texture=textures[i];
@@ -516,7 +519,9 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             l->scale={src.u1*src.width/w,src.v2*src.height/h};
             l->offset={src.u0*src.width/l->scale.x,src.v0*src.height/l->scale.y};
             l->opacity=1; l->eAlphaBlendingMode=src.opaque?ALPHA_BLENDING_MODE_NONE:ALPHA_BLENDING_MODE_PREMULTIPLIED;
-            l->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
+            // Crop/row normalization preserves encoded channel values. It is
+            // not a color conversion; FSR expects the original sRGB samples.
+            l->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_PASSTHRU;
             const auto outputW=currentOutputWidth, outputH=currentOutputHeight;
             currentOutputWidth=w; currentOutputHeight=h;
             auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright.get(),false);
@@ -531,7 +536,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             flags.bStorage=flags.bSampled=true;
             if (!accumulated->BInit(g_nOutputWidth,g_nOutputHeight,1,DRM_FORMAT_ABGR8888,flags) ||
                 !vulkan_composite(&info,nullptr,false,accumulated.get(),false)) return false;
-            info=FrameInfo_t{}; info.outputEncodingEOTF=EOTF_Gamma22;
+            info=FrameInfo_t{}; info.applyOutputColorMgmt=true; info.outputEncodingEOTF=EOTF_Gamma22;
             auto* base=info.layers.push(); base->tex=accumulated.get(); base->scale={1,1}; base->offset={0,0};
             base->opacity=1; base->eAlphaBlendingMode=ALPHA_BLENDING_MODE_NONE;
             base->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;

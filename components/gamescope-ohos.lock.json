@@ -421,6 +421,13 @@
       "originalPath": "src/rendervulkan.cpp",
       "beforeSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c",
       "afterSha256": "69872cba24c2fbf106b10a7df753d787cb4ab38923aec1a2782fcc8784456c85"
+    },
+    {
+      "path": "patches/gamescope/0022-connect-opt-in-embedded-gpu-timing.patch",
+      "sha256": "d5c254c65798182b43eb2e0b2858356439e9611798a8d97e24e5f933d06be6c8",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "69872cba24c2fbf106b10a7df753d787cb4ab38923aec1a2782fcc8784456c85",
+      "afterSha256": "768b0874a23fb17ca478fb8a72f96f3f235431acf65371eac6266b957de0e131"
     }
   ],
   "overlays": [
@@ -522,7 +529,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "c0f4f68ae04e3e327c4c99f397fae4f764db3862d622b20d2006b61fa8497632"
+      "sha256": "7b3de849532e5e9e71823e785cd0fcc6a8bbf2805a66c2775b8a2cc05bf0f20e"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
