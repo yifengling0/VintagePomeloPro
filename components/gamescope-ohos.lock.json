@@ -376,6 +376,37 @@
       "originalPath": "src/shaders/cs_composite_rcas.comp",
       "beforeSha256": "7ea8db52ebff8f8e4e518a31294993671ecf0f843d0626b1fc66c41beaf7d987",
       "afterSha256": "03cd0a98c30171f33b97fea461373dbd255d10b69e0ed077d7fefadea355f832"
+    },
+    {
+      "path": "patches/gamescope/0019-ohos-bound-fsr-edges-and-use-full-precision-easu.patch",
+      "sha256": "bccf3c36409924becd859484e407bd134d37451c7b395e74427544a06cdb8412",
+      "files": [
+        {
+          "originalPath": "src/shaders/cs_easu.comp",
+          "beforeSha256": "ba7eff3e331113ce4590553e1470575664d451d06495b7fe8024a0e76a4483dd",
+          "afterSha256": "389c9985edf646c4393819d8ee29512e2622335612133f22fd5a4f4f2b9c67ae"
+        },
+        {
+          "originalPath": "src/shaders/cs_easu_fp16.comp",
+          "beforeSha256": "9d4dffeb1306b856067404b464e1b83fc94b483a00036b38528cbb5a448dd3fd",
+          "afterSha256": "60fb8f1f25fad2a680485f2395e9b1445153377edd2840febd31bc9e01393dda"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas.comp",
+          "beforeSha256": "03cd0a98c30171f33b97fea461373dbd255d10b69e0ed077d7fefadea355f832",
+          "afterSha256": "ab1161f37b738cd2640c7237eb8cf56e829acad8b94c0fb9740f77809a1f1a17"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
+          "beforeSha256": "729cb3b772e6e9f8f006eb1de36748891700db07dfd3ac31c4ce66f2a302c914",
+          "afterSha256": "3899bcd0943c41063ce0be415d0fe63f5812dc4e749ccb4501bc081a81e9db98"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "3980ca15e4421000f235d87e53f4934e1bda0aac1449c4fe9d9e73d140d4d73f",
+          "afterSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95"
+        }
+      ]
     }
   ],
   "overlays": [
