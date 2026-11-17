@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { X11ClipboardService } from '../service/X11ClipboardService';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
 import { window } from '@kit.ArkUI';
@@ -217,6 +218,7 @@ export default class DesktopAbility extends UIAbility {
   }
 
   onForeground(): void {
+    X11ClipboardService.foreground(this.context);
     this.foreground = true;
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow, true);
     DeviceCapabilityPolicy.refreshPcMode(this.context);
@@ -261,6 +263,7 @@ export default class DesktopAbility extends UIAbility {
   }
 
   onBackground(): void {
+    X11ClipboardService.background(this.context);
     this.foreground = false;
     WineImeCoordinator.getInstance().background(this.mainWindow);
     hilog.info(DOMAIN, TAG, '[DWA] onBackground tl=%{public}d', this.toplevelId);

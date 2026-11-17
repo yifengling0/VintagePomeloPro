@@ -21,6 +21,10 @@ Mini 断连，用户决定充电后继续实测。本轮没有新包的画面、
 详细分析与待测项见 [颜色与性能复核](color-performance-review.zh-CN.md) 和
 [GPU 桥说明](embedded-gpu-bridge.zh-CN.md)。以下各节为迁移过程中的分阶段记录。
 
+本轮已补充剪贴板权限声明、前台运行时授权与触摸复制入口，并配对用户提供的三份
+新签名 Profile。接线、主机证据和明确未完成的 X11/设备项目见
+[剪贴板授权与剩余范围](clipboard-permissions-and-readiness.zh-CN.md)。
+
 ## 已迁入和验证
 
 - 10 份上游源码归档锁，总压缩输入 165,486,506 字节。复用 HSL 已有归档，逐项核验大小与 SHA-256，无重复下载。

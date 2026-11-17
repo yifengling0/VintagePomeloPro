@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { X11ClipboardService } from '../service/X11ClipboardService';
 import { GamescopeRuntimeService } from '../service/GamescopeRuntimeService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { ValueAddedService } from '../service/valueadded/ValueAddedService';
@@ -253,6 +254,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    X11ClipboardService.foreground(this.context);
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow);
     DeviceCapabilityPolicy.refreshPcMode(this.context);
     AccountAutomaticSyncService.getInstance().setForeground(true);
@@ -263,6 +265,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    X11ClipboardService.background(this.context);
     WineImeCoordinator.getInstance().background(this.mainWindow);
     AccountAutomaticSyncService.getInstance().setForeground(false);
     ValueAddedService.getInstance().onBackground();

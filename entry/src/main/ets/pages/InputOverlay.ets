@@ -911,6 +911,16 @@ struct InputOverlayPage {
     }
   }
 
+  private copySelectedText(): void {
+    const input = InputRouter.getInstance();
+    const top = input.getActiveToplevel();
+    if (!this.snapshot.visible || top <= 0) return;
+    input.sendWindowKey(top, 'clipboard-copy', 29, true);
+    input.sendWindowKey(top, 'clipboard-copy', 46, true);
+    input.sendWindowKey(top, 'clipboard-copy', 46, false);
+    input.sendWindowKey(top, 'clipboard-copy', 29, false);
+  }
+
   private async pasteSystemText(): Promise<void> {
     const session = this.snapshot.session.sessionId;
     const input = InputRouter.getInstance();
@@ -985,6 +995,9 @@ struct InputOverlayPage {
       if (this.snapshot.visible && this.hostKeyboardActive) {
         // Keep the security component outside the toolbar's gesture handler.
         Row() {
+          Button('复制')
+            .id('wine-system-copy')
+            .onClick((): void => this.copySelectedText())
           PasteButton()
             .id('wine-system-paste')
             .onClick((_event: ClickEvent, result: PasteButtonOnClickResult): void => {

@@ -91,6 +91,8 @@ def package(sdk, config, material, output):
         module = json.loads(archive.read('module.json'))
         if module['app']['bundleName'] != 'com.vintage.pomelopro':
             raise ValueError('Unexpected application identity')
+        if 'ohos.permission.READ_PASTEBOARD' not in {p['name'] for p in module['module'].get('requestPermissions', [])}:
+            raise ValueError('Missing clipboard permission declaration')
         if json.loads(archive.read('resources/rawfile/application-build.json')) != record:
             raise ValueError('Packaged application source identity mismatch')
         if 'libs/arm64-v8a/libgamescope_child.so' not in archive.namelist():
@@ -119,6 +121,7 @@ def package(sdk, config, material, output):
                 info['bundle-info']['bundle-name'] != module['app']['bundleName'] or
                 not info['validity']['not-before'] <= time.time() <= info['validity']['not-after'] or
                 'ohos.permission.kernel.ALLOW_WRITABLE_CODE_MEMORY' not in info['acls']['allowed-acls'] or
+                'ohos.permission.READ_PASTEBOARD' not in info['acls']['allowed-acls'] or
                 info['bundle-info']['development-certificate'].strip() not in
                     Path(selected['material']['certpath']).read_text()):
                 raise ValueError('Debug signing identity/profile mismatch')
