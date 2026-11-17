@@ -1,5 +1,7 @@
 import { GamepadManager, GamepadNavigationListener } from '../service/GamepadManager';
 import { GameActionButton } from './GameActionButton';
+import { GamePanelInput } from '../service/GamePanelInput';
+import { InputDispatcher } from '../service/InputDispatcher';
 import { skinColor } from '../service/SkinColors';
 import promptAction from '@ohos.promptAction';
 import { HostWindowTask, HostWindowTasks } from '../service/HostWindowTasks';
@@ -18,9 +20,11 @@ export struct GameQuickPanel {
   private listener: ((tasks: HostWindowTask[]) => void) | null = null;
 
   aboutToAppear(): void {
+    InputDispatcher.getInstance().releaseAll('game-panel-open');
     GamepadManager.getInstance().setUiCapture(true);
     AppStorage.setOrCreate<boolean>('vpp.game.panel', true);
     this.navigation = (code: number): boolean => this.navigate(code);
+    GamePanelInput.attach(this.navigation);
     GamepadManager.getInstance().subscribeNavigation(this.navigation);
     setTimeout((): void => { try { focusControl.requestFocus('game-panel-resume'); } catch (_) {} }, 0);
     this.settings = normalizeGameModeSettings(ThemeSettingsService.getInstance().getSettings().gameMode);
@@ -30,7 +34,10 @@ export struct GameQuickPanel {
   }
   aboutToDisappear(): void {
     if (this.listener) HostWindowTasks.getInstance().unsubscribe(this.listener);
-    if (this.navigation) GamepadManager.getInstance().unsubscribeNavigation(this.navigation);
+    if (this.navigation) {
+      GamePanelInput.detach(this.navigation);
+      GamepadManager.getInstance().unsubscribeNavigation(this.navigation);
+    }
     GamepadManager.getInstance().setUiCapture(false);
     AppStorage.setOrCreate<boolean>('vpp.game.panel', false);
   }
@@ -97,5 +104,8 @@ export struct GameQuickPanel {
     }.width('100%').height('100%').hitTestBehavior(HitTestMode.Default).id('game-quick-panel')
       .onTouch((event: TouchEvent): void => event.stopPropagation())
       .onMouse((event: MouseEvent): void => event.stopPropagation())
+      .onKeyEvent((event: KeyEvent): void => {
+        if (GamePanelInput.handle(event.keyCode, event.type === KeyType.Down)) event.stopPropagation();
+      })
   }
 }

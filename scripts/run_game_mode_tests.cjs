@@ -58,3 +58,22 @@ global.gameMode = { scaling: 'nearest', frameLimit: 30 };
   assert.equal(f.values.get('vpp.game.session'), false); // failed launch restores
 }
 console.log('Game mode policy, inheritance, conflict, startup and rollback tests passed');
+
+{ // A panel consumes both down/up and cannot be detached by an old instance.
+  const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/service/GamePanelInput.ets'), 'utf8');
+  const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
+  const exports = {}; vm.runInNewContext(code, { exports });
+  const panel = exports.GamePanelInput, received = [];
+  const old = key => received.push(['old', key]), current = key => received.push(['new', key]);
+  assert.equal(panel.handle(2012, true), false);
+  panel.attach(old);
+  assert.equal(panel.handle(2012, true), true);
+  assert.equal(panel.handle(2012, false), true);
+  assert.deepEqual(received, [['old', 2012]]);
+  panel.attach(current); panel.detach(old);
+  assert.equal(panel.handle(2054, true), true);
+  assert.deepEqual(received.at(-1), ['new', 2054]);
+  panel.detach(current);
+  assert.equal(panel.handle(2054, false), false);
+  console.log('Game panel hardware input ownership and key-up isolation passed');
+}

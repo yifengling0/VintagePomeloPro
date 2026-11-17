@@ -22,6 +22,7 @@ import {
 } from '../model/AppModels';
 import { VirtualInputOverlay } from '../components/VirtualInputOverlay';
 import { InputDispatcher } from '../service/InputDispatcher';
+import { GamePanelInput } from '../service/GamePanelInput';
 import { InputOverlayListener, InputOverlaySnapshot, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { InputProfileService } from '../service/InputProfileService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
@@ -480,7 +481,10 @@ struct InputOverlayPage {
 
   /** 宿主键盘关闭时转发蓝牙/实体 KeyEvent; 打开时不拦截, 拼音走 TextInput/IME。 */
   private handleHardwareKey(ev: KeyEvent): void {
-    if (AppStorage.get<boolean>('vpp.game.panel') === true) return;
+    if (GamePanelInput.handle(ev.keyCode, ev.type === KeyType.Down)) {
+      ev.stopPropagation();
+      return;
+    }
     if (this.hostKeyboardActive) return;
     const rootId = this.snapshot.session.toplevelId || WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;

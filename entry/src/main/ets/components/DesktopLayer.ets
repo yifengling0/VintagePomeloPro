@@ -18,6 +18,7 @@ import {
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { InputRouter } from '../service/InputRouter';
 import { InputDispatcher } from '../service/InputDispatcher';
+import { GamePanelInput } from '../service/GamePanelInput';
 import { GamepadActivityListener, GamepadConnectionListener, GamepadManager } from '../service/GamepadManager';
 import { InputProfileService } from '../service/InputProfileService';
 import { InputOverlaySurface, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
@@ -298,6 +299,10 @@ export struct DesktopLayer {
 
   private handleHardwareKey(ev: KeyEvent): void {
     if (this.floating) return;  // 悬浮窗态: 输入旁路
+    if (GamePanelInput.handle(ev.keyCode, ev.type === KeyType.Down)) {
+      ev.stopPropagation();
+      return;
+    }
     this.noteHardwareActivity();
     const rootId = WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;
