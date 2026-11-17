@@ -18,7 +18,9 @@
 仅 `module.json`、`pack.info`、`pkgContextInfo.json` 和 `application-build.json` 改变；
 移除 `.pages.info` 和测试像素探针。全部共用原生库、Wine/FEX、DXVK、Mesa、Gamescope core
 及 `wine-data.zip` 字节相同，UI ABC 也相同。大小变化来自签名与测试探针等打包差异。
-保留原当前及上一份 2.0.4 调试签名 HAP 作为设备测试与回退，不生成额外 2.0.5 签名包。
+首次交付保留两份 2.0.4 调试签名 HAP。随后为 M80 保留数据升级，复用该 unsigned
+载荷生成旧证书连续签名的 2.0.5 手机测试包；当前只保留此包及 Mini 已验的 `818201af`
+2.0.4 调试包，删除更早的 `6f22d375` 测试回退。正式 unsigned 交付未变。
 
 ## 手机支持核查
 
@@ -28,9 +30,40 @@
 4. 自动 Direct 能力探测在手机上返回 `phone_requires_venus`，保持现有 Venus 路线。
 5. 设置面板按窗口宽度收窄并可滚动，沿用手机旋转与统一输入链路；包中含 `phone` 设备类型及 `READ_PASTEBOARD` 权限声明。
 
-本轮未发现上述源码路径的新阻塞，且原生库与已验证 Mini 包一致；这不等同于手机验收。
-本轮两次 HDC 查询仅见 Edge 和 Mini，M80 未在线，没有操作这些设备代替手机测试。
-手机的首次初始化、已有数据升级、旋转、后台恢复、FSR/限帧实效及游戏退出重入仍待真机确认。
+打包时 M80 未在线，仅完成静态及主机验证；随后按用户要求恢复 M80 无线调试，取得以下
+独立手机结果。没有操作其他设备代替手机验收。
+
+## M80 无线补测（2026-11-18）
+
+M80 / VYG-AL00 / API 26，从原 2.0.3 调试版覆盖至 2.0.5，未卸载、未清数据、未重置 prefix。
+原 HMOS Deck、11 张本地卡片和 PAL4 旧存档保留。两轮启动退出均未发现阻塞。
+
+| 检查 | 结果及边界 |
+| --- | --- |
+| Wine 已有数据升级 | 组件升级后 `wineboot --init done (authoritative exit)`，`preparing -> ready`；wineboot 约 68 秒，首次启动约 80 秒，没有初始化 Wine 错误；不是全新安装测试 |
+| 手机进程/呈现路径 | `setPhoneMode=true`、`NCP backend=fork deviceType=phone`；同进程 VirGL host，`mesa-virpipe`；Gamescope `ncp=0 native=1 cpuGameCopies=0`，没有使用系统 NCP；Direct 探测保持 `phone_requires_venus` 保护 |
+| PAL4 实际画面 | 从竖屏 Game 库进入横屏完整客户区，无标题栏、黑边正常；中文主菜单及第二槽存档文字可读，载入青鸾峰场景，地面/植被/人物可见，未观察到黑屏或白地面 |
+| 手机侧栏及输入 | 快捷栏打开/收起侧栏、滚动和触摸选项可用；能加载旧存档并点击游戏内退出 |
+| FSR 设置 | 切换至 `filter=3` 成功，但本场景 `fsrPasses=0`；只通过设置切换，不能宣称手机 EASU 上采样实效通过 |
+| 30 FPS 设置 | HUD 约 28 FPS、日志呈现节拍约 26 FPS，切回跟随屏幕后恢复；确认宿主限帧起作用，不代表生产者精确 30 FPS 验收 |
+| 游戏库/重入/退出 | 保留游戏返回库，从运行中恢复同一窗口；侧栏请求正常退出后回库、运行列表清空；第二次启动进入中文主菜单，游戏内“离开游戏”后再次自动回库 |
+| 收尾 | 已恢复线性/跟随屏幕，关闭 PAL4 独立画面设置；全局 Game=false，恢复 HMOS Deck 游戏库；没有覆盖存档或修改游戏入口 |
+
+PAL4 场景瞬时 HUD 约 43–46 FPS，主菜单约 98–118 FPS，仅为功能检查中的呈现读数；
+没有完成同尺寸普通/Game 模式三轮对照，不给出优化百分比。Heaven 旧卡片尚未设置可用主程序，
+自动进入设置，未将此现象算作 Wine 初始化失败，也没有更改该卡片入口。
+
+手机旧安装证书与新剪贴板 Profile 绑定证书不连续。为保留数据，手机调试包使用旧证书/Profile，
+仅调整 `module.json`：`debug=true`，去除旧 Profile 未授权的 `READ_PASTEBOARD` 声明；
+ABC、Wine/FEX、全部 native 和业务载荷保持最终 unsigned 原字节。其 SHA-256 为
+`98f28144731e36ff9bc150e37d0fcc16d6d23cff6b222ee39c8ed28f3b16901d`，633899023 bytes。
+签名校验、手机覆盖授权及 JIT ACL 通过；该包不能作为新剪贴板 ACL 的验收证据。
+正式交付 unsigned 的剪贴板声明和 hash 保持不变，本轮未实测手机 PasteButton 授权回退。
+
+本次仅验 PAL4/VirGL/Wayland 的有限流程；手机全新初始化、Steam/DX11、DXVK9/Zink、
+X11、FSR 上采样实效、生产者限帧、后台恢复、完整旋转/五轮生命周期及实体外设仍待验收。
+本地证据见 `workspace_temp/gamescope-port/phone205/device-result.json`、有界 `startup.log`
+和命令账本；截图/layout 保持本地，不入 Git。未修改产品代码，不重编最终包。
 
 ## 已执行验证
 
@@ -47,5 +80,5 @@
 当前分支的完整 Wine/FEX/图形载荷锁与来源校验通过，且完整载荷与 Mini 已验证包字节相同。
 此项保留为旧校验入口与当前所选运行时的基线不一致，不能将本轮称为全仓预检全部通过。
 
-本轮没有新增设备性能测试，也没有完成手机或全部图形矩阵验收，继续保留 `renderQualified=false`。
+本轮补充了上述手机功能检查，没有正式设备性能对照，也没有完成全部手机/图形矩阵，继续保留 `renderQualified=false`。
 详细逐成员证据及旧校验结果见交付目录 `delivery.json`，工作记录见 `workspace_temp/gamescope-port/unsigned-delivery.json`。
