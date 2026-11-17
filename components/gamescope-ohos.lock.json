@@ -414,6 +414,13 @@
       "originalPath": "src/shaders/cs_composite_rcas.comp",
       "beforeSha256": "ab1161f37b738cd2640c7237eb8cf56e829acad8b94c0fb9740f77809a1f1a17",
       "afterSha256": "1cf506e001813ca12de5b3992124f86b7b2d9adff2b0af8d6a2661ce2a0cd93c"
+    },
+    {
+      "path": "patches/gamescope/0021-diagnostic-fsr-readback.patch",
+      "sha256": "dac16979984ffc305f295b790e1a1245d8ed5a788f4e4860fc53ee3c77bed187",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95",
+      "afterSha256": "1589792438fe3e3e1a019dc67524e69728d1417fa2f7184e250277501a66b5a0"
     }
   ],
   "overlays": [
