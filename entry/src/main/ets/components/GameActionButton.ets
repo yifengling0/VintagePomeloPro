@@ -9,6 +9,7 @@ export struct GameActionButton {
   @Prop selected: boolean = false;
   @Prop fullWidth: boolean = false;
   @Prop controlId: string = '';
+  @Prop darkPanel: boolean = false;
   onAction: () => void = (): void => {};
   private gate: InputEventGate = new InputEventGate();
   private lastAction: number = 0;
@@ -19,8 +20,8 @@ export struct GameActionButton {
   }
   build() {
     Button(this.label).height(38).fontSize(13).width(this.fullWidth ? '100%' : undefined)
-      .fontColor(this.selected ? Color.White : skinColor('text_primary'))
-      .backgroundColor(this.selected ? '#2874BC' : skinColor('search_background'))
+      .fontColor(this.selected ? Color.White : this.darkPanel ? '#E8EDF5' : skinColor('text_primary'))
+      .backgroundColor(this.selected ? '#2874BC' : this.darkPanel ? '#293140' : skinColor('search_background'))
       .hitTestBehavior(HitTestMode.Block).id(this.controlId)
       .onTouch((event: TouchEvent): void => {
         if (!this.gate.shouldHandleTouch(event.source, event.sourceTool)) return;

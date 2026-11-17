@@ -19,6 +19,7 @@ export class ThemeSettingsService {
     this.context = context;
     await AppSettingsStore.getInstance().initialize(context);
     this.applyColorMode(AppSettingsStore.getInstance().getGlobalSettings());
+    AppStorage.setOrCreate<boolean>('vpp.game.browsing', this.getSettings().gameModeEnabled === true);
   }
 
   getSettings(): GlobalSettings {
@@ -28,6 +29,7 @@ export class ThemeSettingsService {
   async update(settings: GlobalSettings): Promise<void> {
     this.applyColorMode(settings);
     await AppSettingsStore.getInstance().saveGlobalSettings(settings);
+    AppStorage.setOrCreate<boolean>('vpp.game.browsing', settings.gameModeEnabled === true);
     this.listeners.forEach((listener: ThemeSettingsListener) => listener(settings));
   }
   refreshConfiguration(): void {

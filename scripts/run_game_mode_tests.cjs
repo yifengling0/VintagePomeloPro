@@ -36,7 +36,7 @@ function fixture() {
   vm.runInNewContext(code, { exports, require: name => {
     assert.ok(Object.hasOwn(dependencies, name), name); return dependencies[name];
   }, AppStorage: { get: key => values.get(key), setOrCreate: (key, value) => values.set(key, value) } });
-  return { service: exports.GameModeService, values, calls, appSettings };
+  return { service: exports.GameModeService, values, calls, appSettings, dependencies };
 }
 const app = { id: 'game', launchTarget: { kind: models.LaunchKind.WINE_EXE } };
 const global = models.createDefaultGlobalSettings();
@@ -63,6 +63,32 @@ global.gameMode = { scaling: 'nearest', frameLimit: 30 };
   assert.equal(f.values.get('vpp.game.session'), false); // failed launch restores
 }
 console.log('Game mode policy, inheritance, conflict, startup and rollback tests passed');
+
+{
+  const f = fixture(); f.values.set('vpp.game.browsing', true);
+  f.appSettings.gameModeSettings = { scaling: 'fsr', frameLimit: 60, sharpness: 4 };
+  f.service.begin(app, global, false);
+  assert.throws(() => f.service.applyLive({ scaling: 'linear', frameLimit: 0 }, f.service.sessionSerial()), /会话已变化/);
+  f.service.finish(true);
+  assert.deepEqual(f.service.currentSettings(), f.appSettings.gameModeSettings, 'Panel reads the active per-game policy');
+  const serial = f.service.sessionSerial();
+  f.service.applyLive({ scaling: 'integer', frameLimit: 30 }, serial);
+  assert.deepEqual(f.calls.at(-1), [true, 'integer', 30, 10]);
+  assert.equal(f.service.currentSettings().frameLimit, 30);
+  assert.deepEqual(global.gameMode, { scaling: 'nearest', frameLimit: 30 }); // global remains untouched
+  const publish = f.dependencies['libentry.so'].default.configureGamePresentation;
+  f.dependencies['libentry.so'].default.configureGamePresentation = () => { throw Error('native rejected'); };
+  assert.throws(() => f.service.applyLive({ scaling: 'linear', frameLimit: 60 }, serial), /native rejected/);
+  assert.equal(f.service.currentSettings().scaling, 'integer', 'Rejected native config cannot change the owner');
+  f.dependencies['libentry.so'].default.configureGamePresentation = publish;
+  f.service.noteActiveApp('steam-child');
+  assert.throws(() => f.service.applyLive({ scaling: 'linear', frameLimit: 0 }, serial), /会话已变化/);
+  assert.equal(f.service.activeAppId(), 'steam-child');
+  f.service.reset();
+  assert.throws(() => f.service.applyLive({ scaling: 'linear', frameLimit: 0 }, f.service.sessionSerial()), /会话已变化/);
+  assert.equal(models.createDefaultGlobalSettings().gameModeEnabled, false);
+  console.log('Live policy, per-game initial value, native failure and stale-panel isolation: PASS');
+}
 
 { // A panel consumes both down/up and cannot be detached by an old instance.
   const source = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/service/GamePanelInput.ets'), 'utf8');

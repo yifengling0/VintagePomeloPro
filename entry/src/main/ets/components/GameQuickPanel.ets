@@ -2,11 +2,13 @@ import { GamepadManager, GamepadNavigationListener } from '../service/GamepadMan
 import { GameActionButton } from './GameActionButton';
 import { GamePanelInput } from '../service/GamePanelInput';
 import { InputDispatcher } from '../service/InputDispatcher';
-import { skinColor } from '../service/SkinColors';
+import { GameModeService } from '../service/GameModeService';
+import { AppSettingsStore } from '../service/AppSettingsStore';
+import { cloneAppSettings } from '../model/AppModels';
 import promptAction from '@ohos.promptAction';
 import { HostWindowTask, HostWindowTasks } from '../service/HostWindowTasks';
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
-import { GameModeSettings, normalizeGameModeSettings } from '../model/GameModeSettings';
+import { GameModeSettings, GameScaling, normalizeGameModeSettings } from '../model/GameModeSettings';
 import { GamePresentationSettings } from './GamePresentationSettings';
 
 @Component
@@ -15,11 +17,18 @@ export struct GameQuickPanel {
   @State private tasks: HostWindowTask[] = [];
   @State private settings: GameModeSettings = normalizeGameModeSettings();
   @State private hud: boolean = false;
+  @State private panelWidth: number = 340;
+  private sessionSerial: number = 0;
+  private settingsAppId: string = '';
+  private pendingSave: GameModeSettings | null = null;
+  private saving: boolean = false;
+  private visible: boolean = false;
   private navigation: GamepadNavigationListener | null = null;
   private focusIndex: number = 0;
   private listener: ((tasks: HostWindowTask[]) => void) | null = null;
 
   aboutToAppear(): void {
+    this.visible = true;
     InputDispatcher.getInstance().releaseAll('game-panel-open');
     GamepadManager.getInstance().setUiCapture(true);
     AppStorage.setOrCreate<boolean>('vpp.game.panel', true);
@@ -27,12 +36,15 @@ export struct GameQuickPanel {
     GamePanelInput.attach(this.navigation);
     GamepadManager.getInstance().subscribeNavigation(this.navigation);
     setTimeout((): void => { try { focusControl.requestFocus('game-panel-resume'); } catch (_) {} }, 0);
-    this.settings = normalizeGameModeSettings(ThemeSettingsService.getInstance().getSettings().gameMode);
+    this.sessionSerial = GameModeService.sessionSerial();
+    this.settingsAppId = GameModeService.activeAppId();
+    this.settings = GameModeService.currentSettings();
     this.hud = ThemeSettingsService.getInstance().getSettings().showFpsHud;
     this.listener = (_tasks: HostWindowTask[]): void => { this.tasks = HostWindowTasks.getInstance().controllableGames(); };
     HostWindowTasks.getInstance().subscribe(this.listener);
   }
   aboutToDisappear(): void {
+    this.visible = false;
     if (this.listener) HostWindowTasks.getInstance().unsubscribe(this.listener);
     if (this.navigation) {
       GamePanelInput.detach(this.navigation);
@@ -42,31 +54,60 @@ export struct GameQuickPanel {
     AppStorage.setOrCreate<boolean>('vpp.game.panel', false);
   }
   private navigate(code: number): boolean {
-    const ids = ['game-panel-resume', 'game-panel-library', 'game-panel-hud',
-      'game-scaling-linear', 'game-scaling-nearest', 'game-scaling-integer', 'game-scaling-fsr', 'game-limit-0', 'game-limit-30', 'game-limit-60']
-      .concat(this.tasks.map((task: HostWindowTask): string => 'game-panel-close-' + task.key));
+    const ids = ['game-panel-resume',
+      'game-scaling-linear', 'game-scaling-nearest', 'game-scaling-integer', 'game-scaling-fsr'];
+    if (this.settings.scaling === 'fsr') ids.push('game-fsr-sharpness');
+    ids.push('game-limit-0', 'game-limit-30', 'game-limit-60');
+    ids.push('game-panel-hud', 'game-panel-library');
+    ids.push(...this.tasks.map((task: HostWindowTask): string => 'game-panel-close-' + task.key));
+    this.focusIndex = Math.min(this.focusIndex, ids.length - 1);
     if (code === 2302 || code === 2070) { this.onResume(); return true; }
+    if (ids[this.focusIndex] === 'game-fsr-sharpness' && (code === 2014 || code === 2015)) {
+      this.save({ scaling: 'fsr', frameLimit: this.settings.frameLimit,
+        sharpness: Math.max(0, Math.min(20, (this.settings.sharpness ?? 10) + (code === 2014 ? 1 : -1))) });
+      return true;
+    }
     const delta = code === 2012 || code === 2014 ? -1 : code === 2013 || code === 2015 ? 1 : 0;
     if (delta) {
       this.focusIndex = Math.max(0, Math.min(ids.length - 1, this.focusIndex + delta));
       try { focusControl.requestFocus(ids[this.focusIndex]); } catch (_) {}
     } else if ([2301, 2050, 2054, 2016].includes(code)) {
-      if (this.focusIndex === 0) this.onResume();
-      else if (this.focusIndex === 1) { this.onResume(); void HostWindowTasks.getInstance().showLauncher(); }
-      else if (this.focusIndex === 2) void this.toggleHud();
-      else if (this.focusIndex < 7) void this.save({ scaling: this.focusIndex === 3 ? 'linear' : this.focusIndex === 4 ? 'nearest' : this.focusIndex === 5 ? 'integer' : 'fsr', frameLimit: this.settings.frameLimit, sharpness: this.settings.sharpness });
-      else if (this.focusIndex < 10) void this.save({ scaling: this.settings.scaling, frameLimit: [0, 30, 60][this.focusIndex - 7], sharpness: this.settings.sharpness });
-      else { const task = this.tasks[this.focusIndex - 10]; if (task) void this.close(task); }
+      const id = ids[this.focusIndex];
+      if (id === 'game-panel-resume') this.onResume();
+      else if (id === 'game-panel-library') { this.onResume(); void HostWindowTasks.getInstance().showLauncher(); }
+      else if (id === 'game-panel-hud') void this.toggleHud();
+      else if (id.startsWith('game-scaling-')) this.save({ scaling: id.substring(13) as GameScaling,
+        frameLimit: this.settings.frameLimit, sharpness: this.settings.sharpness });
+      else if (id.startsWith('game-limit-')) this.save({ scaling: this.settings.scaling,
+        frameLimit: Number(id.substring(11)), sharpness: this.settings.sharpness });
+      else { const task = this.tasks.find((item: HostWindowTask): boolean => 'game-panel-close-' + item.key === id); if (task) void this.close(task); }
     }
     return true;
   }
-  private async save(value: GameModeSettings): Promise<void> {
+  private save(value: GameModeSettings): void {
     try {
-      const settings = ThemeSettingsService.getInstance().getSettings();
-      settings.gameMode = value;
-      await ThemeSettingsService.getInstance().update(settings);
-      this.settings = value;
-    } catch (_) { promptAction.showToast({ message: '画面设置保存失败，请重试' }); }
+      GameModeService.applyLive(value, this.sessionSerial);
+      this.settings = normalizeGameModeSettings(value);
+      this.pendingSave = this.settings;
+      void this.persist();
+    } catch (error) { promptAction.showToast({ message: (error as Error).message }); }
+  }
+  private async persist(): Promise<void> {
+    if (this.saving || !this.settingsAppId) return;
+    this.saving = true;
+    try {
+      // One write in flight plus the latest value; dragging never queues an
+      // unbounded preference/portable-file write for every slider event.
+      while (this.pendingSave) {
+        const value = this.pendingSave; this.pendingSave = null;
+        const store = AppSettingsStore.getInstance();
+        const next = cloneAppSettings(store.getAppSettings(this.settingsAppId));
+        next.gameModeSettings = value;
+        await store.saveAppSettings(next);
+      }
+    } catch (_) {
+      if (this.visible) promptAction.showToast({ message: '画面已调整，设置未保存，请重试' });
+    } finally { this.saving = false; }
   }
   private async toggleHud(): Promise<void> {
     try {
@@ -84,24 +125,40 @@ export struct GameQuickPanel {
     } catch (_) { promptAction.showToast({ message: '关闭请求未完成，请从游戏菜单退出' }); }
   }
   build() {
-    Stack({ alignContent: Alignment.Center }) {
-      Column().width('100%').height('100%').backgroundColor('#B3000000')
-      Scroll() {
-        Column({ space: 16 }) {
-          Text('Game 快捷面板').fontSize(22).fontColor(skinColor('text_primary')).width('100%')
-          GameActionButton({ label: '返回游戏', fullWidth: true, controlId: 'game-panel-resume', onAction: this.onResume })
-          GameActionButton({ label: '返回游戏库 · 保留会话', fullWidth: true, controlId: 'game-panel-library',
+    Stack({ alignContent: Alignment.End }) {
+      Column().width('100%').height('100%').backgroundColor('#50000000')
+        .onClick(this.onResume).id('game-panel-scrim')
+      Column({ space: 18 }) {
+        Row() {
+          Column({ space: 4 }) {
+            Text('游戏控制').fontSize(21).fontWeight(FontWeight.Bold).fontColor('#F2F5FA')
+            Text('画面与性能').fontSize(12).fontColor('#9AA9BE')
+          }.alignItems(HorizontalAlign.Start).layoutWeight(1)
+          GameActionButton({ label: '收起', darkPanel: true, controlId: 'game-panel-resume', onAction: this.onResume })
+        }.width('100%')
+        Divider().color('#2E3746')
+        Scroll() {
+          Column({ space: 20 }) {
+            GamePresentationSettings({ value: this.settings, inGame: true,
+              onChange: (value: GameModeSettings): void => this.save(value) })
+            Divider().color('#2E3746')
+            GameActionButton({ label: this.hud ? '隐藏性能浮层' : '显示性能浮层', fullWidth: true,
+              darkPanel: true, controlId: 'game-panel-hud', onAction: (): void => { void this.toggleHud(); } })
+            GameActionButton({ label: '返回游戏库 · 保留游戏', fullWidth: true, darkPanel: true, controlId: 'game-panel-library',
             onAction: (): void => { this.onResume(); void HostWindowTasks.getInstance().showLauncher(); } })
-          GameActionButton({ label: this.hud ? '关闭性能浮层' : '显示性能浮层', fullWidth: true, controlId: 'game-panel-hud',
-            onAction: (): void => { void this.toggleHud(); } })
-          GamePresentationSettings({ value: this.settings, onChange: (value: GameModeSettings): void => { void this.save(value); } })
-          ForEach(this.tasks, (task: HostWindowTask) => {
-            GameActionButton({ label: '正常退出 · ' + task.title, fullWidth: true, controlId: 'game-panel-close-' + task.key,
-              onAction: (): void => { void this.close(task); } })
-          }, (task: HostWindowTask): string => task.key)
-        }.width('100%').padding(24).backgroundColor(skinColor('page_background')).borderRadius(20)
-      }.width('92%').constraintSize({ maxWidth: 560, maxHeight: '90%' }).scrollBar(BarState.Auto)
+            ForEach(this.tasks, (task: HostWindowTask) => {
+              GameActionButton({ label: '正常退出 · ' + task.title, fullWidth: true, darkPanel: true,
+                controlId: 'game-panel-close-' + task.key, onAction: (): void => { void this.close(task); } })
+            }, (task: HostWindowTask): string => task.key)
+          }.width('100%').alignItems(HorizontalAlign.Start)
+        }.layoutWeight(1).width('100%').scrollBar(BarState.Auto)
+      }.width(this.panelWidth).height('100%').padding({ top: 28, bottom: 24, left: 22, right: 22 })
+        .backgroundColor('#F5181E29').border({ width: { left: 1 }, color: '#394354' })
+        .shadow({ radius: 24, color: '#60000000', offsetX: -6 })
+        .transition(TransitionEffect.move(TransitionEdge.END).animation({ duration: 180, curve: Curve.EaseOut }))
+        .id('game-side-panel')
     }.width('100%').height('100%').hitTestBehavior(HitTestMode.Default).id('game-quick-panel')
+      .onAreaChange((_old: Area, area: Area): void => { this.panelWidth = Math.min(360, Math.max(0, Number(area.width) - 20)); })
       .onTouch((event: TouchEvent): void => event.stopPropagation())
       .onMouse((event: MouseEvent): void => event.stopPropagation())
       .onKeyEvent((event: KeyEvent): void => {

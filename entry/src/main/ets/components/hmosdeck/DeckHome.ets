@@ -34,7 +34,6 @@ export struct DeckHome {
   onLocalSettings: (game: AppDescriptor) => void = (_game: AppDescriptor): void => {};
   localArtwork: (game: AppDescriptor) => string = (game: AppDescriptor): string => game.backgroundPath ?? '';
   @Prop gameMode: boolean = false;
-  onGameMode: () => void = (): void => {};
   @State private games: DeckSteamGame[] = [];
   @State private page: string = 'steam';
   @State private selected: string = '';
@@ -291,11 +290,11 @@ export struct DeckHome {
   private sheetHeight(): number { return Math.min(this.sheetKind === 'more' ? 430 : 500, this.heightVp - 30); }
   private focusIds(): string[] {
     if (this.sheet) return ['deck-sheet-close', ...(this.sheetKind === 'more' ?
-      ['deck-more-options', 'deck-settings', 'deck-sheet-classic'] : [])];
+      ['deck-more-options', 'deck-settings', ...(!this.gameMode ? ['deck-sheet-classic'] : [])] : [])];
     const ids = this.portrait() ? ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-more'] :
-      ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-settings', 'deck-classic'];
-    if (!this.gameMode) ids.push(this.portrait() ? 'deck-library-game-mode' : 'deck-game-mode');
+      ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-settings'];
     if (!this.portrait() && DeviceCapabilityPolicy.supportsValueAddedFeatures()) ids.push('deck-membership', 'deck-support');
+    if (!this.gameMode) ids.push('deck-classic');
     if (this.page === 'steam') ids.push('deck-steam', 'deck-open-sheet');
     else if (this.page === 'options') ids.push('deck-options-back', 'deck-components', 'deck-big-picture', 'deck-desktop', 'deck-steam-downloads', 'deck-account');
     else if (this.page === 'library') {
@@ -315,7 +314,7 @@ export struct DeckHome {
     if (!this.active || HostWindowTasks.getInstance().hasForegroundTask()) return false;
     if (this.busy) return true;
     if (code === 2302 || code === 2070) {
-      if (!this.handleBack()) this.onClassic();
+      if (!this.handleBack() && !this.gameMode) this.onClassic();
       return true;
     }
     const ids = this.focusIds();
@@ -333,7 +332,6 @@ export struct DeckHome {
   }
   private activateFocus(): void {
     const id = this.focus;
-    if (id === 'deck-game-mode' || id === 'deck-library-game-mode') { this.onGameMode(); return; }
     if (id === 'deck-classic' || id === 'deck-sheet-classic') this.onClassic();
     else if (id === 'deck-settings' || id === 'deck-nav-settings') this.openSettings();
     else if (id === 'deck-membership') this.onMembership();
@@ -455,8 +453,7 @@ export struct DeckHome {
         this.RailItem('赞助', $r('sys.symbol.heart'), 'deck-support', false, this.onSupport)
       }
       this.RailItem('设置', $r('sys.symbol.gearshape'), 'deck-nav-settings', false, (): void => this.openSettings())
-      if (!this.gameMode) this.RailItem('Game 模式', $r('sys.symbol.gamecontroller'), 'deck-game-mode', false, this.onGameMode)
-      this.RailItem(this.gameMode ? '退出 Game' : '经典界面', $r('sys.symbol.rectangle_grid_1x2'), 'deck-classic', false, this.onClassic)
+      if (!this.gameMode) this.RailItem('经典界面', $r('sys.symbol.rectangle_grid_1x2'), 'deck-classic', false, this.onClassic)
       }.width(this.railWidth()).constraintSize({ minHeight: this.heightVp }).padding({ left: 8, right: 8, top: 4, bottom: 12 })
     }.width(this.railWidth()).height('100%').scrollBar(BarState.Off)
       .backgroundColor('#121417').border({ width: { right: 1 }, color: '#262A31' })
@@ -623,7 +620,6 @@ export struct DeckHome {
   private Library() {
     Scroll(this.scroll) {
       Column() {
-        if (!this.gameMode) Button('进入 Game 模式').onClick(this.onGameMode).id(this.scopeId('deck-library-game-mode'))
         this.SectionHeading(this.gameMode ? 'Game 游戏库' : '游戏库', '已安装的游戏，一处开始。')
         Scroll() {
           Row({ space: this.portrait() ? 8 : 10 }) {
@@ -707,13 +703,13 @@ export struct DeckHome {
             SymbolGlyph($r('sys.symbol.gamecontroller')).fontSize(40).fontColor(['#343A43'])
             Text(this.query ? '未找到匹配的游戏' : '你的下一场冒险，从这里开始').fontSize(18).fontColor('#F2F4F7')
             Text(this.query ? '当前分类没有匹配项，请换个名称或切换分类。' : this.libraryTab === 'steam' ?
-              '在 Steam 中下载后，会自动显示在这里。' : '从经典界面添加或扫描 games 目录中的游戏。').fontSize(13).fontColor('#9AA3AF')
+              '在 Steam 中下载后，会自动显示在这里。' : '将游戏放入 games 目录后刷新游戏库，也可从系统设置管理游戏。').fontSize(13).fontColor('#9AA3AF')
             if (this.libraryTab === 'steam') {
               Button('打开 Steam 游戏库').height(42).fontColor('#03111F').backgroundColor('#1A9FFF')
                 .onClick((): void => { void this.open('library'); }).id(this.scopeId('deck-empty-open'))
             } else {
-              Button('打开经典界面').height(42).fontColor('#03111F').backgroundColor('#1A9FFF')
-                .onClick(this.onClassic).id(this.scopeId('deck-empty-classic'))
+              Button(this.gameMode ? '打开系统设置' : '打开经典界面').height(42).fontColor('#03111F').backgroundColor('#1A9FFF')
+                .onClick(this.gameMode ? this.onSettings : this.onClassic).id(this.scopeId('deck-empty-classic'))
             }
           }.width('100%').padding({ top: 50, bottom: 50 }).id(this.scopeId('deck-empty'))
         }
@@ -797,7 +793,7 @@ export struct DeckHome {
             if (this.sheetKind === 'more') {
               this.SheetRow('Steam 选项', '组件管理、显示模式与客户端操作', 'deck-more-options', $r('sys.symbol.archivebox'), (): void => this.openSheet(), 0)
               this.SheetRow('系统设置', '外观、输入、声音与运行配置', 'deck-settings', $r('sys.symbol.gearshape'), (): void => this.openSettings(), 1)
-              this.SheetRow('返回经典界面', '保留当前 Steam 与游戏会话', 'deck-sheet-classic', $r('sys.symbol.rectangle_on_rectangle'), this.onClassic, 2)
+              if (!this.gameMode) this.SheetRow('返回经典界面', '保留当前 Steam 与游戏会话', 'deck-sheet-classic', $r('sys.symbol.rectangle_on_rectangle'), this.onClassic, 2)
             }
           }.width('100%').padding({ bottom: 8 })
         }.width('100%').layoutWeight(1).scrollBar(BarState.Auto).align(Alignment.Top)

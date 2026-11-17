@@ -592,6 +592,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
 }
 
 export interface GlobalSettings {
+  gameModeEnabled?: boolean;
   gameMode?: GameModeSettings;
   /** Original OHOS Wine 32-bit WoW64 backend; ARM64EC remains unchanged. */
   wineTranslationEngine: WineTranslationEngine;
@@ -1253,6 +1254,7 @@ export function createBuiltInInputProfiles(): InputProfile[] {
 
 export function createDefaultGlobalSettings(): GlobalSettings {
   return {
+    gameModeEnabled: false,
     gameMode: normalizeGameModeSettings(),
     wineTranslationEngine: WineTranslationEngine.FEX,
     wineDisplayRoute: 'wayland',

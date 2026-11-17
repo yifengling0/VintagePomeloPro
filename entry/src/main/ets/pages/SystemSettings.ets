@@ -46,6 +46,10 @@ import {
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { GamepadManager } from '../service/GamepadManager';
+import { HostWindowTasks } from '../service/HostWindowTasks';
+import { SteamClientService } from '../service/SteamClientService';
+import { GamePresentationSettings } from '../components/GamePresentationSettings';
+import { GameModeSettings, normalizeGameModeSettings } from '../model/GameModeSettings';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { DesktopModeService, MODE_VIRTUAL, MODE_FUSION } from '../service/DesktopModeService';
 import { AppSessionService } from '../service/AppSessionService';
@@ -1552,6 +1556,28 @@ struct SystemSettingsPage {
     }
   }
 
+  private async updateGameMode(value: boolean): Promise<void> {
+    try {
+      if (HostWindowTasks.getInstance().controllableGames().length > 0 || SteamClientService.getInstance().isRunning()) {
+        promptAction.showToast({ message: '请先正常退出游戏和 Steam，再切换 Game 模式' });
+        return;
+      }
+      const next = JSON.parse(JSON.stringify(ThemeSettingsService.getInstance().getSettings())) as GlobalSettings;
+      next.gameModeEnabled = value;
+      await ThemeSettingsService.getInstance().update(next);
+      this.settings = next;
+    } catch (_) { promptAction.showToast({ message: 'Game 模式未保存，请重试' }); }
+  }
+
+  private async updateGameDefaults(value: GameModeSettings): Promise<void> {
+    try {
+      const next = JSON.parse(JSON.stringify(ThemeSettingsService.getInstance().getSettings())) as GlobalSettings;
+      next.gameMode = value;
+      await ThemeSettingsService.getInstance().update(next);
+      this.settings = next;
+    } catch (_) { promptAction.showToast({ message: '默认画面设置未保存，请重试' }); }
+  }
+
   @Builder
   private SwitchRow(options: SwitchRowOptions) {
     Row() {
@@ -1934,6 +1960,16 @@ struct SystemSettingsPage {
           glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
       } else if (section === 'display') {
         Column({ space: 16 }) {
+          this.SwitchRow({ title: 'Game 模式',
+            description: '使用全屏游戏库和游戏内容呈现。关闭后恢复原界面，单个游戏仍可独立设置。',
+            enabled: this.settings.gameModeEnabled === true, id: 'settings-game-mode',
+            onChange: (value: boolean): void => { void this.updateGameMode(value); } })
+          if (this.settings.gameModeEnabled) {
+            Text('Game 默认画面').fontSize(16).fontWeight(FontWeight.Medium).width('100%')
+              .fontColor(skinColor('text_primary'))
+            GamePresentationSettings({ value: normalizeGameModeSettings(this.settings.gameMode),
+              onChange: (value: GameModeSettings): void => { void this.updateGameDefaults(value); } })
+          }
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
             .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')

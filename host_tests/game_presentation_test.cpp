@@ -60,6 +60,25 @@ int main() {
     Configure(true, false, false, 60);
     assert(CompositionPeriodNs()==16666667 && ProducerPeriodNs(8333333)==16666667);
     assert(ProducerPeriodNs(50000000)==50000000); // a limit cannot accelerate the display
+    AppliedPolicy applied;
+    const auto previous = Snapshot();
+    assert(applied.Changed(previous));
+    applied.Presented(previous);
+    assert(!applied.Changed(previous));
+    Configure(true, false, false, 30, true, 5);
+    const auto live = Snapshot();
+    assert(applied.Changed(live)); // repaint even if a game emits no new frame
+    assert(ProducerPeriodNs(8333333)==33333334); // update producer without a refresh-rate change
+    assert(applied.Changed(live)); // pause/EAGAIN must not consume the update
+    applied.Presented(live);
+    assert(!applied.Changed(live));
+    Configure(true, false, true, 0);
+    assert(applied.Changed(Snapshot()));
+    assert(ComputeFitRect(1920, 1080, 800, 600, fit) && fit.dstW == 800);
+    assert(FitUnmapDisplayX(fit, FitMapDisplayX(fit, 400)) == 400);
+    Configure(true, false, false, 0);
+    assert(ComputeFitRect(1920, 1080, 800, 600, fit) && fit.dstW == 1440);
+    assert(FitUnmapDisplayX(fit, FitMapDisplayX(fit, 400)) == 400);
     Configure(false, false, false, 0);
     assert(!Enabled() && !Integer() && !Nearest() && LimitPeriodNs() == 0);
     assert(CompositionPeriodNs()==0 && ProducerPeriodNs(8333333)==8333333);

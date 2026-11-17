@@ -1434,7 +1434,6 @@ struct Index {
   private phoneNavigationMenu(): HdsNavigationMenuContentOptions {
     return {
       value: [
-        { content: { label: 'Game 模式', icon: $r('sys.symbol.gamecontroller'), action: (): void => this.enterGameMode() } },
         { content: { label: 'Deck 模式', icon: $r('app.media.deck_mode'), action: (): void => { void this.setLauncherSkin(UiSkin.DECK); } } },
         {
           content: {
@@ -1585,7 +1584,6 @@ struct Index {
           Text(this.filterDescription()).fontSize(13).fontColor(this.engineState === EngineState.ERROR ? '#B42318' : skinColor('text_secondary')).maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis })
         }.alignItems(HorizontalAlign.Start).layoutWeight(1)
         Row({ space: 4 }) {
-          this.GameEntryButton(48)
           this.DeckEntryButton(48)
           Button({ type: ButtonType.Circle }) { SymbolGlyph($r('sys.symbol.square_grid_2x2')).fontSize(17).fontColor([skinColor('text_primary')]) }
             .width(48).height(48).backgroundColor(this.settings.viewMode === ViewMode.GRID ? skinColor('selected_background') : skinColor('search_background')).onClick(() => this.setViewMode(ViewMode.GRID))
@@ -2022,33 +2020,22 @@ struct Index {
     return 'builtin';
   }
 
-  @StorageLink('vpp.game.browsing') private gameBrowsing: boolean = false;
+  @StorageLink('vpp.game.browsing') @Watch('gameBrowsingChanged') private gameBrowsing: boolean = false;
   private gameBackHandler: (() => boolean) | null = null;
   private deckBackHandler: (() => boolean) | null = null;
 
-  private enterGameMode(): void {
+  private gameBrowsingChanged(): void {
     InputRouter.getInstance().releaseAllKeys();
     GamepadManager.getInstance().releaseAll();
-    this.captureScrollOffsets();
-    this.gameBrowsing = true;
-    void this.applyPageWindowShell();
-  }
-
-  private leaveGameMode(): void {
-    if (HostWindowTasks.getInstance().controllableGames().length > 0 || SteamClientService.getInstance().isRunning()) {
-      promptAction.showToast({ message: '请先正常退出游戏和 Steam，再退出 Game 模式' });
-      return;
-    }
-    this.gameBrowsing = false;
-    void this.applyPageWindowShell();
-    setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
+    if (this.gameBrowsing) this.captureScrollOffsets();
+    if (this.consolePageVisible) void this.applyPageWindowShell();
+    if (!this.gameBrowsing) setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
   }
 
 
   onBackPress(): boolean {
     if (this.gameBrowsing) {
-      if (!this.gameBackHandler?.()) this.leaveGameMode();
-      return true;
+      return this.gameBackHandler?.() ?? false;
     }
     if (this.settings.uiSkin === UiSkin.DECK && this.deckBackHandler?.()) return true;
     if (this.consoleDetailVisible) {
@@ -2811,7 +2798,6 @@ struct Index {
       .onClick((): void => { void this.rescan(); })
       .accessibilityText('刷新游戏库')
       .id('console-refresh')
-      this.GameEntryButton(40)
       this.DeckEntryButton(40)
       Button({ type: ButtonType.Circle }) {
         SymbolGlyph($r('sys.symbol.gearshape')).fontSize(18)
@@ -2835,14 +2821,6 @@ struct Index {
     next.uiSkin = skin;
     await ThemeSettingsService.getInstance().update(next);
     if (skin === UiSkin.CLASSIC) setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
-  }
-
-  @Builder
-  private GameEntryButton(size: number) {
-    Button({ type: ButtonType.Circle }) {
-      SymbolGlyph($r('sys.symbol.gamecontroller')).fontSize(22).fontColor([skinColor('accent')])
-    }.width(size).height(size).backgroundColor(skinColor('selected_background'))
-      .onClick((): void => this.enterGameMode()).accessibilityText('进入 Game 模式').id('library-open-game')
   }
 
   @Builder
@@ -3274,7 +3252,6 @@ struct Index {
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
         onRefresh: (): Promise<void> => this.rescan(),
         onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
-        onGameMode: (): void => this.enterGameMode(),
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
         onBackHandler: (handler: (() => boolean) | null): void => { this.deckBackHandler = handler; },
@@ -3294,8 +3271,7 @@ struct Index {
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
         onRefresh: (): Promise<void> => this.rescan(),
-        onClassic: (): void => this.leaveGameMode(),
-        onSettings: (): void => this.openSidebarPage('pages/GameSettings'),
+        onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
         onBackHandler: (handler: (() => boolean) | null): void => { this.gameBackHandler = handler; },
         onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),

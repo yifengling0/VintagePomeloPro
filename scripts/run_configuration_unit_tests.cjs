@@ -71,6 +71,26 @@ async function seedLegacyBackup(c,f){
  return {head,manifest};
 }
 (async()=>{
+ await test('Game mode switch and per-game live policy survive preference updates and reload',async()=>{
+  const f=fixture();await f.initialize();
+  assert.equal(f.settings.getGlobalSettings().gameModeEnabled,false);
+  const settings=f.settings.getGlobalSettings();settings.gameModeEnabled=true;
+  settings.gameMode={scaling:'fsr',frameLimit:60,sharpness:7};
+  await f.settings.saveGlobalSettings(settings);
+  for(const [name,args] of [['setViewMode',['grid']],['setDefaultDisplayMode',['desktop']],
+    ['setShowVirtualControls',[true]],['setBox64Preset',['stability']],['setControlBarPosition',[0.4,0.6]]]) {
+    await f.settings[name](...args);assert.equal(f.settings.getGlobalSettings().gameModeEnabled,true);
+  }
+  const app=f.models.createDefaultAppSettings('pal4');app.gameModeSettings={scaling:'integer',frameLimit:30,sharpness:10};
+  await f.settings.saveAppSettings(app);
+  f.settings.reloadConfiguration();assert.equal(f.settings.getGlobalSettings().gameModeEnabled,true);
+  same(f.settings.getGlobalSettings().gameMode,{scaling:'fsr',sharpness:7,frameLimit:60});
+  same(f.settings.getAppSettings('pal4').gameModeSettings,{scaling:'integer',sharpness:10,frameLimit:30});
+  const disabled=f.settings.getGlobalSettings();disabled.gameModeEnabled=false;
+  await f.settings.saveGlobalSettings(disabled);f.settings.reloadConfiguration();
+  assert.equal(f.settings.getGlobalSettings().gameModeEnabled,false);
+  f.dispose();
+ });
  await test('Wine CPU choice migrates to FEX and survives settings, restart and cloud snapshot',async()=>{
   const f=fixture();await f.initialize();
   assert.equal(f.settings.getGlobalSettings().wineTranslationEngine,'fex');

@@ -517,7 +517,10 @@ private:
     bool RenderGamescope(int width, int height, bool paused, bool repaint) {
         if (gamescopeTiming_) gamescopeTiming_((winehua::FrameLoopDiagnosticState() & 1)!=0,
             [](const char* detail) { OH_LOG_INFO(LOG_APP,"[GAMESCOPE-GPU] %{public}s",detail); });
-        if (paused!=background_ || cadence_.Refresh(winehua::PerfNowUs())) {
+        const auto policy=winehua::game::Snapshot();
+        const bool policyChanged=gamescopePolicy_.Changed(policy);
+        const bool cadenceChanged=cadence_.Refresh(winehua::PerfNowUs());
+        if (paused!=background_ || cadenceChanged || policyChanged) {
             for (const auto& [key,layer]:glLayers_)
                 GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key,
                     paused?100000000ull:winehua::game::ProducerPeriodNs(cadence_.PeriodNs()));
@@ -545,7 +548,7 @@ private:
         bool fresh=false;
         for (auto& [id,layer]:layers_) fresh|=layer.current.accepted.pending;
         for (auto& [key,layer]:glLayers_) fresh|=layer->current.accepted.pending;
-        if (!fresh && !repaint && SameGpuDesktopScene(next,scene_) && width==gamescopeWidth_ && height==gamescopeHeight_) {
+        if (!fresh && !repaint && !policyChanged && SameGpuDesktopScene(next,scene_) && width==gamescopeWidth_ && height==gamescopeHeight_) {
             std::this_thread::sleep_for(std::chrono::milliseconds(8)); return true;
         }
         scene_=std::move(next);
@@ -595,8 +598,8 @@ private:
             input.w=width; input.h=height; input.pixels=&black; input.pixelBytes=4; inputs.push_back(input); buffers.push_back(nullptr);
         }
         VppGamescopeFrame frame; frame.width=width; frame.height=height;
-        frame.filter=winehua::game::Fsr()?3:winehua::game::Integer()?2:winehua::game::Nearest()?1:0;
-        frame.sharpness=winehua::game::Sharpness(); frame.count=inputs.size(); frame.layers=inputs.data();
+        frame.filter=(policy&8u)?3:(policy&4u)?2:(policy&2u)?1:0;
+        frame.sharpness=(policy>>16)&31u; frame.count=inputs.size(); frame.layers=inputs.data();
         const int result=gamescopePresent_(&frame);
         // Even a present error may follow successful GPU submission. Always
         // adopt its completion before returning a sampled buffer to producer.
@@ -612,6 +615,7 @@ private:
         if (result==-EAGAIN) return true;
         if (result) return Fail("gamescope_gpu_present",VK_ERROR_INITIALIZATION_FAILED);
         gamescopeWidth_=frame.width; gamescopeHeight_=frame.height;
+        gamescopePolicy_.Presented(policy);
         bool gameFrame=false;
         for (auto* buffer:buffers) if (buffer) gameFrame|=buffer->accepted.Presented(true,true);
         ++presentationSerial_; ++presents_; desktopPresents.fetch_add(1,std::memory_order_relaxed);
@@ -1057,6 +1061,7 @@ private:
     void (*gamescopeTiming_)(bool,void(*)(const char*)) = nullptr;
     int (*gamescopePresent_)(VppGamescopeFrame*) = nullptr;
     int gamescopeWidth_=0, gamescopeHeight_=0;
+    winehua::game::AppliedPolicy gamescopePolicy_;
     uint32_t lastGameGpuLayers_=0, lastGameFsrPasses_=0;
     std::unique_ptr<DirectVulkanContext> core_;
     VkSampler sampler_ = VK_NULL_HANDLE;
