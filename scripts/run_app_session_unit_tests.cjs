@@ -416,6 +416,32 @@ function fixture() {
     f.processes[1].sessionId = 'cef-browser'; f.processes[0].state = 'stopped';
     await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
   }
+  { // A slow translated CEF start must still bring the real client forward.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'slow-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'slow-cef', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    let elapsed = 0, resumed;
+    f.service.resume = async session => { resumed = session; };
+    f.onWait(() => {
+      elapsed += 250;
+      if (elapsed === 60000) tasks.onEvent(96, 'created', JSON.stringify({ sessionId: 'slow-cef', clientPid: 83 }));
+    });
+    const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
+    assert.equal(elapsed, 60000); assert.equal(ready.toplevelId, 96); assert.equal(resumed, ready);
+    assert.equal(ready.sessionId, 'slow-client');
+    assert.equal(f.killRequests.length, 0);
+  }
+  { // A missing window still has a bounded wait without terminating Steam.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    let elapsed = 0;
+    f.onWait(() => { elapsed += 250; });
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    assert.ok(elapsed > 60000 && elapsed <= 90000);
+    assert.equal(f.starts.length, 0); assert.equal(f.killRequests.length, 0);
+    assert.equal(f.timers.size, 0);
+  }
   { // Warm URI forwarding uses the existing real client, respecting navigation.
     const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
     const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();

@@ -475,7 +475,10 @@ export class AppSessionService {
 
   async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
     navigation: number): Promise<RuntimeSession> {
-    const deadline = Date.now() + 45000;
+    // On translated ARM64 cold starts, CEF can create its first real window
+    // after 45 seconds. Keep the launch feedback alive through that startup
+    // rather than reporting failure immediately before the window arrives.
+    const deadline = Date.now() + 90000;
     const tasks = HostWindowTasks.getInstance();
     const steam = SteamLocalService.getInstance();
     while (Date.now() < deadline) {
