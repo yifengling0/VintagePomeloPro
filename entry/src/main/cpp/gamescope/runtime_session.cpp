@@ -113,7 +113,7 @@ std::shared_ptr<Session> currentSession;
 }
 int StartSession(const ::gamescope::ohos::SessionConfig& config) {
     if (!ValidateSessionConfig(config) || config.mode != SessionMode::Compositor) return EINVAL;
-    if (!ProcessBackendAvailable()) return ENOTSUP;
+    if (!StandaloneOutputSupported() || !ProcessBackendAvailable()) return ENOTSUP;
     std::lock_guard lock(sessionMutex);
     if (currentSession && currentSession->Snapshot().active) return EBUSY;
     auto session = std::make_shared<Session>();

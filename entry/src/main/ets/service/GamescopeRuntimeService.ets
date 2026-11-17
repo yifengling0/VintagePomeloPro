@@ -12,11 +12,8 @@ export class GamescopeRuntimeService {
     // existing clean fork server here, before ArkUI initializes GPU state.
     const prepared = testNapi.prepareGamescopeProcessBackend();
     hilog.info(0, 'Gamescope', 'process preparation=%{public}d', prepared);
-    if (prepared === 0) {
-      GamescopeRuntimeService.query().catch(() => {
-        hilog.warn(0, 'Gamescope', 'runtime capability query unavailable');
-      });
-    }
+    // Loading/probing a compositor is opt-in. Ordinary app startup prepares
+    // only the early process route, without creating a Gamescope child.
   }
 
   static query(): Promise<GamescopeRuntimeStatus> {

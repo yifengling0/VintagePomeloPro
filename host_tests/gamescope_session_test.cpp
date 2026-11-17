@@ -18,6 +18,7 @@ enum class Scenario { Normal, Disconnect, Failure, ForeignPid, BadPacket };
 Scenario scenario = Scenario::Normal;
 std::vector<std::thread> children;
 int nextPid = 500;
+bool standaloneOutput = true;
 void Wait(const std::function<bool()>& condition) {
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     while (!condition() && std::chrono::steady_clock::now() < until) std::this_thread::yield();
@@ -26,6 +27,7 @@ void Wait(const std::function<bool()>& condition) {
 }
 namespace winehua::gamescope {
 bool ProcessBackendAvailable() { return true; }
+bool StandaloneOutputSupported() { return standaloneOutput; }
 OutputConnection::~OutputConnection() = default;
 SpawnBroker::SpawnBroker(int endpoint, std::string, std::string) : endpoint_(endpoint) {}
 SpawnBroker::~SpawnBroker() { Stop(); }
@@ -77,6 +79,9 @@ int main() {
     strcpy(config.runtimeDirectory, "/tmp/gamescope-session-test");
     strcpy(config.logPath, "/tmp/gamescope-session-test.log");
     assert(!RequestSessionStop());
+    standaloneOutput = false;
+    assert(StartSession(config) == ENOTSUP && children.empty());
+    standaloneOutput = true;
     for (int round = 0; round < 5; ++round) {
         scenario = Scenario::Normal;
         assert(StartSession(config) == 0);
