@@ -131,10 +131,25 @@ NativeBuffer 输出已解决。手机不调用平板专用的 `StartOutputChild`
 （92 项，零失败）。完整 suite 中旧 Linux Steam 接口测试，以及缺少展开 Wine 子模块的
 手柄 replay 尚未全过，不以本轮定向测试代替完整验收。
 
+## 2026-11-17 当前候选实测补充
+
+`6f22d375` 调试候选已覆盖安装 Mini，保留 UID、首次安装时间与已有程序。
+剪贴板真实权限弹窗、触摸安全粘贴、授权后 Ctrl+V、Wine 与 ArkUI 之间双向中文文本
+已通过。PAL4/VirGL 当前 GPU 桥与官方 FSR 已实际运行，`ncp=0 cpuGameCopies=0`；
+无标题栏、4:3 黑边、中文、存档读取触摸坐标和本轮地面画面正常，未见此前明显色偏。
+FSR 菜单约 104 FPS、线性约 117 FPS，已解除旧软件 60 FPS 上限。
+
+保留会话回库、恢复、正常退出自动返回及线性候选第二次启动通过，但不是五轮 GPU
+游戏生命周期验收。用户确认性能可接受、体感与此前接近；低电量 FSR/线性短测仅作
+诊断，不报告收益百分比。普通 Wayland 同场景正式对照未完成。原设置已恢复，临时
+诊断已关闭，测试会话已结束。完整判据和剩余范围见
+[Mini 实测](mini-evaluation-20261117.zh-CN.md)。
+
 ## 尚未完成的交付范围
 
-1. GPU 游戏 NativeBuffer/fence importer、窗口关联与消费退役已实现，Direct/Venus/VirGL
-   组合的画面与生命周期仍需分别验收；不得跨 VkDevice 使用原始 VkImage。
+1. GPU 游戏 NativeBuffer/fence importer、窗口关联与消费退役已实现，Mini PAL4/VirGL
+   局部实测见上，其余 Direct/Venus/Zink 组合及完整生命周期仍需分别验收；
+   不得跨 VkDevice 使用原始 VkImage。
 2. X11 Game 最终裁切与对应输入；扩大相对鼠标、IME、授权剪贴板与实体多手柄回归。
 3. Game 库与快捷面板的完整生命周期、Steam 派发/退出返回及单游戏覆盖真机验收。
 4. 已实现的 FSR、限帧的实际效果与手机真机；PAL4、Heaven、DX11 及严格性能对照。
