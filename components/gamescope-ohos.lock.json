@@ -409,32 +409,11 @@
       ]
     },
     {
-      "path": "patches/gamescope/0020-diagnostic-easu-isolation.patch",
-      "sha256": "82202c5669711cea787df2bd47a26859db65092d29a2193e8b9bcacd59d135b2",
-      "originalPath": "src/shaders/cs_composite_rcas.comp",
-      "beforeSha256": "ab1161f37b738cd2640c7237eb8cf56e829acad8b94c0fb9740f77809a1f1a17",
-      "afterSha256": "1cf506e001813ca12de5b3992124f86b7b2d9adff2b0af8d6a2661ce2a0cd93c"
-    },
-    {
-      "path": "patches/gamescope/0021-diagnostic-fsr-readback.patch",
-      "sha256": "dac16979984ffc305f295b790e1a1245d8ed5a788f4e4860fc53ee3c77bed187",
+      "path": "patches/gamescope/0020-publish-internal-compute-writes-to-following-submissions.patch",
+      "sha256": "58a564fecd3dcd05ce87fd3c7ed06bf343ec727487410d29eee257684b268874",
       "originalPath": "src/rendervulkan.cpp",
       "beforeSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95",
-      "afterSha256": "1589792438fe3e3e1a019dc67524e69728d1417fa2f7184e250277501a66b5a0"
-    },
-    {
-      "path": "patches/gamescope/0022-diagnostic-fsr-files-path.patch",
-      "sha256": "83dfc5d446973ac38ea971f70f9edfb4a9ae90804715a1881e71b267e10b99d5",
-      "originalPath": "src/rendervulkan.cpp",
-      "beforeSha256": "1589792438fe3e3e1a019dc67524e69728d1417fa2f7184e250277501a66b5a0",
-      "afterSha256": "346584fadccd774651ecf0ab7942d562f354e0693fbd39866dce0c9bc9c4b6dc"
-    },
-    {
-      "path": "patches/gamescope/0023-diagnostic-fsr-buffer-readback.patch",
-      "sha256": "914fd405b96d77fc9a8a0ea44385b600010e69194100714520755a0c66811e9a",
-      "originalPath": "src/rendervulkan.cpp",
-      "beforeSha256": "346584fadccd774651ecf0ab7942d562f354e0693fbd39866dce0c9bc9c4b6dc",
-      "afterSha256": "7fc6a1ef191d6846e2bac3d328e8132febe862d9b70d4b03baec5435da81d7a7"
+      "afterSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c"
     }
   ],
   "overlays": [
@@ -536,7 +515,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "99d2a62d7323392430fcc7c0d284ae43d4407b8bda7c59c1a82de525285f95aa"
+      "sha256": "76512a4a3ff13cfe5e71d371e73c91e2fca2fb5d3c87003e5ce7d740dde9fd0a"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",

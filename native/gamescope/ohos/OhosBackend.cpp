@@ -46,7 +46,6 @@
 #include <bitset>
 #include <cerrno>
 #include <cstring>
-#include <dlfcn.h>
 
 extern int g_nPreferredOutputWidth, g_nPreferredOutputHeight;
 extern uint32_t currentOutputWidth, currentOutputHeight;
@@ -370,13 +369,6 @@ int COhosBackend::present(const FrameInfo_t* info) {
         fprintf(stderr, "VPP_GAMESCOPE_FRAME source=%ux%u output=%dx%d target=%ux%u scale=%.6f,%.6f offset=%.3f,%.3f\n",
             layer.tex->width(), layer.tex->height(), g_nOutputWidth, g_nOutputHeight,
             target->width(), target->height(), layer.scale.x, layer.scale.y, layer.offset.x, layer.offset.y);
-    }
-    if (m_frameNumber == 0) {
-        if (FILE* f = fopen("/data/storage/el2/base/files/gs-core-identity.txt", "w")) {
-            Dl_info symbol{}; dladdr(reinterpret_cast<void*>(&vulkan_composite), &symbol);
-            fprintf(f, "source=fsr-readback-22 function=%s\n", symbol.dli_fname ? symbol.dli_fname : "unknown");
-            fclose(f);
-        }
     }
     auto composed = vulkan_composite(const_cast<FrameInfo_t*>(info), nullptr, false, target, false);
     if (!composed) { error("composite submission", VK_ERROR_INITIALIZATION_FAILED); return -EIO; }
