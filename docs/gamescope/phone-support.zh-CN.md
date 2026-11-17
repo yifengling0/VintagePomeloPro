@@ -5,7 +5,7 @@
 
 ## 共用产品层
 
-手机、Mini 和 PC 共用 Game 游戏库、Steam 入口、游戏覆盖、性能设置和快捷面板。
+实现目标为手机、Mini 和 PC 共用 Game 游戏库、Steam 入口、游戏覆盖、性能设置和快捷面板。
 进入 Game 页面不以 `GamescopeRuntimeStatus.loaded` 或系统 NCP 是否存在为条件；
 这些状态仅用于选择已验收的呈现实现。保持已有 Wine/FEX、后端选择、配置和存档。
 
@@ -16,7 +16,7 @@
 
 | 平台 | 进程和最终呈现 | 当前状态 |
 | --- | --- | --- |
-| 支持 NCP 的平板/PC | 独立 OHOS Gamescope core，通过 OHIPC 交接 NativeWindow | Mini 已启动 Xwayland/系统 Vulkan；像素与生命周期继续验收，GPU 游戏桥未接通 |
+| 支持 NCP 的平板/PC | 独立 OHOS Gamescope core，通过 OHIPC 交接 NativeWindow | Mini 已通过 SHM 五轮启停与三次 resize 的像素/比例检查；GPU 游戏桥未接通 |
 | 手机 | 复用现有 Venus/VirGL/Zink 与 App 内原生合成器，承载类似的 Game 呈现功能 | 适配路线，尚未实现 FSR、Game 限帧或完整 UI；不宣称已可用 |
 
 手机已有早期 clean fork server 可启动纯运行时子进程；没有服务或服务已死亡时不得
