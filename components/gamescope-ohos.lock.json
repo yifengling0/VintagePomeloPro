@@ -431,10 +431,10 @@
     },
     {
       "path": "patches/gamescope/0023-diagnostic-fsr-buffer-readback.patch",
-      "sha256": "a53cdbc0a10e28b1ab60058ee1f21ed66cdbb8943300b201856211ad3de77201",
+      "sha256": "fa1467dd106eefc5310bd3c9bb18da60dc040153f43bbe14869f7f5f42f67323",
       "originalPath": "src/rendervulkan.cpp",
       "beforeSha256": "346584fadccd774651ecf0ab7942d562f354e0693fbd39866dce0c9bc9c4b6dc",
-      "afterSha256": "b6077e77583415de8ff4b5cd4122d2d9ceab193befd1b9efe45cc622095079a0"
+      "afterSha256": "6173f9ae135e914408163dc7b026abc566d90927f4141aa877f1c32f406a8e95"
     }
   ],
   "overlays": [
