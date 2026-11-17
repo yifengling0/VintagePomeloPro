@@ -22,7 +22,9 @@ inline uint64_t LimitPeriodNs() {
     return fps ? (1'000'000'000ull + fps - 1) / fps : 0;
 }
 inline uint64_t CompositionPeriodNs() {
-    return Enabled() ? std::max(uint64_t(16666667),LimitPeriodNs()) : 0;
+    // FIFO paces Vulkan output at the actual display cadence. Only an explicit
+    // user limit adds a software deadline; default must not cap high-refresh output.
+    return LimitPeriodNs();
 }
 inline uint64_t ProducerPeriodNs(uint64_t displayPeriod) {
     return std::max(displayPeriod, CompositionPeriodNs());

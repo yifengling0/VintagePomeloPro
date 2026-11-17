@@ -2,6 +2,23 @@
 #include "compositor/frame/geometry.h"
 #include <cassert>
 #include <cmath>
+#include <iostream>
+
+// Supply 120 display ticks with upward-rounded nanoseconds to avoid comparing
+// the ceil-rounded 60 FPS limit against a display period rounded down by 1 ns.
+static void CheckDisplayTicks(int fps, int expected) {
+    using namespace winehua::game;
+    Configure(true, false, false, fps);
+    FrameDeadline compositor, producer;
+    int compositions = 0, productions = 0;
+    constexpr uint64_t displayPeriod = 8'333'334;
+    for (uint64_t tick = 0; tick < 120; ++tick) {
+        const auto now = tick * displayPeriod;
+        compositions += compositor.Ready(now, CompositionPeriodNs());
+        productions += producer.Ready(now, ProducerPeriodNs(displayPeriod));
+    }
+    assert(compositions == expected && productions == expected);
+}
 
 int main() {
     using namespace winehua::game;
@@ -30,9 +47,21 @@ int main() {
     assert(LimitPeriodNs()==16666667); // sharpness must not contaminate FPS
     Configure(true, false, false, 0, true, -10);
     assert(Sharpness()==0 && LimitPeriodNs()==0);
-    assert(CompositionPeriodNs()==16666667 && ProducerPeriodNs(8333333)==16666667);
+    assert(CompositionPeriodNs()==0);
+    for (uint64_t period : {8'333'333ull, 11'111'111ull, 16'666'667ull}) {
+        assert(ProducerPeriodNs(period)==period); // actual 120/90/60 Hz grant
+    }
     Configure(true, false, false, 30, true, 99);
     assert(Sharpness()==20 && LimitPeriodNs()==33333334);
+    assert(CompositionPeriodNs()==33333334 && ProducerPeriodNs(8333333)==33333334);
+    CheckDisplayTicks(0, 120);
+    CheckDisplayTicks(60, 60);
+    CheckDisplayTicks(30, 30);
+    Configure(true, false, false, 60);
+    assert(CompositionPeriodNs()==16666667 && ProducerPeriodNs(8333333)==16666667);
+    assert(ProducerPeriodNs(50000000)==50000000); // a limit cannot accelerate the display
     Configure(false, false, false, 0);
     assert(!Enabled() && !Integer() && !Nearest() && LimitPeriodNs() == 0);
+    assert(CompositionPeriodNs()==0 && ProducerPeriodNs(8333333)==8333333);
+    std::cout << "PASS: default accepts 120 display ticks; explicit 60/30 limits pace both compositor and producer\n";
 }
