@@ -416,64 +416,11 @@
       "afterSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c"
     },
     {
-      "path": "patches/gamescope/0021-use-pixel-invocations-for-ohos-fsr.patch",
-      "sha256": "df927a6b93819becf4f1e0ade0cee3f29b89a6ae4ecbd20ad7e3d74febc2e589",
-      "files": [
-        {
-          "originalPath": "src/shaders/cs_easu.comp",
-          "beforeSha256": "389c9985edf646c4393819d8ee29512e2622335612133f22fd5a4f4f2b9c67ae",
-          "afterSha256": "3ad9cd75def3851bc11ebdfe53e46baac32d25377e5910a782a71fc7a6fb30cd"
-        },
-        {
-          "originalPath": "src/shaders/cs_easu_fp16.comp",
-          "beforeSha256": "60fb8f1f25fad2a680485f2395e9b1445153377edd2840febd31bc9e01393dda",
-          "afterSha256": "90d9e3d468afb248b627641ce1f99b704ada244f44201ec343de8f2d90f6df8c"
-        },
-        {
-          "originalPath": "src/rendervulkan.cpp",
-          "beforeSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c",
-          "afterSha256": "6d9e3bb1aeceae3eb6cf9df4b3228ab6959c0f066b6ed046852a57a717474acb"
-        }
-      ]
-    },
-    {
-      "path": "patches/gamescope/0022-diagnostic-fsr-sampling-isolation.patch",
-      "sha256": "800c2d5cdd6cec79b1afad8f73b068bbba9867a7dcbef6000189f8b43bc3df63",
-      "files": [
-        {
-          "originalPath": "src/shaders/cs_easu.comp",
-          "beforeSha256": "3ad9cd75def3851bc11ebdfe53e46baac32d25377e5910a782a71fc7a6fb30cd",
-          "afterSha256": "44a2c2f2a39eb068970636777266a2759caaa9ed174efd22aef2c6b4a630ef89"
-        },
-        {
-          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
-          "beforeSha256": "3899bcd0943c41063ce0be415d0fe63f5812dc4e749ccb4501bc081a81e9db98",
-          "afterSha256": "2d84b1b7983b4a08a68f15c45c790ab431c2fdda488f9bfbacebc9e576accdcf"
-        }
-      ]
-    },
-    {
-      "path": "patches/gamescope/0023-diagnostic-fsr-output-isolation.patch",
-      "sha256": "f8bde41e26691f772e6bdd4ed6fbd996c19718589904ed3233a46364a2defccb",
-      "files": [
-        {
-          "originalPath": "src/shaders/cs_easu.comp",
-          "beforeSha256": "44a2c2f2a39eb068970636777266a2759caaa9ed174efd22aef2c6b4a630ef89",
-          "afterSha256": "771ab14604cacaf58dcf2c0986e51afb19f0ce02cbc8d5512b01df0ab6b76705"
-        },
-        {
-          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
-          "beforeSha256": "2d84b1b7983b4a08a68f15c45c790ab431c2fdda488f9bfbacebc9e576accdcf",
-          "afterSha256": "7a776100f47c1a915a528cfaf431594a449223288a15a153a650e4a7d7352013"
-        }
-      ]
-    },
-    {
-      "path": "patches/gamescope/0024-diagnostic-fsr-rgba-format.patch",
-      "sha256": "1e111c792844d5ead68c5ff70edbedbb103a449a077f1bff077f53f29cce1fc5",
+      "path": "patches/gamescope/0021-use-rgba8-for-ohos-compute-intermediates.patch",
+      "sha256": "6fca9c6665ed7cc95f98f3e489667dacd93cd251d717abba52fa12b239a09d84",
       "originalPath": "src/rendervulkan.cpp",
-      "beforeSha256": "6d9e3bb1aeceae3eb6cf9df4b3228ab6959c0f066b6ed046852a57a717474acb",
-      "afterSha256": "6e00b46a4e9691c427d8f55266d33d2c58c397fed0bf403d07a747be9be7ff33"
+      "beforeSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c",
+      "afterSha256": "69872cba24c2fbf106b10a7df753d787cb4ab38923aec1a2782fcc8784456c85"
     }
   ],
   "overlays": [
@@ -575,7 +522,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "76512a4a3ff13cfe5e71d371e73c91e2fca2fb5d3c87003e5ce7d740dde9fd0a"
+      "sha256": "c0f4f68ae04e3e327c4c99f397fae4f764db3862d622b20d2006b61fa8497632"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",

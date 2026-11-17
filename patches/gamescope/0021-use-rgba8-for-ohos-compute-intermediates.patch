@@ -1,0 +1,15 @@
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -4664,7 +4664,11 @@
+ 		uint32_t tempY = frameInfo->layers.get( 0 ).integerHeight();
+ 
+ 		// EASU leaves HDR as PQ, so 10 bits holds it at the bandwidth of 8.
+-		update_tmp_images(tempX, tempY, ColorspaceIsHDR( frameInfo->layers.get( 0 ).colorspace ) ? DRM_FORMAT_ABGR2101010 : DRM_FORMAT_ARGB8888);
++		// OHOS compute intermediates use RGBA8. Mini reproduces stale pixels
++		// when a formatless BGRA8 storage write is sampled through its UNORM
++		// view; the same shader, extent and barriers are correct with RGBA8.
++		const uint32_t sdrFormat = HAVE_OHOS_BACKEND ? DRM_FORMAT_ABGR8888 : DRM_FORMAT_ARGB8888;
++		update_tmp_images(tempX, tempY, ColorspaceIsHDR( frameInfo->layers.get( 0 ).colorspace ) ? DRM_FORMAT_ABGR2101010 : sdrFormat);
+ 
+ 		if ( frameInfo->useSGSRLayer0 )
+ 			cmdBuffer->bindPipeline(g_device.pipeline(SHADER_TYPE_SGSR));

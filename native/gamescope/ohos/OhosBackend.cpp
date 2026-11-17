@@ -510,7 +510,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             if (!upright || upright->width()!=w || upright->height()!=h) {
                 upright=new CVulkanTexture(); CVulkanTexture::createFlags flags;
                 flags.bStorage=flags.bSampled=true;
-                if (!upright->BInit(w,h,1,DRM_FORMAT_ARGB8888,flags)) return false;
+                if (!upright->BInit(w,h,1,DRM_FORMAT_ABGR8888,flags)) return false;
             }
             FrameInfo_t normalizeInfo{}; auto* l=normalizeInfo.layers.push(); l->tex=texture;
             l->scale={src.u1*src.width/w,src.v2*src.height/h};
@@ -529,7 +529,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             // VPP never composites a complete desktop before this entry point.
             OwningRc<CVulkanTexture> accumulated=new CVulkanTexture(); CVulkanTexture::createFlags flags;
             flags.bStorage=flags.bSampled=true;
-            if (!accumulated->BInit(g_nOutputWidth,g_nOutputHeight,1,DRM_FORMAT_ARGB8888,flags) ||
+            if (!accumulated->BInit(g_nOutputWidth,g_nOutputHeight,1,DRM_FORMAT_ABGR8888,flags) ||
                 !vulkan_composite(&info,nullptr,false,accumulated.get(),false)) return false;
             info=FrameInfo_t{}; info.outputEncodingEOTF=EOTF_Gamma22;
             auto* base=info.layers.push(); base->tex=accumulated.get(); base->scale={1,1}; base->offset={0,0};
