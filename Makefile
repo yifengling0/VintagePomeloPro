@@ -49,10 +49,15 @@ test-game-presentation:
 test-game-mode-models:
 	MODEL_TEST_SCOPE=game bash $(ROOT)/scripts/run_model_unit_tests.sh
 
-.PHONY: gamescope-debug-hap
+.PHONY: gamescope-debug-hap gamescope-unsigned-hap
 gamescope-debug-hap:
 	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony \
 	  --signing-config "$(GAMESCOPE_SIGNING_CONFIG)" --signing-material "$(GAMESCOPE_SIGNING_MATERIAL)" \
+	  --output $(ROOT)/workspace_temp/gamescope-port
+
+# Reuse the locked payload without staging the development pixel probe or signing.
+gamescope-unsigned-hap:
+	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony --unsigned \
 	  --output $(ROOT)/workspace_temp/gamescope-port
 
 .PHONY: test-gamescope-workers test-gamescope-platform

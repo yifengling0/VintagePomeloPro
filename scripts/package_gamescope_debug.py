@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-2.1-or-later
-"""Package an opt-in Gamescope development HAP using an existing payload.
+"""Package a Gamescope HAP using an existing payload.
 
 Run only through Makefile in winehua-dev. Never updates formal release files.
 Signing configuration and verification outputs remain private and temporary.
@@ -20,6 +20,7 @@ import zipfile
 from local_source_receipt import capture, verify_effective
 from verify_ci_release import application_build_record
 from gamescope_source import prepare_recipe
+from configure_value_added import load_json5
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,9 +37,14 @@ def quiet(command):
     return result.stdout.decode(errors='replace')
 
 
-def package(sdk, config, material, output):
+def package(sdk, config, material, output, unsigned_only=False):
     work = ROOT/'build/gamescope/arm64-v8a'
     payload = ROOT/'entry/libs/arm64-v8a'
+    if unsigned_only:
+        product = next(p for p in load_json5(ROOT/'build-profile.json5')['app']['products']
+                       if p['name'] == 'proRelease')
+        if product.get('signingConfig'):
+            raise ValueError('Unsigned packaging requires an unsigned proRelease product')
     # Freeze committed app code and the actual local vendor overlays. The
     # existing Wine/FEX payload keeps its independent component provenance.
     source_manifest = capture(ROOT)
@@ -51,7 +57,7 @@ def package(sdk, config, material, output):
     # production target and is removed from entry/libs after this debug build.
     probe = work/'libgamescope_pixel_probe.so'
     probe_source = ROOT/'host_tests/gamescope_x11_probe.cpp'
-    if not probe.exists() or probe.stat().st_mtime < probe_source.stat().st_mtime:
+    if not unsigned_only and (not probe.exists() or probe.stat().st_mtime < probe_source.stat().st_mtime):
         subprocess.run([work/'deps/tools/cxx', '-std=c++20', '-O2', '-fPIC', '-shared',
                         '-I'+str(work/'deps/host-view/include'), probe_source,
                         '-L'+str(work/'deps/host-view/lib'), '-lX11', '-ldl', '-o', probe], check=True)
@@ -71,16 +77,20 @@ def package(sdk, config, material, output):
             shutil.copyfile(source, payload/name)
     output.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, VPP_HOST_EXT_ROOT='/shared/build/host-ext')
-    log = work/'debug-package.log'
+    log = work/('unsigned-package.log' if unsigned_only else 'debug-package.log')
     probe_payload = payload/probe.name
+    if unsigned_only and probe_payload.exists():
+        raise ValueError('Remove the development pixel probe from production staging before packaging')
     try:
-        shutil.copyfile(probe, probe_payload)
+        if not unsigned_only:
+            shutil.copyfile(probe, probe_payload)
         with log.open('w') as stream:
-            subprocess.run(['/apps/harmony/bin/hvigorw', '--mode', 'module', '-p', 'product=proRelease',
+            subprocess.run([sdk/'bin/hvigorw', '--mode', 'module', '-p', 'product=proRelease',
                             '-p', 'buildMode=release', 'assembleHap'], cwd=ROOT, env=environment,
                            stdout=stream, stderr=subprocess.STDOUT, check=True)
     finally:
-        probe_payload.unlink(missing_ok=True)
+        if not unsigned_only:
+            probe_payload.unlink(missing_ok=True)
     # The build log is bounded by this single increment, never a device trace.
     if log.stat().st_size > 32*1024**2:
         raise ValueError('Unexpectedly large package log')
@@ -91,6 +101,8 @@ def package(sdk, config, material, output):
         module = json.loads(archive.read('module.json'))
         if module['app']['bundleName'] != 'com.vintage.pomelopro':
             raise ValueError('Unexpected application identity')
+        if any(module['app'][key] != value for key, value in record['app'].items()):
+            raise ValueError('Packaged application version differs from the source receipt')
         if 'ohos.permission.READ_PASTEBOARD' not in {p['name'] for p in module['module'].get('requestPermissions', [])}:
             raise ValueError('Missing clipboard permission declaration')
         if json.loads(archive.read('resources/rawfile/application-build.json')) != record:
@@ -102,6 +114,33 @@ def package(sdk, config, material, output):
         for name in added:
             if 'libs/arm64-v8a/'+name not in archive.namelist():
                 raise ValueError('Missing Gamescope dependency: '+name)
+        if unsigned_only:
+            if module['app'].get('debug', False):
+                raise ValueError('Unsigned distribution HAP must not be debuggable')
+            if any(PureWindowsPath(name).name == probe.name for name in archive.namelist()):
+                raise ValueError('Unsigned distribution HAP contains the development pixel probe')
+            if 'phone' not in module['module'].get('deviceTypes', []):
+                raise ValueError('Missing phone device declaration')
+            if {name.split('/')[1] for name in archive.namelist() if name.startswith('libs/')} != {'arm64-v8a'}:
+                raise ValueError('Unexpected native package architecture')
+    if unsigned_only:
+        verify_effective(ROOT, source_manifest)
+        if subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip() != source_manifest['commit']:
+            raise ValueError('Application commit changed during packaging')
+        subprocess.run(['git', 'diff', '--quiet', 'HEAD', '--ignore-submodules=all'], cwd=ROOT, check=True)
+        target = output/('VPP-'+module['app']['versionName']+'-arm64-unsigned.hap')
+        if not target.exists() or sha(target) != sha(unsigned):
+            shutil.copyfile(unsigned, target)
+        result = {'bundle': module['app']['bundleName'], 'version': module['app']['versionName'],
+                  'versionCode': module['app']['versionCode'], 'bytes': target.stat().st_size,
+                  'sha256': sha(target), 'path': str(target), 'signing': 'unsigned',
+                  'debug': False, 'pixelProbe': False, 'renderQualified': False,
+                  'head': source_manifest['commit'], 'applicationBuild': record,
+                  'coreSourceReceiptSha256': receipt['sourceReceiptSha256'],
+                  'coreBuildSha256': receipt['sha256']}
+        (output/'package-unsigned.json').write_text(json.dumps(result, indent=2)+'\n')
+        print(json.dumps(result))
+        return
     jar = sdk/'sdk/default/openharmony/toolchains/lib/hap-sign-tool.jar'
     text = config.read_text()
     settings = json.loads(re.sub(r',\s*([}\]])', r'\1', re.sub(r'//.*$', '', text, flags=re.M)))
@@ -110,7 +149,7 @@ def package(sdk, config, material, output):
         selected['material'][key] = str(material/PureWindowsPath(selected['material'][key]).name)
     profile = Path(selected['material']['profile'])
     pending = work/'debug-unsigned.hap'
-    signed = output/'VPP-2.0.4-gamescope-debug-signed.hap'
+    signed = output/('VPP-'+module['app']['versionName']+'-gamescope-debug-signed.hap')
     try:
         with tempfile.TemporaryDirectory(prefix='vpp-gamescope-sign-', dir='/dev/shm') as directory:
             private = Path(directory)
@@ -165,8 +204,11 @@ def package(sdk, config, material, output):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sdk', type=Path, required=True)
-    parser.add_argument('--signing-config', type=Path, required=True)
-    parser.add_argument('--signing-material', type=Path, required=True)
+    parser.add_argument('--unsigned', action='store_true', help='Build a release HAP without signing or test probes')
+    parser.add_argument('--signing-config', type=Path)
+    parser.add_argument('--signing-material', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    package(args.sdk, args.signing_config, args.signing_material, args.output)
+    if not args.unsigned and (args.signing_config is None or args.signing_material is None):
+        parser.error('Debug signing requires --signing-config and --signing-material')
+    package(args.sdk, args.signing_config, args.signing_material, args.output, args.unsigned)
