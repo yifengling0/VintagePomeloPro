@@ -24,8 +24,6 @@ struct GameSettings {
       Scroll() {
         Column({ space: 24 }) {
           GamePresentationSettings({ value: this.value, onChange: (value: GameModeSettings): void => { void this.save(value); } })
-          Text('手机和平板共用 VPP 呈现与输入框架。独立 Gamescope 的 GPU 游戏桥、FSR 尚未开放。')
-            .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           Button('系统设置').onClick((): void => { void router.pushUrl({ url: 'pages/SystemSettings' }); }).id('game-system-settings')
         }.width('100%')
       }.layoutWeight(1).width('100%')
