@@ -48,6 +48,7 @@
 #include <cstring>
 
 extern int g_nPreferredOutputWidth, g_nPreferredOutputHeight;
+extern uint32_t currentOutputWidth, currentOutputHeight;
 extern PFN_vkGetInstanceProcAddr g_pfn_vkGetInstanceProcAddr;
 extern uint64_t get_time_in_nanos();
 
@@ -336,6 +337,7 @@ bool COhosBackend::recreateOutput() {
     }
     destroyOutput(m_output); m_output = std::move(next);
     g_nOutputWidth = extent.width; g_nOutputHeight = extent.height;
+    currentOutputWidth = extent.width; currentOutputHeight = extent.height;
     m_connector.mode.uWidth = extent.width; m_connector.mode.uHeight = extent.height;
     m_resize = false;
     fprintf(stderr, "VPP_GAMESCOPE_OUTPUT_READY width=%u height=%u slots=%u cpuPixelCopies=0\n", extent.width, extent.height, count);
@@ -515,10 +517,10 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             l->offset={src.u0*src.width/l->scale.x,src.v0*src.height/l->scale.y};
             l->opacity=1; l->eAlphaBlendingMode=src.opaque?ALPHA_BLENDING_MODE_NONE:ALPHA_BLENDING_MODE_PREMULTIPLIED;
             l->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_SRGB;
-            const auto outputW=g_nOutputWidth, outputH=g_nOutputHeight;
-            g_nOutputWidth=w; g_nOutputHeight=h;
+            const auto outputW=currentOutputWidth, outputH=currentOutputHeight;
+            currentOutputWidth=w; currentOutputHeight=h;
             auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright.get(),false);
-            g_nOutputWidth=outputW; g_nOutputHeight=outputH;
+            currentOutputWidth=outputW; currentOutputHeight=outputH;
             if (!submitted) return false;
             texture=upright.get();
         }

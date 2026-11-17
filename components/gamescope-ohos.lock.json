@@ -470,7 +470,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "ff01ad282f0bba3b93beab19f63879d25691637cc5a53e029ee1bdfa1cbf0249"
+      "sha256": "76512a4a3ff13cfe5e71d371e73c91e2fca2fb5d3c87003e5ce7d740dde9fd0a"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",

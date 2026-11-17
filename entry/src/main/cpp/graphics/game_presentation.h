@@ -21,8 +21,11 @@ inline uint64_t LimitPeriodNs() {
     const auto fps = (presentation.load(std::memory_order_acquire) >> 8) & 255u;
     return fps ? (1'000'000'000ull + fps - 1) / fps : 0;
 }
+inline uint64_t CompositionPeriodNs() {
+    return Enabled() ? std::max(uint64_t(16666667),LimitPeriodNs()) : 0;
+}
 inline uint64_t ProducerPeriodNs(uint64_t displayPeriod) {
-    return std::max(displayPeriod, LimitPeriodNs());
+    return std::max(displayPeriod, CompositionPeriodNs());
 }
 
 // Deadline has no accumulated debt: a slow game never causes catch-up bursts.

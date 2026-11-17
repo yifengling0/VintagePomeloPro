@@ -853,7 +853,7 @@ uint32_t EglRenderer::DirectPassCapabilities() const
 void EglRenderer::VulkanRenderLoop() {
     winehua::game::FrameDeadline gameDeadline;
     while (running_) {
-        if (!gameDeadline.Ready(PerfNowUs() * 1000, winehua::game::LimitPeriodNs())) {
+        if (!gameDeadline.Ready(PerfNowUs() * 1000, winehua::game::CompositionPeriodNs())) {
             std::unique_lock<std::mutex> lock(vsyncMutex_);
             vsyncCv_.wait_for(lock, std::chrono::milliseconds(1), [&] { return !running_; });
             continue;

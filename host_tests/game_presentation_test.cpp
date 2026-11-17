@@ -30,6 +30,7 @@ int main() {
     assert(LimitPeriodNs()==16666667); // sharpness must not contaminate FPS
     Configure(true, false, false, 0, true, -10);
     assert(Sharpness()==0 && LimitPeriodNs()==0);
+    assert(CompositionPeriodNs()==16666667 && ProducerPeriodNs(8333333)==16666667);
     Configure(true, false, false, 30, true, 99);
     assert(Sharpness()==20 && LimitPeriodNs()==33333334);
     Configure(false, false, false, 0);
