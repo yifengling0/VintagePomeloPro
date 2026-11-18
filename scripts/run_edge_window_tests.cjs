@@ -60,6 +60,8 @@ async function fullscreenTests(){
   let mode='fullscreen',requestCount=0,finish;
   const wm={isDesktopMode:true,enterImmersiveFullscreen:()=>{requestCount++;return new Promise(resolve=>finish=resolve);}};
   const DWA=load('entryability/DesktopAbility.ets',{
+    '../service/AppReviewService':{AppReviewService:{foreground(){},background(){}}},
+    '../service/X11ClipboardService':{X11ClipboardService:{foreground(){},background(){}}},
     '@kit.AbilityKit':{UIAbility:class{}},'@kit.ArkUI':{window:windowApi},'libentry.so':{},
     '../service/LogService':{hilog},'../service/WineWindowManager':{WineWindowManager:{getInstance:()=>wm}},
     '../service/WineImeCoordinator':{},'../service/GamepadManager':{},'../service/InputRouter':{},'../service/InputDispatcher':{},
@@ -116,6 +118,7 @@ async function sceneIdentityTests(){
 async function carrierTests(){
   let settingMode='floating';const starts=[],resizes=[];let nativeTasks=[];
   const wm=load('service/WineWindowManager.ets',{
+    '../model/DisplayScalePolicy':load('model/DisplayScalePolicy.ets',{}),'./InputRouter':{},
     '@kit.AbilityKit':{},'@kit.ArkUI':{window:windowApi},'./LogService':{hilog},
     '@kit.BasicServicesKit':{},'@kit.InputKit':{},'libentry.so':{default:{setDesktopMode(){},notifyToplevelResize:(...x)=>resizes.push(x),notifyToplevelResizeEnd:id=>resizes.push([id,'end'])}},'libsmoke_napi.so':{default:{}},
     './HostWindowTasks':{HostWindowTasks:{getInstance:()=>({foregroundRevision:()=>0,isForegroundSelectionCurrent:()=>true,reset(){},onEvent(){},snapshot:()=>nativeTasks})}},

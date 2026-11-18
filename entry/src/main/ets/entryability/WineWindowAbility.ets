@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { AppReviewService } from '../service/AppReviewService';
 import { X11ClipboardService } from '../service/X11ClipboardService';
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '../service/LogService';
@@ -168,6 +169,7 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   onForeground(): void {
+    AppReviewService.foreground(this.context);
     X11ClipboardService.foreground(this.context);
     this.foreground = true;
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(this.toplevelId, this.mainWindow, true);
@@ -178,6 +180,7 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   onBackground(): void {
+    AppReviewService.background(this.context);
     X11ClipboardService.background(this.context);
     this.foreground = false;
     WineWindowManager.getInstance().noteAbilityForeground(this.toplevelId, false);
@@ -188,6 +191,7 @@ export default class WineWindowAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    AppReviewService.background(this.context);
     DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     hilog.info(DOMAIN, TAG, '[WWA]  onDestroy tl=%{public}d (cleanedUp=%{public}s)',
       this.toplevelId, this.cleanedUp ? 'yes' : 'no');

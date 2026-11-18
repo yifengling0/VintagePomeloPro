@@ -49,6 +49,11 @@ test-game-presentation:
 test-game-mode-models:
 	MODEL_TEST_SCOPE=game bash $(ROOT)/scripts/run_model_unit_tests.sh
 
+.PHONY: test-app-review
+test-app-review:
+	$(TOOL_HOME)/tool/node/bin/node $(ROOT)/scripts/run_app_review_tests.cjs \
+	  $(TOOL_HOME)/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/typescript.js
+
 .PHONY: gamescope-debug-hap gamescope-unsigned-hap
 gamescope-debug-hap:
 	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony \

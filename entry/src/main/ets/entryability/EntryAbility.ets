@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { AppReviewService } from '../service/AppReviewService';
 import { X11ClipboardService } from '../service/X11ClipboardService';
 import { GamescopeRuntimeService } from '../service/GamescopeRuntimeService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
@@ -90,6 +91,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    AppReviewService.background(this.context);
     DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
     this.membershipRouteTimer = -1;
@@ -254,6 +256,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    AppReviewService.foreground(this.context);
     X11ClipboardService.foreground(this.context);
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow);
     DeviceCapabilityPolicy.refreshPcMode(this.context);
@@ -265,6 +268,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    AppReviewService.background(this.context);
     X11ClipboardService.background(this.context);
     WineImeCoordinator.getInstance().background(this.mainWindow);
     AccountAutomaticSyncService.getInstance().setForeground(false);

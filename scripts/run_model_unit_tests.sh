@@ -14,6 +14,7 @@ for source in "${sources[@]}"; do
 done
 "$NODE" "$TSC" --target ES2020 --module commonjs --skipLibCheck \
     --rootDir "$OUTPUT/ts" --outDir "$OUTPUT/js" "${inputs[@]}"
+"$NODE" "$ROOT/scripts/run_app_review_tests.cjs" "${TSC%/tsc.js}/typescript.js"
 if [[ "${MODEL_TEST_SCOPE:-}" == "game" ]]; then
     "$NODE" "$ROOT/scripts/run_game_mode_tests.cjs" "$OUTPUT/js" "${TSC%/tsc.js}/typescript.js"
     "$NODE" "$ROOT/scripts/run_catalog_unit_tests.cjs" "$OUTPUT/js/model"
