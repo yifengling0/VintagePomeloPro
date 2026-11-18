@@ -24,7 +24,8 @@
 
 `test-app-review` 执行真实服务与页面提示方法，覆盖 1 小时边界、平台过滤、重叠窗口、
 后台与重启、持久化后仅显示一次、并发/页面变化、存储失败及应用市场回退。
-同步运行相关 Edge 窗口和 Wine IME 回归，使用现有 Docker 增量环境检查 ArkTS 编译。
+上述提醒测试、Game 模式/应用会话/剪贴板模型测试、Edge 窗口和 Wine IME 回归均通过。
+现有 Docker 增量环境的 `default@CompileArkTS` 编译通过（约 9 秒，仍有既有 API 弃用警告）。
 具体结果保存在 `workspace_temp/gamescope-port/rc205-result.json`。
 
 此前 M80/PAL4 的真机结果见 [2.0.5 报告](release-2.0.5.zh-CN.md)，不能作为本次评价弹窗的真机验收。
