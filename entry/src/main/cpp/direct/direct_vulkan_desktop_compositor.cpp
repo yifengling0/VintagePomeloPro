@@ -517,6 +517,21 @@ public:
     uint64_t PresentationSerial() const { return presentationSerial_; }
 
 private:
+    bool UpdateGamescopeSources(uint64_t nowNs, bool fgEnabled, bool paused, bool reset) {
+        // Deliver the real endpoint before replacing its producer buffer. A
+        // completed interpolation may already have consumed most of this tick;
+        // polling first used to discard that endpoint at higher source rates.
+        // A stale deadline/cadence never holds up newly available game frames.
+        const bool pendingReal = gamescopeNextTickNs_ &&
+            (nowNs <= gamescopeNextTickNs_ || nowNs - gamescopeNextTickNs_ < cadence_.PeriodNs());
+        if (fgEnabled && !paused && !reset && pendingReal && cadence_.HasFreshTick(nowNs)) return true;
+        const bool acquireSource = !fgEnabled || paused || gamescopeSourceDeadline_.Ready(nowNs, winehua::game::LimitPeriodNs());
+        if (acquireSource && !UpdateSources()) return false;
+        // Broker GL/Venus producers already own the explicit source limit.
+        // Only the pending-real hold above applies to both producer routes.
+        UpdateGlSources();
+        return true;
+    }
     bool RenderGamescope(int width, int height, bool paused, bool repaint) {
         double fgFps=0;
         const auto fgNow=winehua::PerfNowUs();
@@ -539,14 +554,7 @@ private:
         }
         background_=paused;
         if (policyChanged) gamescopeSourceDeadline_.next=0;
-        const bool acquireSource=!fgEnabled || paused || gamescopeSourceDeadline_.Ready(nowNs,winehua::game::LimitPeriodNs());
-        if (acquireSource) {
-            if (!UpdateSources()) return false;
-        }
-        // Broker GL/Venus producers already own the explicit source limit.
-        // Polling their ready queue behind another independent deadline loses
-        // frames when the two 30/60Hz clocks drift against the display tick.
-        UpdateGlSources();
+        if (!UpdateGamescopeSources(nowNs,fgEnabled,paused,gamescopeResetHistory_)) return false;
         for (auto& buffer:retired_) Return(buffer,-1);
         retired_.clear();
         if (paused) return true;
