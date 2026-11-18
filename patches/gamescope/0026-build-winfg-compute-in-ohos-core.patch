@@ -1,0 +1,11 @@
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -143,7 +143,7 @@
+ endif
+ 
+ if get_option('ohos_native')
+-  src += ['Backends/OhosBackend.cpp', 'OhosWindow.cpp', 'OhosProcessBroker.cpp', 'OhosRuntime.cpp', 'OhosEmbedded.cpp']
++  src += ['Backends/OhosBackend.cpp', 'OhosWindow.cpp', 'OhosProcessBroker.cpp', 'OhosRuntime.cpp', 'OhosEmbedded.cpp', 'winfg/framegen.cpp']
+ else
+   src += ['Backends/HslBackend.cpp', 'HslImage.cpp']
+ endif

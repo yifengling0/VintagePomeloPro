@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 
 from gamescope_prepare_source import ROOT, inventory, prepare, relative
+from winfg_source import prepare_winfg
 
 
 def digest(path):
@@ -58,6 +59,10 @@ def prepare_recipe(cache, work, refresh=False):
     for record in recipe['overlays']:
         if digest(ROOT/str(relative(record['source']))) != record['sha256']:
             raise ValueError('Overlay identity mismatch: '+record['source'])
+    winfg = recipe.get('winfg')
+    if winfg and (digest(ROOT/winfg['sourceLock']) != winfg['sourceLockSha256'] or
+                  digest(ROOT/'scripts/winfg_source.py') != winfg['builderSha256']):
+        raise ValueError('Win-FG compute recipe identity mismatch')
     pristine = prepare(lock, cache, work/'pristine')
     target = work/'source'
     receipt = work/'source-receipt.json'
@@ -74,20 +79,22 @@ def prepare_recipe(cache, work, refresh=False):
             paths = {str(relative(item['originalPath'])) for r in [*old['patches'], *recipe['patches']]
                      for item in r.get('files', [r])}
             paths.update(str(relative(r['destination'])) for r in [*old['overlays'], *recipe['overlays']])
+            paths.update(p for r in [old,recipe] for p in r.get('winfg',{}).get('files',[]))
             with tempfile.TemporaryDirectory(prefix='recipe-', dir=work) as directory:
                 stage = Path(directory)
                 for p in paths:
                     if (pristine/p).is_file():
                         (stage/p).parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(pristine/p, stage/p)
-                apply_recipe(stage, recipe['patches'], recipe['overlays'])
+                apply_recipe(stage, recipe['patches'], recipe['overlays'], winfg)
                 before = {p: ((target/p).read_bytes(), (target/p).stat().st_mode)
                           if (target/p).is_file() else None for p in paths}
                 try:
                     for p in paths:
                         if (stage/p).is_file():
                             (target/p).parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(stage/p, target/p)
+                            if not (target/p).is_file() or (target/p).read_bytes()!=(stage/p).read_bytes():
+                                shutil.copy2(stage/p, target/p)
                         else:
                             (target/p).unlink(missing_ok=True)
                     publish_receipt(receipt, {'inputs': identity, 'files': recipe_inventory(target)})
@@ -104,7 +111,7 @@ def prepare_recipe(cache, work, refresh=False):
         # Unknown source edits and changes to an earlier patch are never reset.
         if (saved['files'] != recipe_inventory(target) or previous['sourceLock'] != lock or
                 recipe['patches'][:len(old['patches'])] != old['patches'] or
-                recipe['overlays'][:len(old['overlays'])] != old['overlays']):
+                recipe['overlays'][:len(old['overlays'])] != old['overlays'] or old.get('winfg')!=winfg):
             raise ValueError('Prepared recipe changed incompatibly; existing source preserved')
         patches = recipe['patches'][len(old['patches']):]
         overlays = recipe['overlays'][len(old['overlays']):]
@@ -130,12 +137,12 @@ def prepare_recipe(cache, work, refresh=False):
     if target.exists():
         raise ValueError('Unreceipted Gamescope source preserved; inspect before retrying')
     shutil.copytree(pristine, target)
-    apply_recipe(target, recipe['patches'], recipe['overlays'])
+    apply_recipe(target, recipe['patches'], recipe['overlays'], winfg)
     publish_receipt(receipt, {'inputs': identity, 'files': recipe_inventory(target)})
     return target
 
 
-def apply_recipe(target, patches, overlays):
+def apply_recipe(target, patches, overlays, winfg=None):
     for record in patches:
         affected = record.get('files', [record])
         for item in affected:
@@ -155,6 +162,8 @@ def apply_recipe(target, patches, overlays):
             raise ValueError('Overlay would replace upstream source: '+record['destination'])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes((ROOT/str(relative(record['source']))).read_bytes().replace(b'\r\n', b'\n'))
+    if winfg:
+        prepare_winfg(target/'src/winfg')
 
 
 if __name__ == '__main__':

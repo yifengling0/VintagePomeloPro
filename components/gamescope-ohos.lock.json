@@ -458,6 +458,13 @@
           "afterSha256": "3292283890440070e72c5d7f6c8272981febecc2c2b5f7313c1c00f121598d5b"
         }
       ]
+    },
+    {
+      "path": "patches/gamescope/0026-build-winfg-compute-in-ohos-core.patch",
+      "sha256": "c119a439b5b5cd0d3a811a681039b670c1b3661fa8670fb147e59a4279d31d35",
+      "originalPath": "src/meson.build",
+      "beforeSha256": "2d3ebdc5171faab1736bcbb18b5deafc4808b2fee14a7c0bc5e9b1566a6aedea",
+      "afterSha256": "8453889d62586751ad358ce945e3d1417a1d4d4a3404a133d37a726f13994fe3"
     }
   ],
   "overlays": [
@@ -559,12 +566,12 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "8e4c69224aa15a06437116a46d310cd921de8e696e260deb3b0f01647172df44"
+      "sha256": "3a8a54af9cd9934ccfc65224eff12d49aca08b25eb0bab4dce3f7fbb6358b945"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
       "destination": "src/Embedded.h",
-      "sha256": "ec8c9c8b2cf23419e3f063d0265508ae0b4c5133f0dc7a5f060bb5fe5368cd7b"
+      "sha256": "e0f93239041f856004a74dc7d8f4eb8240e91b496e5a72e4ebe6d023056dc4ae"
     },
     {
       "source": "native/gamescope/ohos/Embedded.cpp",
@@ -574,12 +581,22 @@
     {
       "source": "native/gamescope/ohos/EmbeddedContract.h",
       "destination": "src/EmbeddedContract.h",
-      "sha256": "197238d61a87d7640bb0bb7a7d46c3e12c636afdde694ace8f31a09a9e67e467"
+      "sha256": "022d0fadedce6c7ebac4c410f1962936daa2d55ca102d0796a34a3a21b0ead93"
     },
     {
       "source": "native/gamescope/ohos/OutputTransport.h",
       "destination": "src/OutputTransport.h",
       "sha256": "1389dcee98abca5881fc5f3222b57ee2155f48f80a229fb30fab9e50cf5d9211"
+    },
+    {
+      "source": "native/gamescope/ohos/FrameGeneration.h",
+      "destination": "src/FrameGeneration.h",
+      "sha256": "79ab9b581efacb59f574ea083b40cc553d67bde2a4c933ed011c3eefc42004d8"
+    },
+    {
+      "source": "native/gamescope/ohos/FrameGenerationSchedule.h",
+      "destination": "src/FrameGenerationSchedule.h",
+      "sha256": "5b8316f00f93c0ab2e3c9da3367451098a84b4d829fdf608a548ed365c0ca00e"
     }
   ],
   "options": [
@@ -597,5 +614,30 @@
     "-Dscripting=disabled",
     "-Dlibinput=disabled"
   ],
-  "abiBoundary": "OHOS ARM64 native only; GNU libraries and executables are reference inputs, never payloads"
+  "abiBoundary": "OHOS ARM64 native only; GNU libraries and executables are reference inputs, never payloads",
+  "winfg": {
+    "sourceLock": "components/winfg-source.lock.json",
+    "sourceLockSha256": "e8448664ff9e16975264ef5275141896a6ac263431605904e3812fad8f38c849",
+    "builderSha256": "838a8bdf101273e7186dbec6c0b02cf663063bc7509bc9e90a617c36fc2ff11e",
+    "files": [
+      "src/winfg/framegen.cpp",
+      "src/winfg/framegen.hpp",
+      "src/winfg/record_impl.inc",
+      "src/winfg/vk_dispatch.hpp",
+      "src/winfg/config.hpp",
+      "src/winfg/log.hpp",
+      "src/winfg/embedded_shaders.hpp",
+      "src/winfg/shaders/of3_luma.comp",
+      "src/winfg/shaders/of3_downsample.comp",
+      "src/winfg/shaders/of3_flow.comp",
+      "src/winfg/shaders/of3_flow_m4.comp",
+      "src/winfg/shaders/of3_expand.comp",
+      "src/winfg/shaders/of3_expand_m4.comp",
+      "src/winfg/shaders/of3_flowreg.comp",
+      "src/winfg/shaders/of3_gm_reduce.comp",
+      "src/winfg/shaders/of3_gm_prewarp.comp",
+      "src/winfg/shaders/wfg_synth.comp",
+      "src/winfg/shaders/vpp_scene_cut.comp"
+    ]
+  }
 }

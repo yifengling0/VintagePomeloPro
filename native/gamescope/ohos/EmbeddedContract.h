@@ -10,7 +10,9 @@ inline bool VppGamescopeFinite(float value) {
 }
 inline bool VppGamescopeValidFrame(const VppGamescopeFrame& frame) {
     if (frame.size!=sizeof(frame) || !frame.layers || !frame.count || frame.count>64 ||
-        !frame.width || !frame.height || frame.width>8192 || frame.height>8192 || frame.filter>3 || frame.sharpness>20) return false;
+        !frame.width || !frame.height || frame.width>8192 || frame.height>8192 || frame.filter>3 || frame.sharpness>20 ||
+        frame.frameGeneration>1 || frame.historyReset>1 ||
+        (frame.displayPeriodNs && (frame.displayPeriodNs<1000000 || frame.displayPeriodNs>1000000000))) return false;
     uint64_t shmBytes=0;
     for (uint32_t i=0;i<frame.count;++i) {
         const auto& l=frame.layers[i];

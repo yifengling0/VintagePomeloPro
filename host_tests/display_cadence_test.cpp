@@ -36,6 +36,8 @@ int main() {
         assert(created == 1);
         granted = 8333333;
         assert(cadence.Refresh(0) && cadence.PeriodNs() == 8333333);
+        for (uint64_t us=1000;us<6000;us+=1000) assert(!cadence.Refresh(us));
+        assert(requests==1); // a busy FG loop must not flood the VSync service
         assert(ProducerPeriodNs(cadence.PeriodNs()) == 8333333);
         granted = 16666667;
         assert(!cadence.Refresh(50000) && cadence.PeriodNs() == 8333333);

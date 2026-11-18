@@ -36,6 +36,8 @@
 #include "Embedded.h"
 #include "EmbeddedContract.h"
 #include "OutputTransport.h"
+#include "FrameGeneration.h"
+#include "FrameGenerationSchedule.h"
 #include "convar.h"
 #include <unordered_map>
 #include <unistd.h>
@@ -95,6 +97,7 @@ class COhosBackend final : public CBaseBackend {
         std::vector<VkSemaphore> waits;
         std::vector<Rc<CVulkanTexture>> inputs;
         std::vector<OwningRc<CVulkanTexture>> upright;
+        OwningRc<CVulkanTexture> generated;
     };
     struct Output {
         bool storage = false;
@@ -112,6 +115,8 @@ public:
             // Lifecycle drain only. Normal frames use slot fences/semaphores.
             g_device.vk.QueueWaitIdle(g_device.queue());
             g_device.waitIdle();
+            m_framegen.Destroy();
+            m_history={};
             destroyOutput(m_output);
             for (auto& f : m_frames) {
                 for (auto sem : f.waits) g_device.vk.DestroySemaphore(g_device.device(), sem, nullptr);
@@ -261,6 +266,16 @@ private:
     uint64_t m_frameNumber = 0;
     uint64_t m_requestedSize = 0;
     bool m_ready = false, m_visible = true, m_resize = false, m_failed = false;
+    VppWinfgEngine m_framegen;
+    VppFrameGenerationSchedule m_fgSchedule;
+    std::array<OwningRc<CVulkanTexture>,2> m_history{};
+    uint32_t m_historyIndex=0;
+    uint64_t m_fgIdentity=0;
+    bool m_fgTried=false, m_fgReady=false, m_fgEnabled=false;
+    bool m_fgCountPending=false;
+    uint32_t m_fgBudgetFailures=0;
+    uint64_t m_fgCompleted=0;
+    std::array<uint64_t,2> m_historyNs{};
 };
 
 bool COhosBackend::recreateOutput() {
@@ -445,6 +460,7 @@ int COhosBackend::present(const FrameInfo_t* info) {
     }
     const VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,nullptr,1,&m_output.rendered[index],1,&m_output.swapchain,&index,nullptr};
     result = g_device.vk.QueuePresentKHR(g_device.queue(), &present);
+    if (embeddedFrame && embeddedFrame->generated) m_fgCountPending=result==VK_SUCCESS || result==VK_SUBOPTIMAL_KHR;
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) m_resize = true;
     else if (result != VK_SUCCESS) { error("present output", result); return -EIO; }
     ++m_frameNumber;
@@ -473,6 +489,30 @@ void COhosBackend::InputBarrier(VkCommandBuffer command, CVulkanTexture* texture
 
 bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
     auto& input = *embeddedFrame;
+    input.generated=0; input.completedGenerated=0; input.nextTickNs=0; input.frameGenerationGpuNs=0;
+    input.frameGenerationState=VPP_FG_OFF;
+    if (bool(input.frameGeneration)!=m_fgEnabled) {
+        m_fgEnabled=bool(input.frameGeneration);
+        m_framegen.Destroy(); m_fgSchedule.Reset(); m_history={}; m_fgIdentity=0;
+        m_fgTried=m_fgReady=false;
+        m_fgBudgetFailures=0;
+        m_fgCompleted=0;
+        m_fgCountPending=false;
+    }
+    if (input.historyReset) { m_fgSchedule.Reset(); m_fgIdentity=0; }
+    auto collectCompleted=[&]() {
+        const bool idle=m_framegen.Idle();
+        input.frameGenerationGpuNs=m_framegen.GpuNs();
+        if (m_fgCompleted!=m_framegen.Completed()) {
+            m_fgCompleted=m_framegen.Completed();
+            input.completedGenerated+=m_fgCountPending && !m_framegen.SceneCut();
+            m_fgCountPending=false;
+            if (m_framegen.SceneCut()) { m_fgSchedule.Reset(); m_fgIdentity=0; }
+            m_fgBudgetFailures=input.displayPeriodNs && input.frameGenerationGpuNs>input.displayPeriodNs*8/10?m_fgBudgetFailures+1:0;
+        }
+        return idle;
+    };
+    if (m_fgReady) collectCompleted();
     if (g_device.vk.ResetCommandBuffer(slot.acquire,0) != VK_SUCCESS) return false;
     const VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,nullptr,VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     if (g_device.vk.BeginCommandBuffer(slot.acquire,&begin) != VK_SUCCESS) return false;
@@ -537,18 +577,64 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
     info.outputEncodingEOTF=EOTF_Gamma22;
     for (uint32_t i=0;i<input.count;++i) {
         const auto& src=input.layers[i]; auto texture=textures[i];
+        bool fgLayer=m_fgEnabled && i==0 && src.native && src.opaque;
+        bool fresh=false;
+        if (fgLayer) {
+            // Geometry/renderer changes are history boundaries. Exclude the
+            // producer's rotating buffer address and its frame serial.
+            uint64_t identity=1469598103934665603ull;
+            auto hash=[&](const auto& value) {
+                const auto* p=reinterpret_cast<const uint8_t*>(&value);
+                for (size_t n=0;n<sizeof(value);++n) identity=(identity^p[n])*1099511628211ull;
+            };
+            hash(src.key); hash(src.width); hash(src.height); hash(src.vulkan);
+            hash(src.u0); hash(src.u1); hash(src.v0); hash(src.v2);
+            hash(src.x); hash(src.y); hash(src.w); hash(src.h); hash(input.width); hash(input.height);
+            if (m_fgIdentity!=identity) {
+                // Lifecycle boundary only. Do not destroy an image still used
+                // by normalization/composition from the previous geometry.
+                g_device.vk.QueueWaitIdle(g_device.queue()); g_device.waitIdle();
+                m_fgSchedule.Reset(); m_history={}; m_historyNs={}; m_historyIndex=0; m_fgIdentity=identity;
+                m_fgBudgetFailures=0;
+            }
+            fresh=m_fgSchedule.Observe(identity,src.serial,input.nowNs,input.displayPeriodNs);
+            input.frameGenerationState=m_fgSchedule.Reason(input.displayPeriodNs);
+            if (fresh) m_historyIndex^=1;
+            // Saturated/unsupported paths keep the original compositor cost.
+            // Capture only while warming, generating, or releasing a held real.
+            if (!input.displayPeriodNs || (input.frameGenerationState==VPP_FG_DISPLAY_RATE &&
+                    !m_fgSchedule.CanGenerate() && !m_fgSchedule.Pending())) fgLayer=false;
+            if (m_fgTried && !m_fgReady) { fgLayer=false; input.frameGenerationState=VPP_FG_UNSUPPORTED; }
+            if (m_fgBudgetFailures>=3 || std::abs(src.u1*src.v2)*double(src.width)*src.height>1920u*1080u) {
+                fgLayer=false; input.frameGenerationState=VPP_FG_BUDGET;
+            }
+        } else if (m_fgEnabled && i==0) {
+            m_fgSchedule.Reset(); m_fgIdentity=0;
+            input.frameGenerationState=VPP_FG_NO_GPU_GAME;
+        }
         // Normalize GLES row direction and client cropping on GPU at source
         // resolution. FSR then receives upright client pixels, never borders.
-        const bool normalize=src.u0!=0 || src.u1!=1 || src.v0!=0 || src.v2!=1;
+        const bool crop=src.u0!=0 || src.u1!=1 || src.v0!=0 || src.v2!=1;
+        const bool normalize=crop || fgLayer;
         if (normalize) {
             const uint32_t w=std::lround(std::abs(src.u1)*src.width), h=std::lround(std::abs(src.v2)*src.height);
             if (!w || !h || w>8192 || h>8192) return false;
-            auto& upright=slot.upright[i];
-            if (!upright || upright->width()!=w || upright->height()!=h) {
-                upright=new CVulkanTexture(); CVulkanTexture::createFlags flags;
+            auto* upright=fgLayer?&m_history[m_historyIndex]:&slot.upright[i];
+            auto allocate=[&]() {
+                if (*upright && (*upright)->width()==w && (*upright)->height()==h) return true;
+                *upright=new CVulkanTexture(); CVulkanTexture::createFlags flags;
                 flags.bStorage=flags.bSampled=true;
-                if (!upright->BInit(w,h,1,DRM_FORMAT_ABGR8888,flags)) return false;
+                if ((*upright)->BInit(w,h,1,DRM_FORMAT_ABGR8888,flags)) return true;
+                *upright=nullptr; return false;
+            };
+            if (!allocate()) {
+                if (!fgLayer) return false;
+                fgLayer=false; m_fgBudgetFailures=3; input.frameGenerationState=VPP_FG_BUDGET;
+                upright=crop?&slot.upright[i]:nullptr;
+                if (upright && !allocate()) return false;
             }
+            if (upright) {
+            if (!fgLayer || fresh) {
             FrameInfo_t normalizeInfo{}; auto* l=normalizeInfo.layers.push(); l->tex=texture;
             l->scale={src.u1*src.width/w,src.v2*src.height/h};
             l->offset={src.u0*src.width/l->scale.x,src.v0*src.height/l->scale.y};
@@ -558,10 +644,50 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             l->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_PASSTHRU;
             const auto outputW=currentOutputWidth, outputH=currentOutputHeight;
             currentOutputWidth=w; currentOutputHeight=h;
-            auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright.get(),false);
+            auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright->get(),false);
             currentOutputWidth=outputW; currentOutputHeight=outputH;
             if (!submitted) return false;
-            texture=upright.get();
+            if (fgLayer) m_historyNs[m_historyIndex]=input.nowNs;
+            }
+            texture=upright->get();
+            }
+        }
+        const bool historyReady=m_history[m_historyIndex^1] && input.nowNs>=m_historyNs[m_historyIndex^1] &&
+            input.nowNs-m_historyNs[m_historyIndex^1]<=m_fgSchedule.IntervalNs()*3/2;
+        if (fgLayer && m_fgSchedule.CanGenerate() && !historyReady) input.frameGenerationState=VPP_FG_WARMING;
+        if (fgLayer && m_fgSchedule.CanGenerate() && historyReady) {
+            if (!m_fgTried) {
+                m_fgTried=true;
+                m_fgReady=m_framegen.Init(vulkan_get_instance(),g_pfn_vkGetInstanceProcAddr,
+                    g_device.physDev(),g_device.device(),g_device.queueFamily(),g_device.queue());
+            }
+            if (!m_fgReady) input.frameGenerationState=VPP_FG_UNSUPPORTED;
+            // Completion may arrive during source normalization. Account for
+            // it before recording another generation or replacing its token.
+            else if (!collectCompleted()) input.frameGenerationState=VPP_FG_GPU_BUSY;
+            else if (!m_fgSchedule.CanGenerate()) input.frameGenerationState=VPP_FG_WARMING;
+            else if (m_fgBudgetFailures>=3) input.frameGenerationState=VPP_FG_BUDGET;
+            else if (!m_framegen.Resize({texture->width(),texture->height()})) {
+                input.frameGenerationState=VPP_FG_FAILED; m_fgBudgetFailures=3;
+            }
+            else {
+                auto& generated=slot.generated;
+                if (!generated || generated->width()!=texture->width() || generated->height()!=texture->height()) {
+                    generated=new CVulkanTexture(); CVulkanTexture::createFlags flags;
+                    flags.bStorage=flags.bSampled=true;
+                    if (!generated->BInit(texture->width(),texture->height(),1,DRM_FORMAT_ABGR8888,flags)) generated=nullptr;
+                }
+                auto previous=m_history[m_historyIndex^1].get();
+                if (generated && m_framegen.Generate(previous->vkImage(),previous->linearView(),texture->vkImage(),texture->linearView(),
+                        generated->vkImage(),generated->linearView())) {
+                    texture=generated.get(); input.generated=1; input.frameGenerationState=VPP_FG_RUNNING;
+                    m_fgSchedule.Generated(input.nowNs,input.displayPeriodNs);
+                } else { input.frameGenerationState=VPP_FG_FAILED; m_fgBudgetFailures=3; }
+            }
+        }
+        if (fgLayer) {
+            if (!input.generated) m_fgSchedule.RealPresented();
+            input.nextTickNs=m_fgSchedule.DueNs();
         }
         if (info.layers.count()==k_nMaxLayers) {
             // Preserve arbitrary desktop/UI stacking using bounded core passes.
