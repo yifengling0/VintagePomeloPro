@@ -39,6 +39,7 @@ struct GamescopeDiagnostics {
   private lastStage: string = '';
   private leaving: boolean = false;
   @State private outputPercent: number = 100;
+  @State private frameGenerationMessage: string = 'AI 超帧能力尚未查询';
 
   private faultWatcher: hiAppEvent.Watcher = {
     name: 'vpp_gamescope_diagnostics',
@@ -53,10 +54,24 @@ struct GamescopeDiagnostics {
   };
 
   aboutToAppear(): void {
+    void this.queryFrameGeneration();
     try {
       // Own-application crash events only, no protected system-file access.
       hiAppEvent.addWatcher(this.faultWatcher);
     } catch (_) { hilog.warn(0, 'Gamescope', 'Crash event service unavailable'); }
+  }
+
+  private async queryFrameGeneration(): Promise<void> {
+    try {
+      const capability = await testNapi.probeHarmonyFrameGeneration();
+      if (this.leaving) return;
+      this.frameGenerationMessage = '鸿蒙 AI 超帧：' + capability.deviceSupport + ' · ' + capability.stage;
+      hilog.info(0, 'GamescopeFG', 'capability=%{public}s', JSON.stringify(capability));
+      const context = getContext(this) as common.UIAbilityContext;
+      ConfigurationFiles.json(context.filesDir + '/gamescope-frame-generation-capability.json', JSON.stringify(capability));
+    } catch (_) {
+      if (!this.leaving) this.frameGenerationMessage = 'AI 超帧能力查询失败，游戏仍使用原呈现方式';
+    }
   }
 
   aboutToDisappear(): void {
@@ -133,6 +148,7 @@ struct GamescopeDiagnostics {
           .onClick(() => { testNapi.stopGamescopeSession(); })
       }.width('100%')
       Text(this.message).id('gamescope-state').fontColor('#FFFFFF').fontSize(14).width('100%')
+      Text(this.frameGenerationMessage).id('gamescope-frame-generation-state').fontColor('#B8C5D9').fontSize(14).width('100%')
       Text('检查原生输出与显示服务；游戏兼容性、输入和性能需分别验收。')
         .fontSize(13).fontColor('#B8C5D9').width('100%')
       XComponent({ id: 'gamescope-output', type: XComponentType.SURFACE, controller: this.surface })

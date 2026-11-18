@@ -75,6 +75,10 @@ test-gamescope-workers:
 	$(ROOT)/build/host-tests/gamescope_workers_test
 
 .PHONY: test-gamescope-transport test-gamescope-recipe
+.PHONY: test-harmony-frame-generation-probe
+test-harmony-frame-generation-probe:
+	python3 $(ROOT)/host_tests/harmony_frame_generation_probe_test.py
+
 test-gamescope-transport:
 	@mkdir -p $(ROOT)/build/host-tests
 	g++ -std=c++20 -Wall -Wextra -Werror -pthread -o $(ROOT)/build/host-tests/gamescope_transport_test $(ROOT)/host_tests/gamescope_transport_test.cpp

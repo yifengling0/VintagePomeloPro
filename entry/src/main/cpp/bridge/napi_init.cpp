@@ -1868,6 +1868,8 @@ static napi_value Init(napi_env env, napi_value exports) {
             nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeGamescopeRuntime", nullptr, winehua::gamescope::ProbeRuntime,
             nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeHarmonyFrameGeneration", nullptr, winehua::gamescope::ProbeHarmonyFrameGenerationNapi,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startGamescopeSession", nullptr, winehua::gamescope::StartRuntimeSession,
             nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopGamescopeSession", nullptr, winehua::gamescope::StopRuntimeSession,

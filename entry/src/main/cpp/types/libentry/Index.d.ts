@@ -12,6 +12,16 @@ export interface GamescopeRuntimeStatus {
 export const prepareGamescopeProcessBackend: () => number;
 export const startGamescopeDiagnosticClient: () => number;
 export const probeGamescopeRuntime: () => Promise<GamescopeRuntimeStatus>;
+export interface HarmonyFrameGenerationCapability {
+  libraryLoaded: boolean;
+  supportQueryAvailable: boolean;
+  deviceSupport: 'unknown' | 'supported' | 'unsupported';
+  vulkanEntryPointsAvailable: boolean;
+  renderQualified: boolean;
+  stage: string;
+  detail: string;
+}
+export const probeHarmonyFrameGeneration: () => Promise<HarmonyFrameGenerationCapability>;
 export interface GamescopeSessionOptions {
   surfaceId: bigint;
   renderWidth: number;
