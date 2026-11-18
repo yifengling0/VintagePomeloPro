@@ -56,6 +56,7 @@ export struct GameQuickPanel {
   private navigate(code: number): boolean {
     const ids = ['game-panel-resume',
       'game-scaling-linear', 'game-scaling-nearest', 'game-scaling-integer', 'game-scaling-fsr'];
+    ids.push('game-framegen-off', 'game-framegen-x2');
     if (this.settings.scaling === 'fsr') ids.push('game-fsr-sharpness');
     ids.push('game-limit-0', 'game-limit-30', 'game-limit-60');
     ids.push('game-panel-hud', 'game-panel-library');
@@ -64,7 +65,7 @@ export struct GameQuickPanel {
     if (code === 2302 || code === 2070) { this.onResume(); return true; }
     if (ids[this.focusIndex] === 'game-fsr-sharpness' && (code === 2014 || code === 2015)) {
       this.save({ scaling: 'fsr', frameLimit: this.settings.frameLimit,
-        sharpness: Math.max(0, Math.min(20, (this.settings.sharpness ?? 10) + (code === 2014 ? 1 : -1))) });
+        sharpness: Math.max(0, Math.min(20, (this.settings.sharpness ?? 10) + (code === 2014 ? 1 : -1))), frameGeneration: this.settings.frameGeneration });
       return true;
     }
     const delta = code === 2012 || code === 2014 ? -1 : code === 2013 || code === 2015 ? 1 : 0;
@@ -77,9 +78,11 @@ export struct GameQuickPanel {
       else if (id === 'game-panel-library') { this.onResume(); void HostWindowTasks.getInstance().showLauncher(); }
       else if (id === 'game-panel-hud') void this.toggleHud();
       else if (id.startsWith('game-scaling-')) this.save({ scaling: id.substring(13) as GameScaling,
-        frameLimit: this.settings.frameLimit, sharpness: this.settings.sharpness });
+        frameLimit: this.settings.frameLimit, sharpness: this.settings.sharpness, frameGeneration: this.settings.frameGeneration });
       else if (id.startsWith('game-limit-')) this.save({ scaling: this.settings.scaling,
-        frameLimit: Number(id.substring(11)), sharpness: this.settings.sharpness });
+        frameLimit: Number(id.substring(11)), sharpness: this.settings.sharpness, frameGeneration: this.settings.frameGeneration });
+      else if (id.startsWith('game-framegen-')) this.save({ scaling: this.settings.scaling, frameLimit: this.settings.frameLimit,
+        sharpness: this.settings.sharpness, frameGeneration: id === 'game-framegen-x2' ? 'x2' : 'off' });
       else { const task = this.tasks.find((item: HostWindowTask): boolean => 'game-panel-close-' + item.key === id); if (task) void this.close(task); }
     }
     return true;

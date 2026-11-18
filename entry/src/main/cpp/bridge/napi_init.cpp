@@ -1833,20 +1833,33 @@ static napi_value Init(napi_env env, napi_value exports) {
 
     napi_property_descriptor desc[] = {
         {"configureGamePresentation", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
-            size_t argc = 4; napi_value argv[4];
+            size_t argc = 5; napi_value argv[5];
             bool enabled = false; char scaling[16]{}; size_t length = 0; int32_t fps = 0, sharpness = 10;
+            char frameGeneration[8]="off";
             napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
-            if ((argc != 3 && argc != 4) || napi_get_value_bool(env, argv[0], &enabled) != napi_ok ||
+            if ((argc < 3 || argc > 5) || napi_get_value_bool(env, argv[0], &enabled) != napi_ok ||
                 napi_get_value_string_utf8(env, argv[1], scaling, sizeof(scaling), &length) != napi_ok ||
                 napi_get_value_int32(env, argv[2], &fps) != napi_ok ||
                 (fps != 0 && fps != 30 && fps != 60) ||
-                (argc == 4 && (napi_get_value_int32(env,argv[3],&sharpness)!=napi_ok || sharpness<0 || sharpness>20)) ||
+                (argc >= 4 && (napi_get_value_int32(env,argv[3],&sharpness)!=napi_ok || sharpness<0 || sharpness>20)) ||
+                (argc == 5 && (napi_get_value_string_utf8(env,argv[4],frameGeneration,sizeof(frameGeneration),&length)!=napi_ok ||
+                    (strcmp(frameGeneration,"off") && strcmp(frameGeneration,"x2")))) ||
                 (strcmp(scaling, "linear") && strcmp(scaling, "nearest") && strcmp(scaling, "integer") && strcmp(scaling, "fsr"))) {
                 napi_throw_type_error(env, nullptr, "Invalid Game presentation settings"); return nullptr;
             }
             if (!enabled) WaylandServer::GetInstance()->PresentGameToplevel(0);
-            winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"), fps, !strcmp(scaling, "fsr"), sharpness);
+            winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"), fps, !strcmp(scaling, "fsr"), sharpness,!strcmp(frameGeneration,"x2"));
             napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getGameFrameGenerationStatus", nullptr, [](napi_env env,napi_callback_info) -> napi_value {
+            napi_value result; napi_create_object(env,&result);
+            auto number=[&](const char* name,double value) { napi_value v; napi_create_double(env,value,&v); napi_set_named_property(env,result,name,v); };
+            number("state",winehua::game::FrameGeneration()?winehua::game::fgState.load():0);
+            number("realFps",winehua::game::fgRealMilliFps.load()/1000.0);
+            number("generatedFps",winehua::game::fgGeneratedMilliFps.load()/1000.0);
+            number("presentedFps",winehua::game::fgPresentedMilliFps.load()/1000.0);
+            number("gpuMs",winehua::game::fgGpuNs.load()/1000000.0);
+            return result;
         }, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetUiCapture", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
             size_t count = 1; napi_value arg; bool capture = false;

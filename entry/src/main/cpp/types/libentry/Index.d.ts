@@ -372,7 +372,9 @@ export const setToplevelIsolated: (id: number, isolated: boolean) => void;
 export const setSystemOpenEnabled: (enabled: boolean) => void;
 export const setOpenTargetCallback: (callback: ((target: string) => boolean) | null) => void;
 
-export const configureGamePresentation: (enabled: boolean, scaling: string, frameLimit: number, sharpness?: number) => void;
+export const configureGamePresentation: (enabled: boolean, scaling: string, frameLimit: number, sharpness?: number, frameGeneration?: string) => void;
+export interface GameFrameGenerationStatus { state: number; realFps: number; generatedFps: number; presentedFps: number; gpuMs: number; }
+export const getGameFrameGenerationStatus: () => GameFrameGenerationStatus;
 
 export const presentGameToplevel: (id: number) => boolean;
 

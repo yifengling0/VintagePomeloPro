@@ -45,7 +45,7 @@ export struct FpsHud {
     this.performanceListener = (reading: PerformanceReading, foreground: boolean): void => {
       if (!foreground) { this.text = ''; return; }
       const lines: string[] = [];
-      if (this.metrics.fps) lines.push(this.readFps() + ' FPS');
+      if (this.metrics.fps) lines.push(this.readFps());
       if (this.metrics.appCpu && reading.appCpu !== '不可用') lines.push('应用CPU ' + this.shortValue(reading.appCpu));
       if (this.metrics.systemCpu && reading.systemCpu !== '不可用') lines.push('系统CPU ' + this.shortValue(reading.systemCpu));
       if (this.metrics.batteryTemperature && reading.batteryTemperature !== '不可用') {
@@ -78,10 +78,15 @@ export struct FpsHud {
 
   private readFps(): string {
     try {
+      const fg = testNapi.getGameFrameGenerationStatus();
+      if (fg.state > 0) {
+        const gpu = fg.gpuMs > 0 ? ' · 插帧GPU ' + fg.gpuMs.toFixed(1) + 'ms' : '';
+        return '真实 ' + Math.round(fg.realFps) + ' · 生成 ' + Math.round(fg.generatedFps) + ' · 呈现 ' + Math.round(fg.presentedFps) + ' FPS' + gpu;
+      }
       const id: number = this.toplevelId > 0 ? this.toplevelId : testNapi.getDesktopRootId() as number;
       const fps: number = testNapi.getDisplayFps(id) as number;
-      return Number.isFinite(fps) && fps >= 0 && fps <= 1000 ? Math.round(fps).toString() : '—';
-    } catch (_) { return '—'; }
+      return (Number.isFinite(fps) && fps >= 0 && fps <= 1000 ? Math.round(fps).toString() : '—') + ' FPS';
+    } catch (_) { return '— FPS'; }
   }
 
   build() {

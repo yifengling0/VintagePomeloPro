@@ -1,15 +1,30 @@
 import { GameActionButton } from './GameActionButton';
-import { GameModeSettings, GameScaling, normalizeGameModeSettings } from '../model/GameModeSettings';
+import { GameFrameGeneration, GameModeSettings, GameScaling, normalizeGameModeSettings, frameGenerationStateText } from '../model/GameModeSettings';
+import testNapi from 'libentry.so';
 import { skinColor } from '../service/SkinColors';
 
 @Component
 export struct GamePresentationSettings {
   @Prop value: GameModeSettings = normalizeGameModeSettings();
   @Prop inGame: boolean = false;
+  @State private fgStatus: string = '';
+  private fgTimer: number = -1;
   onChange: (value: GameModeSettings) => void = (_value: GameModeSettings): void => {};
 
-  private change(scaling: GameScaling, frameLimit: number, sharpness: number = this.value.sharpness ?? 10): void {
-    this.onChange(normalizeGameModeSettings({ scaling: scaling, frameLimit: frameLimit, sharpness: sharpness }));
+  private change(scaling: GameScaling, frameLimit: number, sharpness: number = this.value.sharpness ?? 10,
+    frameGeneration: GameFrameGeneration = this.value.frameGeneration ?? 'off'): void {
+    this.onChange(normalizeGameModeSettings({ scaling: scaling, frameLimit: frameLimit, sharpness: sharpness, frameGeneration: frameGeneration }));
+  }
+  aboutToAppear(): void {
+    if (this.inGame) {
+      this.readFgStatus();
+      this.fgTimer = setInterval((): void => this.readFgStatus(), 500);
+    }
+  }
+  aboutToDisappear(): void { if (this.fgTimer >= 0) clearInterval(this.fgTimer); this.fgTimer = -1; }
+  private readFgStatus(): void {
+    try { this.fgStatus = frameGenerationStateText(testNapi.getGameFrameGenerationStatus().state); }
+    catch (_) { this.fgStatus = '插帧状态暂不可用'; }
   }
 
   build() {
@@ -23,6 +38,19 @@ export struct GamePresentationSettings {
             onAction: (): void => this.change(mode, this.value.frameLimit) }).margin({ right: 8, bottom: 8 })
         })
       }.width('100%')
+      Text('图像插帧 · 免费').fontSize(14).fontWeight(FontWeight.Medium)
+        .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary')).width('100%')
+      Row({ space: 8 }) {
+        GameActionButton({ label: '关闭', selected: this.value.frameGeneration !== 'x2', controlId: 'game-framegen-off', darkPanel: this.inGame,
+          onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'off') })
+        GameActionButton({ label: '2× 插帧', selected: this.value.frameGeneration === 'x2', controlId: 'game-framegen-x2', darkPanel: this.inGame,
+          onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'x2') })
+      }.width('100%')
+      if (this.inGame && this.value.frameGeneration === 'x2') {
+        Text(this.fgStatus).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-status')
+      }
+      Text('改善画面流畅度，实际效果取决于设备和游戏；不改变游戏逻辑及输入帧率。')
+        .fontSize(12).fontColor(this.inGame ? '#9AA9BE' : skinColor('text_secondary')).width('100%')
       if (this.value.scaling === 'fsr') {
         Text('FSR 锐化 · ' + (20 - (this.value.sharpness ?? 10))).fontSize(14)
           .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary'))

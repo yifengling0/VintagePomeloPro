@@ -107,6 +107,12 @@ def package(sdk, config, material, output, unsigned_only=False):
             raise ValueError('Missing clipboard permission declaration')
         if json.loads(archive.read('resources/rawfile/application-build.json')) != record:
             raise ValueError('Packaged application source identity mismatch')
+        for name, source in (
+            ('WINFG-LICENSE.txt', 'native/gamescope/winfg/upstream/LICENSE'),
+            ('WINFG-FIDELITYFX-NOTICE.md', 'native/gamescope/winfg/upstream/NOTICE_FIDELITYFX_OPTICALFLOW.md'),
+        ):
+            if archive.read('resources/rawfile/'+name).replace(b'\r\n', b'\n') != (ROOT/source).read_bytes().replace(b'\r\n', b'\n'):
+                raise ValueError('Missing or incorrect Win-FG license: '+name)
         if 'libs/arm64-v8a/libgamescope_child.so' not in archive.namelist():
             raise ValueError('Missing Gamescope process entry')
         # Verify every staged core library after Hvigor's stripping pass by

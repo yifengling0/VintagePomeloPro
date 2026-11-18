@@ -6,8 +6,8 @@ const root = path.resolve(process.argv[2]);
 const ts = require(path.resolve(process.argv[3]));
 const models = require(path.join(root, 'model/AppModels.js'));
 const rules = require(path.join(root, 'model/GameModeSettings.js'));
-assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'bad', frameLimit: 120 }), { scaling: 'linear', frameLimit: 0, sharpness: 10 });
-assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'fsr', frameLimit: 60, sharpness: 0 }), { scaling: 'fsr', frameLimit: 60, sharpness: 0 });
+assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'bad', frameLimit: 120 }), { scaling: 'linear', frameLimit: 0, sharpness: 10, frameGeneration: 'off' });
+assert.deepEqual(rules.normalizeGameModeSettings({ scaling: 'fsr', frameLimit: 60, sharpness: 0 }), { scaling: 'fsr', frameLimit: 60, sharpness: 0, frameGeneration: 'off' });
 assert.equal(rules.normalizeGameModeSettings({ scaling: 'fsr', sharpness: NaN }).sharpness, 10);
 assert.equal(rules.normalizeGameModeSettings({ scaling: 'fsr', sharpness: 21 }).sharpness, 10);
 assert.equal(rules.sameGamePresentation({ enabled: true, settings: { scaling: 'fsr', frameLimit: 30, sharpness: 0 } },
@@ -17,7 +17,7 @@ assert.equal(rules.resolveGamePresentation(false, 'on').enabled, true);
 assert.equal(rules.resolveGamePresentation(true, undefined).enabled, true);
 assert.equal(rules.resolveGamePresentation(false, undefined).enabled, false);
 assert.deepEqual(rules.resolveGamePresentation(true, 'follow', { scaling: 'linear', frameLimit: 60 },
-  { scaling: 'integer', frameLimit: 30 }).settings, { scaling: 'integer', frameLimit: 30, sharpness: 10 });
+  { scaling: 'integer', frameLimit: 30 }).settings, { scaling: 'integer', frameLimit: 30, sharpness: 10, frameGeneration: 'off' });
 const clone = models.cloneAppSettings({ ...models.createDefaultAppSettings('game'),
   gameModeOverride: 'on', gameModeSettings: { scaling: 'nearest', frameLimit: 30 } });
 assert.equal(clone.gameModeOverride, 'on');
@@ -46,7 +46,7 @@ global.gameMode = { scaling: 'nearest', frameLimit: 30 };
   const f = fixture(); f.values.set('vpp.game.browsing', true);
   assert.equal(f.calls.length, 0); // entering library does not start a presenter
   f.service.begin(app, global, false);
-  assert.deepEqual(f.calls[0], [true, 'nearest', 30, 10]);
+  assert.deepEqual(f.calls[0], [true, 'nearest', 30, 10, 'off']);
   f.service.reset(); // startup restart cannot clear a reserved policy
   assert.equal(f.values.get('vpp.game.session'), true);
   f.service.finish(true);
@@ -76,10 +76,10 @@ console.log('Game mode policy, inheritance, conflict, startup and rollback tests
   f.service.begin(app, global, false);
   assert.throws(() => f.service.applyLive({ scaling: 'linear', frameLimit: 0 }, f.service.sessionSerial()), /会话已变化/);
   f.service.finish(true);
-  assert.deepEqual(f.service.currentSettings(), f.appSettings.gameModeSettings, 'Panel reads the active per-game policy');
+  assert.deepEqual(f.service.currentSettings(), rules.normalizeGameModeSettings(f.appSettings.gameModeSettings), 'Panel reads the active per-game policy');
   const serial = f.service.sessionSerial();
   f.service.applyLive({ scaling: 'integer', frameLimit: 30 }, serial);
-  assert.deepEqual(f.calls.at(-1), [true, 'integer', 30, 10]);
+  assert.deepEqual(f.calls.at(-1), [true, 'integer', 30, 10, 'off']);
   assert.equal(f.service.currentSettings().frameLimit, 30);
   assert.deepEqual(global.gameMode, { scaling: 'nearest', frameLimit: 30 }); // global remains untouched
   const publish = f.dependencies['libentry.so'].default.configureGamePresentation;
@@ -113,4 +113,21 @@ console.log('Game mode policy, inheritance, conflict, startup and rollback tests
   panel.detach(current);
   assert.equal(panel.handle(2054, false), false);
   console.log('Game panel hardware input ownership and key-up isolation passed');
+}
+
+{
+  const f=fixture(); f.values.set('vpp.game.browsing',true);
+  f.appSettings.gameModeSettings={scaling:'linear',frameLimit:30,frameGeneration:'x2'};
+  f.service.begin(app,global,false); f.service.finish(true);
+  assert.deepEqual(f.calls.at(-1),[true,'linear',30,10,'x2']);
+  assert.equal(f.service.currentSettings().frameGeneration,'x2');
+  assert.equal(rules.normalizeGameModeSettings().frameGeneration,'off');
+  assert.equal(rules.normalizeGameModeSettings({frameGeneration:'invalid'}).frameGeneration,'off');
+  assert.equal(rules.sameGamePresentation({enabled:true,settings:{scaling:'linear',frameLimit:30}},
+    {enabled:true,settings:{scaling:'linear',frameLimit:30,frameGeneration:'x2'}}),false);
+  const copy=models.cloneAppSettings({...models.createDefaultAppSettings('test'),gameModeSettings:f.appSettings.gameModeSettings});
+  assert.equal(copy.gameModeSettings.frameGeneration,'x2');
+  f.service.applyLive({scaling:'fsr',frameLimit:60,frameGeneration:'off'},f.service.sessionSerial());
+  assert.deepEqual(f.calls.at(-1),[true,'fsr',60,10,'off']);
+  console.log('Free frame generation: legacy default, per-game clone, native publish and live switch passed');
 }
