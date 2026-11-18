@@ -679,7 +679,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
                     if (!generated->BInit(texture->width(),texture->height(),1,DRM_FORMAT_ABGR8888,flags)) generated=nullptr;
                 }
                 auto previous=m_history[m_historyIndex^1].get();
-                if (generated && m_framegen.Generate(previous,texture,generated.get())) {
+                if (generated && m_framegen.Generate(previous,texture.get(),generated.get())) {
                     texture=generated.get(); input.generated=1; input.frameGenerationState=VPP_FG_RUNNING;
                     m_fgSchedule.Generated(input.nowNs,input.displayPeriodNs);
                 } else { input.frameGenerationState=VPP_FG_FAILED; m_fgBudgetFailures=3; }

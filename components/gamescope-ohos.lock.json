@@ -566,7 +566,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "f332d25aeb382a442758aa83cca029955eb95bfd4f06838ed288dfc09e0ed525"
+      "sha256": "59f37e3f7fbeac392b109eb0ac7f9231fb637ccaf731e8bd048d2fbfb5ea46c5"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
