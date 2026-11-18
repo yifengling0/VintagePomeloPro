@@ -549,7 +549,7 @@ private:
         if (paused) return true;
         // NativeVSync is the extra-frame clock; FIFO still owns swapchain
         // availability. Never enqueue gen+real together on the same tick.
-        if (fgEnabled && tickNs && tickNs==gamescopeLastTick_ && !policyChanged) {
+        if (fgEnabled && cadence_.WaitForNextTick(nowNs,gamescopeLastTick_) && !policyChanged) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1)); return true;
         }
         PublishFrameRates();
@@ -625,7 +625,7 @@ private:
         frame.filter=(policy&8u)?3:(policy&4u)?2:(policy&2u)?1:0;
         frame.sharpness=(policy>>16)&31u; frame.count=inputs.size(); frame.layers=inputs.data();
         frame.frameGeneration=fgEnabled; frame.nowNs=nowNs;
-        frame.displayPeriodNs=cadence_.HasPeriod() && tickNs && nowNs>=tickNs && nowNs-tickNs<1000000000?cadence_.PeriodNs():0;
+        frame.displayPeriodNs=cadence_.HasFreshTick(nowNs)?cadence_.PeriodNs():0;
         frame.historyReset=gamescopeResetHistory_;
         const int result=gamescopePresent_(&frame);
         // Even a present error may follow successful GPU submission. Always

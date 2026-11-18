@@ -60,6 +60,17 @@ public:
     uint64_t PeriodNs() const { return periodNs_; }
     uint64_t TickNs() const { return tickNs_.load(std::memory_order_relaxed); }
     bool HasPeriod() const { return valid_; }
+    bool HasFreshTick(uint64_t nowNs) const {
+        const auto tick=TickNs();
+        // A stopped/failed VSync callback must never hold real game frames.
+        // Keep a short grace window for scheduling jitter and resume, then
+        // let the caller bypass interpolation until live ticks return.
+        const uint64_t grace=periodNs_*4>100000000?periodNs_*4:100000000;
+        return valid_ && tick && nowNs>=tick && nowNs-tick<grace;
+    }
+    bool WaitForNextTick(uint64_t nowNs,uint64_t lastSubmittedTick) const {
+        return HasFreshTick(nowNs) && TickNs()==lastSubmittedTick;
+    }
 
 private:
     OH_NativeVSync* vsync_ = nullptr;
