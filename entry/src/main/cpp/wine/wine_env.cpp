@@ -56,6 +56,22 @@ std::string WineLocaleFor(const std::string& wineLang) {
 // Written only when a complete Wine session starts; settings do not mutate
 // this mirror while existing Wine processes are alive.
 static std::atomic<bool> g_display_x11{false};
+static std::atomic<int> g_wine_log_pixels{192};
+bool SetWineLogPixels(int pixels)
+{
+    if (pixels < 96 || pixels > 480) return false;
+    if (pixels == g_wine_log_pixels.load()) return true;
+    if (GetWineStartupSnapshot().active || GetWineserverPid() > 0) return false;
+    for (const auto& process : GetProcessListSnapshot())
+        if (process.running && !process.independentRuntime) return false;
+    g_wine_log_pixels.store(pixels);
+    return true;
+}
+void AppendWineDpiEnv(std::vector<std::string>& env)
+{
+    UpsertEnvLine(env, "WINEHUA_LOGPIXELS=" + std::to_string(g_wine_log_pixels.load()));
+}
+
 extern "C" bool WineHua_SetDisplayRoute(const char* route)
 {
     if (!route || (strcmp(route, "x11") && strcmp(route, "wayland"))) return false;
@@ -197,6 +213,7 @@ std::vector<std::string> BuildWineEnv(const std::string& sockDir,
     // 默认注入 "1" (静默校准 = 默认行为, 三游戏验证通过); 排查问题时改 "0"
     // (或删除本行 = 未设置) 回退硬件绝对移动路径。
     env.push_back("WINEWAYLAND_ENTER_SILENT=1");
+    AppendWineDpiEnv(env);
     // ==== Layer 5: 图形状态 ====
     // NOTE: BOX64_EMULATED_LIBS (ARM64) 在 DXVK 路径下会被 AppendD3dBackendEnv 覆盖
     winehua::GraphicsBroker::GetInstance().AppendWineEnv(env);

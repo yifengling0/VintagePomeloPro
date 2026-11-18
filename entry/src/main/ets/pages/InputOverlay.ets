@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { X11ClipboardService } from '../service/X11ClipboardService';
 import { common, Want } from '@kit.AbilityKit';
 import { mapMouseButton } from '../common/MouseMap';
 import {
@@ -21,6 +22,7 @@ import {
 } from '../model/AppModels';
 import { VirtualInputOverlay } from '../components/VirtualInputOverlay';
 import { InputDispatcher } from '../service/InputDispatcher';
+import { GamePanelInput } from '../service/GamePanelInput';
 import { InputOverlayListener, InputOverlaySnapshot, InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { InputProfileService } from '../service/InputProfileService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
@@ -69,6 +71,13 @@ struct InputOverlayPage {
   @State private cursorFlash: boolean = false;
   @State private touchpadMode: boolean = false;
   @State private hostKeyboardActive: boolean = false;
+  @State private clipboardOpen: boolean = false;
+  @State private clipboardAvailable: boolean = false;
+  @State private clipboardChecking: boolean = false;
+  @State private clipboardX: number = 8;
+  @State private clipboardY: number = 8;
+  private clipboardRequest: number = 0;
+  private clipboardInput: ((code: number) => boolean) | null = null;
   @State private hostImeBuffer: string = '';
   @State private overlayW: number = 0;
   @State private overlayH: number = 0;
@@ -125,6 +134,7 @@ struct InputOverlayPage {
       const sessionChanged = this.snapshot.session.sessionId !== snapshot.session.sessionId;
       const becameVisible = !this.snapshot.visible && snapshot.visible;
       this.snapshot = snapshot;
+      if (sessionChanged || !snapshot.visible) this.closeClipboardMenu();
       this.settings = AppSettingsStore.getInstance().getGlobalSettings();
       if (sessionChanged) {
         this.directTouches.clear();
@@ -155,6 +165,7 @@ struct InputOverlayPage {
   }
 
   aboutToDisappear(): void {
+    this.closeClipboardMenu();
     if (this.listener) InputOverlayWindowCoordinator.getInstance().unsubscribe(this.listener);
     if (this.engineListener) WineEngineService.getInstance().unsubscribe(this.engineListener);
     this.cancelCursorTimers();
@@ -479,6 +490,10 @@ struct InputOverlayPage {
 
   /** 宿主键盘关闭时转发蓝牙/实体 KeyEvent; 打开时不拦截, 拼音走 TextInput/IME。 */
   private handleHardwareKey(ev: KeyEvent): void {
+    if (GamePanelInput.handle(ev.keyCode, ev.type === KeyType.Down)) {
+      ev.stopPropagation();
+      return;
+    }
     if (this.hostKeyboardActive) return;
     const rootId = this.snapshot.session.toplevelId || WineWindowManager.getInstance().getDesktopRootId();
     if (rootId <= 0) return;
@@ -905,6 +920,109 @@ struct InputOverlayPage {
     }
   }
 
+  private copySelectedText(): void {
+    const input = InputRouter.getInstance();
+    const top = input.getActiveToplevel();
+    if (!this.snapshot.visible || top <= 0) return;
+    input.sendWindowKey(top, 'clipboard-copy', 29, true);
+    input.sendWindowKey(top, 'clipboard-copy', 46, true);
+    input.sendWindowKey(top, 'clipboard-copy', 46, false);
+    input.sendWindowKey(top, 'clipboard-copy', 29, false);
+  }
+
+  private async openClipboardMenu(x: number, y: number): Promise<void> {
+    if (!this.snapshot.visible || InputRouter.getInstance().getActiveToplevel() <= 0) return;
+    const request = ++this.clipboardRequest;
+    this.clipboardX = x;
+    this.clipboardY = y;
+    this.clipboardAvailable = false;
+    this.clipboardChecking = true;
+    this.clipboardOpen = true;
+    InputDispatcher.getInstance().releaseAll('clipboard-menu');
+    GamepadManager.getInstance().setUiCapture(true);
+    if (!this.clipboardInput) {
+      this.clipboardInput = (code: number): boolean => {
+        if (code === 2070 || code === 2302) this.closeClipboardMenu();
+        return true;
+      };
+      GamePanelInput.attach(this.clipboardInput);
+    }
+    const available = await X11ClipboardService.systemTextAvailable();
+    if (!this.clipboardOpen || request !== this.clipboardRequest) return;
+    this.clipboardAvailable = available;
+    this.clipboardChecking = false;
+  }
+
+  private closeClipboardMenu(): void {
+    ++this.clipboardRequest;
+    this.clipboardOpen = false;
+    this.clipboardAvailable = false;
+    this.clipboardChecking = false;
+    if (this.clipboardInput) {
+      GamePanelInput.detach(this.clipboardInput);
+      this.clipboardInput = null;
+      GamepadManager.getInstance().setUiCapture(false);
+    }
+  }
+
+  private async pasteSystemText(): Promise<void> {
+    const session = this.snapshot.session.sessionId;
+    const input = InputRouter.getInstance();
+    const top = input.getActiveToplevel();
+    if (!this.snapshot.visible || top <= 0) return;
+    const prepared = await X11ClipboardService.prepareSystemPaste();
+    if (!this.snapshot.visible || session !== this.snapshot.session.sessionId ||
+      top !== input.getActiveToplevel()) return;
+    if (!prepared) {
+      this.getUIContext().getPromptAction().showToast({ message: '无法读取系统剪贴板，请重试粘贴' });
+      return;
+    }
+    // Source ownership preserves Ctrl held by hardware or another overlay key.
+    input.sendWindowKey(top, 'clipboard-paste', 29, true);
+    input.sendWindowKey(top, 'clipboard-paste', 47, true);
+    input.sendWindowKey(top, 'clipboard-paste', 47, false);
+    input.sendWindowKey(top, 'clipboard-paste', 29, false);
+  }
+
+  @Builder
+  private ClipboardMenu() {
+    // A real security component, outside the toolbar's synthetic gesture path.
+    // No clipboard preview or contents are exposed by the availability query.
+    Column().width('100%').height('100%').backgroundColor(Color.Transparent)
+      .onClick((): void => this.closeClipboardMenu())
+      .onTouch((event: TouchEvent): void => event.stopPropagation())
+      .onMouse((event: MouseEvent): void => event.stopPropagation())
+      .id('wine-clipboard-dismiss').zIndex(60)
+    Column({ space: 6 }) {
+      Text('剪贴板').fontSize(12).fontColor('#AAB6C8').width('100%').padding({ left: 10, top: 4, bottom: 4 })
+      Button('复制选中文字').width('100%').height(44).fontSize(14).fontColor('#F1F5FB')
+        .backgroundColor('#30394A').borderRadius(10).id('wine-system-copy')
+        .onClick((): void => { this.copySelectedText(); this.closeClipboardMenu(); })
+      if (this.clipboardAvailable) {
+        PasteButton({ icon: PasteIconStyle.LINES, text: PasteDescription.PASTE, buttonType: ButtonType.Normal })
+          .width('100%').height(44).fontSize(14).iconSize(16)
+          .fontColor('#F1F5FB').iconColor('#F1F5FB').backgroundColor('#30394A').borderRadius(10)
+          .id('wine-system-paste')
+          .onClick((_event: ClickEvent, result: PasteButtonOnClickResult): void => {
+            if (result === PasteButtonOnClickResult.SUCCESS) {
+              void this.pasteSystemText();
+              this.closeClipboardMenu();
+            } else {
+              this.getUIContext().getPromptAction().showToast({ message: '粘贴授权未完成，请重试' });
+            }
+          })
+      } else {
+        Text(this.clipboardChecking ? '正在检查剪贴板…' : '剪贴板暂无可粘贴文本')
+          .fontSize(12).fontColor('#AAB6C8').height(44).width('100%').textAlign(TextAlign.Center)
+      }
+    }.width(Math.min(208, Math.max(0, this.overlayW - 16))).padding(10).borderRadius(16)
+      .backgroundColor('#FF1C2330').border({ width: 1, color: '#465065' })
+      .shadow({ radius: 16, color: '#60000000', offsetY: 4 })
+      .position({ x: Math.max(8, Math.min(this.clipboardX, this.overlayW - 216)),
+        y: Math.max(8, Math.min(this.clipboardY, this.overlayH - 158)) })
+      .id('wine-clipboard-menu').zIndex(61)
+  }
+
   build() {
     Stack() {
       // 宿主键盘载体: 平时不可见/不参与命中, 聚焦后唤起系统输入法。
@@ -938,6 +1056,7 @@ struct InputOverlayPage {
           onOpenLayoutEditor: (): void => { this.openInputEditor('input-layout'); },
           onOpenKeyMappingEditor: (): void => { this.openInputEditor('key-mapping'); },
           onToggleHostKeyboard: (): void => { this.toggleHostKeyboard(); },
+          onOpenClipboard: (x: number, y: number): void => { void this.openClipboardMenu(x, y); },
           onControlsVisibleChange: (visible: boolean): void => {
             InputOverlayWindowCoordinator.getInstance().setControlsVisible(visible);
             // 持久化虚拟按键开关状态: 桌面重开时按用户最后设定恢复, 不再每次自动弹出。
@@ -957,6 +1076,7 @@ struct InputOverlayPage {
         })
         .zIndex(10)
       }
+      if (this.snapshot.visible && this.clipboardOpen) this.ClipboardMenu()
       // 触摸板虚拟光标统一由 VirtualInputOverlay 显示 (新状态机), 此处禁用
       // 避免切换瞬间双光点。保留 cursorX/Y 状态供 InputDispatcher 逻辑使用。
       if (false && this.touchpadMode && this.cursorVisible && this.settings.virtualMouseConfig.showCursor) {

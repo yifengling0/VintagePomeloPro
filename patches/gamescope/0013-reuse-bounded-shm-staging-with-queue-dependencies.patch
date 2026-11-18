@@ -1,0 +1,118 @@
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -5007,6 +5007,8 @@
+ 	return &renderer->base;
+ }
+ 
++#include "HslShmUpload.h"
++
+ gamescope::OwningRc<CVulkanTexture> vulkan_create_texture_from_wlr_buffer( struct wlr_buffer *buf, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb )
+ {
+ 	if (hsl_image_is_buffer(buf)) return hsl_image_snapshot(buf);
+@@ -5017,98 +5019,14 @@
+ 		return vulkan_create_texture_from_dmabuf( &dmabuf, pBackendFb );
+ 	}
+ 
+-	VkResult result;
+-
+ 	void *src;
+-	uint32_t drmFormat;
++	uint32_t format;
+ 	size_t stride;
+-	if ( !wlr_buffer_begin_data_ptr_access( buf, WLR_BUFFER_DATA_PTR_ACCESS_READ, &src, &drmFormat, &stride ) )
+-	{
++	if (!wlr_buffer_begin_data_ptr_access(buf, WLR_BUFFER_DATA_PTR_ACCESS_READ, &src, &format, &stride))
+ 		return nullptr;
+-	}
+-
+-	uint32_t width = buf->width;
+-	uint32_t height = buf->height;
+-
+-	VkBufferCreateInfo bufferCreateInfo = {
+-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+-		.size = stride * height,
+-		.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+-	};
+-	VkBuffer buffer;
+-	result = g_device.vk.CreateBuffer( g_device.device(), &bufferCreateInfo, nullptr, &buffer );
+-	if ( result != VK_SUCCESS )
+-	{
+-		wlr_buffer_end_data_ptr_access( buf );
+-		return nullptr;
+-	}
+-
+-	VkMemoryRequirements memRequirements;
+-	g_device.vk.GetBufferMemoryRequirements(g_device.device(), buffer, &memRequirements);
+-
+-	uint32_t memTypeIndex =  g_device.findMemoryType(VK_MEMORY_PROPERTY_HOST_COHERENT_BIT|VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, memRequirements.memoryTypeBits );
+-	if ( memTypeIndex == ~0u )
+-	{
+-		wlr_buffer_end_data_ptr_access( buf );
+-		return nullptr;
+-	}
+-
+-	VkMemoryAllocateInfo allocInfo = {
+-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+-		.allocationSize = memRequirements.size,
+-		.memoryTypeIndex = memTypeIndex,
+-	};
+-
+-	VkDeviceMemory bufferMemory;
+-	result = g_device.vk.AllocateMemory( g_device.device(), &allocInfo, nullptr, &bufferMemory);
+-	if ( result != VK_SUCCESS )
+-	{
+-		wlr_buffer_end_data_ptr_access( buf );
+-		return nullptr;
+-	}
+-
+-	result = g_device.vk.BindBufferMemory( g_device.device(), buffer, bufferMemory, 0 );
+-	if ( result != VK_SUCCESS )
+-	{
+-		wlr_buffer_end_data_ptr_access( buf );
+-		return nullptr;
+-	}
+-
+-	void *dst;
+-	result = g_device.vk.MapMemory( g_device.device(), bufferMemory, 0, VK_WHOLE_SIZE, 0, &dst );
+-	if ( result != VK_SUCCESS )
+-	{
+-		wlr_buffer_end_data_ptr_access( buf );
+-		return nullptr;
+-	}
+-
+-	memcpy( dst, src, stride * height );
+-
+-	g_device.vk.UnmapMemory( g_device.device(), bufferMemory );
+-
+-	wlr_buffer_end_data_ptr_access( buf );
+-
+-	gamescope::OwningRc<CVulkanTexture> pTex = new CVulkanTexture();
+-	CVulkanTexture::createFlags texCreateFlags;
+-	texCreateFlags.bSampled = true;
+-	texCreateFlags.bTransferSrc = true;
+-	texCreateFlags.bTransferDst = true;
+-	texCreateFlags.bFlippable = GetBackend()->UsesDmaBufImages();
+-	if ( pTex->BInit( width, height, 1u, drmFormat, texCreateFlags, nullptr, 0, 0, nullptr, pBackendFb ) == false )
+-		return nullptr;
+-
+-	auto cmdBuffer = g_device.commandBuffer();
+-
+-	cmdBuffer->copyBufferToImage( buffer, 0, stride / DRMFormatGetBPP(drmFormat), pTex);
+-	// TODO: Sync this copyBufferToImage
+-
+-	uint64_t sequence = g_device.submit(std::move(cmdBuffer));
+-
+-	g_device.wait(sequence);
+-	pTex->markHostUploadComplete();
+-
+-	g_device.vk.DestroyBuffer(g_device.device(), buffer, nullptr);
+-	g_device.vk.FreeMemory(g_device.device(), bufferMemory, nullptr);
+-
+-	return pTex;
+-}
++	// Declared after g_device: its bounded staging slots drain before the device.
++	static hsl::ShmUploads uploads;
++	auto texture = uploads.upload(src, buf->width, buf->height, format, stride, std::move(pBackendFb));
++	wlr_buffer_end_data_ptr_access(buf);
++	return texture;
++}

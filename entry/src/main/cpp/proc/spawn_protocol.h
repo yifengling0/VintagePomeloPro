@@ -239,11 +239,11 @@ static inline int vp_send_request(int fd, const vp_spawn_spec *s, const int *fds
     result = vp_send_bytes(fd, frame, length + VP_FRAME_HEADER, fds, s->fdc, deadline);
     free(frame); return result;
 }
-static inline int vp_recv_request(int fd, vp_spawn_spec *s, vp_received_fds *fds, int64_t deadline)
+static inline int vp_recv_request_prefix(int fd, vp_spawn_spec *s, vp_received_fds *fds, int64_t deadline, const unsigned char prefix[4])
 {
     unsigned char header[VP_FRAME_HEADER], *payload; uint32_t length; int result;
     memset(s, 0, sizeof(*s));
-    if (vp_recv_bytes(fd, header, 4, fds, deadline)) return -1;
+    memcpy(header, prefix, 4);
     if (memcmp(header, "VPBR", 4)) return vp_bad(EPROTONOSUPPORT);
     if (vp_recv_bytes(fd, header + 4, VP_FRAME_HEADER - 4, fds, deadline)) return -1;
     if (vp_load32(header + 4) != 2) return vp_bad(EPROTONOSUPPORT);
@@ -257,6 +257,13 @@ static inline int vp_recv_request(int fd, vp_spawn_spec *s, vp_received_fds *fds
         vp_free_spec(s); return vp_bad(EPROTO);
     }
     return result;
+}
+static inline int vp_recv_request(int fd, vp_spawn_spec *s, vp_received_fds *fds, int64_t deadline)
+{
+    unsigned char prefix[4];
+    memset(s, 0, sizeof(*s));
+    if (vp_recv_bytes(fd, prefix, 4, fds, deadline)) return -1;
+    return vp_recv_request_prefix(fd, s, fds, deadline, prefix);
 }
 static inline int vp_recv_reply(int fd, int *pid, int *status, int64_t deadline)
 {

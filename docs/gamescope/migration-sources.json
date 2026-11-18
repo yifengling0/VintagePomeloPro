@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "hslBaseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+  "gamescopeRevision": "e6674a98118ca7b098b98a3874b8f195ae1bf750",
+  "sources": [
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "components/gamescope-source.lock.json",
+      "destination": "components/gamescope-source.lock.json",
+      "sha256": "83ac99ce8e989448ad34eddbda053524952b3e37b89c773be6c4fcbc320c11cf",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "83ac99ce8e989448ad34eddbda053524952b3e37b89c773be6c4fcbc320c11cf"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "components/gamescope-build.lock.json",
+      "destination": "components/gamescope-hsl-build.lock.json",
+      "sha256": "9db9ba3edb68305859c8796359b72c7b7dd89bcc72835e8d12634ac5c385aa83",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "9db9ba3edb68305859c8796359b72c7b7dd89bcc72835e8d12634ac5c385aa83"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0001-use-available-drm-hdr-types-in-nested-builds.patch",
+      "destination": "patches/gamescope/0001-use-available-drm-hdr-types-in-nested-builds.patch",
+      "sha256": "ffa74d94bda7107df51381c8c1ccdd5979536cea2ed177a9db53747aa70704c8",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "ffa74d94bda7107df51381c8c1ccdd5979536cea2ed177a9db53747aa70704c8"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0002-qualify-physical-device-controls-by-backend.patch",
+      "destination": "patches/gamescope/0002-qualify-physical-device-controls-by-backend.patch",
+      "sha256": "959e068a7a80a31f470f1f3f62375d962425f82fc942bf8e5082f811cc2269ca",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "41ee113d284ddb7689ef58048f4d00e7bab94e990c5faed72e207497c2a9824d",
+      "adaptation": "VPP include path and complete initialization under -Werror"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0003-use-output-refresh-without-drm-mode-cache.patch",
+      "destination": "patches/gamescope/0003-use-output-refresh-without-drm-mode-cache.patch",
+      "sha256": "e6bf682547e8a34fc98e2bea7772f5b1242958eaf70f6c7b69939f9365542594",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "5eff7b9bf1af6ff6cb6e53058e1980e6358f37011daf4669cf5aa7b76d0b31a5",
+      "adaptation": "VPP include path and complete initialization under -Werror"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0004-scope-presentation-features-to-swapchain-output.patch",
+      "destination": "patches/gamescope/0004-scope-presentation-features-to-swapchain-output.patch",
+      "sha256": "a5724742dc3542d747e34323a62dafbbcac79dca483aa6fd2495eef76c2990c0",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "a5724742dc3542d747e34323a62dafbbcac79dca483aa6fd2495eef76c2990c0"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0005-use-typed-descriptors-and-explicit-lut-state.patch",
+      "destination": "patches/gamescope/0005-use-typed-descriptors-and-explicit-lut-state.patch",
+      "sha256": "576809a1c248b3ad6800e4cc1f96d16f06e315f7ff74f941bfa847c7a36e055f",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "576809a1c248b3ad6800e4cc1f96d16f06e315f7ff74f941bfa847c7a36e055f"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0006-optimize-shader-modules-before-driver-compilation.patch",
+      "destination": "patches/gamescope/0006-optimize-shader-modules-before-driver-compilation.patch",
+      "sha256": "7c25a105ca64e2851a228b2f9719c77c695fa3e9980ddd91c189bc149541e5e2",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "7c25a105ca64e2851a228b2f9719c77c695fa3e9980ddd91c189bc149541e5e2"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0007-unroll-bounded-immutable-sampler-layer-loops.patch",
+      "destination": "patches/gamescope/0007-unroll-bounded-immutable-sampler-layer-loops.patch",
+      "sha256": "612cdcecc134009d9b0b2337c072ee8797d66c20d1884c732a19e63dc5768df8",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "79d2ef392554e58d4325d1bfba568af5cd92c6edf2d1bfab5f36e8e2a635ff43",
+      "adaptation": "VPP include path and complete initialization under -Werror"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0008-add-explicit-backend-owned-output-transport.patch",
+      "destination": "patches/gamescope/0008-add-explicit-backend-owned-output-transport.patch",
+      "sha256": "ea7f0deed6a247d94879e2c970cb01fb8c2dc00d2162279d634f454ff09571b6",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "ea7f0deed6a247d94879e2c970cb01fb8c2dc00d2162279d634f454ff09571b6"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0009-import-private-shared-image-buffers.patch",
+      "destination": "patches/gamescope/0009-import-private-shared-image-buffers.patch",
+      "sha256": "b6224192950702258c9172141f4ec89f29d9a19af0b21bad853bef7f1741047e",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "b6224192950702258c9172141f4ec89f29d9a19af0b21bad853bef7f1741047e"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0010-negotiate-control-version-by-backend.patch",
+      "destination": "patches/gamescope/0010-negotiate-control-version-by-backend.patch",
+      "sha256": "da9711354092d453d4c156a5544392a4a90c0c3af3baab69f6b71d582f11ee32",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "da9711354092d453d4c156a5544392a4a90c0c3af3baab69f6b71d582f11ee32"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0011-preserve-session-on-capture-allocation-failure.patch",
+      "destination": "patches/gamescope/0011-preserve-session-on-capture-allocation-failure.patch",
+      "sha256": "c1b7b48ed20b8089f3020d2f9ff439f35170fced4f8a4e5019357db457db6a4e",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "c1b7b48ed20b8089f3020d2f9ff439f35170fced4f8a4e5019357db457db6a4e"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0012-bound-uniform-descriptors-to-uploaded-constants.patch",
+      "destination": "patches/gamescope/0012-bound-uniform-descriptors-to-uploaded-constants.patch",
+      "sha256": "2041ac1b00ff907983bc54ec6968fd2836e3ea3800f342d0fd01c04a1480622a",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "2041ac1b00ff907983bc54ec6968fd2836e3ea3800f342d0fd01c04a1480622a"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/common/vulkan_descriptor_fallback.h",
+      "destination": "native/gamescope/hsl/vulkan_descriptor_fallback.h",
+      "sha256": "f8eecac7b3e5b70c05d2ccbb35cef7fb6109331df3ddefc25018f5facfa1de8c",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "f8eecac7b3e5b70c05d2ccbb35cef7fb6109331df3ddefc25018f5facfa1de8c"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "scripts/compile-gamescope-shader.py",
+      "destination": "native/gamescope/hsl/compile-gamescope-shader.py",
+      "sha256": "0abe5a93da570e7faf0640b7d5f794d8b051707adcff3d776cb34320b2cace2d",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "0abe5a93da570e7faf0640b7d5f794d8b051707adcff3d776cb34320b2cace2d"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/gnu/gamescope/HslBackend.cpp",
+      "destination": "native/gamescope/hsl/HslBackend.cpp",
+      "sha256": "73140ba554ae8f2c48186b25b854c88840ea4dde49c7b925f2977e4bf923862c",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "73140ba554ae8f2c48186b25b854c88840ea4dde49c7b925f2977e4bf923862c"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/gnu/gamescope/HslImage.cpp",
+      "destination": "native/gamescope/hsl/HslImage.cpp",
+      "sha256": "bfa42e3bbedcde4fd06f35ff42aef2dd2c83bc8cb25a2e6aeb5888eff0f65e46",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "bfa42e3bbedcde4fd06f35ff42aef2dd2c83bc8cb25a2e6aeb5888eff0f65e46"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/gnu/gamescope/HslImage.h",
+      "destination": "native/gamescope/hsl/HslImage.h",
+      "sha256": "f87683723ae304282d75669b9006a8cbdd49a92a54eb549f0a0f373d3ab509de",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "f87683723ae304282d75669b9006a8cbdd49a92a54eb549f0a0f373d3ab509de"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/protocol/venus_shared_image.h",
+      "destination": "native/gamescope/hsl/venus_shared_image.h",
+      "sha256": "3e342b5c73a20b4ed79bc2011abfefc6c1bda8361b02d234f62c2060e000e915",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "3e342b5c73a20b4ed79bc2011abfefc6c1bda8361b02d234f62c2060e000e915"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/protocol/hsl-image-v1.xml",
+      "destination": "native/gamescope/hsl/hsl-image-v1.xml",
+      "sha256": "77519775710e460fe281ec6bd217a8d1f6fabc08dd4c9a3e02c2439ab0149fac",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "77519775710e460fe281ec6bd217a8d1f6fabc08dd4c9a3e02c2439ab0149fac"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "patches/gamescope/0013-reuse-bounded-shm-staging-with-queue-dependencies.patch",
+      "destination": "patches/gamescope/0013-reuse-bounded-shm-staging-with-queue-dependencies.patch",
+      "sha256": "26db9c585ee87b74b92028f0dfca09dcf6b307611ff8fcb129f646e7fbbf9b1a",
+      "sourceState": "reviewed-working-tree",
+      "hashEncoding": "LF",
+      "vppSha256": "26db9c585ee87b74b92028f0dfca09dcf6b307611ff8fcb129f646e7fbbf9b1a"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/gnu/gamescope/HslShmUpload.h",
+      "destination": "native/gamescope/hsl/HslShmUpload.h",
+      "sha256": "6e225395cf502d1990354a2ee3e78da621762286513f25dbf64e6af4cbaa7b84",
+      "sourceState": "reviewed-working-tree",
+      "hashEncoding": "LF",
+      "vppSha256": "6e225395cf502d1990354a2ee3e78da621762286513f25dbf64e6af4cbaa7b84"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "tests/gamescope_shm_upload_test.cpp",
+      "destination": "host_tests/gamescope_shm_upload_test.cpp",
+      "sha256": "bbc7f4994821e62bc62bb4ae9fe94e2b3dc7e6f586f0f67dcb2d31c4db18633d",
+      "sourceState": "reviewed-working-tree",
+      "hashEncoding": "LF",
+      "vppSha256": "3b3dfaf03706ec4972e15e1d38b6f514b9a27a103687e3815b2946dff0baa54f",
+      "adaptation": "VPP include path and complete initialization under -Werror"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "native/gnu/locked_download.py",
+      "destination": "scripts/locked_download.py",
+      "sha256": "226bfdb7b7e4006ccb6be4c26a8a80b242247a72f4225a3e6e32e04f02a030d4",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "226bfdb7b7e4006ccb6be4c26a8a80b242247a72f4225a3e6e32e04f02a030d4"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "scripts/prepare-gamescope-source.py",
+      "destination": "scripts/gamescope_prepare_source.py",
+      "sha256": "e25725f43c73277308be0c9756f21131bea062811da5c25edf773c3dd2d4e64b",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "7542fdc991b15e14138102d41c4b45cb6c7dfeb4df302486e75233b69a059310",
+      "adaptation": "VPP output/cache paths and module import"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "46fe1daabd26085c617c74033f470ac9e5d912b1",
+      "originalPath": "docs/evidence/steam-bigpicture-upload-20261117.json",
+      "destination": "docs/gamescope/hsl-shm-evidence-20261117.json",
+      "sha256": "2e9073106c74673a4420b796d6046548b73168acfe726753b844b14428a76ac4",
+      "sourceState": "reviewed-working-tree",
+      "hashEncoding": "LF",
+      "vppSha256": "2e9073106c74673a4420b796d6046548b73168acfe726753b844b14428a76ac4"
+    },
+    {
+      "repository": "https://github.com/PomeloTechLabs/HSL.git",
+      "baseRevision": "926b32cf44fe93ac1b2a4509046c59fde124897b",
+      "originalPath": "native/gnu/probes/gamescope_color.cpp",
+      "destination": "host_tests/gamescope_color_gpu_test.cpp",
+      "sha256": "5d780b19ba1a526a0519c9ff52e28ba6cc8b014675a350b04cea015a83b2c8ca",
+      "sourceState": "committed",
+      "hashEncoding": "LF",
+      "vppSha256": "cec4413d97e2b5e43a15af91c07a483b15b5dc584ce34a7d3d15ee2bb82db054",
+      "adaptation": "Host lavapipe execution of actual compositor and FSR SPIR-V: SDR midtones, gray, raw normalization, missing/double encoding negative controls, FP32/FP16 odd extents and RCAS edge samples. No GNU child or production readback."
+    }
+  ],
+  "excludedWorkingTreeChanges": [
+    {
+      "paths": [
+        "native/gnu/gamescope/session.py",
+        "native/gnu/gamescope/xwayland.sh",
+        "native/gnu/steam-session.sh",
+        "entry/src/main/cpp/runtime/child_main.cpp"
+      ],
+      "reason": "Private GNU SysV IPC and Linux Steam launch contracts; VPP must supply its own OHOS capability and Windows Steam boundary."
+    },
+    {
+      "paths": [
+        "native/gnu/proton/proton_gl_flush.c",
+        "patches/wine-ge/0002-opengl-wow64-publish-explicit-mapped-ranges.patch"
+      ],
+      "reason": "Already covered by VPP patches/wine/0035-opengl-wow64-explicit-buffer-flush.patch and its build wiring; avoid duplicate patches."
+    },
+    {
+      "paths": [
+        ".vscode/",
+        ".zcode/",
+        "state.jpeg"
+      ],
+      "reason": "Editor state and temporary screenshot."
+    }
+  ]
+}

@@ -26,6 +26,14 @@
         "name": "ohos.permission.LOCK_WINDOW_CURSOR"
       },
       {
+        "name": "ohos.permission.READ_PASTEBOARD",
+        "reason": "$string:clipboard_permission",
+        "usedScene": {
+          "abilities": ["EntryAbility", "DesktopAbility", "WineWindowAbility"],
+          "when": "inuse"
+        }
+      },
+      {
         "name": "ohos.permission.MICROPHONE",
         "reason": "$string:microphone_permission",
         "usedScene": {

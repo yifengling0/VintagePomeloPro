@@ -20,6 +20,10 @@ export class InputStateTracker {
   private buttonRefs: Map<number, number> = new Map();
   private pointers: Set<string> = new Set();
 
+  isKeyHeldBy(source: string, code: number): boolean {
+    return this.sourceKeys.get(source)?.has(code) ?? false;
+  }
+
   pressKey(source: string, code: number): boolean {
     if (code <= 0) return false;
     let keys = this.sourceKeys.get(source);

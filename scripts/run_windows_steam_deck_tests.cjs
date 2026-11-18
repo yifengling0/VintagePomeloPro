@@ -55,6 +55,7 @@ async function routes() {
   vm.runInNewContext(ts.transpileModule('export class Router {\n' + fragment + '\n}', {
     compilerOptions: {target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS}
   }).outputText, {exports: out, SteamClientService: {getInstance: () => service},
+    AppSettingsStore: {getInstance: () => ({getRecentLaunches: () => []})},
     promptAction: {showToast: value => events.push(['toast', value.message])}});
   const router = new out.Router();
   router.games = [card]; router.libraryTab = 'steam'; router.query = '仙剑';

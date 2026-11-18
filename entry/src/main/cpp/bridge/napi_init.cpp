@@ -1,3 +1,7 @@
+#include "input/controller/controller_hub.h"
+#include "bridge/system_open.h"
+#include "graphics/game_presentation.h"
+#include "gamescope/runtime_napi.h"
 #include "wine/prefix_reset.h"
 #include <napi/native_api.h>
 #include "common/fs_utils.h"
@@ -1800,7 +1804,21 @@ static napi_value CaptureNativePerformance(napi_env env, napi_callback_info) {
     return result;
 }
 
+static napi_value SetWineLogPixelsNapi(napi_env env, napi_callback_info info)
+{
+    size_t argc = 1;
+    napi_value argv[1], result;
+    double value = 0;
+    napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+    bool accepted = argc == 1 && napi_get_value_double(env, argv[0], &value) == napi_ok &&
+        std::isfinite(value) && value >= 96 && value <= 480 && std::floor(value) == value &&
+        SetWineLogPixels(static_cast<int>(value));
+    napi_get_boolean(env, accepted, &result);
+    return result;
+}
+
 static napi_value Init(napi_env env, napi_value exports) {
+    RegisterSystemOpen(env, exports);
     OH_LOG_WARN(LOG_APP, "[MW-NAPI]  Init called, env=%{public}p", env);
     LogWineScheme("libentry.so (主进程)");
 
@@ -1814,6 +1832,50 @@ static napi_value Init(napi_env env, napi_value exports) {
         OH_LOG_ERROR(LOG_APP, "[ProcReg] child reaper initialization failed");
 
     napi_property_descriptor desc[] = {
+        {"configureGamePresentation", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
+            size_t argc = 4; napi_value argv[4];
+            bool enabled = false; char scaling[16]{}; size_t length = 0; int32_t fps = 0, sharpness = 10;
+            napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
+            if ((argc != 3 && argc != 4) || napi_get_value_bool(env, argv[0], &enabled) != napi_ok ||
+                napi_get_value_string_utf8(env, argv[1], scaling, sizeof(scaling), &length) != napi_ok ||
+                napi_get_value_int32(env, argv[2], &fps) != napi_ok ||
+                (fps != 0 && fps != 30 && fps != 60) ||
+                (argc == 4 && (napi_get_value_int32(env,argv[3],&sharpness)!=napi_ok || sharpness<0 || sharpness>20)) ||
+                (strcmp(scaling, "linear") && strcmp(scaling, "nearest") && strcmp(scaling, "integer") && strcmp(scaling, "fsr"))) {
+                napi_throw_type_error(env, nullptr, "Invalid Game presentation settings"); return nullptr;
+            }
+            if (!enabled) WaylandServer::GetInstance()->PresentGameToplevel(0);
+            winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"), fps, !strcmp(scaling, "fsr"), sharpness);
+            napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"controllerSetUiCapture", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
+            size_t count = 1; napi_value arg; bool capture = false;
+            napi_get_cb_info(env, info, &count, &arg, nullptr, nullptr);
+            if (count == 1 && napi_get_value_bool(env, arg, &capture) == napi_ok)
+                winehua::controller::ControllerHub::Instance().SetUiCapture(capture);
+            napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"presentGameToplevel", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
+            size_t count = 1; napi_value arg, result; uint32_t id = 0;
+            napi_get_cb_info(env, info, &count, &arg, nullptr, nullptr);
+            const bool accepted = count == 1 && napi_get_value_uint32(env, arg, &id) == napi_ok &&
+                winehua::game::Enabled() && WaylandServer::GetInstance()->PresentGameToplevel(id);
+            napi_get_boolean(env, accepted, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"prepareGamescopeProcessBackend", nullptr, winehua::gamescope::PrepareRuntime,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startGamescopeDiagnosticClient", nullptr, winehua::gamescope::StartDiagnosticClient,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeGamescopeRuntime", nullptr, winehua::gamescope::ProbeRuntime,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startGamescopeSession", nullptr, winehua::gamescope::StartRuntimeSession,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopGamescopeSession", nullptr, winehua::gamescope::StopRuntimeSession,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getGamescopeSessionStatus", nullptr, winehua::gamescope::GetRuntimeSessionStatus,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setGamescopeOutputState", nullptr, winehua::gamescope::SetRuntimeOutputState,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
         {"captureNativePerformance", nullptr, CaptureNativePerformance, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runDirectVulkanProbe", nullptr, winehua::direct::RunVulkanProbe,
              nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -1904,6 +1966,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"resizeRenderer",  nullptr, ResizeRenderer,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"destroyRenderer", nullptr, DestroyRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setOutputSize",   nullptr, SetOutputSize,   nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setWineLogPixels", nullptr, SetWineLogPixelsNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDisplayScale",  nullptr, SetDisplayScale,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDesktopMode",   nullptr, SetDesktopMode,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setPhoneMode",     nullptr, SetPhoneMode,     nullptr, nullptr, nullptr, napi_default, nullptr},

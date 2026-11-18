@@ -72,12 +72,14 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
     // contentW/H = 内容区钳制上界 (fit src 尺寸, 0=不钳), 是 ComputeLocalPoint
     // 的管道参数 — 无外部消费者, 不进 InputTarget (4C2 顺手项, 见
     // input_resolver.h 头部注释)
-    int contentW = 0, contentH = 0;
+    int contentW = 0, contentH = 0, contentX = 0, contentY = 0;
     auto finalize = [&]() {
         out.contentW = contentW;
         out.contentH = contentH;
+        out.contentX = contentX; out.contentY = contentY;
         ComputeLocalPoint(logicalX, logicalY, out.originX, out.originY, out.scale,
                           contentW, contentH, out.localX, out.localY);
+        out.localX += contentX; out.localY += contentY;
     };
 
     // 层序单一数据源 (阶段 1): 与渲染侧 (TakeToplevelFrame) 遍历同一个按
@@ -223,6 +225,7 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
                     out.scale = transform.scale;
                     contentW = transform.srcW;
                     contentH = transform.srcH;
+                    contentX = transform.srcX; contentY = transform.srcY;
                     out.blockedModalId = compositor_.FirstVisibleContentModalLocked(fullscreenId);
                     finalize();
                     return out.surface != nullptr;
@@ -236,6 +239,7 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
                 out.scale = transform.scale;
                 contentW = transform.srcW;
                 contentH = transform.srcH;
+                contentX = transform.srcX; contentY = transform.srcY;
                 out.swallow = true;
                 finalize();
                 return out.surface != nullptr;
@@ -312,7 +316,7 @@ bool InputResolver::CanMoveExternalHost(uint32_t source, uint32_t host)
     auto lock = tmgr_.Lock();
     const auto* window = tmgr_.FindToplevelLocked(host);
     return source && host && compositor_.ExternalHostLocked(source) == host && window &&
-        !window->IsMinimized() && !window->IsFullscreen();
+        !window->IsMinimized() && !window->IsPresentationFullscreen();
 }
 
 bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, double ly,
@@ -334,7 +338,7 @@ bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, doubl
         return false;
     }
     // Do not warp through a cascaded fullscreen window that is not displayed.
-    if (st->IsFullscreen()) {
+    if (st->IsPresentationFullscreen()) {
         // 与 FindInputTargetAt 全屏分支同一几何 (ComputeFullscreenFitLocked),
         // 保证 warp 锚点与输入逆映射互为正反变换
         int rootW, rootH;
@@ -343,8 +347,8 @@ bool InputResolver::SurfaceLocalToDesktop(wl_resource* surface, double lx, doubl
         if (compositor_.PickFullscreenLayerLocked(layers) != tl) return false;
         FitRect transform;
         if (!compositor_.ComputeFullscreenFitLocked(tl, rootW, rootH, transform)) return false;
-        dx = transform.offX + lx * transform.scale;
-        dy = transform.offY + ly * transform.scale;
+        dx = FitMapX(transform, lx);
+        dy = FitMapY(transform, ly);
         return true;
     }
     dx = st->X() + lx;

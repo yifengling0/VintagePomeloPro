@@ -217,8 +217,36 @@ int main()
     hub.SetAxis(ControllerSourceId::Touch, 0, winehua::controller::LogicalAxis::LT, 0.5f);
     CHECK(hub.GetState(0).lt > 0, "legacy trigger API remains available");
 
-    hub.SetStateListener(nullptr);
+    // The Game panel temporarily owns input without changing the user's
+    // controller mode. Capture releases all slots and every source once.
+    hub.SetSlotConnected(1, true);
+    hub.SetButton(ControllerSourceId::Physical, 1, LogicalButton::A, true);
+    hub.SetUiCapture(true);
+    CHECK(!hub.IsEnabled(), "UI capture blocks game output");
+    CHECK(hub.GetState(0).connected && hub.GetState(1).connected, "capture retains connected pads");
+    CHECK(hub.GetState(0).buttons == 0 && hub.GetState(0).ly == 0 && hub.GetState(0).lt == 0,
+          "capture releases buttons sticks and triggers");
+    CHECK(hub.GetState(1).buttons == 0, "capture releases second pad");
+    const int capturedPublishes = publishes;
+    hub.SetUiCapture(true);
+    CHECK(publishes == capturedPublishes, "repeated capture is idempotent");
+    hub.SetButton(ControllerSourceId::Touch, 0, LogicalButton::A, true);
+    hub.SetButton(ControllerSourceId::Physical, 1, LogicalButton::B, true);
+    hub.SetAxis(ControllerSourceId::Touch, 0, winehua::controller::LogicalAxis::LX, 1.f);
+    hub.SetStick(ControllerSourceId::Physical, 0, LogicalStick::Left, 1.f, 1.f);
+    hub.SetTrigger(ControllerSourceId::Touch, 0, LogicalTrigger::Right, 1.f);
+    hub.SetHat(ControllerSourceId::Physical, 1, 1, 1);
+    CHECK(publishes == capturedPublishes, "all game input paths suppressed while captured");
+    hub.SetUiCapture(false);
+    CHECK(hub.IsEnabled(), "capture restores enabled mode");
+    CHECK(hub.GetState(0).buttons == 0 && hub.GetState(1).buttons == 0, "old presses never replayed");
+    hub.SetButton(ControllerSourceId::Physical, 1, LogicalButton::A, true);
+    CHECK(hub.GetState(1).buttons & ButtonBit(LogicalButton::A), "new second-pad input resumes");
     hub.SetEnabled(false);
+    hub.SetUiCapture(true);
+    hub.SetUiCapture(false);
+    CHECK(!hub.IsEnabled(), "capture preserves disabled user mode");
+    hub.SetStateListener(nullptr);
     std::printf("controller_merge_test: %d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

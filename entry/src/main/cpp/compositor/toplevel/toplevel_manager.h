@@ -108,6 +108,11 @@ public:
         bool IsMinimized() const { return minimized_; }
         bool IsBackground() const { return isBackground_; }  // 被切换掉的旧 root
         bool IsFullscreen() const { return fullscreen_; }
+        // Host presentation must never advertise xdg fullscreen or trigger a
+        // guest resize. Render and input share this effective fit predicate.
+        bool IsPresentationFullscreen() const { return fullscreen_ || gamePresentation_; }
+        bool IsGamePresentation() const { return gamePresentation_; }
+        void SetGamePresentation(bool on) { gamePresentation_ = on; MarkDirty(); }
         // maximized 权威字段 (重构第 5C 步: 自 SurfaceData::maximized 迁入 —
         // PLAN §2.4 窗口状态三元组分裂修复, 与 minimized/fullscreen 同权威)。
         // 写点经 WaylandServer::SetToplevelMaximizedState (Ensure 建档);
@@ -160,6 +165,7 @@ public:
         bool maximized_ = false;        // 窗口状态三元组之一 (见 IsMaximized 注释)
         bool isBackground_ = false;     // 渲染层, 不接收输入 (被切换掉的旧 root)
         bool fullscreen_ = false;
+        bool gamePresentation_ = false;
         uint32_t modalOwnerId_ = 0;     // WineHua modal 关系 (见访问器注释)
         uint64_t fsPriority_ = 0;       // 全屏优先级序号 (规则见 fsPriority 注释)
     };
@@ -225,7 +231,7 @@ public:
     // 全屏例外谓词收口于 zorder_policy.h (ZOrderPinSuppressed, 行为平价)。
     void PinToTop(uint32_t pinId, uint32_t raisedId) {
         bool raisedFullscreen = false;
-        if (const auto* rst = FindToplevelLocked(raisedId)) raisedFullscreen = rst->IsFullscreen();
+        if (const auto* rst = FindToplevelLocked(raisedId)) raisedFullscreen = rst->IsPresentationFullscreen();
         if (pinId > 0 && pinId != raisedId && !winehua::ZOrderPinSuppressed(raisedFullscreen)) {
             RaiseToplevel(pinId);
         }

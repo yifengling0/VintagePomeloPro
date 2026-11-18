@@ -1,0 +1,113 @@
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -108,6 +108,7 @@
+ src = [
+   'Backends/HeadlessBackend.cpp',
+     'Backends/HslBackend.cpp',
++    'HslImage.cpp',
+   'Backends/WaylandBackend.cpp',
+   'Utils/DirHelpers.cpp',
+   'Utils/TempFiles.cpp',
+--- a/protocol/meson.build
++++ b/protocol/meson.build
+@@ -41,6 +41,7 @@
+ 	'gamescope-swapchain.xml',
+ 	'gamescope-limiter.xml',
+ 	'gamescope-private.xml',
++	'hsl-image-v1.xml',
+ 	'gamescope-action-binding.xml',
+ 
+ 	# wlroots protocols
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -33,6 +33,7 @@
+ #include "wlr_end.hpp"
+ 
+ #include "rendervulkan.hpp"
++#include "HslImage.h"
+ #include "main.hpp"
+ #include "steamcompmgr.hpp"
+ #include "log.hpp"
+@@ -4997,6 +4998,7 @@
+ 
+ gamescope::OwningRc<CVulkanTexture> vulkan_create_texture_from_wlr_buffer( struct wlr_buffer *buf, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb )
+ {
++	if (hsl_image_is_buffer(buf)) return hsl_image_snapshot(buf);
+ 
+ 	struct wlr_dmabuf_attributes dmabuf = {0};
+ 	if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -206,6 +206,9 @@
+ 	}
+ 
+ 	// Set only after a host upload's GPU submission has actually completed.
++	// GPU copy and subsequent compute use the same VkQueue, ordered by barriers.
++	bool localQueueDependency() const { return m_bLocalQueueDependency; }
++	void markLocalQueueDependency() { m_bLocalQueueDependency = true; }
+ 	bool hostUploadComplete() const { return m_bHostUploadComplete; }
+ 	void markHostUploadComplete() { m_bHostUploadComplete = true; }
+ 	int memoryFence();
+@@ -218,6 +221,7 @@
+ private:
+ 	bool m_bInitialized = false;
+ 	bool m_bHostUploadComplete = false;
++	bool m_bLocalQueueDependency = false;
+ 	bool m_bExternal = false;
+ 	bool m_bTransferSrc = false;
+ 	bool m_bOutputImage = false;
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -82,6 +82,7 @@
+ #include "main.hpp"
+ #include "wlserver.hpp"
+ #include "rendervulkan.hpp"
++#include "HslImage.h"
+ #include "steamcompmgr.hpp"
+ #include "focus_placement.h"
+ #include "mangoapp_config.h"
+@@ -8540,7 +8541,7 @@
+ 			already_exists = true;
+ 	}
+ 
+-	if ( already_exists && !reslistentry.feedback && reslistentry.presentation_feedbacks.empty() && !reslistentry.present_timing.serial )
++	if ( already_exists && !hsl_image_is_buffer(buf) && !reslistentry.feedback && reslistentry.presentation_feedbacks.empty() && !reslistentry.present_timing.serial )
+ 	{
+ 		wlserver_lock();
+ 		wlr_buffer_unlock( buf );
+@@ -8741,7 +8742,7 @@
+ 		{
+ 			if (GetBackend()->UsesDmaBufImages())
+ 				fence = newCommit->vulkanTex->memoryFence();
+-			else if (newCommit->vulkanTex->hostUploadComplete())
++			else if (newCommit->vulkanTex->hostUploadComplete() || newCommit->vulkanTex->localQueueDependency())
+ 				bKnownReady = true;
+ 			else
+ 			{
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -58,6 +58,7 @@
+ #include "presentation-time-protocol.h"
+ 
+ #include "wlserver.hpp"
++#include "HslImage.h"
+ #include "hdmi.h"
+ #include "main.hpp"
+ #include "steamcompmgr.hpp"
+@@ -2319,6 +2320,8 @@
+ 
+ 	wlserver.wlr.renderer = vulkan_renderer_create();
+ 
++	if (GetBackend()->UsesBackendSwapchain() && !hsl_image_init(wlserver.display))
++		return false;
+ 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.display);
+ 
+ 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.display, 5, wlserver.wlr.renderer);
+@@ -2614,6 +2617,7 @@
+ #endif
+ 
+ 	wl_display_destroy_clients(wlserver.display);
++	hsl_image_shutdown();
+ 	wl_display_destroy(wlserver.display);
+     wlserver.display = NULL;
+ 	wlserver_unlock(false);

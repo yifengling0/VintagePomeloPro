@@ -306,7 +306,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
                 info.shmCommitSerial = layer.shmCommitSerial;
                 info.desktopCoordinates = true;
                 if (const auto* pst = comp_.tmgr_.FindToplevelLocked(layer.parentToplevel))
-                    info.fullscreen = pst->IsFullscreen();
+                    info.fullscreen = pst->IsPresentationFullscreen();
                 info.source = ZeroCopySource::ShmLayer;
                 info.external = layer.isExternal;
                 return info.width > 0 && info.height > 0
@@ -336,7 +336,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
             info.shmCommitSerial = sd->shmCommitSerial.load(std::memory_order_acquire);
             info.desktopCoordinates = true;
             info.source = ZeroCopySource::ProtocolOnly;
-            if (parentState) info.fullscreen = parentState->IsFullscreen();
+            if (parentState) info.fullscreen = parentState->IsPresentationFullscreen();
             // 一次性日志去重 (每 key 只打一条): static 局部集合, 调用串行化
             // 由函数入口的 tmgr_.Lock() 保证
             static std::unordered_set<uint64_t> protocolGeometryLogged;
@@ -399,7 +399,7 @@ bool ZcBridge::GetLayerInfo(uint64_t surfaceKey, uint32_t rendererToplevelId,
         if (const auto* st = comp_.tmgr_.FindToplevelLocked(sd->toplevelId)) {
             info.x = st->X();
             info.y = st->Y();
-            info.fullscreen = st->IsFullscreen();
+            info.fullscreen = st->IsPresentationFullscreen();
         }
         info.desktopCoordinates = true;
         return info.width > 0 && info.height > 0

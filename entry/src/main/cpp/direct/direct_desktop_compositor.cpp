@@ -1,3 +1,4 @@
+#include "graphics/game_presentation.h"
 #include "direct_desktop_compositor.h"
 #include "direct_wine_surface_controller.h"
 #include "compositor/toplevel/desktop_compositor.h"
@@ -233,8 +234,8 @@ void main() { oColor = vec4(texture(uTex, vUV).rgb, 1.0); }
         }
         GLuint texture = 0;
         glGenTextures(1, &texture); glBindTexture(GL_TEXTURE_2D, texture);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         imageTarget(GL_TEXTURE_2D, imported);

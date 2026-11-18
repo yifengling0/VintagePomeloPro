@@ -5,6 +5,12 @@
 # can be rebuilt incrementally without touching the Wine tree.
 set -euo pipefail
 
+case "${1:-}" in
+    '') d3d9_only=0 ;;
+    --d3d9-only) d3d9_only=1 ;;
+    *) echo "Usage: $0 [--d3d9-only]" >&2; exit 2 ;;
+esac
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 python3 "$SCRIPT_DIR/apply_dxvk_compat_patches.py" --source "$DXVK_SRC"
@@ -53,6 +59,15 @@ setup_if_missing() {
 }
 
 setup_if_missing "$DXVK_SRC/build.winehua32" build-win32.txt "$DXVK_BUILD_ROOT/x86"
+if [ "$d3d9_only" = 1 ]; then
+    # PE32 D3D9 uses the MinGW import libraries, without a Wine/ARM64X rebuild.
+    # Keep the canonical Meson cache so a later full build remains incremental.
+    ninja -C "$DXVK_SRC/build.winehua32" -j "$JOBS" src/d3d9/d3d9.dll
+    install -D -m 755 "$DXVK_SRC/build.winehua32/src/d3d9/d3d9.dll" \
+        "$DXVK_BUILD_ROOT/x86/bin/d3d9.dll"
+    log "DXVK Legacy PE32 D3D9 ready (other architectures unchanged)"
+    exit 0
+fi
 if [ "$WINE_ARCH" != "aarch64" ]; then
     setup_if_missing "$DXVK_SRC/build.winehua64" build-win64.txt "$DXVK_BUILD_ROOT/x64"
 fi

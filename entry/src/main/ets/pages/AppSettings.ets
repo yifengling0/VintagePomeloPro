@@ -1,3 +1,5 @@
+import { GamePresentationSettings } from '../components/GamePresentationSettings';
+import { GameModeSettings, GameModeOverride, normalizeGameModeSettings } from '../model/GameModeSettings';
 import { skinColor } from '../service/SkinColors';
 import { PortableGameConfigurationService } from '../service/PortableGameConfigurationService';
 import router from '@ohos.router';
@@ -708,6 +710,16 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setGameOverride(mode: GameModeOverride): void {
+    const next = cloneAppSettings(this.value); next.gameModeOverride = mode;
+    this.value = next; void this.persist();
+  }
+
+  private setGameSettings(settings: GameModeSettings | undefined): void {
+    const next = cloneAppSettings(this.value); next.gameModeSettings = settings;
+    this.value = next; void this.persist();
+  }
+
   private setGraphicsBackend(backend: string): void {
     const selected = normalizeAppGraphicsBackend(backend);
     if (selected === this.value.graphicsBackend) return;
@@ -859,6 +871,27 @@ struct AppSettingsPage {
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Text('保存后下次启动生效。切换后端可能需要重启 Wine，会关闭其他 Windows 程序。')
               .fontSize(11).fontColor('#C47A20').width('100%')
+            Text('Game 模式').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
+            Flex({ wrap: FlexWrap.Wrap }) {
+              ForEach(['follow', 'on', 'off'], (mode: GameModeOverride) => {
+                Button(mode === 'follow' ? '跟随当前模式' : mode === 'on' ? '开启' : '关闭')
+                  .height(36).margin({ right: 8, bottom: 8 }).fontSize(13)
+                  .fontColor((this.value.gameModeOverride ?? 'follow') === mode ? Color.White : skinColor('text_primary'))
+                  .backgroundColor((this.value.gameModeOverride ?? 'follow') === mode ? '#2874BC' : skinColor('search_background'))
+                  .onClick((): void => this.setGameOverride(mode)).id('app-game-mode-' + mode)
+              })
+            }.width('100%')
+            Row({ space: 12 }) {
+              Text('独立画面设置').fontSize(13).fontColor(skinColor('text_primary')).layoutWeight(1)
+              Toggle({ type: ToggleType.Switch, isOn: !!this.value.gameModeSettings })
+                .onChange((enabled: boolean): void => this.setGameSettings(enabled ?
+                  normalizeGameModeSettings(AppSettingsStore.getInstance().getGlobalSettings().gameMode) : undefined))
+                .id('app-game-settings-override')
+            }.width('100%')
+            if (this.value.gameModeSettings) {
+              GamePresentationSettings({ value: normalizeGameModeSettings(this.value.gameModeSettings),
+                onChange: (value: GameModeSettings): void => this.setGameSettings(value) })
+            }
             Text('图形 API').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
             Text('追加命令行参数，让游戏选择 Direct3D 11 或 OpenGL；与上方渲染后端分别设置。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')

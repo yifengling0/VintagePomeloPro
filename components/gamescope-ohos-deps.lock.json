@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "platform": "aarch64-linux-ohos",
+  "sources": [
+    {
+      "name": "libXdamage",
+      "version": "1.1.6",
+      "archive": "libXdamage-1.1.6.tar.xz",
+      "url": "https://www.x.org/archive/individual/lib/libXdamage-1.1.6.tar.xz",
+      "bytes": 257532,
+      "sha256": "52733c1f5262fca35f64e7d5060c6fcd81a880ba8e1e65c9621cf0727afb5d11"
+    },
+    {
+      "name": "libXtst",
+      "version": "1.2.5",
+      "archive": "libXtst-1.2.5.tar.xz",
+      "url": "https://www.x.org/archive/individual/lib/libXtst-1.2.5.tar.xz",
+      "bytes": 291748,
+      "sha256": "b50d4c25b97009a744706c1039c598f4d8e64910c9fde381994e1cae235d9242"
+    },
+    {
+      "name": "libXres",
+      "version": "1.2.2",
+      "archive": "libXres-1.2.2.tar.xz",
+      "url": "https://www.x.org/archive/individual/lib/libXres-1.2.2.tar.xz",
+      "bytes": 261400,
+      "sha256": "9a7446f3484b9b7538ac5ee30d2c1ce9e5b7fbbaf1440e02f6cca186a1fa745f"
+    },
+    {
+      "name": "libXmu",
+      "version": "1.2.1",
+      "archive": "libXmu-1.2.1.tar.xz",
+      "url": "https://www.x.org/archive/individual/lib/libXmu-1.2.1.tar.xz",
+      "bytes": 364888,
+      "sha256": "fcb27793248a39e5fcc5b9c4aec40cc0734b3ca76aac3d7d1c264e7f7e14e8b2"
+    }
+  ],
+  "identityOrigin": "Versioned upstream HTTPS source retrieval; SHA-256 pins subsequent reuse, not a signature claim.",
+  "dataSources": [
+    {
+      "name": "display-vendor-database",
+      "sourceProject": "DXVK libdisplay-info subproject",
+      "revision": "275e6459c7ab1ddd4b125f28d0440716e4888078",
+      "path": "pnp.ids",
+      "bytes": 62334,
+      "sha256": "a0dbf28dd17acf07eeec143e4233b128cd698d9dc3469cfd87178f8a25c7fd92",
+      "role": "Build-time data only; reuse shared read-only source."
+    }
+  ]
+}

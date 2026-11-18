@@ -372,6 +372,72 @@ int main() {
         CHECK(restored && !st.IsMinimized() && st.X() == 80 && st.Y() == 90,
               "restore ignores stale Wine geometry after a compositor drag");
     }
+    { // Game fit is local presentation, never a Wine fullscreen configure.
+        Scene s(1600, 900); s.setWindow(2, 400, 300, 0xff123456);
+        {
+            auto lk = s.tm.Lock(); auto& st = s.tm.EnsureToplevelLocked(2);
+            st.SetPosition(80, 90); st.SetWinePosition(80, 90);
+            st.SetGamePresentation(true);
+            CHECK(st.IsPresentationFullscreen() && !st.IsFullscreen(), "host fit does not change guest state");
+            CHECK(st.X() == 80 && st.Y() == 90, "host fit preserves windowed position");
+            CHECK(s.tm.HandleCommittedSizeLocked(2, 1, 400, 300, 1600, 900) ==
+                  ToplevelManager::SizeCommitEffect::ResizeEvent, "host fit never reasserts guest fullscreen size");
+        }
+        const auto scene = DirectSnapshot(s, 400, 300);
+        CHECK(Rect(DirectLayer(scene), 200, 0, 1200, 900), "Game GPU output fits original content");
+        double x = 0, y = 0;
+        CHECK(s.input.SurfaceLocalToDesktop(&s.parent, 200, 150, x, y) && x == 800 && y == 450,
+              "Game pointer warp shares the GPU fit");
+        {
+            auto lk = s.tm.Lock(); auto& st = s.tm.EnsureToplevelLocked(2);
+            st.SetGamePresentation(false);
+            CHECK(!st.IsPresentationFullscreen() && st.Width() == 400 && st.Height() == 300 &&
+                  st.X() == 80 && st.Y() == 90, "leaving Game restores exact guest geometry");
+            st.ApplyFullscreen(true); st.SetGamePresentation(true); st.SetGamePresentation(false);
+            CHECK(st.IsFullscreen() && st.IsPresentationFullscreen(), "leaving Game preserves real fullscreen");
+        }
+    }
+    { // Decorated game: crop by the live inline client, not a guessed border width.
+        Scene s(1600, 900); s.setWindow(2, 806, 656, 0xffffffff);
+        s.sub(3, 53, 800, 600, 0xff123456);
+        { auto lk = s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetGamePresentation(true); }
+        Activate(s);
+        const auto scene = Snapshot(s);
+        CHECK(Rect(Native(scene), 200, 0, 1200, 900), "Game presents the client without Wine decoration");
+        CHECK(BackgroundPixel(scene, 100, 50) == 0xff000000,
+              "Game letterbox contains no title or retained desktop pixels");
+        InputTarget hit;
+        CHECK(s.input.FindInputTargetAt(800, 450, hit) && hit.surface == &s.parent &&
+              hit.localX == 403 && hit.localY == 353, "client center maps to Wine window coordinates");
+        CHECK(s.input.FindInputTargetAt(0, 450, hit) && hit.swallow && hit.localX == 3,
+              "black bar clamps at the client origin, outside decoration");
+        double x = 0, y = 0;
+        CHECK(s.input.SurfaceLocalToDesktop(&s.parent, 403, 353, x, y) && x == 800 && y == 450,
+              "decorated client warp and hit mapping are inverse");
+        { auto lk = s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetGamePresentation(false); }
+        CHECK(s.tm.FindToplevelLocked(2)->Width() == 806 &&
+              s.tm.FindToplevelLocked(2)->Height() == 656, "Game leaves the Wine outer geometry intact");
+    }
+    { // The same client geometry applies to bounded SHM upload and Direct.
+        Scene s(1600, 900); s.setWindow(2, 806, 656, 0xffffffff);
+        s.sub(3, 53, 800, 600, 0xff123456);
+        { auto lk = s.tm.Lock(); s.tm.EnsureToplevelLocked(2).SetGamePresentation(true); }
+        CHECK(s.take() && s.frame.kind == PresentedFrame::Kind::DirectPass &&
+              s.width == 800 && s.height == 600 && s.pixel(0,0) == 0xff123456,
+              "SHM client bypass keeps only original game pixels");
+        CHECK(Rect(DirectLayer(DirectSnapshot(s, 800, 600)), 200, 0, 1200, 900),
+              "Direct shares the client fit used by VirGL/Venus");
+        // A second declared client is ambiguous; do not select a video by area.
+        SurfaceData extra; wl_resource resource{&extra};
+        extra.isSubsurface = true; extra.parentSurface = &s.parent;
+        extra.inputRegionEmpty = true; extra.surfaceKey = 99;
+        s.tm.RegisterSurfaceResource(99, &resource);
+        FitRect fit;
+        { auto lk = s.tm.Lock();
+          CHECK(s.comp.ComputeFullscreenFitLocked(2,1600,900,fit) && !fit.clientOnly,
+                "ambiguous clients retain whole-window fallback"); }
+        s.tm.UnregisterSurfaceResource(99);
+    }
     std::printf("compositor migration: %d checks, %d failures\n",checks,failures);
     return failures ? 1 : 0;
 }

@@ -3,6 +3,7 @@ import { SteamLocalService } from '../steam/SteamLocalService';
 import { AppCatalogService } from './AppCatalogService';
 import { AppSettingsStore } from './AppSettingsStore';
 import { AppSessionService } from './AppSessionService';
+import { HostWindowTasks } from './HostWindowTasks';
 
 /** Both launcher skins share the Windows client and its existing session owner. */
 export class SteamClientService {
@@ -27,12 +28,21 @@ export class SteamClientService {
     }
     this.assertCanOpen();
     this.opening = true;
+    const tasks = HostWindowTasks.getInstance();
+    const navigation = tasks.navigationSerial();
     try {
       const app = SteamLocalService.getInstance().clientCard();
       if (app.steam) app.steam.clientAction = action;
       const result = await AppSessionService.getInstance().launch(app,
         AppSettingsStore.getInstance().getGlobalSettings(), AppCatalogService.getInstance().getWineHomeDirectory());
       if (!result) throw new Error('Windows Steam 启动失败，请重试或查看运行日志');
+      // A command-sender PID or the Wine desktop is not a ready Steam client.
+      await AppSessionService.getInstance().waitForSteamClientWindow(app, result, navigation);
+    } catch (error) {
+      if (tasks.navigationSerial() === navigation) {
+        try { await tasks.showLauncher(); } catch (_) {}
+      }
+      throw new Error((error as Error).message);
     } finally { this.opening = false; }
   }
 }

@@ -27,6 +27,10 @@
     {
       "name": "vibrate_permission",
       "value": "将 Windows 游戏的手柄震动传到已连接的手柄"
+    },
+    {
+      "name": "clipboard_permission",
+      "value": "用于在 Windows 游戏和系统应用之间复制、粘贴文字"
     }
   ]
 }

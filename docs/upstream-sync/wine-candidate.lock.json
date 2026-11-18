@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "candidate-full-built-host-validation",
+  "status": "2.0.4-integrated-test-release",
   "upstream": {
     "repository": "ValveSoftware/wine",
     "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "098ece0eedff40bea426d2d57b215bb81411e239",
-  "adaptedTree": "4775755262105ab9381128cadd142ad3c92f1b6b",
+  "adaptedCommit": "527cd6255d4f26c21ff0a7111fc0c37e35eac9ba",
+  "adaptedTree": "bd2d6662a1d32f4347829428b6c7c055afde0797",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -508,11 +508,41 @@
       "sha256": "030d95c8c769888bef4fd80ca7503ae0ee6d9a1a6fe6ca530fc6c368fa08eca4",
       "commit": "098ece0eedff40bea426d2d57b215bb81411e239",
       "subject": "OHOS: make Vulkan smoke header self-contained for standalone builds"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0082-retain-explicit-dxvk9-overlay.patch",
+      "sha256": "642ff081fd223047d48cb33f90b0ffabaa45078f2bf6a68754431add48dad01a",
+      "commit": "4e85dd0d6e127c0633c82a3d32b32c38002c0079",
+      "subject": "OHOS: retain-explicit-dxvk9-overlay"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0083-retain-multiple-gamepads.patch",
+      "sha256": "ac91d88857af9f1f4438b4d80cc253f20772c461774c267991913a6f787257d8",
+      "commit": "bba2ec5b4c157d996e2601ad53540d1321494703",
+      "subject": "OHOS: retain-multiple-gamepads"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0084-winehua-hidpi-and-host-open.patch",
+      "sha256": "a013221122f591d09fcb348c68dd676a570e08f8161fe79893319387d0959413",
+      "commit": "8a65f6c15ca4426370a56226153ef6a0b5e7be1d",
+      "subject": "OHOS: port WineHua HiDPI and bounded host-open support to current Proton"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0085-wayland-clipboard-window-class-termination.patch",
+      "sha256": "74406def139a15fe174f23804a99200abb407a899a073df5e250281d8579ee1c",
+      "commit": "9e5e178c08e2cb3f43cc90b7b1cf21af95012301",
+      "subject": "winewayland: terminate the per-process clipboard window class name"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0086-wined3d-legacy-specular-fog.patch",
+      "sha256": "de3c847b3ed2bbe62297b87da0ec15403523239039e0106969cddc034d777fa7",
+      "commit": "527cd6255d4f26c21ff0a7111fc0c37e35eac9ba",
+      "subject": "wined3d: use the legacy secondary color for implicit specular-alpha fog"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "b6523729f48fb0c8ea4a588cb5ed61310761eda54f0b493801e01faa9a1a3c63"
+    "sha256": "3eecd90de31c64a07fd20c058615f439e2d746671b918ad15c8aff056c2edfd4"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",

@@ -296,6 +296,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0052-ntdll-default-virgl-shared-l
     "Default WOW64 Wine-owned VirGL shared mapping with explicit opt-out"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0053-wined3d-restore-legacy-alpha-test-state.patch" \
     "Restore compatibility-context alpha-test enable and disable state"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0084-wined3d-legacy-specular-fog.patch" \
+    "Use the declared legacy secondary color for implicit specular-alpha fog"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0054-ntdll-broker-preserve-resolved-image-path.patch" \
     "Preserve resolved child image path for PE address-space selection"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0055-layered-child-screen-coordinates-and-root.patch" \

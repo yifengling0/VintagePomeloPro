@@ -1,0 +1,30 @@
+From: HSL maintainers
+Subject: [PATCH] vulkan: enable present features only for swapchain outputs
+
+Present-id and present-wait extensions are requested only by Vulkan
+swapchain outputs. Match their feature chain to that transport as well.
+A headless or future non-swapchain backend still requires the original
+rendering features, external memory and synchronization contracts.
+No extension or feature support is fabricated.
+
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -649,12 +649,17 @@
+ 
+ 	VkPhysicalDeviceFeatures2 features2 = {
+ 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+-		.pNext = &presentIdFeatures,
++		.pNext = &features13,
+ 		.features = {
+ 			.shaderStorageImageWriteWithoutFormat = VK_TRUE,
+ 			.shaderInt16 = m_bSupportsFp16,
+ 		},
+ 	};
++
++	// Presentation features belong to the output swapchain transport. A
++	// headless/non-swapchain backend must not enable unavailable extensions.
++	if ( GetBackend()->UsesVulkanSwapchain() )
++		features2.pNext = &presentIdFeatures;
+ 
+ 	VkDeviceCreateInfo deviceCreateInfo = {
+ 		.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,

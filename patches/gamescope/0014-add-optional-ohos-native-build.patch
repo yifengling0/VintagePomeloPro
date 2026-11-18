@@ -1,0 +1,696 @@
+--- a/meson_options.txt
++++ b/meson_options.txt
+@@ -10,3 +10,9 @@
+ option('enable_tests',               type : 'boolean', value : true, description: 'Build unit tests')
+ option('enable_zenity',              type : 'boolean', value : true, description: 'Build with zenity support in the WSI layers error handling')
+ option('benchmark', type: 'feature', description: 'Benchmark tools')
++
++option('ohos_native', type: 'boolean', value: false, description: 'Build OHOS native shared core')
++option('source_revision', type: 'string', value: '', description: 'Locked source revision for archive builds')
++option('wayland_backend', type: 'feature', value: 'enabled', description: 'Nested Wayland output')
++option('scripting', type: 'feature', value: 'enabled', description: 'Lua configuration scripts')
++option('libinput', type: 'feature', value: 'enabled', description: 'Global Linux input devices')
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -7,7 +7,7 @@
+ dep_xxf86vm = dependency('xxf86vm')
+ dep_xtst = dependency('xtst')
+ dep_xres = dependency('xres')
+-dep_xmu = dependency('xmu')
++dep_xmu = dependency(get_option('ohos_native') ? 'xmuu' : 'xmu')
+ dep_xi = dependency('xi')
+ 
+ drm_dep = dependency('libdrm', version: '>= 2.4.113', required: get_option('drm_backend'))
+@@ -21,7 +21,7 @@
+ sdl2_dep = dependency('SDL2', required: get_option('sdl2_backend'))
+ avif_dep = dependency('libavif', version: '>=1.0.0', required: get_option('avif_screenshots'))
+ pixman_dep = dependency('pixman-1')
+-udev_dep = dependency('libudev')
++udev_dep = dependency('libudev', required: get_option('libinput'))
+ 
+ wlroots_dep = dependency(
+   'wlroots-0.20',
+@@ -37,7 +37,7 @@
+   default_options: ['default_library=static'],
+ )
+ 
+-libdecor_dep = dependency('libdecor-0')
++libdecor_dep = dependency('libdecor-0', required: get_option('wayland_backend'))
+ 
+ glsl_compiler = find_program('glslang', 'glslangValidator', native: true)
+ 
+@@ -107,14 +107,10 @@
+ 
+ src = [
+   'Backends/HeadlessBackend.cpp',
+-    'Backends/HslBackend.cpp',
+-    'HslImage.cpp',
+-  'Backends/WaylandBackend.cpp',
+   'Utils/DirHelpers.cpp',
+   'Utils/TempFiles.cpp',
+   'Utils/Version.cpp',
+   'Utils/Process.cpp',
+-  'Script/Script.cpp',
+   'BufferMemo.cpp',
+   'steamcompmgr.cpp',
+   'convar.cpp',
+@@ -135,11 +131,26 @@
+   'backend.cpp',
+   'x11cursor.cpp',
+   'InputEmulation.cpp',
+-  'LibInputHandler.cpp',
+-]
+-
+-luajit_dep = dependency( 'luajit' )
+-libinput_dep = dependency('libinput', required: true)
++]
++
++luajit_dep = dependency('luajit', required: get_option('scripting'))
++libinput_dep = dependency('libinput', required: get_option('libinput'))
++if not get_option('wayland_backend').disabled()
++  src += 'Backends/WaylandBackend.cpp'
++endif
++if libinput_dep.found()
++  src += 'LibInputHandler.cpp'
++endif
++
++if get_option('ohos_native')
++  src += ['Backends/OhosBackend.cpp', 'OhosWindow.cpp', 'OhosProcessBroker.cpp', 'OhosRuntime.cpp']
++else
++  src += ['Backends/HslBackend.cpp', 'HslImage.cpp']
++endif
++
++if luajit_dep.found()
++  src += 'Script/Script.cpp'
++endif
+ 
+ gamescope_cpp_args = []
+ if drm_dep.found()
+@@ -165,7 +176,14 @@
+ gamescope_cpp_args += '-DHAVE_AVIF=@0@'.format(avif_dep.found().to_int())
+ gamescope_cpp_args += '-DHAVE_LIBCAP=@0@'.format(cap_dep.found().to_int())
+ gamescope_cpp_args += '-DHAVE_LIBEIS=@0@'.format(eis_dep.found().to_int())
+-gamescope_cpp_args += '-DHAVE_SCRIPTING=1'
++gamescope_cpp_args += '-DHAVE_SCRIPTING=@0@'.format(luajit_dep.found().to_int())
++gamescope_cpp_args += '-DHAVE_WAYLAND_BACKEND=@0@'.format((not get_option('wayland_backend').disabled()).to_int())
++
++gamescope_cpp_args += '-DHAVE_OHOS_BACKEND=@0@'.format(get_option('ohos_native').to_int())
++gamescope_cpp_args += '-DHAVE_HSL_IMAGE=@0@'.format((not get_option('ohos_native')).to_int())
++if get_option('ohos_native')
++  gamescope_cpp_args += '-DVK_USE_PLATFORM_OHOS'
++endif
+ 
+ src += spirv_shaders
+ src += protocols_server_src
+@@ -190,7 +208,10 @@
+ compiler_version = cc.version()
+ 
+ vcs_tag_cmd = ['git', 'describe', '--always', '--tags', '--dirty=+']
+-vcs_tag = run_command(vcs_tag_cmd, check: false).stdout().strip()
++vcs_tag = get_option('source_revision')
++if vcs_tag == ''
++  vcs_tag = run_command(vcs_tag_cmd, check: false).stdout().strip()
++endif
+ version_tag = vcs_tag + ' (' + compiler_name + ' ' + compiler_version + ')'
+ 
+ gamescope_version_conf = configuration_data()
+@@ -202,22 +223,25 @@
+   configuration : gamescope_version_conf
+ )
+ 
+-  executable(
+-    'gamescope',
++  build_target(
++    get_option('ohos_native') ? 'gamescope_core' : 'gamescope',
+     src, reshade_src, gamescope_version,
++    target_type: get_option('ohos_native') ? 'shared_library' : 'executable',
+     include_directories : [reshade_include, sol2_include],
+     dependencies: [
+       dep_wayland, dep_x11, dep_xdamage, dep_xcomposite, dep_xrender, dep_xext, dep_xfixes,
+       dep_xxf86vm, dep_xres, glm_dep, drm_dep, wayland_server,
+       xkbcommon, thread_dep, sdl2_dep, wlroots_dep,
+-      vulkan_dep, liftoff_dep, dep_xtst, dep_xmu, cap_dep, epoll_dep, pipewire_dep, librt_dep,
++      vulkan_dep, cppc.find_library('native_window', required: get_option('ohos_native')), liftoff_dep, dep_xtst, dep_xmu, cap_dep, epoll_dep, pipewire_dep, librt_dep,
+       stb_dep, displayinfo_dep, openvr_dep, dep_xcursor, avif_dep, dep_xi,
+       libdecor_dep, eis_dep, luajit_dep, libinput_dep, pixman_dep, udev_dep,
+     ],
+     install: true,
++    install_tag: 'vpp-gamescope',
+     cpp_args: gamescope_cpp_args,
+   )
+ 
++if not get_option('ohos_native')
+ gamescope_core_src = [
+   'convar.cpp',
+   'log.cpp',
+@@ -242,3 +266,5 @@
+ executable('gamescope-type', ['Apps/gamescope_type.c'], protocols_client_src, dependencies: [dep_wayland, cap_dep], install:true )
+ 
+ executable('gamescope_hotkey_example', ['Apps/gamescope_hotkey_example.cpp'], gamescope_core_src, gamescope_version, protocols_client_src, dependencies: [dep_wayland, xkbcommon, cap_dep], install: false )
++
++endif
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -433,8 +433,13 @@
+ 	} else if (strcmp(str, "openvr") == 0) {
+ 		return gamescope::GamescopeBackend::OpenVR;
+ #endif
++#if HAVE_OHOS_BACKEND
++	} else if (strcmp(str, "ohos") == 0) {
++		return gamescope::GamescopeBackend::Ohos;
++#else
+ 	} else if (strcmp(str, "hsl") == 0) {
+ 		return gamescope::GamescopeBackend::Hsl;
++#endif
+ 	} else if (strcmp(str, "headless") == 0) {
+ 		return gamescope::GamescopeBackend::Headless;
+ 	} else if (strcmp(str, "wayland") == 0) {
+@@ -907,6 +912,7 @@
+ 		fprintf( stderr, "Tracing is enabled\n");
+ 	}
+ 
++#if HAVE_SCRIPTING
+ 	{
+ 		gamescope::CScriptScopedLock script;
+ 		script.Manager().RunDefaultScripts();
+@@ -937,6 +943,8 @@
+ 		}
+ 	}
+ 
++#endif
++
+ 	XInitThreads();
+ 	g_mainThread = pthread_self();
+ 
+@@ -994,14 +1002,21 @@
+ 			gamescope::IBackend::Set<gamescope::COpenVRBackend>();
+ 			break;
+ #endif
++#if HAVE_OHOS_BACKEND
++		case gamescope::GamescopeBackend::Ohos:
++			gamescope::IBackend::Set<gamescope::COhosBackend>();
++			break;
++#else
+ 		case gamescope::GamescopeBackend::Hsl:
+ 			gamescope::IBackend::Set<gamescope::CHslBackend>();
+ 			break;
++#endif
+ 
+ 		case gamescope::GamescopeBackend::Headless:
+ 			gamescope::IBackend::Set<gamescope::CHeadlessBackend>();
+ 			break;
+ 
++#if HAVE_WAYLAND_BACKEND
+ 		case gamescope::GamescopeBackend::Wayland:
+ 			gamescope::IBackend::Set<gamescope::CWaylandBackend>();
+ #if HAVE_SDL2
+@@ -1009,6 +1024,7 @@
+ 				gamescope::IBackend::Set<gamescope::CSDLBackend>();
+ #endif
+ 			break;
++#endif
+ 		default:
+ 			abort();
+ 	}
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -1,3 +1,4 @@
++#include "OhosAtomicShared.h"
+ /*
+  * Based on xcompmgr by Keith Packard et al.
+  * http://cgit.freedesktop.org/xorg/app/xcompmgr/
+@@ -82,7 +83,9 @@
+ #include "main.hpp"
+ #include "wlserver.hpp"
+ #include "rendervulkan.hpp"
++#if HAVE_HSL_IMAGE
+ #include "HslImage.h"
++#endif
+ #include "steamcompmgr.hpp"
+ #include "focus_placement.h"
+ #include "mangoapp_config.h"
+@@ -151,7 +154,7 @@
+ gamescope_color_mgmt_tracker_t g_ColorMgmt{};
+ 
+ static gamescope_color_mgmt_luts g_ColorMgmtLutsOverride[ EOTF_Count ];
+-std::atomic<std::shared_ptr<lut3d_t>> g_ColorMgmtLooks[EOTF_Count];
++gamescope::AtomicShared<lut3d_t> g_ColorMgmtLooks[EOTF_Count];
+ 
+ 
+ gamescope_color_mgmt_luts g_ColorMgmtLuts[ EOTF_Count ];
+@@ -1311,7 +1314,7 @@
+ unsigned int g_BlurFadeStartTime = 0;
+ 
+ pid_t focusWindow_pid, sdFocusWindow_pid;
+-std::atomic<std::shared_ptr<std::string>> focusWindow_engine = nullptr;
++gamescope::AtomicShared<std::string> focusWindow_engine = nullptr;
+ 
+ focus_t g_steamcompmgr_xdg_focus;
+ std::vector<std::shared_ptr<steamcompmgr_win_t>> g_steamcompmgr_xdg_wins;
+@@ -8341,7 +8344,7 @@
+ 	if ( !pTexture->BInit( uWidth, uHeight, 1, uDrmFormat, imageFlags ) )
+ 		return nullptr;
+ 
+-	return &images.emplace_back( std::move( pTexture ), std::move( pTimeline ) );
++	return &images.emplace_back( PooledImage_t{std::move( pTexture ), std::move( pTimeline )} );
+ }
+ 
+ static PooledImage_t *GetTempUpscaleImage( global_focus_t *pFocus, uint32_t uWidth, uint32_t uHeight, uint32_t uDrmFormat )
+@@ -8542,7 +8545,11 @@
+ 			already_exists = true;
+ 	}
+ 
+-	if ( already_exists && !hsl_image_is_buffer(buf) && !reslistentry.feedback && reslistentry.presentation_feedbacks.empty() && !reslistentry.present_timing.serial )
++	bool sharedImage = false;
++#if HAVE_HSL_IMAGE
++	sharedImage = hsl_image_is_buffer(buf);
++#endif
++	if ( already_exists && !sharedImage && !reslistentry.feedback && reslistentry.presentation_feedbacks.empty() && !reslistentry.present_timing.serial )
+ 	{
+ 		wlserver_lock();
+ 		wlr_buffer_unlock( buf );
+@@ -8679,9 +8686,8 @@
+ 			pUpscaleFocus->oLastPreemptiveUpscaleSeqNo = seqNo;
+ 			oTextureSeqNo = seqNo;
+ 
+-			newCommit->upscaledTexture = std::optional<UpscaledTexture_t>
+-			{
+-				std::in_place_t{},
++			newCommit->upscaledTexture = UpscaledTexture_t
++			{
+ 				upscaledFrameInfo.eUpscaleFilter,
+ 				upscaledFrameInfo.eUpscaleScaler,
+ 				g_nOutputWidth,
+@@ -10972,10 +10978,12 @@
+ 			hasCursorRepaint = false;
+ 			nIgnoredOverlayRepaints = 0;
+ 
++#if HAVE_SCRIPTING
+ 			{
+ 				gamescope::CScriptScopedLock script;
+ 				script.Manager().CallHook( "OnPostPaint" );
+ 			}
++#endif
+ 		}
+ 
+ 		publish_mangoapp_snapshot();
+--- a/src/convar.h
++++ b/src/convar.h
+@@ -168,7 +168,7 @@
+ 
+             if constexpr ( std::is_enum<T>::value )
+             {
+-                using Underlying = std::underlying_type<T>::type;
++                using Underlying = typename std::underlying_type<T>::type;
+                 std::optional<Underlying> oResult = Parse<Underlying>( pArgs[1] );
+                 SetValue( oResult ? static_cast<T>( *oResult ) : T{} );
+             }
+--- a/src/backends.h
++++ b/src/backends.h
+@@ -11,6 +11,7 @@
+         OpenVR,
+         Headless,
+         Hsl,
++        Ohos,
+         Wayland,
+     };
+ 
+@@ -20,5 +21,6 @@
+     class COpenVRBackend;
+     class CHeadlessBackend;
+     class CHslBackend;
++    class COhosBackend;
+     class CWaylandBackend;
+ }
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -1,3 +1,4 @@
++#include "OhosJoiningThread.h"
+ // Initialize Vulkan and composite stuff with a compute queue
+ 
+ #pragma once
+@@ -925,7 +926,7 @@
+ 	bool createScratchResources();
+ 	bool createDescriptorFallbacks();
+ 	VkPipeline compilePipeline(uint32_t layerCount, uint32_t ycbcrMask, ShaderType type, uint32_t blur_layer_count, uint32_t composite_debug, uint32_t colorspace_mask, uint32_t output_eotf, bool itm_enable);
+-	void compileAllPipelines(std::stop_token st);
++	void compileAllPipelines(gamescope::StopToken st);
+ 
+ 	VkDevice m_device = nullptr;
+ 	VkPhysicalDevice m_physDev = nullptr;
+@@ -983,7 +984,7 @@
+ 
+ private:
+ 	std::vector<VkExtensionProperties> m_supportedExts;
+-	std::jthread m_pipelineThread;
++	gamescope::JoiningThread m_pipelineThread;
+ };
+ 
+ struct TextureState
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -33,7 +33,9 @@
+ #include "wlr_end.hpp"
+ 
+ #include "rendervulkan.hpp"
++#if HAVE_HSL_IMAGE
+ #include "HslImage.h"
++#endif
+ #include "main.hpp"
+ #include "steamcompmgr.hpp"
+ #include "log.hpp"
+@@ -105,9 +107,15 @@
+ {
+ 	static VkResult s_result = []()
+ 	{
++#if HAVE_OHOS_BACKEND
++        // The app also ships the guest Venus libvulkan.so.1. The compositor
++        // must create its own device through the OHOS system loader.
++        void* pModule = dlopen( "/system/lib64/libvulkan.so", RTLD_NOW | RTLD_LOCAL );
++#else
+ 		void* pModule = dlopen( "libvulkan.so.1", RTLD_NOW | RTLD_LOCAL );
+ 		if ( !pModule )
+ 			pModule = dlopen( "libvulkan.so", RTLD_NOW | RTLD_LOCAL );
++#endif
+ 		if ( !pModule )
+ 			return VK_ERROR_INITIALIZATION_FAILED;
+ 
+@@ -115,6 +123,11 @@
+ 		if ( !g_pfn_vkGetInstanceProcAddr )
+ 			return VK_ERROR_INITIALIZATION_FAILED;
+ 
++#if HAVE_OHOS_BACKEND
++        Dl_info loader{};
++        if (dladdr(reinterpret_cast<void*>(g_pfn_vkGetInstanceProcAddr), &loader))
++            fprintf(stderr, "VPP_GAMESCOPE_VULKAN_LOADER path=%s\n", loader.dli_fname);
++#endif
+ 		g_pfn_vkCreateInstance = (PFN_vkCreateInstance) g_pfn_vkGetInstanceProcAddr( nullptr, "vkCreateInstance" );
+ 		if ( !g_pfn_vkCreateInstance )
+ 			return VK_ERROR_INITIALIZATION_FAILED;
+@@ -330,7 +343,7 @@
+ 	m_bInitialized = true;
+ 
+ 	if (cv_shader_precompile)
+-		m_pipelineThread = std::jthread([this](std::stop_token st){compileAllPipelines(st);});
++		m_pipelineThread = gamescope::JoiningThread([this](gamescope::StopToken st){compileAllPipelines(st);});
+ 
+ 	g_reshadeManager.init(this);
+ 
+@@ -1299,7 +1312,7 @@
+ 	return result;
+ }
+ 
+-void CVulkanDevice::compileAllPipelines(std::stop_token st)
++void CVulkanDevice::compileAllPipelines(gamescope::StopToken st)
+ {
+ 	pthread_setname_np( pthread_self(), "gamescope-shdr" );
+ 
+@@ -1642,12 +1655,12 @@
+ 
+ void CVulkanCmdBuffer::AddDependency( std::shared_ptr<VulkanTimelineSemaphore_t> pTimelineSemaphore, uint64_t ulPoint )
+ {
+-	m_ExternalDependencies.emplace_back( std::move( pTimelineSemaphore ), ulPoint );
++	m_ExternalDependencies.emplace_back( VulkanTimelinePoint_t{std::move( pTimelineSemaphore ), ulPoint} );
+ }
+ 
+ void CVulkanCmdBuffer::AddSignal( std::shared_ptr<VulkanTimelineSemaphore_t> pTimelineSemaphore, uint64_t ulPoint )
+ {
+-	m_ExternalSignals.emplace_back( std::move( pTimelineSemaphore ), ulPoint );
++	m_ExternalSignals.emplace_back( VulkanTimelinePoint_t{std::move( pTimelineSemaphore ), ulPoint} );
+ }
+ 
+ void CVulkanCmdBuffer::AddReleasePoint( std::shared_ptr<gamescope::CReleaseTimelinePoint> pReleasePoint )
+@@ -3201,21 +3214,15 @@
+ 
+ static std::atomic<uint64_t> g_currentPresentWaitId = {0u};
+ static std::mutex present_wait_lock;
+-static std::jthread g_presentWaitThread;
++static gamescope::JoiningThread g_presentWaitThread;
+ static constexpr uint64_t k_uPresentWaitShutdownId = ~0ull;
+ 
+ extern void mangoapp_output_update( uint64_t vblanktime );
+-static void present_wait_thread_func( std::stop_token stopToken )
++static void present_wait_thread_func( gamescope::StopToken stopToken )
+ {
+ 	pthread_setname_np( pthread_self(), "gamescope-prsnt" );
+ 	uint64_t present_wait_id = 0;
+ 
+-	std::stop_callback stopCallback( stopToken, []
+-	{
+-		std::unique_lock lock( present_wait_lock );
+-		g_currentPresentWaitId = k_uPresentWaitShutdownId;
+-		g_currentPresentWaitId.notify_all();
+-	} );
+ 
+ 	while ( !stopToken.stop_requested() )
+ 	{
+@@ -3905,7 +3912,11 @@
+ 
+ 	if ( GetBackend()->UsesVulkanSwapchain() )
+ 	{
+-		g_presentWaitThread = std::jthread( present_wait_thread_func );
++		g_presentWaitThread = gamescope::JoiningThread( present_wait_thread_func, [] {
++        std::unique_lock lock( present_wait_lock );
++        g_currentPresentWaitId = k_uPresentWaitShutdownId;
++        g_currentPresentWaitId.notify_all();
++    } );
+ 	}
+ 
+ 	s_bInitted = true;
+@@ -5011,7 +5022,9 @@
+ 
+ gamescope::OwningRc<CVulkanTexture> vulkan_create_texture_from_wlr_buffer( struct wlr_buffer *buf, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb )
+ {
++#if HAVE_HSL_IMAGE
+ 	if (hsl_image_is_buffer(buf)) return hsl_image_snapshot(buf);
++#endif
+ 
+ 	struct wlr_dmabuf_attributes dmabuf = {0};
+ 	if ( wlr_buffer_get_dmabuf( buf, &dmabuf ) )
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -1,3 +1,5 @@
++#include "OhosAtomicShared.h"
++#include "Runtime.h"
+ #include <xkbcommon/xkbcommon-keysyms.h>
+ #define _GNU_SOURCE 1
+ 
+@@ -58,7 +60,9 @@
+ #include "presentation-time-protocol.h"
+ 
+ #include "wlserver.hpp"
++#if HAVE_HSL_IMAGE
+ #include "HslImage.h"
++#endif
+ #include "hdmi.h"
+ #include "main.hpp"
+ #include "steamcompmgr.hpp"
+@@ -1349,7 +1353,7 @@
+ }
+ 
+ extern gamescope::ConVar<bool> cv_overlay_unmultiplied_alpha;
+-extern std::atomic<std::shared_ptr<lut3d_t>> g_ColorMgmtLooks[EOTF_Count];
++extern gamescope::AtomicShared<lut3d_t> g_ColorMgmtLooks[EOTF_Count];
+ 
+ static gamescope::ConCommand cc_set_look("set_look", "Set a look for a specific EOTF. Eg. set_look mylook.cube (g22 only), set_look pq mylook.cube, set_look mylook_g22.cube mylook_pq.cube",
+ []( std::span<std::string_view> args )
+@@ -2339,8 +2343,10 @@
+ 
+ 	wlserver.wlr.renderer = vulkan_renderer_create();
+ 
++#if HAVE_HSL_IMAGE
+ 	if (GetBackend()->UsesBackendSwapchain() && !hsl_image_init(wlserver.display))
+ 		return false;
++#endif
+ 	wlr_renderer_init_wl_display(wlserver.wlr.renderer, wlserver.display);
+ 
+ 	wlserver.wlr.compositor = wlr_compositor_create(wlserver.display, 5, wlserver.wlr.renderer);
+@@ -2496,6 +2502,8 @@
+ 		}
+ 	}
+ 
++	std::string ready = std::string("x11=") + wlserver.wlr.xwayland_servers[0]->get_nested_display_name() + ";wayland=" + wlserver.wl_display_name;
++	gamescope::ohos::ReportRuntimeStage(gamescope::ohos::SessionStage::DisplayReady, ready.c_str());
+ 	return true;
+ }
+ 
+@@ -2636,7 +2644,9 @@
+ #endif
+ 
+ 	wl_display_destroy_clients(wlserver.display);
++#if HAVE_HSL_IMAGE
+ 	hsl_image_shutdown();
++#endif
+ 	wl_display_destroy(wlserver.display);
+     wlserver.display = NULL;
+ 	wlserver_unlock(false);
+--- a/src/steamcompmgr.hpp
++++ b/src/steamcompmgr.hpp
+@@ -1,3 +1,4 @@
++#include "OhosAtomicShared.h"
+ #include <stdint.h>
+ 
+ #include "wlr_begin.hpp"
+@@ -188,7 +189,7 @@
+ 
+ extern gamescope::VBlankTime g_SteamCompMgrVBlankTime;
+ extern pid_t focusWindow_pid;
+-extern std::atomic<std::shared_ptr<std::string>> focusWindow_engine;
++extern gamescope::AtomicShared<std::string> focusWindow_engine;
+ 
+ void init_xwayland_ctx(uint32_t serverId, gamescope_xwayland_server_t *xwayland_server);
+ void gamescope_set_selection(std::string contents, GamescopeSelection eSelection);
+--- a/src/convar.cpp
++++ b/src/convar.cpp
+@@ -63,7 +63,7 @@
+         struct CommandHelp { std::string_view pszName; std::string_view pszDesc; };
+         std::vector<CommandHelp> commandHelps;
+         for ( auto &command : commands )
+-            commandHelps.emplace_back( command.second->GetName(), command.second->GetDescription() );
++            commandHelps.emplace_back( CommandHelp{command.second->GetName(), command.second->GetDescription()} );
+         std::sort( commandHelps.begin(), commandHelps.end(),
+             []( const CommandHelp &a, const CommandHelp &b )
+             {
+--- a/src/log.cpp
++++ b/src/log.cpp
+@@ -53,8 +53,8 @@
+ struct LogConVar_t
+ {
+ 	LogConVar_t( LogScope *pScope, std::string_view psvName, LogPriority eDefaultPriority )
+-		: sName{ std::format( "log_{}", psvName ) }
+-		, sDescription{ std::format( "Max logging priority for the {} channel. Valid options are: [ silent, error, warning, debug, info ].", psvName ) }
++		: sName{ std::string("log_") + std::string(psvName) }
++		, sDescription{ std::string("Max logging priority for the ") + std::string(psvName) + " channel. Valid options are: [ silent, error, warning, debug, info ]." }
+ 		, convar
+ 		{ sName, std::string( GetLogName( eDefaultPriority ) ), sDescription,
+ 			[ pScope ]( gamescope::ConVar<std::string> &cvar )
+--- a/src/WaylandServer/GamescopeActionBinding.h
++++ b/src/WaylandServer/GamescopeActionBinding.h
+@@ -130,7 +130,7 @@
+ 
+             std::string sTriggerDebugName = ComputeDebugName( setKeySyms );
+             log_binding.infof( "(%s) -> Adding new trigger [%s].", m_sDescription.c_str(), sTriggerDebugName.c_str() );
+-            m_KeyboardTriggers.emplace_back( std::move( setKeySyms ), std::move( sTriggerDebugName ) );
++            m_KeyboardTriggers.emplace_back( Keybind_t{std::move( setKeySyms ), std::move( sTriggerDebugName )} );
+         }
+ 
+         void ClearTriggers()
+--- a/src/reshade_effect_manager.cpp
++++ b/src/reshade_effect_manager.cpp
+@@ -1,3 +1,4 @@
++#include "OhosCompat.h"
+ #include <cstring>
+ #include <variant>
+ #include <unordered_map>
+@@ -341,7 +342,7 @@
+ PingPongUniform::PingPongUniform(reshadefx::uniform_info uniformInfo)
+     : ReshadeUniform(uniformInfo)
+ {
+-    const auto matchesAnnotationName = [&](const auto& name){ return std::ranges::find_if(uniformInfo.annotations, std::bind_front(std::equal_to{}, name), &reshadefx::annotation::name);};
++    const auto matchesAnnotationName = [&](const auto& name){ return gamescope::FindIf(uniformInfo.annotations, std::bind_front(std::equal_to{}, name), &reshadefx::annotation::name);};
+     if (auto minAnnotation = matchesAnnotationName("min");
+         minAnnotation != uniformInfo.annotations.end())
+     {
+@@ -407,13 +408,13 @@
+     : ReshadeUniform(uniformInfo)
+ {
+     if (auto minAnnotation =
+-            std::ranges::find_if(uniformInfo.annotations, std::bind_front(std::equal_to{}, "min"), &reshadefx::annotation::name);
++            gamescope::FindIf(uniformInfo.annotations, std::bind_front(std::equal_to{}, "min"), &reshadefx::annotation::name);
+         minAnnotation != uniformInfo.annotations.end())
+     {
+         min = minAnnotation->type.is_integral() ? minAnnotation->value.as_int[0] : static_cast<int>(minAnnotation->value.as_float[0]);
+     }
+     if (auto maxAnnotation =
+-            std::ranges::find_if(uniformInfo.annotations, std::bind_front(std::equal_to{}, "max"), &reshadefx::annotation::name);
++            gamescope::FindIf(uniformInfo.annotations, std::bind_front(std::equal_to{}, "max"), &reshadefx::annotation::name);
+         maxAnnotation != uniformInfo.annotations.end())
+     {
+         max = maxAnnotation->type.is_integral() ? maxAnnotation->value.as_int[0] : static_cast<int>(maxAnnotation->value.as_float[0]);
+@@ -617,7 +618,7 @@
+     std::vector<std::shared_ptr<ReshadeUniform>> uniforms;
+     for (auto& uniform : module.uniforms)
+     {
+-        auto sourceAnnotation = std::ranges::find_if(uniform.annotations, std::bind_front(std::equal_to{}, "source"), &reshadefx::annotation::name);
++        auto sourceAnnotation = gamescope::FindIf(uniform.annotations, std::bind_front(std::equal_to{}, "source"), &reshadefx::annotation::name);
+         if (sourceAnnotation == uniform.annotations.end())
+         {
+             uniforms.push_back(std::make_shared<DataUniform>(uniform));
+@@ -1099,7 +1100,7 @@
+             assert(ret);
+         }
+ 
+-        if (const auto source = std::ranges::find_if(tex.annotations , std::bind_front(std::equal_to{}, "source"), &reshadefx::annotation::name);
++        if (const auto source = gamescope::FindIf(tex.annotations , std::bind_front(std::equal_to{}, "source"), &reshadefx::annotation::name);
+             source != tex.annotations.end())
+         {
+             std::string filePath = local_reshade_path + "/Textures/" + source->value.string_data;
+@@ -1259,7 +1260,7 @@
+                 return false;
+             }
+ 
+-            m_samplers.emplace_back(vkSampler, std::move(tex));
++            m_samplers.emplace_back(ReshadeCombinedImageSampler{vkSampler, std::move(tex)});
+         }
+     }
+ 
+--- a/src/Utils/Parsers.h
++++ b/src/Utils/Parsers.h
+@@ -1,6 +1,9 @@
+ #pragma once
+ 
+ #include <charconv>
++#include <sstream>
++#include <locale>
++#include <type_traits>
+ #include <cstdint>
+ #include <optional>
+ #include <string_view>
+@@ -11,12 +14,20 @@
+     template <typename T>
+     inline std::optional<T> Parse( std::string_view chars )
+     {
+-        T obj;
+-        auto result = std::from_chars( chars.begin(), chars.end(), obj );
+-        if ( result.ec == std::errc{} )
+-            return obj;
+-        else
++        if constexpr (std::is_floating_point_v<T>) {
++            // Configuration-time parsing; use a fixed C locale on SDKs whose
++            // libc++ has no floating-point from_chars implementation.
++            std::istringstream stream{std::string(chars)};
++            stream.imbue(std::locale::classic());
++            stream >> std::noskipws;
++            T obj;
++            if (stream >> obj) return obj;
+             return std::nullopt;
++        } else {
++            T obj;
++            auto result = std::from_chars(chars.begin(), chars.end(), obj);
++            return result.ec == std::errc{} ? std::optional<T>(obj) : std::nullopt;
++        }
+     }
+ 
+     template <>
+--- a/src/Timeline.cpp
++++ b/src/Timeline.cpp
+@@ -74,6 +74,11 @@
+ 
+     bool CTimeline::ImportDmabufFences( int32_t nDmabufFd, uint64_t ulPoint )
+     {
++#if HAVE_OHOS_BACKEND
++        // OHOS shares NativeBuffer sync FDs, never DRM syncobjs.
++        errno = ENOTSUP;
++        return false;
++#else
+         static bool s_bUnsupported = false;
+         if ( s_bUnsupported )
+             return false;
+@@ -105,6 +110,7 @@
+         close( exportSyncFile.fd );
+ 
+         return nRet == 0;
++#endif
+     }
+ 
+     // CTimelinePoint

@@ -1,0 +1,601 @@
+{
+  "schemaVersion": 1,
+  "platform": "aarch64-linux-ohos",
+  "runtimeQualified": false,
+  "sourceLock": "components/gamescope-source.lock.json",
+  "hslReferenceBuildLock": "components/gamescope-hsl-build.lock.json",
+  "patches": [
+    {
+      "path": "patches/gamescope/0001-use-available-drm-hdr-types-in-nested-builds.patch",
+      "sha256": "ffa74d94bda7107df51381c8c1ccdd5979536cea2ed177a9db53747aa70704c8",
+      "originalPath": "src/hdmi.h",
+      "beforeSha256": "21656a0f86d2b78a415f2fb87cf87e532488e5b31f740412be9832cb70872a30",
+      "afterSha256": "834e933bd32f4d93c72755fb9d5de278ace3336bfb816f45256fb101c0103a8d"
+    },
+    {
+      "path": "patches/gamescope/0002-qualify-physical-device-controls-by-backend.patch",
+      "sha256": "41ee113d284ddb7689ef58048f4d00e7bab94e990c5faed72e207497c2a9824d",
+      "originalPath": "src/wlserver.cpp",
+      "beforeSha256": "a1e00bc4e6e832dc70ce1cb62d1cb1b1d549be370bb3a8c984d1d52d447a906f",
+      "afterSha256": "5ced12b041985ffad07357b9d437f89fb79fd82350682995f7ff87576a1e74c1"
+    },
+    {
+      "path": "patches/gamescope/0003-use-output-refresh-without-drm-mode-cache.patch",
+      "sha256": "5eff7b9bf1af6ff6cb6e53058e1980e6358f37011daf4669cf5aa7b76d0b31a5",
+      "originalPath": "src/steamcompmgr.cpp",
+      "beforeSha256": "e0ade3485ca4c3cff7db36aa7e5c8c4985af3a5c5e2bb87b5ad94c6d4f4c9920",
+      "afterSha256": "eabf8ad5518378eaf737f032ba994fc59e514cf615bdeac016c12f0b0d5acdcd"
+    },
+    {
+      "path": "patches/gamescope/0004-scope-presentation-features-to-swapchain-output.patch",
+      "sha256": "a5724742dc3542d747e34323a62dafbbcac79dca483aa6fd2495eef76c2990c0",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "79bb0b6e3fd9593a5e848fa48c9fcf3de4d5bd0e70f0372524bdfb72a11fbea2",
+      "afterSha256": "b752ac4c0a4e19bfa7da0c00b5a1b965929ef0246d16346478d93efe2ae4c54f"
+    },
+    {
+      "path": "patches/gamescope/0005-use-typed-descriptors-and-explicit-lut-state.patch",
+      "sha256": "576809a1c248b3ad6800e4cc1f96d16f06e315f7ff74f941bfa847c7a36e055f",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "b752ac4c0a4e19bfa7da0c00b5a1b965929ef0246d16346478d93efe2ae4c54f",
+          "afterSha256": "7a33cd36fae8400727d65087bb86bc98dc4c0786c7ac20485b3efcf17379b1ac"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "92b19d99ea12f06b10828b23ab056b7e2537c389ddcc7ec69627e08446d60658",
+          "afterSha256": "52a37141e51b6eb36cfad3cf658c260892b0c2c9b5a7273f79dd97c2d5005faa"
+        },
+        {
+          "originalPath": "src/shaders/descriptor_set.h",
+          "beforeSha256": "9faa430cf3ddc360088eaeb32e13140d61354c07dbcc4301388e2eef7dd2c330",
+          "afterSha256": "ca9825df18b52b1b4803ea5f9e15cb89a483bd47bc822efac5bf7df73cd91b28"
+        },
+        {
+          "originalPath": "src/shaders/composite.h",
+          "beforeSha256": "ba82667ceed0b577067233a7294e43f8737913a11c4681ade73aa1eba2de8e91",
+          "afterSha256": "1090becf0e28aaa9e28460c4b43402ea639c3b642088e7d51f241d3929a5e672"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0006-optimize-shader-modules-before-driver-compilation.patch",
+      "sha256": "7c25a105ca64e2851a228b2f9719c77c695fa3e9980ddd91c189bc149541e5e2",
+      "originalPath": "src/meson.build",
+      "beforeSha256": "4832916bcfcd77866fb0055cac055cfe755eea17599450233ed94113ecfd91d9",
+      "afterSha256": "05f02b0c807e622334915c76565a52b0006e7117b0919066ff2bb00b8ccb7b77"
+    },
+    {
+      "path": "patches/gamescope/0007-unroll-bounded-immutable-sampler-layer-loops.patch",
+      "sha256": "79d2ef392554e58d4325d1bfba568af5cd92c6edf2d1bfab5f36e8e2a635ff43",
+      "files": [
+        {
+          "originalPath": "src/shaders/cs_composite_blit.comp",
+          "beforeSha256": "61c582930296f83fab4c992b06a568a80b8e83b72102dd2aa6c15293d50ed495",
+          "afterSha256": "ba58a9757478fbce536b41380269dcf9b23408eb5eaa1f32a334865715253f9e"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_blur.comp",
+          "beforeSha256": "b606f5833cf83fa0653d57f6bb3b34a87da331c51d49b27a920ce2c03702c36b",
+          "afterSha256": "ac25d49fb003487111898c38c84031d230df7182305ed64bca1e02135223fe97"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_blur_cond.comp",
+          "beforeSha256": "8c16399da424ca324ea10db31eceab79fd907a4576729dfea5c2d4106c599e38",
+          "afterSha256": "1f0da224dc33f43fbbae3c36de384928c2b399b7d957768e369dd0af85dfa21f"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas.comp",
+          "beforeSha256": "9a657c4932b6389240fec89ad2fbf8a362e0b4fec86252eca24df8d3dd9cd31f",
+          "afterSha256": "7ea8db52ebff8f8e4e518a31294993671ecf0f843d0626b1fc66c41beaf7d987"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
+          "beforeSha256": "1d3436456ffdce06e7273a5c741b8377d4363ec61a7254a05fa03ba58fda31bc",
+          "afterSha256": "729cb3b772e6e9f8f006eb1de36748891700db07dfd3ac31c4ce66f2a302c914"
+        },
+        {
+          "originalPath": "src/shaders/cs_gaussian_blur_horizontal.comp",
+          "beforeSha256": "9229f80fa401f3fa5e95bb3317b51187a7e8d3026a6607e51b9966c751642a9c",
+          "afterSha256": "baa61b375c3b589186cef3ec4c11af2dbd8d9d2334a23b2e5e0c952e24ea199a"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0008-add-explicit-backend-owned-output-transport.patch",
+      "sha256": "ea7f0deed6a247d94879e2c970cb01fb8c2dc00d2162279d634f454ff09571b6",
+      "files": [
+        {
+          "originalPath": "src/backend.h",
+          "beforeSha256": "d59ff7ac04fb7b341cdc824e188a074fccc26384116d21845632bb673ee55d2c",
+          "afterSha256": "63c8c94638182906a1d37441618a5c786aea2e11b4bac8619e47dc86f5b15c6b"
+        },
+        {
+          "originalPath": "src/backends.h",
+          "beforeSha256": "dc97df8ad56bdad6874a0519eeed88a0d83cb4dad562c1f8a03701727140317b",
+          "afterSha256": "4538f9537f630c3d83f3106ea8b146cd0a6a2510b2997b5dc79b4533282397b7"
+        },
+        {
+          "originalPath": "src/backend.cpp",
+          "beforeSha256": "1b6749a051ddb6e270c1a3e84be54b6479466ba0199b220b53fbe3d9aec00a4e",
+          "afterSha256": "734723a666c731d705d6e2fa05e7f5930d76fb490c30b18bda1a7f6cc58674fb"
+        },
+        {
+          "originalPath": "src/main.cpp",
+          "beforeSha256": "618bc9de81ab1b724b07985cdee14e6a9369fb4fc03057a896efbeac1c42e9cd",
+          "afterSha256": "213d0a6b3b45f090818c698245b223086529ad94b6b6508594d2c9ed3dfbdcdd"
+        },
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "05f02b0c807e622334915c76565a52b0006e7117b0919066ff2bb00b8ccb7b77",
+          "afterSha256": "84e51de05d9d4b454b6e38e24c42ee76c1e5768b2849dc365254ba1fcb92a387"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "52a37141e51b6eb36cfad3cf658c260892b0c2c9b5a7273f79dd97c2d5005faa",
+          "afterSha256": "9a7fd496463852b1e39c679b40b0545af213530a6586ef37716b51030caf3eaa"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "7a33cd36fae8400727d65087bb86bc98dc4c0786c7ac20485b3efcf17379b1ac",
+          "afterSha256": "87b2e3bce0e12bbd2ef32bcfcb18f921a0c49b39ca00a31115f6b4d6a383bb38"
+        },
+        {
+          "originalPath": "src/Backends/DeferredBackend.h",
+          "beforeSha256": "0596d4abd1aa7f0cc20030638298dcb5e5140ed4b8f0af1b4759cc3703379544",
+          "afterSha256": "0dc89a8005cab4315afadd7f8f81bd895e9f09f9e9f54523b8a920423feaa6ac"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "eabf8ad5518378eaf737f032ba994fc59e514cf615bdeac016c12f0b0d5acdcd",
+          "afterSha256": "10ad6801b40c07257735789d6a7ba135283ffbc2a4825b27f9ad210188c43a1c"
+        },
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "5ced12b041985ffad07357b9d437f89fb79fd82350682995f7ff87576a1e74c1",
+          "afterSha256": "4899aaf0bad2c8f5a7fcbc59431fa562194ed32d636d758ad60f813c5a903489"
+        },
+        {
+          "originalPath": "src/mangoapp.cpp",
+          "beforeSha256": "abbc573a53f1d56c0409cdef80a97f09945d3b1938774c1361e0553bc9d49b1c",
+          "afterSha256": "fa543f0e3c0afc7733174408aa18e91358ad623df3d40febe72f18da23d41e22"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0009-import-private-shared-image-buffers.patch",
+      "sha256": "b6224192950702258c9172141f4ec89f29d9a19af0b21bad853bef7f1741047e",
+      "files": [
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "84e51de05d9d4b454b6e38e24c42ee76c1e5768b2849dc365254ba1fcb92a387",
+          "afterSha256": "524cc269e6e590e3709cb5dc9ec001903561f968d20f70c9249600890ffb916b"
+        },
+        {
+          "originalPath": "protocol/meson.build",
+          "beforeSha256": "f4245db4d697226f67a12b00a238abf60a283a4f6f9c0b4afca88bce114e4ba8",
+          "afterSha256": "66d153fa27ff4c136a34ad6e5c33d4edcaf39c7fed1e71c833ebb1c10b937636"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "87b2e3bce0e12bbd2ef32bcfcb18f921a0c49b39ca00a31115f6b4d6a383bb38",
+          "afterSha256": "fc4e6aad4d656429163d989c495c2cbde2a6a20a34e60a03133d47fa20a4e81e"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "9a7fd496463852b1e39c679b40b0545af213530a6586ef37716b51030caf3eaa",
+          "afterSha256": "cb324bdb38fe701b13a56ff7b886c2a07f87a81ff4c756dcded908f0da2aa661"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "10ad6801b40c07257735789d6a7ba135283ffbc2a4825b27f9ad210188c43a1c",
+          "afterSha256": "b3ca301e75e13c13a0a9dc1996ae6cf0fb831107ae2f76df823aab7f7944816d"
+        },
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "4899aaf0bad2c8f5a7fcbc59431fa562194ed32d636d758ad60f813c5a903489",
+          "afterSha256": "a4fef18ad864cdc499458c048fb7ad033fe7596fe7a221ee9a0dc4d3a515a3bd"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0010-negotiate-control-version-by-backend.patch",
+      "sha256": "da9711354092d453d4c156a5544392a4a90c0c3af3baab69f6b71d582f11ee32",
+      "files": [
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "a4fef18ad864cdc499458c048fb7ad033fe7596fe7a221ee9a0dc4d3a515a3bd",
+          "afterSha256": "a6ed0d24ba3c9280b1c65fe0150bcbcb75199bf3568524af73cb276e1e9feb8e"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "b3ca301e75e13c13a0a9dc1996ae6cf0fb831107ae2f76df823aab7f7944816d",
+          "afterSha256": "b648f3e7b34f19b4eb031b888d594052506cf6fb82551dd8701670afafbce2fa"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0011-preserve-session-on-capture-allocation-failure.patch",
+      "sha256": "c1b7b48ed20b8089f3020d2f9ff439f35170fced4f8a4e5019357db457db6a4e",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "fc4e6aad4d656429163d989c495c2cbde2a6a20a34e60a03133d47fa20a4e81e",
+          "afterSha256": "e11c92158350ef1292584e6b42e5ed5d9d4d0cf23040a5365bd7114dfc340b34"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0012-bound-uniform-descriptors-to-uploaded-constants.patch",
+      "sha256": "2041ac1b00ff907983bc54ec6968fd2836e3ea3800f342d0fd01c04a1480622a",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "e11c92158350ef1292584e6b42e5ed5d9d4d0cf23040a5365bd7114dfc340b34",
+          "afterSha256": "79c90f560c5b6a92ca508399185270b8111fa00c3beaf447336b8ce6c23212c2"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "cb324bdb38fe701b13a56ff7b886c2a07f87a81ff4c756dcded908f0da2aa661",
+          "afterSha256": "053beabacb6c29896a480a1f674ffc0ec01664fd755f343b4ebd0bebe6923d55"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0013-reuse-bounded-shm-staging-with-queue-dependencies.patch",
+      "sha256": "26db9c585ee87b74b92028f0dfca09dcf6b307611ff8fcb129f646e7fbbf9b1a",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "79c90f560c5b6a92ca508399185270b8111fa00c3beaf447336b8ce6c23212c2",
+      "afterSha256": "3a2653828280bbfbeb007a7152f6f7404183e5bbfe778bc2638aa600606e413d"
+    },
+    {
+      "path": "patches/gamescope/0014-add-optional-ohos-native-build.patch",
+      "sha256": "353607e751f0818c2ad84bb6fe0b1e10dd19af7004584cbd721dcf13b80ea5c8",
+      "files": [
+        {
+          "originalPath": "meson_options.txt",
+          "beforeSha256": "8e0f4163cd882fb4e84668c3d3415cb1b11c4e9b6ac7d52f73ce659314d788a8",
+          "afterSha256": "876c254448bd8974dae33f986cda6b4e548ca2235ba1a109d928a39cd850136c"
+        },
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "524cc269e6e590e3709cb5dc9ec001903561f968d20f70c9249600890ffb916b",
+          "afterSha256": "3acf1eea15bf884d9ad4ccc0d5e7c3e8b040400f43ba26e265d4c13e834fd4b0"
+        },
+        {
+          "originalPath": "src/main.cpp",
+          "beforeSha256": "213d0a6b3b45f090818c698245b223086529ad94b6b6508594d2c9ed3dfbdcdd",
+          "afterSha256": "e31860cee537218ab1d193f6c3954a0765e206acadc31e4798d8c265e47c911a"
+        },
+        {
+          "originalPath": "src/steamcompmgr.cpp",
+          "beforeSha256": "b648f3e7b34f19b4eb031b888d594052506cf6fb82551dd8701670afafbce2fa",
+          "afterSha256": "4521cfda17243256a6a4e07fe0a6e0bc02dbbd0e681765f0642131e54b97619a"
+        },
+        {
+          "originalPath": "src/convar.h",
+          "beforeSha256": "4978157e2e2c0d5fe36a1f1469d89c579e808e9427c4ca0098fa60887ba00d94",
+          "afterSha256": "4931de0a26e2b17bdbaf1009aac0a2eca1ae042485f061a3fb2283b5a00b3337"
+        },
+        {
+          "originalPath": "src/backends.h",
+          "beforeSha256": "4538f9537f630c3d83f3106ea8b146cd0a6a2510b2997b5dc79b4533282397b7",
+          "afterSha256": "924e825a2911b638155706fa837e0f6a01353988ba0b760e5eadbc8f6f784d08"
+        },
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "053beabacb6c29896a480a1f674ffc0ec01664fd755f343b4ebd0bebe6923d55",
+          "afterSha256": "55d748eea6cf3ee0bb1c74a84a3287b4785e46dfe20ef3c16c64d03b5b12e9cd"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "3a2653828280bbfbeb007a7152f6f7404183e5bbfe778bc2638aa600606e413d",
+          "afterSha256": "e9d5c711d94ce8d50d09e738edda903de9922c20302864d0862e0e54167a2fb1"
+        },
+        {
+          "originalPath": "src/wlserver.cpp",
+          "beforeSha256": "a6ed0d24ba3c9280b1c65fe0150bcbcb75199bf3568524af73cb276e1e9feb8e",
+          "afterSha256": "ac112f7d80dda39521ada0f4da7033b425fd6ed07da0c76c5392199cde4bb822"
+        },
+        {
+          "originalPath": "src/steamcompmgr.hpp",
+          "beforeSha256": "cf6240481083a6d65dd68c3dad237defd87929e3b938b19aadf39344fb1e30fe",
+          "afterSha256": "eaf0b40bfe78455908ccb57f66957e8f770197e7642fb7ddb1f45a99aad8ccb8"
+        },
+        {
+          "originalPath": "src/convar.cpp",
+          "beforeSha256": "8738adf06b18369aa29e22f8d62d42a9e8a24131e18750250a47180199cc611e",
+          "afterSha256": "4530ec16dcf89bf959c03097e276aa3728e9d8dae7e768a7568d48e41538b971"
+        },
+        {
+          "originalPath": "src/log.cpp",
+          "beforeSha256": "21f2d48c1934e5c303475c27b01d0ab1b52844f2f042faeab41aba8f8ca55657",
+          "afterSha256": "1ff5b7e7ade393f128ca1434585118e51895ecea167412e1356914f951f2d880"
+        },
+        {
+          "originalPath": "src/WaylandServer/GamescopeActionBinding.h",
+          "beforeSha256": "5d6f8553d89bb466eac1c064aea46fc10431dc8b414a8e3c3a9888978359e563",
+          "afterSha256": "107fecf520df103417f15e17a41e79026f5e44e581eb7318aa94cbc694e3758a"
+        },
+        {
+          "originalPath": "src/reshade_effect_manager.cpp",
+          "beforeSha256": "c96d5d78d652a74f6f3431160532adb632859b02c7a042c35cafba53e365e723",
+          "afterSha256": "466894db7eebef7a2e145773a772a066522f151ac9252aa54d4138042c74fbb7"
+        },
+        {
+          "originalPath": "src/Utils/Parsers.h",
+          "beforeSha256": "7addbef3afef5914efea80b9a34f06f6fb5003e25878e0dcd2709889f769e227",
+          "afterSha256": "3b3888fe6db999a411c51d6aaf2d591a86cb71d8033109e258dd59e83354924e"
+        },
+        {
+          "originalPath": "src/Timeline.cpp",
+          "beforeSha256": "ba2eccbebab7b488c0f861fddbb0f3b746ee052d65df48018bfa41cd87f4a4b7",
+          "afterSha256": "df61bbae7f7dd54b3e9b862c3fe1dcf081364cf3ec1e1f45c499067728e0b170"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0015-disable-linux-mangoapp-ipc-on-ohos.patch",
+      "sha256": "5f863340f6f8fd36a8cde78beb84e8cb6ec756566af199c7bffe65f4a3ba26c6",
+      "originalPath": "src/mangoapp.cpp",
+      "beforeSha256": "fa543f0e3c0afc7733174408aa18e91358ad623df3d40febe72f18da23d41e22",
+      "afterSha256": "b21afd681f4321a3cc5f134445ade89cd9224d04c5e1ec53089b1b8ade2164c2"
+    },
+    {
+      "path": "patches/gamescope/0016-ohos-embedded-native-buffer-compositor.patch",
+      "sha256": "865726111a7ddcbaed90db3a01dbfd7aaf27aa1ca133649f1ddcf083911b7cba",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "55d748eea6cf3ee0bb1c74a84a3287b4785e46dfe20ef3c16c64d03b5b12e9cd",
+          "afterSha256": "f371e3c04e24622247d38c51f97a63f9b805847d77d3bf408995541dfdc0a7bd"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "e9d5c711d94ce8d50d09e738edda903de9922c20302864d0862e0e54167a2fb1",
+          "afterSha256": "3980ca15e4421000f235d87e53f4934e1bda0aac1449c4fe9d9e73d140d4d73f"
+        },
+        {
+          "originalPath": "src/meson.build",
+          "beforeSha256": "3acf1eea15bf884d9ad4ccc0d5e7c3e8b040400f43ba26e265d4c13e834fd4b0",
+          "afterSha256": "2d3ebdc5171faab1736bcbb18b5deafc4808b2fee14a7c0bc5e9b1566a6aedea"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0017-ohos-bound-shm-upload-arena-for-tablet-desktops.patch",
+      "sha256": "dd2da5ca5c38bb589e0bdbc23aa876bdedcce25e3c7b9f45d1bda0499966aa19",
+      "originalPath": "src/rendervulkan.hpp",
+      "beforeSha256": "f371e3c04e24622247d38c51f97a63f9b805847d77d3bf408995541dfdc0a7bd",
+      "afterSha256": "7d319af3185c1142a5cbd8a7a805020f24968b718b03eb3bfea785b22d7ff95d"
+    },
+    {
+      "path": "patches/gamescope/0018-ohos-opaque-fsr-output.patch",
+      "sha256": "915c886650a0a66eaa754f1ccf57a307ddebe0f88123b40aef4b5538c87eca03",
+      "originalPath": "src/shaders/cs_composite_rcas.comp",
+      "beforeSha256": "7ea8db52ebff8f8e4e518a31294993671ecf0f843d0626b1fc66c41beaf7d987",
+      "afterSha256": "03cd0a98c30171f33b97fea461373dbd255d10b69e0ed077d7fefadea355f832"
+    },
+    {
+      "path": "patches/gamescope/0019-ohos-bound-fsr-edges-and-use-full-precision-easu.patch",
+      "sha256": "bccf3c36409924becd859484e407bd134d37451c7b395e74427544a06cdb8412",
+      "files": [
+        {
+          "originalPath": "src/shaders/cs_easu.comp",
+          "beforeSha256": "ba7eff3e331113ce4590553e1470575664d451d06495b7fe8024a0e76a4483dd",
+          "afterSha256": "389c9985edf646c4393819d8ee29512e2622335612133f22fd5a4f4f2b9c67ae"
+        },
+        {
+          "originalPath": "src/shaders/cs_easu_fp16.comp",
+          "beforeSha256": "9d4dffeb1306b856067404b464e1b83fc94b483a00036b38528cbb5a448dd3fd",
+          "afterSha256": "60fb8f1f25fad2a680485f2395e9b1445153377edd2840febd31bc9e01393dda"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas.comp",
+          "beforeSha256": "03cd0a98c30171f33b97fea461373dbd255d10b69e0ed077d7fefadea355f832",
+          "afterSha256": "ab1161f37b738cd2640c7237eb8cf56e829acad8b94c0fb9740f77809a1f1a17"
+        },
+        {
+          "originalPath": "src/shaders/cs_composite_rcas_1px.comp",
+          "beforeSha256": "729cb3b772e6e9f8f006eb1de36748891700db07dfd3ac31c4ce66f2a302c914",
+          "afterSha256": "3899bcd0943c41063ce0be415d0fe63f5812dc4e749ccb4501bc081a81e9db98"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "3980ca15e4421000f235d87e53f4934e1bda0aac1449c4fe9d9e73d140d4d73f",
+          "afterSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95"
+        }
+      ]
+    },
+    {
+      "path": "patches/gamescope/0020-publish-internal-compute-writes-to-following-submissions.patch",
+      "sha256": "58a564fecd3dcd05ce87fd3c7ed06bf343ec727487410d29eee257684b268874",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "3d5d6ee1b15984bbdce03ab45f4538d42bdebcee7e1edec6c1ce5b8c003e0f95",
+      "afterSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c"
+    },
+    {
+      "path": "patches/gamescope/0021-use-rgba8-for-ohos-compute-intermediates.patch",
+      "sha256": "6fca9c6665ed7cc95f98f3e489667dacd93cd251d717abba52fa12b239a09d84",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "d3b120db0910bf088b802837e9b84c293b3c5ec2d10733da5c142b037cf0e21c",
+      "afterSha256": "69872cba24c2fbf106b10a7df753d787cb4ab38923aec1a2782fcc8784456c85"
+    },
+    {
+      "path": "patches/gamescope/0022-connect-opt-in-embedded-gpu-timing.patch",
+      "sha256": "d5c254c65798182b43eb2e0b2858356439e9611798a8d97e24e5f933d06be6c8",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "69872cba24c2fbf106b10a7df753d787cb4ab38923aec1a2782fcc8784456c85",
+      "afterSha256": "768b0874a23fb17ca478fb8a72f96f3f235431acf65371eac6266b957de0e131"
+    },
+    {
+      "path": "patches/gamescope/0023-restore-capability-gated-easu-precision.patch",
+      "sha256": "7394fa89047213b8144823e71e4c5afab2bd2a5be1a5e16e4df312a71b30a7e1",
+      "originalPath": "src/rendervulkan.cpp",
+      "beforeSha256": "768b0874a23fb17ca478fb8a72f96f3f235431acf65371eac6266b957de0e131",
+      "afterSha256": "e38d4ac4a311831bb013b1571692f793b375232c0fe154e2e519abc03feb5a68"
+    },
+    {
+      "path": "patches/gamescope/0024-declare-borrowed-ohos-storage-output.patch",
+      "sha256": "b14d1040ecf1bf0f2878958e62ba7f3ae46f9fcbfba4b43428a409d4eb062eec",
+      "originalPath": "src/rendervulkan.hpp",
+      "beforeSha256": "7d319af3185c1142a5cbd8a7a805020f24968b718b03eb3bfea785b22d7ff95d",
+      "afterSha256": "a6eb57a09542e28f228376bb1b33c16d6c3b758199d2a602f80a0ca3c3e05361"
+    },
+    {
+      "path": "patches/gamescope/0025-allow-opaque-native-sampling-with-transparent-bounds.patch",
+      "sha256": "4c5efaa73a14db53ce0cf11776cb6684a595c347ae1a5691740631b85f49d2fe",
+      "files": [
+        {
+          "originalPath": "src/rendervulkan.hpp",
+          "beforeSha256": "a6eb57a09542e28f228376bb1b33c16d6c3b758199d2a602f80a0ca3c3e05361",
+          "afterSha256": "38ef5de9e5c857ecd2b3bad99598ea9d4bf72b854de1771f862d9791bd324fbc"
+        },
+        {
+          "originalPath": "src/rendervulkan.cpp",
+          "beforeSha256": "e38d4ac4a311831bb013b1571692f793b375232c0fe154e2e519abc03feb5a68",
+          "afterSha256": "3292283890440070e72c5d7f6c8272981febecc2c2b5f7313c1c00f121598d5b"
+        }
+      ]
+    }
+  ],
+  "overlays": [
+    {
+      "source": "native/gamescope/hsl/vulkan_descriptor_fallback.h",
+      "destination": "src/hsl_vulkan_descriptor_fallback.h",
+      "sha256": "c310fd7ce3194949077402ea523f04fb42f32b77f7bd84ceca99a84d61625ed9"
+    },
+    {
+      "source": "native/gamescope/hsl/compile-gamescope-shader.py",
+      "destination": "src/hsl_compile_shader.py",
+      "sha256": "0abe5a93da570e7faf0640b7d5f794d8b051707adcff3d776cb34320b2cace2d"
+    },
+    {
+      "source": "native/gamescope/hsl/HslBackend.cpp",
+      "destination": "src/Backends/HslBackend.cpp",
+      "sha256": "73140ba554ae8f2c48186b25b854c88840ea4dde49c7b925f2977e4bf923862c"
+    },
+    {
+      "source": "native/gamescope/hsl/HslImage.cpp",
+      "destination": "src/HslImage.cpp",
+      "sha256": "bfa42e3bbedcde4fd06f35ff42aef2dd2c83bc8cb25a2e6aeb5888eff0f65e46"
+    },
+    {
+      "source": "native/gamescope/hsl/HslImage.h",
+      "destination": "src/HslImage.h",
+      "sha256": "f87683723ae304282d75669b9006a8cbdd49a92a54eb549f0a0f373d3ab509de"
+    },
+    {
+      "source": "native/gamescope/hsl/venus_shared_image.h",
+      "destination": "src/hsl_venus_shared_image.h",
+      "sha256": "3e342b5c73a20b4ed79bc2011abfefc6c1bda8361b02d234f62c2060e000e915"
+    },
+    {
+      "source": "native/gamescope/hsl/hsl-image-v1.xml",
+      "destination": "protocol/hsl-image-v1.xml",
+      "sha256": "77519775710e460fe281ec6bd217a8d1f6fabc08dd4c9a3e02c2439ab0149fac"
+    },
+    {
+      "source": "native/gamescope/hsl/HslShmUpload.h",
+      "destination": "src/HslShmUpload.h",
+      "sha256": "6e225395cf502d1990354a2ee3e78da621762286513f25dbf64e6af4cbaa7b84"
+    },
+    {
+      "source": "native/gamescope/ohos/JoiningThread.h",
+      "destination": "src/OhosJoiningThread.h",
+      "sha256": "dd3c5011cc8d7f98e57c93a8bad23ec564f0d4fd1076136ff7d145ce0730ff55"
+    },
+    {
+      "source": "native/gamescope/ohos/AtomicShared.h",
+      "destination": "src/OhosAtomicShared.h",
+      "sha256": "a98d3b2fb9ead81f2baca8cf6eb671964322a7ff0b0f8ce2b39d4915b75f232c"
+    },
+    {
+      "source": "native/gamescope/ohos/Compat.h",
+      "destination": "src/OhosCompat.h",
+      "sha256": "a5187548b153bd4f8e4b86638f0e352061072a8c9fbfa24afe2c49ab003184cb"
+    },
+    {
+      "source": "native/gamescope/ohos/Window.h",
+      "destination": "src/OhosWindow.h",
+      "sha256": "f8bc3ad8f29c52c50510126dc3673a0df0d5770540627d1a4bf25153b3fa6b07"
+    },
+    {
+      "source": "native/gamescope/ohos/Window.cpp",
+      "destination": "src/OhosWindow.cpp",
+      "sha256": "ad477421398da1695d56f270e6c7f6ca8b716e669f34f139ec382421ae9d3c6f"
+    },
+    {
+      "source": "native/gamescope/ohos/BrokerProtocol.h",
+      "destination": "src/BrokerProtocol.h",
+      "sha256": "985378b8909188380ab9361953fd4ca648cac699917c47c7ebec93e4dca1861f"
+    },
+    {
+      "source": "native/gamescope/ohos/BrokerTransport.h",
+      "destination": "src/BrokerTransport.h",
+      "sha256": "446a12f1a70e16ccd8d41303ae6eb8a9e6c6599106a1d2cb98297a75a6e6ab79"
+    },
+    {
+      "source": "native/gamescope/ohos/ProcessBroker.cpp",
+      "destination": "src/OhosProcessBroker.cpp",
+      "sha256": "4e5e8a552bbc3de12538d71fef6b9cd94e02c82fc0ffc697ef6f470ea60afeb3"
+    },
+    {
+      "source": "native/gamescope/ohos/Runtime.cpp",
+      "destination": "src/OhosRuntime.cpp",
+      "sha256": "5be4378d7ed79bfdb5288d7efac3172c125649abcb6711e95bc6f4ab4caea042"
+    },
+    {
+      "source": "native/gamescope/ohos/Runtime.h",
+      "destination": "src/Runtime.h",
+      "sha256": "3ec6ee279845cab7623666f9fa3742ff0d682fe6cf89f27d7dc090122c5c09e0"
+    },
+    {
+      "source": "native/gamescope/ohos/SessionProtocol.h",
+      "destination": "src/SessionProtocol.h",
+      "sha256": "e1574778a9c5b56184feb72f73dce2893b44d1eae689c8c94ec19ff5452a1aa8"
+    },
+    {
+      "source": "native/gamescope/ohos/OhosBackend.cpp",
+      "destination": "src/Backends/OhosBackend.cpp",
+      "sha256": "8e4c69224aa15a06437116a46d310cd921de8e696e260deb3b0f01647172df44"
+    },
+    {
+      "source": "native/gamescope/ohos/Embedded.h",
+      "destination": "src/Embedded.h",
+      "sha256": "ec8c9c8b2cf23419e3f063d0265508ae0b4c5133f0dc7a5f060bb5fe5368cd7b"
+    },
+    {
+      "source": "native/gamescope/ohos/Embedded.cpp",
+      "destination": "src/OhosEmbedded.cpp",
+      "sha256": "a64cd604214ef8bc4112adc33e4bb5a38129b75dc7e680e952f308df6737a0ca"
+    },
+    {
+      "source": "native/gamescope/ohos/EmbeddedContract.h",
+      "destination": "src/EmbeddedContract.h",
+      "sha256": "197238d61a87d7640bb0bb7a7d46c3e12c636afdde694ace8f31a09a9e67e467"
+    },
+    {
+      "source": "native/gamescope/ohos/OutputTransport.h",
+      "destination": "src/OutputTransport.h",
+      "sha256": "1389dcee98abca5881fc5f3222b57ee2155f48f80a229fb30fab9e50cf5d9211"
+    }
+  ],
+  "options": [
+    "-Ddrm_backend=disabled",
+    "-Dsdl2_backend=disabled",
+    "-Dpipewire=disabled",
+    "-Dinput_emulation=disabled",
+    "-Davif_screenshots=disabled",
+    "-Drt_cap=disabled",
+    "-Denable_openvr_support=false",
+    "-Denable_gamescope_wsi_layer=false",
+    "-Denable_tests=false",
+    "-Dohos_native=true",
+    "-Dwayland_backend=disabled",
+    "-Dscripting=disabled",
+    "-Dlibinput=disabled"
+  ],
+  "abiBoundary": "OHOS ARM64 native only; GNU libraries and executables are reference inputs, never payloads"
+}

@@ -16,6 +16,17 @@
     "mainline_consolidation": {
       "date": "2026-11-16",
       "note": "Register existing repository overlay inventory and multi-gamepad Winebus identities; no additional rendering overlay enabled. Mesa 0014 remains a diagnostic-only patch absent from the production apply recipe."
+    },
+    "shadow_transfer_sync": {
+      "date": "2026-11-16",
+      "qualification": "host-validation-only",
+      "note": "0026 corrects remote buffer read offset and failed-map references; 0027 uses isolated staging and exact image copy regions. Existing shadow switches only. No Maleoon ShaderLayer workaround enabled."
+    },
+    "d3d9_backbuffer_preservation": {
+      "date": "2026-11-16",
+      "upstream": "feebec959d3d23c3503964e89732c9d7dc28dde5",
+      "qualification": "mini-pal4-bounded-device-validated; other games/fullscreen pending",
+      "note": "Preserve COPY and single-backbuffer windowed DISCARD contents; retain fullscreen/FLIP rotation and existing explicit opt-out. No global noExplicitFrontBuffer override."
     }
   },
   "architecture": {
@@ -250,6 +261,10 @@
       {
         "path": "patches/wine/0053-wined3d-restore-legacy-alpha-test-state.patch",
         "sha256": "3ff4ad1d4cfb6fe0b9eae9111ed80382475319c8984f91cf8ea8dc89665aaa04"
+      },
+      {
+        "path": "patches/wine/0084-wined3d-legacy-specular-fog.patch",
+        "sha256": "de3c847b3ed2bbe62297b87da0ec15403523239039e0106969cddc034d777fa7"
       },
       {
         "path": "patches/wine/0054-ntdll-broker-preserve-resolved-image-path.patch",
@@ -562,6 +577,14 @@
       {
         "path": "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
         "sha256": "c010b4c2b9de52531935d48535e064f04addfd9d11ebeec2cdfb500f419ecffe"
+      },
+      {
+        "path": "patches/mesa/0026-zink-shadow-buffer-map-offset.patch",
+        "sha256": "6c806c6ee5b3171b2c114ea91c2c902e7232bcd79d5735dd64dcb96fd9d35a53"
+      },
+      {
+        "path": "patches/mesa/0027-zink-isolate-shadow-image-staging.patch",
+        "sha256": "57b4f8575fb552a8977b7fc076363674fd5e0991912cba5951fb0111fea872bc"
       }
     ],
     "vkd3d-proton": [
@@ -770,6 +793,10 @@
       {
         "path": "patches/dxvk/0019-synchronize-mapped-buffer-backing-lookup.patch",
         "sha256": "cea6e40acc2fd9719e120661ae8b61c19ebb2ced5e78e457ac610b806b277499"
+      },
+      {
+        "path": "patches/dxvk/0020-d3d9-preserve-copy-and-windowed-backbuffers.patch",
+        "sha256": "13568cd5c4853e71454d007856603e46b85057eaedba09d68b81b6034f11033c"
       }
     ]
   },
@@ -813,7 +840,7 @@
       "dlls/winecrt0/arm64ec.c": "09dea127d5f1288a4fa1c50db026715886f610a48c828bb1602a19d1268c4bde",
       "dlls/wined3d/adapter_gl.c": "4b70af1e7bd6b17dc6fc9c848041877379cfd69c99e6bcc539e3feb440c359ca",
       "dlls/wined3d/buffer.c": "3816921068b67552a85564fed54aaba4da4bdd132c606055b3abec69fae0c90f",
-      "dlls/wined3d/glsl_shader.c": "e23b30e1072c748b79cdfa68d17b2832dcf09cc560fa3e82a19cf8b028d7cb65",
+      "dlls/wined3d/glsl_shader.c": "4758a0d4c6337ce6962e81b855bb72cacab49e0ea257cf0fda7699100854dde7",
       "dlls/wined3d/resource.c": "743b54b92e67bd2d4626eb89d50b7a04e6d85904de4878041caff6c12cba9c03",
       "dlls/wined3d/swapchain.c": "076cbafe8283c764acbd4d34af84a627f6babac7a6fe4ee5e60f54acdf554316",
       "dlls/wineohos.drv/ohos.c": "40e1ea02728db0e9dbdfbee1dd364f4b4816d7862a47db450e5f1475737f32c8",
@@ -887,6 +914,10 @@
       "src/venus/vkr_queue.c": "dc00fd5d0f6c9eed125f435dea060e2f5dac06dd4eabdec882f5a14a229beafa",
       "src/proxy/proxy_renderer.c": "50b71794c943914426331c565275f3544ff32dac28def04caf198b142f5ff00f",
       "src/vrend/vrend_decode.c": "d9b134d63bf516d6c1ca156b2bfb11dcd39bc59f99e7fa4f54babd052ef79872"
+    },
+    "mesa": {
+      "src/gallium/drivers/zink/zink_resource.c": "d1d963a9df6e75ed09680f8f64539ccc1527eedff94542f440c295935de4147d",
+      "src/gallium/drivers/zink/zink_resource.h": "302c7c60b93064f6d77f1af70db0025ab55c40fbb8753330c35fe5b55eea79ae"
     }
   },
   "capability_decisions": {
@@ -908,9 +939,36 @@
       "scripts/build_xwayland.sh": "966b47239037202c72c875f2efbb0cfc026311f06035c770f32aacaf51993e37",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "5a84276c968f8662ac39faa46b31ad0aab8015b39e4a76bf30b9cb2541fb345c",
+      "scripts/build_wine.sh": "734d207fca90ccaed831a9f7dd94918963b828c43947ba5508e5c989e641633e",
       "scripts/env.sh": "7114cabf2d9d65d1fe3c64a954a97ab2ad6d56fe266f5a3318e345cf9437e7e8",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }
-  }
+  },
+  "mesa_production_overlays": [
+    "patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch",
+    "patches/mesa/0002-virgl-vtest-wine-owned-low-map.patch",
+    "patches/mesa/0003-venus-present-retry-single-ring-drain.patch",
+    "patches/mesa/0004-venus-wine-owned-low-map.patch",
+    "patches/mesa/0005-zink-ohos-explicit-vulkan-loader.patch",
+    "patches/mesa/0006-virgl-vtest-serialize-socket-transactions.patch",
+    "patches/mesa/0007-virgl-gpu-srgb-surface-storage.patch",
+    "patches/mesa/0008-virgl-explicit-pbuffer-front-present.patch",
+    "patches/mesa/0009-venus-order-shadow-export-after-ring.patch",
+    "patches/mesa/0010-venus-check-after-final-present-backoff.patch",
+    "patches/mesa/0012-venus-pack-small-vtest-submits.patch",
+    "patches/mesa/0013-virgl-vtest-write-command-pair.patch",
+    "patches/mesa/0015-zink-opt-in-shadow-readback.patch",
+    "patches/mesa/0016-zink-opt-in-shadow-uploader.patch",
+    "patches/mesa/0017-zink-shadow-image-staging-byte-range.patch",
+    "patches/mesa/0018-zink-opt-in-full-texcoord.patch",
+    "patches/mesa/0019-zink-opt-in-dynamic-extract.patch",
+    "patches/mesa/0020-zink-opt-in-full-vertex-inputs.patch",
+    "patches/mesa/0021-zink-opt-in-strip-debug-names.patch",
+    "patches/mesa/0022-zink-opt-in-full-generic-varyings.patch",
+    "patches/mesa/0023-zink-opt-in-slice-3d-pbo-upload.patch",
+    "patches/mesa/0024-zink-opt-in-batch-private-uploads.patch",
+    "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
+    "patches/mesa/0026-zink-shadow-buffer-map-offset.patch",
+    "patches/mesa/0027-zink-isolate-shadow-image-staging.patch"
+  ]
 }

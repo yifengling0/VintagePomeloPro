@@ -46,6 +46,10 @@ import {
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { GamepadManager } from '../service/GamepadManager';
+import { HostWindowTasks } from '../service/HostWindowTasks';
+import { SteamClientService } from '../service/SteamClientService';
+import { GamePresentationSettings } from '../components/GamePresentationSettings';
+import { GameModeSettings, normalizeGameModeSettings } from '../model/GameModeSettings';
 import { WineWindowManager } from '../service/WineWindowManager';
 import { DesktopModeService, MODE_VIRTUAL, MODE_FUSION } from '../service/DesktopModeService';
 import { AppSessionService } from '../service/AppSessionService';
@@ -293,6 +297,7 @@ struct SystemSettingsPage {
   @State private titleContentTopInsetVp: number = 40;
   @State private navBarInsetVp: number = 0;
   @State private appVersion: string = '版本信息读取中…';
+  @State private debugBuild: boolean = false;
   // host GPU 名称 + DXVK2.6 支持判定 (马良 920 以下不支持, 经 testNapi.getHostGpuName)
   @State private gpuName: string = '';
   @State private gpuSupportDxvk26: boolean = true;
@@ -431,8 +436,9 @@ struct SystemSettingsPage {
   private loadApplicationVersion(): void {
     try {
       const info = bundleManager.getBundleInfoForSelfSync(
-        bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+        bundleManager.BundleFlag.GET_BUNDLE_INFO_WITH_APPLICATION);
       this.appVersion = '版本 ' + info.versionName + '（' + info.versionCode.toString() + '）';
+      this.debugBuild = info.appInfo.debug;
     } catch (_) {
       this.appVersion = '版本信息不可用';
     }
@@ -643,6 +649,7 @@ struct SystemSettingsPage {
       keepScreenOn: keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
       wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
+      systemOpenEnabled: this.settings.systemOpenEnabled === true,
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: desktopInputProfileId || 'default',
       viewMode: view,
@@ -1118,6 +1125,7 @@ struct SystemSettingsPage {
       keepScreenOn: this.settings.keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
       wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
+      systemOpenEnabled: this.settings.systemOpenEnabled === true,
       box64Preset: preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1180,6 +1188,7 @@ struct SystemSettingsPage {
       keepScreenOn: this.settings.keepScreenOn,
       wineTranslationEngine: this.settings.wineTranslationEngine,
       wineDisplayRoute: this.settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland',
+      systemOpenEnabled: this.settings.systemOpenEnabled === true,
       box64Preset: this.settings.box64Preset,
       desktopInputProfileId: this.settings.desktopInputProfileId,
       viewMode: this.settings.viewMode,
@@ -1545,6 +1554,28 @@ struct SystemSettingsPage {
     } catch (_) {
       this.sidebarTarget = null;
     }
+  }
+
+  private async updateGameMode(value: boolean): Promise<void> {
+    try {
+      if (HostWindowTasks.getInstance().controllableGames().length > 0 || SteamClientService.getInstance().isRunning()) {
+        promptAction.showToast({ message: '请先正常退出游戏和 Steam，再切换 Game 模式' });
+        return;
+      }
+      const next = JSON.parse(JSON.stringify(ThemeSettingsService.getInstance().getSettings())) as GlobalSettings;
+      next.gameModeEnabled = value;
+      await ThemeSettingsService.getInstance().update(next);
+      this.settings = next;
+    } catch (_) { promptAction.showToast({ message: 'Game 模式未保存，请重试' }); }
+  }
+
+  private async updateGameDefaults(value: GameModeSettings): Promise<void> {
+    try {
+      const next = JSON.parse(JSON.stringify(ThemeSettingsService.getInstance().getSettings())) as GlobalSettings;
+      next.gameMode = value;
+      await ThemeSettingsService.getInstance().update(next);
+      this.settings = next;
+    } catch (_) { promptAction.showToast({ message: '默认画面设置未保存，请重试' }); }
   }
 
   @Builder
@@ -1929,6 +1960,16 @@ struct SystemSettingsPage {
           glass: this.settings.useGlassEffect, groupPadding: this.cardPadding() })
       } else if (section === 'display') {
         Column({ space: 16 }) {
+          this.SwitchRow({ title: 'Game 模式',
+            description: '使用全屏游戏库和游戏内容呈现。关闭后恢复原界面，单个游戏仍可独立设置。',
+            enabled: this.settings.gameModeEnabled === true, id: 'settings-game-mode',
+            onChange: (value: boolean): void => { void this.updateGameMode(value); } })
+          if (this.settings.gameModeEnabled) {
+            Text('Game 默认画面').fontSize(16).fontWeight(FontWeight.Medium).width('100%')
+              .fontColor(skinColor('text_primary'))
+            GamePresentationSettings({ value: normalizeGameModeSettings(this.settings.gameMode),
+              onChange: (value: GameModeSettings): void => { void this.updateGameDefaults(value); } })
+          }
           Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
             .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
@@ -2383,6 +2424,17 @@ struct SystemSettingsPage {
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
           }
 
+          Row({ space: 8 }) {
+            Text('使用系统应用打开链接和文件').fontSize(12).layoutWeight(1)
+              .fontColor(skinColor('text_primary'))
+            Toggle({ type: ToggleType.Switch, isOn: this.settings.systemOpenEnabled === true })
+              .id('wine-system-open')
+              .onChange((enabled: boolean): void => {
+                this.settings.systemOpenEnabled = enabled;
+                void ThemeSettingsService.getInstance().update(this.settings);
+              })
+          }.width('100%')
+
           Text('窗口后端').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 8 }) {
@@ -2596,6 +2648,10 @@ struct SystemSettingsPage {
               .id('log-clear')
               .onClick((): void => { this.clearLogs(); })
           }.width('100%')
+          if (this.debugBuild) {
+            Button('Gamescope 呈现检查').id('gamescope-diagnostics')
+              .onClick(() => { void router.pushUrl({ url: 'pages/GamescopeDiagnostics' }); })
+          }
         }
         .width('100%')
         .padding(this.cardPadding())

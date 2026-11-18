@@ -1,0 +1,114 @@
+From: HSL maintainers
+Subject: [PATCH] control: negotiate nested display capabilities and event versions
+
+Advertise only implemented requests. Preserve real invalid-request errors and
+frame pacing; fixed nested outputs have no dynamic refresh-rate list. Gate
+events and optional features by each resource version, including broadcasts.
+
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -1315,8 +1315,26 @@
+ 
+ void drm_sleep_screen( gamescope::GamescopeScreenType eType, bool bSleep );
+ 
++// Only the session-owning DRM backend implements physical display control.
++// A nested compositor must not advertise v4 and then disconnect a conforming
++// client for using its mandatory request. Keep the real error as a backstop.
++static bool gamescope_control_has_physical_display()
++{
++#if HAVE_DRM
++	return GetBackend()->IsSessionBased();
++#else
++	return false;
++#endif
++}
++
+ static void gamescope_control_display_sleep( struct wl_client *client, struct wl_resource *resource, uint32_t display_type_flags, uint32_t flags )
+ {
++	if ( !gamescope_control_has_physical_display() )
++	{
++		wl_resource_post_error(resource, WL_DISPLAY_ERROR_IMPLEMENTATION,
++			"Physical display sleep requires the DRM backend");
++		return;
++	}
+ #if HAVE_DRM
+ 	if ( flags & ( GAMESCOPE_CONTROL_DISPLAY_SLEEP_FLAGS_SLEEP | GAMESCOPE_CONTROL_DISPLAY_SLEEP_FLAGS_WAKE ) )
+ 	{
+@@ -1327,9 +1345,6 @@
+ 		if ( display_type_flags & GAMESCOPE_CONTROL_DISPLAY_TYPE_FLAGS_INTERNAL_DISPLAY )
+ 			drm_sleep_screen( gamescope::GAMESCOPE_SCREEN_TYPE_INTERNAL, sleep );
+ 	}
+-#else
+-	wl_resource_post_error(resource, WL_DISPLAY_ERROR_IMPLEMENTATION,
+-		"Physical display sleep requires the DRM backend");
+ #endif
+ }
+ 
+@@ -1523,6 +1538,8 @@
+ void wlserver_send_gamescope_control( wl_resource *control )
+ {
+ 	assert( wlserver_is_lock_held() );
++	if ( wl_resource_get_version( control ) < GAMESCOPE_CONTROL_ACTIVE_DISPLAY_INFO_SINCE_VERSION )
++		return;
+ 
+ 	gamescope::IBackendConnector *pConn = GetBackend()->GetCurrentConnector();
+ 	if ( !pConn )
+@@ -1540,11 +1557,6 @@
+ 			*ptr = uRateHz;
+ 		}
+ 	}
+-	else if ( g_nOutputRefresh > 0 )
+-	{
+-		uint32_t *ptr = (uint32_t *)wl_array_add( &display_rates, sizeof(uint32_t) );
+-		*ptr = (uint32_t)gamescope::ConvertmHzToHz( g_nOutputRefresh );
+-	}
+ 	gamescope_control_send_active_display_info( control, pConn->GetName(), pConn->GetMake(), pConn->GetModel(), flags, &display_rates );
+ 	wl_array_release(&display_rates);
+ }
+@@ -1564,13 +1576,18 @@
+ 
+ 	// Send feature support
+ 	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_RESHADE_SHADERS, 1, 0 );
+-	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_DISPLAY_INFO, 1, 0 );
++	if ( version >= GAMESCOPE_CONTROL_ACTIVE_DISPLAY_INFO_SINCE_VERSION )
++		gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_DISPLAY_INFO, 1, 0 );
+ 	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_PIXEL_FILTER, 1, 0 );
+-	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_REFRESH_CYCLE_ONLY_CHANGE_REFRESH_RATE, 1, 0 );
++	if ( version >= GAMESCOPE_CONTROL_SET_APP_TARGET_REFRESH_CYCLE_SINCE_VERSION && gamescope_control_has_physical_display() )
++		gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_REFRESH_CYCLE_ONLY_CHANGE_REFRESH_RATE, 1, 0 );
+ 	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_MURA_CORRECTION, 1, 0 );
+-	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_LOOK, 1, 0 );
+-	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_PERF_QUERY, 1, 0 );
+-	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_KEYBOARD_LAYOUT, 1, 0 );
++	if ( version >= GAMESCOPE_CONTROL_SET_LOOK_SINCE_VERSION )
++		gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_LOOK, 1, 0 );
++	if ( version >= GAMESCOPE_CONTROL_REQUEST_APP_PERFORMANCE_STATS_SINCE_VERSION )
++		gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_PERF_QUERY, 1, 0 );
++	if ( version >= GAMESCOPE_CONTROL_SET_KEYBOARD_LAYOUT_SINCE_VERSION )
++		gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_KEYBOARD_LAYOUT, 1, 0 );
+ 	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_SGSR_FILTER, 1, 0 );
+ 	gamescope_control_send_feature_support( resource, GAMESCOPE_CONTROL_FEATURE_DONE, 0, 0 );
+ 
+@@ -1581,7 +1598,9 @@
+ 
+ static void create_gamescope_control( void )
+ {
+-	wl_global_create( wlserver.display, &gamescope_control_interface, gamescope_control_interface.version, NULL, gamescope_control_bind );
++	const int version = gamescope_control_has_physical_display()
++		? gamescope_control_interface.version : GAMESCOPE_CONTROL_DISPLAY_SLEEP_SINCE_VERSION - 1;
++	wl_global_create( wlserver.display, &gamescope_control_interface, version, NULL, gamescope_control_bind );
+ }
+ 
+ ////////////////////////
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -3912,7 +3912,8 @@
+ 						wlserver_lock();
+ 						for ( const auto &control : wlserver.gamescope_controls )
+ 						{
+-							gamescope_control_send_screenshot_taken( control, oScreenshotInfo->szScreenshotPath.c_str() );
++							if ( wl_resource_get_version( control ) >= GAMESCOPE_CONTROL_SCREENSHOT_TAKEN_SINCE_VERSION )
++								gamescope_control_send_screenshot_taken( control, oScreenshotInfo->szScreenshotPath.c_str() );
+ 						}
+ 						wlserver_unlock();
+ 				}

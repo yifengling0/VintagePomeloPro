@@ -1,0 +1,13 @@
+--- a/src/shaders/cs_composite_rcas.comp
++++ b/src/shaders/cs_composite_rcas.comp
+@@ -102,7 +102,9 @@
+     }
+ 
+     outputValue = encodeOutputColor(outputValue);
+-    imageStore(dst, rotateOutputCoord(pos, u_rotation), vec4(outputValue, 0));
++    // OHOS NativeWindow can expose only INHERIT composite alpha. The final
++    // Gamescope scene, including letterboxing, must remain opaque there.
++    imageStore(dst, rotateOutputCoord(pos, u_rotation), vec4(outputValue, 1));
+ 
+     if (checkDebugFlag(compositedebug_Markers))
+         compositing_debug(pos, u_rotation);

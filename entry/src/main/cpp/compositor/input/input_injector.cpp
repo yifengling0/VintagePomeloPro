@@ -3,6 +3,7 @@
 #include <wayland-server-protocol.h>  // wl_pointer_send_*/wl_keyboard_send_* 系列
 
 #include "input/seat.h"
+#include "input/data_device.h"
 #include "input/pointer_extras.h"
 #include "input/text_input.h"
 // 6A 装配注入直呼 (BindResolvers 注入; wl 事件循环启动前装配, 见头注释):
@@ -279,6 +280,7 @@ void InputInjector::InjectKeyboardEnter(uint32_t tl, wl_resource* surface) {
         nSent++;
     }
     tracker_->SetKeyboardFocus(tl, surface);
+    WineClipboardFocus(surface);
     OH_LOG_INFO(LOG_APP, "[Input] InjectKbdEnter OK sent=%{public}d", nSent);
     // IME: keyboard enter → text-input enter (Wine 收到后 enable, 等待文本框
     // SetIMECompositionRect → 非零光标矩形 → TextInput 判定激活)
@@ -320,6 +322,7 @@ void InputInjector::InjectKeyboardKey(uint32_t key, uint32_t state) {
 }
 
 void InputInjector::InjectKeyboardLeave() {
+    WineClipboardFocus(nullptr);
     auto kbds = Seat::GetInstance()->GetAllKeyboardResources();
     wl_resource* surf = tracker_->KeyboardFocusedSurface();
     if (!tracker_->KeyboardEntered() || !surf) return;

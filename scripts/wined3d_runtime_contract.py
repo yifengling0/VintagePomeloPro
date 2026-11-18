@@ -15,6 +15,7 @@ PATCHES = (
     '0039-wined3d-opt-in-dynamic-buffer-sysmem.patch',
     '0049-wined3d-require-srgb-write-control-for-shared-storage.patch',
     '0053-wined3d-restore-legacy-alpha-test-state.patch',
+    '0084-wined3d-legacy-specular-fog.patch',
     '0068-wined3d-ohos-command-event-wake.patch',
 )
 SOURCE_FILES = ('adapter_gl.c', 'buffer.c', 'cs.c', 'glsl_shader.c', 'resource.c', 'swapchain.c')

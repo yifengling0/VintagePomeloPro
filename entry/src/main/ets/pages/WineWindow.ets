@@ -1,3 +1,4 @@
+import { InputRouter } from '../service/InputRouter';
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
 import { AxisEventGate } from '../service/InputEventGate';
 import { hilog } from '../service/LogService';
@@ -113,6 +114,7 @@ struct WineWindow {
   }
 
   aboutToDisappear(): void {
+    InputRouter.getInstance().releaseWindowSource(this.toplevelId, 'physical');
     InputOverlayWindowCoordinator.getInstance().releaseSurfaceBounds(this.inputSurface);
   }
 
@@ -439,6 +441,7 @@ struct WineWindow {
     })
 
     // -- 键盘事件 --
+    .onBlur((): void => InputRouter.getInstance().releaseWindowSource(this.toplevelId, 'physical'))
     .onKeyEvent((event: KeyEvent) => {
       HostWindowTasks.getInstance().noteInteraction(this.toplevelId);
       hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] onKeyEvent keyCode=%{public}d type=%{public}d tl=%{public}d',
@@ -460,10 +463,10 @@ struct WineWindow {
         } else if (Date.now() - this.lastEnterDownTs > WineWindow.ENTER_SYNTH_WINDOW_MS &&
           !WineImeCoordinator.getInstance().hasAttachedSession()) {
           hilog.info(DOMAIN, 'KBD-PIPE', '[ArkTS] ENTER SYNTH down (missing down)');
-          testNapi.sendKeyEvent(this.toplevelId, EVDEV_KEY_ENTER, true);
+          InputRouter.getInstance().sendWindowKey(this.toplevelId, 'physical', EVDEV_KEY_ENTER, true);
         }
       }
-      testNapi.sendKeyEvent(this.toplevelId, evdevCode, pressed);
+      InputRouter.getInstance().sendWindowKey(this.toplevelId, 'physical', evdevCode, pressed);
     })
   }
 }

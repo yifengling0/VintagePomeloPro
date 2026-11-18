@@ -1,3 +1,4 @@
+import { GameQuickPanel } from './GameQuickPanel';
 import {
   ControlBarDirection,
   ControlElement,
@@ -23,7 +24,7 @@ import { mapMouseButton } from '../common/MouseMap';
 import { display } from '@kit.ArkUI';
 import testNapi from 'libentry.so';
 
-type ToolbarAction = 'toolbar' | 'editor' | 'mapping' | 'controls' | 'mouse' | 'keyboard' | 'home' | 'launcher' | 'wake';
+type ToolbarAction = 'toolbar' | 'editor' | 'mapping' | 'controls' | 'mouse' | 'keyboard' | 'clipboard' | 'home' | 'launcher' | 'wake';
 
 interface KeyboardShieldRect {
   left: number;
@@ -98,6 +99,7 @@ export struct VirtualInputOverlay {
   onOpenLayoutEditor: () => void = (): void => {};
   onOpenKeyMappingEditor: () => void = (): void => {};
   onToggleHostKeyboard: () => void = (): void => {};
+  onOpenClipboard: (x: number, y: number) => void = (_x: number, _y: number): void => {};
   onControlsVisibleChange: (visible: boolean) => void = (_visible: boolean): void => {};
   onTouchpadModeChange: (enabled: boolean) => void = (_enabled: boolean): void => {};
   onControlBarPositionChange: (x: number, y: number) => void =
@@ -120,6 +122,8 @@ export struct VirtualInputOverlay {
   private themeListener: ThemeSettingsListener | null = null;
   @State private stickStates: StickVisualState[] = [];
   @State private rangeTokens: string = '';
+  @StorageProp('vpp.game.session') private gameSession: boolean = false;
+  @State private gamePanel: boolean = false;
   @State private toolbarExpanded: boolean = true;
   @State private toolbarAutoHidden: boolean = false;
   @State private toolbarX: number = 4;
@@ -1358,6 +1362,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayTouch(event: TouchEvent): void {
+    if (this.gamePanel) return;
     if (!this.pointerEventGate.shouldHandleTouch(event.source, event.sourceTool)) return;
     if (event.changedTouches.length === 0) return;
     if (!this.hideToolbar && this.handleToolbarOverlayTouch(event)) return;
@@ -1495,6 +1500,7 @@ export struct VirtualInputOverlay {
   }
 
   private handleOverlayMouse(event: MouseEvent): void {
+    if (this.gamePanel) return;
     if (!this.pointerEventGate.shouldHandleMouse(event.source, event.sourceTool)) return;
     this.virtualCursorActive = false;
     if (!this.hideToolbar && this.handleToolbarOverlayMouse(event)) return;
@@ -1994,16 +2000,16 @@ export struct VirtualInputOverlay {
     if (this.resolveToolbarVertical()) return 52;
     // 展开宽度按实际按钮数动态计算 (toggle 28 + 各 36 按钮 + spacing + padding),
     // 否则加 home 按钮后固定 220 会溢出屏幕边缘。
-    const expandedButtons = 5;
+    const expandedButtons = 6;
     return 44 * (expandedButtons + 1);
   }
 
   private toolbarHeight(): number {
     if (!this.toolbarExpanded) return 44;
     if (!this.resolveToolbarVertical()) return 52;
-    // 垂直展开高度按实际按钮数动态计算 (toggle 28 + 各 36 按钮 + spacing + padding)
-    const expandedButtons = 5;
-    return 52 * (expandedButtons + 1);
+    // Match the rendered 36vp buttons, 8vp gaps and 28vp toggle + padding.
+    const expandedButtons = 6;
+    return 44 * (expandedButtons + 1);
   }
 
   private toolbarOriginX(): number {
@@ -2063,6 +2069,7 @@ export struct VirtualInputOverlay {
       if (this.rectContains(x, y, originX, originY + 128, 44, 44)) return 'controls';
       if (this.rectContains(x, y, originX, originY + 172, 44, 44)) return 'mouse';
       if (this.rectContains(x, y, originX, originY + 216, 44, 44)) return 'keyboard';
+      if (this.rectContains(x, y, originX, originY + 260, 44, 44)) return 'clipboard';
       return null;
     }
     if (this.rectContains(x, y, originX, originY, 44, 52)) return 'toolbar';
@@ -2071,6 +2078,7 @@ export struct VirtualInputOverlay {
     if (this.rectContains(x, y, originX + 132, originY, 44, 52)) return 'controls';
     if (this.rectContains(x, y, originX + 176, originY, 44, 52)) return 'mouse';
     if (this.rectContains(x, y, originX + 220, originY, 44, 52)) return 'keyboard';
+    if (this.rectContains(x, y, originX + 264, originY, 44, 52)) return 'clipboard';
     return null;
   }
 
@@ -2101,10 +2109,16 @@ export struct VirtualInputOverlay {
       this.onToggleHostKeyboard();
       return;
     }
+    if (action === 'clipboard') {
+      this.onOpenClipboard(this.toolbarOriginX() + (this.resolveToolbarVertical() ? this.toolbarWidth() + 8 : 0),
+        this.toolbarOriginY() + (this.resolveToolbarVertical() ? 0 : this.toolbarHeight() + 8));
+      return;
+    }
     if (action === 'launcher') {
       this.releaseAllElementTouches();
       InputDispatcher.getInstance().releaseAll('return-to-launcher');
-      void HostWindowTasks.getInstance().showLauncher();
+      if (this.gameSession) this.gamePanel = true;
+      else void HostWindowTasks.getInstance().showLauncher();
       return;
     }
     if (action === 'home') {
@@ -2361,6 +2375,8 @@ export struct VirtualInputOverlay {
     this.ControlsVisibilityButton()
     this.TouchpadModeButton()
     this.HostKeyboardButton()
+    this.ControlBarButton($r('sys.symbol.text_clipboard'), 'wine-input-clipboard', false,
+      '#FFFFFFFF', '#44FFFFFF', false, (): void => this.runToolbarAction('clipboard'))
   }
 
   @Builder
@@ -2455,8 +2471,12 @@ export struct VirtualInputOverlay {
         }, (element: ControlElement): string => this.elementVisualKey(element))
       }
       if (!this.hideToolbar) this.Toolbar()
+      if (this.gamePanel && this.gameSession) {
+        GameQuickPanel({ onResume: (): void => { this.gamePanel = false; } }).zIndex(100)
+      }
     }
-    .width('100%').height('100%').hitTestBehavior(HitTestMode.Block).id('wine-vintage-gamepad-overlay')
+    .width('100%').height('100%')
+    .hitTestBehavior(this.gamePanel ? HitTestMode.Default : HitTestMode.Block).id('wine-vintage-gamepad-overlay')
     .onTouch((event: TouchEvent): void => this.handleOverlayTouch(event))
     .onMouse((event: MouseEvent): void => this.handleOverlayMouse(event))
     .onAxisEvent((event?: AxisEvent): void => this.onUnhandledAxis(event))

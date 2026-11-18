@@ -1,0 +1,30 @@
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -4591,6 +4591,27 @@
+ 	}
+ }
+ 
++#if HAVE_OHOS_BACKEND
++// Called on the embedding render thread, alongside Present/Stop. Reuse the
++// existing delayed timestamp queries; never wait for a query or read pixels.
++extern "C" __attribute__((visibility("default"))) void VppGamescopeEmbeddedSetTiming(bool enabled, void (*report)(const char*))
++{
++    static bool active = false;
++    if (active == enabled) return;
++    active = enabled;
++    composite_timing_log.SetPriority(enabled ? LOG_DEBUG : LOG_INFO);
++    composite_timing_log.m_LoggingListeners.erase(1);
++    g_CompositeTiming.accum.clear();
++    g_CompositeTiming.ulLastReportNs = get_time_in_nanos();
++    if (enabled && report)
++        composite_timing_log.m_LoggingListeners.emplace(1,
++            [report](LogPriority, std::string_view, std::string_view text) {
++                const std::string terminated(text);
++                report(terminated.c_str());
++            });
++}
++#endif
++
+ ReshadeEffectPipeline *g_pLastReshadeEffect = nullptr;
+ 
+ std::optional<uint64_t> vulkan_composite( struct FrameInfo_t *frameInfo, gamescope::Rc<CVulkanTexture> pPipewireTexture, bool partial, gamescope::Rc<CVulkanTexture> pOutputOverride, bool increment, std::unique_ptr<CVulkanCmdBuffer> pInCommandBuffer )

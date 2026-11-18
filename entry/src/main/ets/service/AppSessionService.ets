@@ -1,3 +1,4 @@
+import { GameModeService } from './GameModeService';
 import { common, Want } from '@kit.AbilityKit';
 import fs from '@ohos.file.fs';
 import { hilog } from './LogService';
@@ -72,6 +73,7 @@ interface PendingLaunchRequest {
   presentationMode: WinePresentationMode;
   homeDirectory: string;
   resolve: (result: RuntimeSession | null) => void;
+  reject: (error: Error) => void;
 }
 
 export interface RunningAppSnapshot {
@@ -88,6 +90,8 @@ export class AppSessionService {
   private pendingToplevels: PendingToplevelAssociation[] = [];
   private desktopRootWaiters: Array<(session: RuntimeSession | null) => void> = [];
   private promoteRetries: Map<string, number> = new Map<string, number>();
+  private gameReturnTimer: number = -1;
+  private gameReturnSession: RuntimeSession | null = null;
 
   static getInstance(): AppSessionService {
     if (!AppSessionService.instance) AppSessionService.instance = new AppSessionService();
@@ -109,6 +113,8 @@ export class AppSessionService {
     // 引擎明确失败/停止是桌面根等待的终止信号：条件被破坏，立即放行等待者。
     WineEngineService.getInstance().subscribe((state: EngineState): void => {
       if (state === EngineState.ERROR || state === EngineState.STOPPED) {
+        this.stopGameReturnMonitor();
+        GameModeService.reset();
         this.settleDesktopRootWaiters(null);
       }
     });
@@ -165,8 +171,16 @@ export class AppSessionService {
   private launchTail: Promise<void> = Promise.resolve();
 
   launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
-    const request = this.launchTail.then((): Promise<RuntimeSession | null> =>
-      this.launchQueued(app, settings, homeDirectory));
+    const request = this.launchTail.then(async (): Promise<RuntimeSession | null> => {
+      const state = WineEngineService.getInstance().getState();
+      GameModeService.begin(app, settings, state !== EngineState.STOPPED && state !== EngineState.ERROR);
+      let success = false;
+      try {
+        const result = await this.launchQueued(app, settings, homeDirectory);
+        success = result !== null;
+        return result;
+      } finally { GameModeService.finish(success); }
+    });
     this.launchTail = request.then((): void => {}, (): void => {});
     return request;
   }
@@ -294,7 +308,8 @@ export class AppSessionService {
         await InputOverlayWindowCoordinator.getInstance().setVisible(false);
       } catch (_) {
       }
-      const hostReady = await engine.ensureReady(mode, presentationMode, homeDirectory);
+      const hostReady = await engine.ensureReady(mode, presentationMode, homeDirectory,
+        app.steam && !app.steam.appId ? (): boolean => false : undefined);
       if (!hostReady) {
         hilog.error(DOMAIN, '[SESS]', 'launch: graphics host restart failed app=%{public}s',
           app.id);
@@ -318,7 +333,9 @@ export class AppSessionService {
       // 先跳到桌面再启动 exe：非阻塞地把桌面窗口（DWA）带到前台（不 await，
       // 冷启动时 startAbility 可能阻塞启动链）。exe 启动后其窗口出现在桌面
       // 合成里，窗口 created 后再自动切到该窗口（auto-promote）。
-      if (!WineWindowManager.getInstance().isDesktopAbilityForeground(desktopSession.toplevelId)) {
+      if (app.steam && !app.steam.appId) {
+        // Stay on the launch UI until Steam has an actual client window.
+      } else if (!WineWindowManager.getInstance().isDesktopAbilityForeground(desktopSession.toplevelId)) {
         this.resume(desktopSession).catch((err: Error) => {
           hilog.warn(DOMAIN, '[SESS]', 'launch: jump-to-desktop failed err=%{public}s',
             JSON.stringify(err));
@@ -420,7 +437,8 @@ export class AppSessionService {
       presentationMode: presentationMode,
       state: SessionState.RUNNING,
       toplevelId: 0,
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      automaticForeground: !(app.steam && !app.steam.appId)
     };
     if (app.steam?.appId) {
       // This PID is a command sender, not the game. The real child may be
@@ -453,6 +471,62 @@ export class AppSessionService {
       }
     }
     return session;
+  }
+
+  async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
+    navigation: number): Promise<RuntimeSession> {
+    // On translated ARM64 cold starts, CEF can create its first real window
+    // after 45 seconds. Keep the launch feedback alive through that startup
+    // rather than reporting failure immediately before the window arrives.
+    const deadline = Date.now() + 90000;
+    const tasks = HostWindowTasks.getInstance();
+    const steam = SteamLocalService.getInstance();
+    while (Date.now() < deadline) {
+      let ready: RuntimeSession | null = null;
+      const state = WineEngineService.getInstance().getState();
+      if (state === EngineState.ERROR || state === EngineState.STOPPED) {
+        throw new Error('Windows 会话已停止，Steam 未能启动，请重试');
+      }
+      // Bootstrap and URI command senders may exit before the real client
+      // creates its window. Match the managed installation and live session,
+      // never a window title, recycled PID, or the desktop carrier.
+      try {
+        const processes = testNapi.getProcessList() as NativeProcessInfo[];
+        if (Array.isArray(processes)) {
+          this.reconcile(processes);
+          const clients = steam.processesFor(app, processes);
+          // CEF owns the actual client windows and has its own native process
+          // session. It is a window owner, not a replacement Steam client/game.
+          const owners = steam.processesFor(app, processes, true);
+          const window = tasks.snapshot().find((task): boolean => !task.minimized &&
+            task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
+              (task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)) ||
+              (!!task.sessionId && task.sessionId === process.sessionId) ||
+              (!!task.sessionId && task.sessionId === launched.sessionId && process.pid === launched.pid &&
+                (!process.sessionId || process.sessionId === launched.sessionId))));
+          if (window) {
+            const client = Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+              item.appId === app.id && clients.some((process: NativeProcessInfo): boolean =>
+                item.pid === process.pid && (!process.sessionId || item.sessionId === process.sessionId)));
+            if (client) {
+              client.toplevelId = window.toplevelId;
+              ready = client;
+            }
+          }
+        }
+      } catch (error) {
+        // Query failures are not proof of process exit.
+        hilog.warn(DOMAIN, '[SESS]', 'Steam window pending: %{public}s', (error as Error).message);
+      }
+      if (ready) {
+        // A deliberate navigation while loading wins over auto-focus.
+        if (tasks.navigationSerial() === navigation) await this.resume(ready);
+        ready.automaticForeground = true;
+        return ready;
+      }
+      await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 250); });
+    }
+    throw new Error('Steam 启动后未显示客户端窗口。请检查运行日志或稍后重试；已有进程和数据已保留。');
   }
 
   /**
@@ -528,8 +602,9 @@ export class AppSessionService {
   private deferLaunchUntilReady(app: AppDescriptor, settings: GlobalSettings,
     mode: DisplayMode, presentationMode: WinePresentationMode,
     homeDirectory: string): Promise<RuntimeSession | null> {
-    return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void): void => {
-      const request: PendingLaunchRequest = { app, settings, mode, presentationMode, homeDirectory, resolve };
+    return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void,
+      reject: (error: Error) => void): void => {
+      const request: PendingLaunchRequest = { app, settings, mode, presentationMode, homeDirectory, resolve, reject };
       this.pendingLaunches.push(request);
       const fail = (): void => {
         const index = this.pendingLaunches.indexOf(request);
@@ -539,8 +614,13 @@ export class AppSessionService {
 
       this.ensurePendingLaunchListener();
       // 触发引擎启动（不 await）；引擎 READY 事件会驱动队列真正执行。
-      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory)
-        .then((ready: boolean): void => { if (!ready) fail(); }).catch(fail);
+      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory,
+        app.steam && !app.steam.appId ? (): boolean => false : undefined)
+        .then((ready: boolean): void => { if (!ready) fail(); }).catch((error: Error): void => {
+          const index = this.pendingLaunches.indexOf(request);
+          if (index >= 0) this.pendingLaunches.splice(index, 1);
+          reject(error);
+        });
       // 竞态兜底：若已经就绪立即排水。
       if (WineEngineService.getInstance().isReady()) this.drainPendingLaunches();
     });
@@ -566,7 +646,7 @@ export class AppSessionService {
       }
       this.launchReady(req.app, req.settings, req.mode, req.presentationMode, req.homeDirectory)
         .then((session: RuntimeSession | null): void => req.resolve(session))
-        .catch(() => req.resolve(null));
+        .catch((error: Error): void => req.reject(error));
     }
     this.drainingPendingLaunches = false;
   }
@@ -581,6 +661,17 @@ export class AppSessionService {
 
   async resume(session: RuntimeSession): Promise<void> {
     if (!this.context) return;
+    if (session.appId === STEAM_CLIENT_ID) {
+      // Login, the library and Big Picture can replace CEF windows while the
+      // real steam.exe keeps running. Resolve live ownership again on return.
+      const steam = SteamLocalService.getInstance();
+      const owners = steam.processesFor(steam.clientCard(), this.getNativeProcesses(), true);
+      const windows = HostWindowTasks.getInstance().snapshot().filter((task): boolean =>
+        !task.minimized && task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
+          task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)));
+      const window = windows.find((task): boolean => task.toplevelId === session.toplevelId) ?? windows[0];
+      if (window) session.toplevelId = window.toplevelId;
+    }
     if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
       const task = HostWindowTasks.getInstance().snapshot().find((item): boolean => item.sessionId === session.sessionId);
       if (task && await HostWindowTasks.getInstance().activate(task.key)) return;
@@ -599,6 +690,10 @@ export class AppSessionService {
       }
     }
     if (session.toplevelId > 0) {
+      if (session.appId !== DESKTOP_APP_ID &&
+        !isWineInfrastructurePath(session.executable)) {
+        this.presentGameSession(session);
+      }
       try { testNapi.raiseToplevel(session.toplevelId); } catch (_) {}
     }
     if (session.presentationMode === WinePresentationMode.DESKTOP) {
@@ -821,6 +916,10 @@ export class AppSessionService {
       !WineEngineService.getInstance().isReady() || session.toplevelId <= 0) return;
     hilog.info(DOMAIN, '[SESS]', 'auto-promote session=%{public}s tl=%{public}d',
       session.sessionId, session.toplevelId);
+    if (session.appId !== DESKTOP_APP_ID &&
+      !isWineInfrastructurePath(session.executable)) {
+      this.presentGameSession(session);
+    }
     const tl = session.toplevelId;
     const sid = session.sessionId;
     // DWA 已在前台显示桌面时，程序窗口会直接出现在桌面合成里，无需再
@@ -837,6 +936,60 @@ export class AppSessionService {
         sid, err.name, err.message);
     });
     this.schedulePromoteRetry(sid, tl, 0);
+  }
+
+  private presentGameSession(session: RuntimeSession): void {
+    try {
+      // Steam is the launcher shell: keep its desktop coordinate space and
+      // multiwindow UI intact. Only the actual game's canvas is magnified.
+      const presented = session.appId === STEAM_CLIENT_ID ? GameModeService.presentDesktop() :
+        GameModeService.present(session.toplevelId);
+      if (!presented) return;
+    } catch (_) { return; }
+    GameModeService.noteActiveApp(session.appId);
+    this.gameReturnSession = session;
+    if (this.gameReturnTimer < 0) {
+      this.gameReturnTimer = setInterval((): void => this.checkGameReturn(), 750);
+    }
+  }
+
+  private stopGameReturnMonitor(): void {
+    if (this.gameReturnTimer >= 0) clearInterval(this.gameReturnTimer);
+    this.gameReturnTimer = -1;
+    this.gameReturnSession = null;
+  }
+
+  private checkGameReturn(): void {
+    const session = this.gameReturnSession;
+    if (!session || !GameModeService.enabled()) { this.stopGameReturnMonitor(); return; }
+    const tasks = HostWindowTasks.getInstance();
+    // Splash/replacement windows and a surviving process are not game exit.
+    // Failed native queries retain the session; never infer exit from an error.
+    try {
+      const native = testNapi.getWineSession(session.sessionId) as NativeWineSessionInfo | null;
+      if (native && native.state !== 'stopped' && native.state !== 'error') return;
+      const processes = testNapi.getProcessList() as NativeProcessInfo[];
+      if (!Array.isArray(processes) || processes.some((process: NativeProcessInfo): boolean =>
+        process.state === 'running' && (process.sessionId === session.sessionId || process.pid === session.pid))) return;
+    } catch (_) { return; }
+    if (tasks.snapshot().some((task): boolean => task.sessionId === session.sessionId)) return;
+    this.stopGameReturnMonitor();
+    // Returning to the library or another window explicitly wins over auto return.
+    if (tasks.isLauncherForeground() || tasks.hasForegroundTask()) return;
+    const card = SteamLocalService.getInstance().getCards().find((item: AppDescriptor): boolean => item.id === session.appId);
+    const steamGame = !!card?.steam?.appId || session.appId.startsWith('steam-default-');
+    const client = steamGame ? Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+      item.appId === STEAM_CLIENT_ID && item.state === SessionState.RUNNING) : undefined;
+    if (client) {
+      // Reuse the current Windows Steam session; do not relaunch its client.
+      this.resume(client).catch((error: Error): void => {
+        hilog.warn(DOMAIN, '[SESS]', 'Game return to Steam failed: %{public}s', error.message);
+      });
+    } else {
+      tasks.showLauncher().catch((error: Error): void => {
+        hilog.warn(DOMAIN, '[SESS]', 'Game return to library failed: %{public}s', error.message);
+      });
+    }
   }
 
   private isVenusExclusiveSmoke(appId: string): boolean {
@@ -1020,12 +1173,13 @@ export class AppSessionService {
     const steam = SteamLocalService.getInstance();
     steam.getCards().forEach((card: AppDescriptor): void => {
       steam.processesFor(card, processes).forEach((process: NativeProcessInfo): void => {
-        const id = 'steam-process-' + process.pid;
+        const id = process.sessionId || 'steam-process-' + process.pid;
         if (this.sessions.has(id) || Array.from(this.sessions.values()).some((item: RuntimeSession): boolean => item.pid === process.pid)) return;
         const session: RuntimeSession = { sessionId: id, appId: card.id, executable: process.path,
           pid: process.pid, displayMode: DisplayMode.DESKTOP,
           presentationMode: WineEngineService.getInstance().getPresentationMode() ?? WinePresentationMode.DESKTOP,
-          state: SessionState.RUNNING, toplevelId: 0, startedAt: Date.now() };
+          state: SessionState.RUNNING, toplevelId: 0, startedAt: Date.now(),
+          automaticForeground: !!card.steam?.appId };
         this.sessions.set(id, session);
         this.resolvePendingToplevel(session);
         if (session.toplevelId > 0) this.promoteDesktopSession(session);

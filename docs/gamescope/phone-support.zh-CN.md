@@ -1,0 +1,62 @@
+# 手机 Game 模式与呈现适配边界
+
+用户要求手机具备类似的 Game 功能；手机不依赖系统 NativeChildProcess（NCP）。
+这是本轮范围约束，不把手机归入可忽略的设备。本文区分实现路线与已完成能力。
+
+## 共用产品层
+
+手机、Mini 和 PC 共用的 Game 游戏库、Steam 入口、游戏覆盖、性能设置和快捷面板已接入。
+进入 Game 页面不以 `GamescopeRuntimeStatus.loaded` 或系统 NCP 是否存在为条件；
+这些状态仅用于选择已验收的呈现实现。保持已有 Wine/FEX、后端选择、配置和存档。
+
+设置按会话启动时解析，游戏卡片覆盖优先于当前模式。现有会话冲突时要求正常退出，
+不热迁移窗口。单个能力（FSR、限帧等）只有实际接入并验证后才对用户标为可用。
+
+## 平台实现
+
+| 平台 | 进程和最终呈现 | 当前状态 |
+| --- | --- | --- |
+| 平板/PC 和手机的 Game 会话 | App 内嵌入 OHOS Gamescope core，通过 NativeBuffer/fence 导入、最终 NativeWindow 输出和官方 EASU/RCAS 合成 | GPU 桥和 FSR 已接入；Mini 结果见 [11 月 18 日评价](steam-game-mode-evaluation-20261118.zh-CN.md)；M80 已完成 PAL4/VirGL 有限功能检查，手机 FSR 实效和完整矩阵仍未验收 |
+| 支持 NCP 的平板/PC 的独立诊断 | 独立 OHOS Gamescope core，通过 OHIPC 交接 NativeWindow | Mini 历史 SHM 五轮启停与三次 resize 通过；不是实际游戏或新 storage 输出验收 |
+
+手机已有早期 clean fork server 可启动纯运行时子进程；没有服务或服务已死亡时不得
+回退到系统 NCP，也不在 ArkUI/GPU 已运行后临时 fork。该进程能力不等同于图形能力。
+`StartOutputChild` 在手机上明确拒绝平板专用的 NativeWindow IPC bootstrap。
+原生查询另有 `standaloneOutputSupported`，手机恒为 false；不会因为 clean fork
+或动态库可加载就启用独立输出，诊断页也在启动前显示相应状态。
+
+历史 Mate80 的 NativeBuffer 读入及反向 Vulkan allocation 都在 fork 子进程的
+HDI/SAMGR 服务获取中等待，零帧。见
+[手机 Direct 记录](../architecture/mate80-direct-reverse-export-20260929.md)。
+因此不以 surface ID、原始指针或普通 socket 序列化替代系统窗口对象交接，也不将
+历史失败协议直接开放为手机呈现路径。未来若系统提供可用入口，可另行验收真正的
+手机 Gamescope 子进程，且无需更换共用产品层。
+
+## 手机接入点与待验收范围
+
+1. 已在统一会话设置中解析呈现选项，注入现有 `EglRenderer` / `DesktopCompositor`。
+   继续由现有 NativeImage 消费持有图像，最终输出交给同进程 Gamescope；不新增完整桌面的重复合成。
+2. 已将线性、最近邻、整数缩放接到最终显示矩形；输入共用呈现客户区尺寸、原点和黑边。
+   Mini PAL4 和 M80 PAL4 已验证去掉标题栏后的客户区触摸；M80 已观察到从竖屏库进入横屏游戏。
+   手机完整旋转、相对鼠标及 X11 路线仍须独立验收。
+3. FSR 1.0 在同进程 GPU pass 中实现 EASU/RCAS，沿用 HSL 锐化转换。必要的中间纹理
+   在 GPU 内保留，不用整帧 CPU 读回/重新上传来伪装游戏共享图像。
+4. 默认/30/60 FPS 已接入调度与生产者节拍，仍须同时核对生产者和呈现者。仅减少宿主上屏次数不代表游戏 FPS 已限制；
+   不能在持有渲染锁或未释放消费图像时睡眠。反馈/背压必须有实际帧时间证据。
+5. 保留已有输入、IME、授权剪贴板和多手柄通道，不新增第二路投递。
+
+手机单独验证正常初始化、游戏画面、旋转、后台恢复、五轮退出重入；以相同后端、
+实际游戏/输出尺寸比较普通模式和 Game 模式。Mini 的任何通过结果不能代替手机验收。
+M80 已在 2.0.5 旧证书调试包覆盖升级后完成 Wine 初始化、中文存档加载、客户区与侧栏、
+返回库保留游戏/恢复、两次启动与正常退出。日志为手机 fork、同进程 Gamescope，
+`ncp=0 native=1 cpuGameCopies=0`。该结果只覆盖 PAL4/VirGL/Wayland。
+
+30 FPS 档观察到 HUD 约 28 FPS、宿主呈现节拍约 26 FPS，未取得生产者帧时间；
+FSR 选项可切换但此场景 `fsrPasses=0`，未证明 EASU 实际执行。
+不能将这两项或五轮完整生命周期称为已验收。手机全新安装、后台恢复及其他图形组合也仍待验证。
+
+2.0.5 打包时复核了手机模式设置顺序、同进程呈现、Direct 探测保护和窄屏面板，
+相关主机行为测试通过；打包后补充了上述独立 M80 无线真机检查。
+手机为保留原数据沿用旧证书/Profile，测试包未声明该 Profile 未授权的 `READ_PASTEBOARD`；
+最终 unsigned 仍保留该权限。本轮不能作为手机新剪贴板 ACL 或授权回退的验收。
+详见 [2.0.5 交付记录](../upstream-sync/release-2.0.5.zh-CN.md)。

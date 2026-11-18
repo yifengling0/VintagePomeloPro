@@ -45,14 +45,31 @@ set(WAYLAND_LIBS_DIR ${NATIVERENDER_ROOT_PATH}/../../../libs/${OHOS_ARCH})
 # 显示路线 wlroots (静态库) — 构建产物在 build/host-ext (纪律: build/ 内唯一落点),
 # 其 NEEDED 闭包 .so 由 assemble.sh 装配进 libs/ (打包视图)
 # 注: NATIVERENDER_ROOT_PATH = entry/src/main/cpp, 仓库根在四级上
-set(WLR_DIR ${NATIVERENDER_ROOT_PATH}/../../../../build/host-ext/${OHOS_ARCH})
+# Allow a read-only dependency install outside Hvigor's disposable build tree.
+set(VPP_HOST_EXT_ROOT "$ENV{VPP_HOST_EXT_ROOT}" CACHE PATH "Existing host dependency install")
+if(NOT VPP_HOST_EXT_ROOT)
+    set(VPP_HOST_EXT_ROOT ${NATIVERENDER_ROOT_PATH}/../../../../build/host-ext)
+endif()
+set(WLR_DIR ${VPP_HOST_EXT_ROOT}/${OHOS_ARCH})
 set(WLR_STATIC ${WLR_DIR}/usr/lib/libwlroots-0.20.a)
 set(WLR_INC ${WLR_DIR}/usr/include/wlroots-0.20)
 set(WLR_PIXMAN_INC ${WLR_DIR}/usr/include/pixman-1)
 # xwayland.h 需要 xcb/xcb.h 等 (host-ext usr/include)
 set(WLR_XCB_INC ${WLR_DIR}/usr/include)
 
+# The core stays isolated in its process; libentry contains only control/IPC.
+set(VPP_GAMESCOPE_PLATFORM ${NATIVERENDER_ROOT_PATH}/../../../../native/gamescope/ohos)
+include_directories(${VPP_GAMESCOPE_PLATFORM})
+add_library(gamescope_child SHARED gamescope/gamescope_child.cpp)
+target_include_directories(gamescope_child PRIVATE ${NATIVERENDER_ROOT_PATH})
+target_link_libraries(gamescope_child PRIVATE libdl.so libchild_process.so libipc_capi.so libnative_window.so)
+
 add_library(entry SHARED
+    gamescope/process_backend.cpp
+    gamescope/output_connection.cpp
+    gamescope/spawn_broker.cpp
+    gamescope/runtime_napi.cpp
+    gamescope/runtime_session.cpp
     display/x11_external_host.cpp
     display/display_session.cpp
     display/display_compositor.cpp
@@ -105,6 +122,7 @@ add_library(entry SHARED
     input/controller/gamepad_bridge.cpp
     input/controller/physical_gamepad.cpp
     bridge/napi_init.cpp
+    bridge/system_open.cpp
     proc/wine_process.cpp
     wine/wine_env.cpp
     wine/env_spec.cpp
@@ -148,6 +166,7 @@ add_library(entry SHARED
     common/process_utils.cpp
     common/ring_buffer.cpp
     input/seat.cpp
+    input/data_device.cpp
     graphics/shader_utils.cpp
     common/string_utils.cpp
     input/input_manager.cpp
@@ -243,6 +262,7 @@ target_link_libraries(entry PUBLIC
 add_library(wine_child SHARED
     proc/wine_child.cpp
     proc/wine_child_ipc.cpp
+    wine/dll_overrides.cpp
 )
 target_link_libraries(wine_child PUBLIC libhilog_ndk.z.so libchild_process.so libipc_capi.so libnative_window.so)
 

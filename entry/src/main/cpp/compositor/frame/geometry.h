@@ -17,13 +17,16 @@ struct FitRect {
     int dstW = 0, dstH = 0;  // 内容在显示区内的缩放后尺寸 (黑边之内)
     int offX = 0, offY = 0;  // 内容区在显示区中的原点 (黑边偏移)
     double scale = 1.0;      // dst/src 的未取整缩放系数
+    int srcX = 0, srcY = 0;  // presented client origin inside the Wine window
+    bool clientOnly = false;
 };
 
 inline bool SameFitRect(const FitRect& a, const FitRect& b)
 {
     return a.srcW == b.srcW && a.srcH == b.srcH &&
            a.dstW == b.dstW && a.dstH == b.dstH &&
-           a.offX == b.offX && a.offY == b.offY && a.scale == b.scale;
+           a.offX == b.offX && a.offY == b.offY && a.scale == b.scale &&
+           a.srcX == b.srcX && a.srcY == b.srcY && a.clientOnly == b.clientOnly;
 }
 
 // 计算保比例缩放 + 居中的适配矩形。任一尺寸 <= 0 返回 false (out 不动)。
@@ -31,8 +34,8 @@ bool ComputeFitRect(int rootW, int rootH, int winW, int winH, FitRect& out);
 
 // -- 正/逆映射 (数学定义, 用未取整 scale) --
 // desktop 合成/命中路径用: 合成用未取整 scale blit, 输入按同一 scale 除回, 严格互逆。
-inline double FitMapX(const FitRect& t, double x) { return t.offX + x * t.scale; }
-inline double FitMapY(const FitRect& t, double y) { return t.offY + y * t.scale; }
+inline double FitMapX(const FitRect& t, double x) { return t.offX + (x - t.srcX) * t.scale; }
+inline double FitMapY(const FitRect& t, double y) { return t.offY + (y - t.srcY) * t.scale; }
 
 // subsurface 相对窗口原点的 fit 映射矩形 — 渲染 blit 与输入命中共用的唯一
 // 实现 (原两侧手写同一数学: 渲染 desktop_compositor.cpp blitSubsurface 全屏

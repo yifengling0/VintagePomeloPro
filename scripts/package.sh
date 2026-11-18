@@ -90,10 +90,19 @@ app_path = Path(sys.argv[2]).resolve()
 selected_name = sys.argv[3]
 
 def load_json5(path):
-    content = path.read_text(encoding="utf-8")
-    content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
-    content = re.sub(r',\s*([}\]])', r'\1', content)
-    return json.loads(content)
+    # Use the toolchain's JSON5 parser: comments, unquoted keys, single-quoted
+    # strings and URLs must survive signing preflight unchanged.
+    import os, subprocess
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        pass
+    tool = Path(os.environ.get("TOOL_HOME", "/apps/harmony"))
+    data = subprocess.check_output([str(tool / "tool/node/bin/node"), "-e",
+        "const fs=require('fs'),j=require(process.argv[1]);"
+        "process.stdout.write(JSON.stringify(j.parse(fs.readFileSync(process.argv[2],'utf8'))))",
+        str(tool / "hvigor/hvigor-ohos-plugin/node_modules/json5"), str(path)])
+    return json.loads(data)
 
 profile = load_json5(profile_path)
 configs = profile.get("app", {}).get("signingConfigs", [])

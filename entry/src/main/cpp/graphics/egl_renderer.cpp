@@ -1,3 +1,4 @@
+#include "graphics/game_presentation.h"
 #include "egl_renderer.h"
 #include "graphics_broker.h"
 #include "gl_capability_probe.h"
@@ -191,8 +192,8 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
         consumer.surfaceKey = surface.surfaceKey;
         glGenTextures(1, &consumer.texture);
         glBindTexture(GL_TEXTURE_EXTERNAL_OES, consumer.texture);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MIN_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_MAG_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         glTexParameteri(GL_TEXTURE_EXTERNAL_OES, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         consumer.frameSignals.store(0, std::memory_order_relaxed);
@@ -227,7 +228,7 @@ bool EglRenderer::TryAttachZeroCopySurface(uint32_t rendererToplevelId)
             !broker.AttachZeroCopyTarget(
                 surface.surfaceKey, consumer.producerWindow,
                 renderPaused_.load(std::memory_order_acquire) ? 100000000ull :
-                    static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed)),
+                    winehua::game::ProducerPeriodNs(static_cast<uint64_t>(vsyncPeriodNs_.load(std::memory_order_relaxed))),
                 surface.vulkan))
         {
             ReleaseZeroCopyBinding(consumer);
@@ -693,8 +694,8 @@ void EglRenderer::DrawZeroCopyScene(winehua::TextureUploadStats* uploads)
         if (!saved.texture) {
             glGenTextures(1, &saved.texture);
             glBindTexture(GL_TEXTURE_2D, saved.texture);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         } else glBindTexture(GL_TEXTURE_2D, saved.texture);
@@ -738,9 +739,9 @@ bool EglRenderer::Init(OHNativeWindow* window, int w, int h) {
     width_ = w;
     height_ = h;
 
-    if (RootCompositing() && winehua::direct::DirectDesktopVulkanEnabled()) {
+    if (RootCompositing() && (winehua::game::Enabled() || winehua::direct::DirectDesktopVulkanEnabled())) {
         vulkanDesktop_ = std::make_unique<winehua::direct::DirectVulkanDesktopCompositor>(compositor_);
-        if (!vulkanDesktop_->Initialize(window)) { vulkanDesktop_.reset(); return false; }
+        if (!vulkanDesktop_->Initialize(window,w,h)) { vulkanDesktop_.reset(); return false; }
         running_ = true;
         thread_ = std::thread(&EglRenderer::VulkanRenderLoop, this);
         return true;
@@ -850,7 +851,13 @@ uint32_t EglRenderer::DirectPassCapabilities() const
 }
 
 void EglRenderer::VulkanRenderLoop() {
+    winehua::game::FrameDeadline gameDeadline;
     while (running_) {
+        if (!gameDeadline.Ready(PerfNowUs() * 1000, winehua::game::CompositionPeriodNs())) {
+            std::unique_lock<std::mutex> lock(vsyncMutex_);
+            vsyncCv_.wait_for(lock, std::chrono::milliseconds(1), [&] { return !running_; });
+            continue;
+        }
         const auto request = repaint_.CaptureRequest();
         const auto serial = vulkanDesktop_->PresentationSerial();
         if (!vulkanDesktop_->Render(expectW_ > 0 ? expectW_ : width_, expectH_ > 0 ? expectH_ : height_,
@@ -908,8 +915,8 @@ void EglRenderer::RenderLoop() {
     // 4. 纹理 (初始空)
     glGenTextures(1, &texture_);
     glBindTexture(GL_TEXTURE_2D, texture_);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, winehua::game::Nearest() ? GL_NEAREST : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     const bool zeroCopyReady = InitZeroCopyConsumer();
@@ -980,7 +987,7 @@ void EglRenderer::RenderLoop() {
                             vsyncPeriodNs_.store(period, std::memory_order_relaxed);
                             for (const auto& consumer : zeroCopyConsumers_)
                                 winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(
-                                    consumer->surfaceKey, static_cast<uint64_t>(period));
+                                    consumer->surfaceKey, winehua::game::ProducerPeriodNs(static_cast<uint64_t>(period)));
                         }
                         const long long periodDelta = period > loggedPeriodNs
                             ? period - loggedPeriodNs : loggedPeriodNs - period;
@@ -1021,9 +1028,12 @@ void EglRenderer::RenderLoop() {
         std::this_thread::sleep_until(fallbackDeadline);
         return running_;
     };
+    winehua::game::FrameDeadline gameDeadline;
     auto waitForFrameTick = [&]() -> bool {
         const uint64_t startedUs = loopPerf.Active() ? PerfNowUs() : 0;
-        const bool result = waitForFrameTickImpl();
+        bool result;
+        do { result = waitForFrameTickImpl(); }
+        while (result && !gameDeadline.Ready(PerfNowUs() * 1000, winehua::game::LimitPeriodNs()));
         if (loopPerf.Active()) {
             const uint64_t nowUs = PerfNowUs();
             loopPerf.NoteWait(nowUs - startedUs);
@@ -1067,7 +1077,7 @@ void EglRenderer::RenderLoop() {
             const uint64_t period = paused ? 100000000ull :
                 static_cast<uint64_t>(vsyncPeriodNs > 0 ? vsyncPeriodNs : kFallbackPeriodNs);
             for (const auto& consumer : zeroCopyConsumers_)
-                winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(consumer->surfaceKey, period);
+                winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(consumer->surfaceKey, winehua::game::ProducerPeriodNs(period));
             if (!paused) {
                 rendered = false;
                 lastDrawW_ = lastDrawH_ = 0;

@@ -27,6 +27,9 @@ void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string& backe
     UpsertEnvLine(env, "WINEHUA_D3D_BACKEND=" + backend);
     UpsertEnvLine(env, "DXVK_WINEHUA_PRECISE_SHADOW=1");
 }
+void AppendWineDpiEnv(std::vector<std::string>& env) {
+    UpsertEnvLine(env, "WINEHUA_LOGPIXELS=192");
+}
 static int runtimeEnvironmentCalls = 0;
 void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) { ++runtimeEnvironmentCalls; }
 static bool Has(const std::vector<std::string>& env, const std::string& line) {
@@ -142,7 +145,9 @@ int main() {
         assert(Has(protectedEnv, "WINEHUA_VK_PRECISE_MAP=0"));
         assert(Has(protectedEnv, "DXVK_WINEHUA_PRECISE_SHADOW=1"));
     }
+    session.extraEnv.push_back("WINEHUA_LOGPIXELS=96");
     auto env = winehua::BuildSessionEnv(session);
+    assert(Has(env, "WINEHUA_LOGPIXELS=192") && !Has(env, "WINEHUA_LOGPIXELS=96"));
     winehua::SetProductDirectVulkanVerified(true);
     session.extraEnv = {"WINEHUA_VULKAN_BACKEND=venus", "WINEHUA_VK_PRECISE_MAP=0",
         "DXVK_WINEHUA_PRECISE_SHADOW=0", "DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=0",

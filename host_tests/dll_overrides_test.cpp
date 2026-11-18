@@ -34,6 +34,10 @@ void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string& backe
 
 void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) {}
 
+// DPI is exercised by its own contract tests; supply the platform dependency
+// for this isolated DLL/environment fixture, just like BuildWineEnv above.
+void AppendWineDpiEnv(std::vector<std::string>&) {}
+
 static std::string Value(const std::vector<std::string>& env, const std::string& key)
 {
     for (const auto& line : env) if (line.rfind(key + '=', 0) == 0)

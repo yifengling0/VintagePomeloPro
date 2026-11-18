@@ -11,6 +11,7 @@ R=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--virgl-source',type=Path)
 p.add_argument('--wine-source',type=Path)
+p.add_argument('--mesa-source',type=Path)
 p.add_argument('--hap',type=Path)
 p.add_argument('--native-output-dir',type=Path)
 p.add_argument('--behavior',action='store_true')
@@ -46,6 +47,11 @@ for engine,rows in lock['managed_patches'].items():
             order=re.search(r'XS_PATCH_SIG=\$\(cat (.*?) \| sha256sum',script)[1]
             actual=['scripts/'+assignments[var] for var in re.findall(r'"\$(\w+)"',order)]
         check(actual==names,engine+' overlay order/registration')
+    elif engine=='mesa':
+        check(sorted(str(x.relative_to(R)) for x in (R/'patches/mesa').glob('*.patch'))==names,'Mesa overlay inventory')
+        actual=re.findall(r'\$SCRIPT_DIR/\.\./(patches/[^"\s]+\.patch)',read('scripts/apply_mesa_ohos_patches.sh'))
+        check(actual==lock['mesa_production_overlays'],'Mesa production overlay order/registration')
+        check(set(actual)<=set(names),'Mesa production overlay inventory')
     else:
         check(sorted(str(x.relative_to(R)) for x in (R/'patches'/engine).glob('*.patch'))==names,engine+' overlay inventory')
 for name,expected in lock['x11_integration']['build_inputs'].items():
@@ -73,7 +79,7 @@ for name in ['vkAcquireImageOHOS','vkQueueSignalReleaseImageOHOS','OH_NativeWind
 for name in ['vkQueuePresentKHR','vkAcquireNextImageKHR','glReadPixels']:check(name not in direct,'Direct CPU/WSI bypass '+name)
 model=read('entry/src/main/ets/model/AppModels.ets')
 check('WINE_MF_PREFER_MPEG4_HANDLER=1' not in model,'redundant MPEG4 setting emission')
-for engine,src in [('wine-valve',a.wine_source),('virglrenderer',a.virgl_source)]:
+for engine,src in [('wine-valve',a.wine_source),('virglrenderer',a.virgl_source),('mesa',a.mesa_source)]:
     if src:
         for name,expected in lock['effective_files'][engine].items():
             check((src/name).is_file() and sha(src/name)==expected,'effective '+engine+'/'+name)

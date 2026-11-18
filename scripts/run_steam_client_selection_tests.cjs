@@ -5,7 +5,8 @@ const path = require('node:path');
 const vm = require('node:vm');
 const ts = require(process.argv[2] || 'typescript');
 const state = {installed: false, importing: false, running: false, result: {}, failure: false};
-const calls = [];
+const calls = [], readiness = [];
+let returns = 0;
 let gate = null;
 const singleton = value => ({getInstance: () => value});
 const windows = {isInstalled: () => state.installed, isImporting: () => state.importing,
@@ -16,9 +17,13 @@ const deps = {
   '../steam/SteamLocalService': {SteamLocalService: singleton(windows)},
   './AppCatalogService': {AppCatalogService: singleton({getWineHomeDirectory: () => '/download'})},
   './AppSettingsStore': {AppSettingsStore: singleton({getGlobalSettings: () => ({displayMode: 'desktop'})})},
+  './HostWindowTasks': {HostWindowTasks: singleton({navigationSerial: () => 1, showLauncher: async () => { ++returns; }})},
   './AppSessionService': {AppSessionService: singleton({async launch(app, settings, root) {
     calls.push([app, settings, root]); if (gate) await gate;
     if (state.failure) throw Error('wine failure'); return state.result;
+  }, async waitForSteamClientWindow(app, result, navigation) {
+    readiness.push([app, result, navigation]);
+    if (state.readyFailure) throw Error('client window missing');
   }})}
 };
 const out = {};
@@ -63,5 +68,11 @@ const service = new out.SteamClientService();
   state.failure = false; state.result = null;
   await assert.rejects(service.open(), /Windows Steam 启动失败/);
   state.result = {}; await service.open();
+  assert.equal(readiness.at(-1)[1], state.result);
+  state.readyFailure = true;
+  const previous = returns;
+  await assert.rejects(service.open(), /client window missing/);
+  assert.equal(returns, previous + 1, 'A PID without a ready client returns to launcher and reports failure');
+  state.readyFailure = false; await service.open();
   console.log('Windows Steam owner: empty/importing/stale install, navigation, original descriptor, warm session, concurrent starts and failure retry PASS');
 })().catch(error => {console.error(error); process.exitCode = 1;});

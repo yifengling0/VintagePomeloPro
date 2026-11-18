@@ -1,0 +1,17 @@
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -867,7 +867,13 @@
+ 	std::shared_ptr<VulkanTimelineSemaphore_t> CreateTimelineSemaphore( uint64_t ulStartingPoint, bool bShared = false );
+ 	std::shared_ptr<VulkanTimelineSemaphore_t> ImportTimelineSemaphore( gamescope::CTimeline *pTimeline );
+ 
+-	static const uint32_t upload_buffer_size = 1920 * 1080 * 4;
++	#if HAVE_OHOS_BACKEND
++    // Match the bounded embedded SHM contract. A tablet desktop can exceed
++    // 1080p even when the game itself renders at 800x600.
++    static const uint32_t upload_buffer_size = 32u * 1024 * 1024;
++#else
++    static const uint32_t upload_buffer_size = 1920 * 1080 * 4;
++#endif
+ 
+ 	inline VkDevice device() { return m_device; }
+ 	inline VkPhysicalDevice physDev() {return m_physDev; }

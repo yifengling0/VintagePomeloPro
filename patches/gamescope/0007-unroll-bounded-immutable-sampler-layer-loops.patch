@@ -1,0 +1,203 @@
+From: HSL maintainers
+Subject: [PATCH] shaders: unroll bounded layer loops for immutable sampler indices
+
+YCbCr conversion descriptor arrays require constant integral indices regardless
+of shaderSampledImageArrayDynamicIndexing. Bound iteration by VKR_MAX_LAYERS
+and retain each specialization-dependent interval as a per-layer guard. The
+standard optimizer must unroll these marked loops before driver compilation.
+Keep layer order, blending, filtering, color and specialization parameters.
+
+--- a/src/shaders/cs_composite_blit.comp
++++ b/src/shaders/cs_composite_blit.comp
+@@ -1,5 +1,6 @@
+ #version 450
+ 
++#extension GL_EXT_control_flow_attributes : require
+ #extension GL_GOOGLE_include_directive : require
+ #extension GL_EXT_scalar_block_layout : require
+ 
+@@ -36,9 +37,11 @@
+         outputValue = sampleLayer(0, uv) * u_opacity[0];
+     }
+ 
+-    for (int i = 1; i < c_layerCount; i++) {
+-        vec4 layerColor = sampleLayer(i, uv);
+-        outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++    [[unroll]] for (int i = 1; i < int(VKR_MAX_LAYERS); i++) {
++        if (i < c_layerCount) {
++            vec4 layerColor = sampleLayer(i, uv);
++            outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++        }
+     }
+ 
+     outputValue.rgb = encodeOutputColor(outputValue.rgb);
+--- a/src/shaders/cs_composite_blur.comp
++++ b/src/shaders/cs_composite_blur.comp
+@@ -1,5 +1,6 @@
+ #version 450
+ 
++#extension GL_EXT_control_flow_attributes : require
+ #extension GL_GOOGLE_include_directive : require
+ #extension GL_EXT_scalar_block_layout : require
+ 
+@@ -38,9 +39,11 @@
+     if (c_layerCount > 0)
+         outputValue = gaussian_blur(s_samplers[VKR_BLUR_EXTRA_SLOT], 0, vec2(coord), u_blur_radius, true, true).rgb;
+ 
+-    for (int i = c_blur_layer_count; i < c_layerCount; i++) {
+-        vec4 layerColor = sampleLayer(i, uv);
+-        outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++    [[unroll]] for (int i = 0; i < int(VKR_MAX_LAYERS); i++) {
++        if (i >= c_blur_layer_count && i < c_layerCount) {
++            vec4 layerColor = sampleLayer(i, uv);
++            outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++        }
+     }
+ 
+     outputValue = encodeOutputColor(outputValue);
+--- a/src/shaders/cs_composite_blur_cond.comp
++++ b/src/shaders/cs_composite_blur_cond.comp
+@@ -1,5 +1,6 @@
+ #version 450
+ 
++#extension GL_EXT_control_flow_attributes : require
+ #extension GL_GOOGLE_include_directive : require
+ #extension GL_EXT_scalar_block_layout : require
+ 
+@@ -37,13 +38,15 @@
+ 
+     float finalRevAlpha = 1.0f;
+ 
+-    for (int i = c_blur_layer_count; i < c_layerCount; i++) {
+-        vec4 layerColor = sampleLayer(i, uv);
+-        float opacity = u_opacity[i];
+-        float layerAlpha = opacity * layerColor.a;
+-        float revAlpha = (1.0f - layerAlpha);
+-        outputValue = BlendLayer( i, outputValue, layerColor, opacity );
+-        finalRevAlpha *= revAlpha;
++    [[unroll]] for (int i = 0; i < int(VKR_MAX_LAYERS); i++) {
++        if (i >= c_blur_layer_count && i < c_layerCount) {
++            vec4 layerColor = sampleLayer(i, uv);
++            float opacity = u_opacity[i];
++            float layerAlpha = opacity * layerColor.a;
++            float revAlpha = (1.0f - layerAlpha);
++            outputValue = BlendLayer( i, outputValue, layerColor, opacity );
++            finalRevAlpha *= revAlpha;
++        }
+     }
+ 
+     if (c_layerCount > 0) {
+@@ -51,11 +54,13 @@
+             outputValue += gaussian_blur(s_samplers[VKR_BLUR_EXTRA_SLOT], 0, vec2(coord), u_blur_radius, true, true).rgb * finalRevAlpha;
+         } else {
+             outputValue = sampleLayer(0, uv).rgb * u_opacity[0];
+-            for (int i = 1; i < c_blur_layer_count; i++) {
+-                vec4 layerColor = sampleLayer(i, uv);
+-                float opacity = u_opacity[i];
+-                float layerAlpha = opacity * layerColor.a;
+-                outputValue = BlendLayer( i, outputValue, layerColor, opacity );
++            [[unroll]] for (int i = 1; i < int(VKR_MAX_LAYERS); i++) {
++                if (i < c_blur_layer_count) {
++                    vec4 layerColor = sampleLayer(i, uv);
++                    float opacity = u_opacity[i];
++                    float layerAlpha = opacity * layerColor.a;
++                    outputValue = BlendLayer( i, outputValue, layerColor, opacity );
++                }
+             }
+         }
+     }
+--- a/src/shaders/cs_composite_rcas.comp
++++ b/src/shaders/cs_composite_rcas.comp
+@@ -1,5 +1,6 @@
+ #version 460
+ 
++#extension GL_EXT_control_flow_attributes : require
+ #extension GL_GOOGLE_include_directive : require
+ #extension GL_EXT_scalar_block_layout : require
+ 
+@@ -92,9 +93,11 @@
+     if (c_layerCount > 1) {
+         vec2 uv = vec2(pos);
+ 
+-        for (int i = 1; i < c_layerCount; i++) {
+-            vec4 layerColor = sampleLayer(i, uv);
+-            outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++        [[unroll]] for (int i = 1; i < int(VKR_MAX_LAYERS); i++) {
++            if (i < c_layerCount) {
++                vec4 layerColor = sampleLayer(i, uv);
++                outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++            }
+         }
+     }
+ 
+--- a/src/shaders/cs_composite_rcas_1px.comp
++++ b/src/shaders/cs_composite_rcas_1px.comp
+@@ -1,5 +1,6 @@
+ #version 460
+ 
++#extension GL_EXT_control_flow_attributes : require
+ #extension GL_GOOGLE_include_directive : require
+ #extension GL_EXT_scalar_block_layout : require
+ 
+@@ -92,9 +93,11 @@
+     if (c_layerCount > 1) {
+         vec2 uv = vec2(pos);
+ 
+-        for (int i = 1; i < c_layerCount; i++) {
+-            vec4 layerColor = sampleLayer(i, uv);
+-            outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++        [[unroll]] for (int i = 1; i < int(VKR_MAX_LAYERS); i++) {
++            if (i < c_layerCount) {
++                vec4 layerColor = sampleLayer(i, uv);
++                outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++            }
+         }
+     }
+ 
+--- a/src/shaders/cs_gaussian_blur_horizontal.comp
++++ b/src/shaders/cs_gaussian_blur_horizontal.comp
+@@ -1,5 +1,6 @@
+ #version 460
+ 
++#extension GL_EXT_control_flow_attributes : require
+ #extension GL_GOOGLE_include_directive : require
+ #extension GL_EXT_scalar_block_layout : require
+ 
+@@ -47,16 +48,28 @@
+             outputValue = gaussian_blur(s_samplers[0], 0, pos, u_blur_radius, false, true).rgb * u_opacity[0];
+     }
+ 
+-    for (int i = 1; i < c_layerCount; i++) {
+-        vec4 layerColor;
+-        // YCBCR technically has incorrect blending here but... meh.
+-        if ((c_ycbcrMask & (1 << i)) != 0)
+-            layerColor = gaussian_blur(s_ycbcr_samplers[i], i, pos, u_blur_radius, false, false);
+-        else
+-            layerColor = gaussian_blur(s_samplers[i], i, pos, u_blur_radius, false, true);
+-
+-        outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] );
++    // Nested radius loops prevent generic loop unrolling. Expand the fixed
++    // layer indices here so converted samplers remain literal in SPIR-V.
++    const int hsl_layer_limit[(VKR_MAX_LAYERS == 8u) ? 1 : -1] = int[1](0);
++#define COMPOSITE_LAYER(i) \
++    if (i < c_layerCount) { \
++        vec4 layerColor; \
++        /* YCBCR technically has incorrect blending here but... meh. */ \
++        if ((c_ycbcrMask & (1 << i)) != 0) \
++            layerColor = gaussian_blur(s_ycbcr_samplers[i], i, pos, u_blur_radius, false, false); \
++        else \
++            layerColor = gaussian_blur(s_samplers[i], i, pos, u_blur_radius, false, true); \
++ \
++        outputValue = BlendLayer( i, outputValue, layerColor, u_opacity[i] ); \
+     }
++    COMPOSITE_LAYER(1)
++    COMPOSITE_LAYER(2)
++    COMPOSITE_LAYER(3)
++    COMPOSITE_LAYER(4)
++    COMPOSITE_LAYER(5)
++    COMPOSITE_LAYER(6)
++    COMPOSITE_LAYER(7)
++#undef COMPOSITE_LAYER
+ 
+     uint colorspace = get_layer_colorspace(0);
+     outputValue = colorspace_plane_regamma_tf(outputValue, colorspace);

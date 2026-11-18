@@ -11,6 +11,115 @@
 ROOT := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 .DEFAULT_GOAL := all
 
+# Gamescope is an opt-in OHOS port. These targets do not change the product
+# runtime or claim device support before the native compositor is qualified.
+.PHONY: gamescope-source gamescope-ohos-probe gamescope-ohos-deps gamescope-ohos test-gamescope-shm
+gamescope-source:
+	python3 $(ROOT)/scripts/gamescope_source.py $(if $(GAMESCOPE_SOURCE_CACHE),--cache $(GAMESCOPE_SOURCE_CACHE),) $(if $(filter 1,$(GAMESCOPE_REFRESH_RECIPE)),--refresh-reviewed,)
+
+gamescope-ohos-probe: gamescope-source
+	python3 $(ROOT)/scripts/gamescope_ohos_probe.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+gamescope-ohos-deps:
+	python3 $(ROOT)/scripts/build_gamescope_ohos_deps.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+gamescope-ohos: gamescope-source gamescope-ohos-deps
+	python3 $(ROOT)/scripts/build_gamescope_ohos.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+.PHONY: gamescope-loader-runtime
+gamescope-loader-runtime:
+	python3 $(ROOT)/scripts/stage_gamescope_runtime.py --sdk $(GAMESCOPE_OHOS_SDK) --host-prefix $(GAMESCOPE_HOST_PREFIX)
+
+.PHONY: gamescope-app-native
+GAMESCOPE_APP_CMAKE ?= $(ROOT)/entry/.cxx/proRelease/default/release/arm64-v8a
+gamescope-app-native:
+	cmake --build $(GAMESCOPE_APP_CMAKE) --target gamescope_child entry -j4
+
+.PHONY: test-game-presentation test-game-mode-models
+test-game-presentation:
+	mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp \
+	  $(ROOT)/host_tests/game_presentation_test.cpp $(ROOT)/entry/src/main/cpp/compositor/frame/geometry.cpp \
+	  -o $(ROOT)/build/host-tests/game_presentation_test
+	$(ROOT)/build/host-tests/game_presentation_test
+	g++ -std=c++17 -O2 -ffast-math -Wall -Wextra -Werror -I$(ROOT)/native/gamescope/ohos \
+	  $(ROOT)/host_tests/gamescope_embedded_contract_test.cpp -o $(ROOT)/build/host-tests/gamescope_embedded_contract_test
+	$(ROOT)/build/host-tests/gamescope_embedded_contract_test
+
+test-game-mode-models:
+	MODEL_TEST_SCOPE=game bash $(ROOT)/scripts/run_model_unit_tests.sh
+
+.PHONY: test-app-review
+test-app-review:
+	$(TOOL_HOME)/tool/node/bin/node $(ROOT)/scripts/run_app_review_tests.cjs \
+	  $(TOOL_HOME)/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/typescript.js
+
+.PHONY: gamescope-debug-hap gamescope-unsigned-hap
+gamescope-debug-hap:
+	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony \
+	  --signing-config "$(GAMESCOPE_SIGNING_CONFIG)" --signing-material "$(GAMESCOPE_SIGNING_MATERIAL)" \
+	  --output $(ROOT)/workspace_temp/gamescope-port
+
+# Reuse the locked payload without staging the development pixel probe or signing.
+gamescope-unsigned-hap:
+	python3 $(ROOT)/scripts/package_gamescope_debug.py --sdk /apps/harmony --unsigned \
+	  --output $(ROOT)/workspace_temp/gamescope-port
+
+.PHONY: test-gamescope-workers test-gamescope-platform
+test-gamescope-platform: gamescope-source
+	python3 $(ROOT)/host_tests/gamescope_mangoapp_policy_test.py $(ROOT)/build/gamescope/arm64-v8a/source/src/mangoapp.cpp
+
+test-gamescope-workers:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -pthread -o $(ROOT)/build/host-tests/gamescope_workers_test $(ROOT)/host_tests/gamescope_workers_test.cpp
+	$(ROOT)/build/host-tests/gamescope_workers_test
+
+.PHONY: test-gamescope-transport test-gamescope-recipe
+test-gamescope-transport:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -pthread -o $(ROOT)/build/host-tests/gamescope_transport_test $(ROOT)/host_tests/gamescope_transport_test.cpp
+	$(ROOT)/build/host-tests/gamescope_transport_test
+
+test-gamescope-recipe:
+	python3 $(ROOT)/host_tests/gamescope_recipe_test.py
+
+.PHONY: test-gamescope-color-gpu
+# Uses the actual shader emitted by gamescope-ohos; explicitly host-only.
+test-gamescope-color-gpu:
+	python3 $(ROOT)/host_tests/gamescope_color_gpu_test.py --vulkan-headers $(GAMESCOPE_VULKAN_HEADERS)
+
+.PHONY: test-gamescope-output
+test-gamescope-output:
+	python3 $(ROOT)/host_tests/gamescope_output_test.py --vulkan-headers $(GAMESCOPE_VULKAN_HEADERS)
+
+.PHONY: test-gamescope-session
+test-gamescope-session:
+	mkdir -p $(ROOT)/build/gamescope/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -pthread -I$(ROOT)/native/gamescope/ohos \
+	  -I$(ROOT)/host_tests/gamescope_stubs \
+	  $(ROOT)/host_tests/gamescope_session_test.cpp $(ROOT)/entry/src/main/cpp/gamescope/runtime_session.cpp \
+	  -o $(ROOT)/build/gamescope/host-tests/session
+	$(ROOT)/build/gamescope/host-tests/session
+
+.PHONY: test-gamescope-process-backend
+test-gamescope-process-backend:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -I$(ROOT)/host_tests/gamescope_stubs -I$(ROOT)/entry/src/main/cpp \
+	  $(ROOT)/host_tests/gamescope_process_backend_test.cpp $(ROOT)/entry/src/main/cpp/gamescope/process_backend.cpp \
+	  -o $(ROOT)/build/host-tests/gamescope_process_backend_test
+	$(ROOT)/build/host-tests/gamescope_process_backend_test
+
+GAMESCOPE_OHOS_SDK ?= /apps/harmony/sdk/default/openharmony/native
+GAMESCOPE_HOST_PREFIX ?= $(ROOT)/build/host-ext/arm64-v8a/usr
+
+test-gamescope-shm:
+	@mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++20 -Wall -Wextra -Werror -I$(GAMESCOPE_VULKAN_HEADERS) \
+	    -o $(ROOT)/build/host-tests/gamescope_shm_upload_test $(ROOT)/host_tests/gamescope_shm_upload_test.cpp
+	$(ROOT)/build/host-tests/gamescope_shm_upload_test
+
+GAMESCOPE_VULKAN_HEADERS ?= $(ROOT)/thirdparty/dxvk/include
+
 # ── 配置 ──
 NATIVE_ARCH ?= x86_64
 # guest 栈架构与 Wine 对齐: arm64 原生 wine → aarch64 venus/virgl guest (同架构 dlopen);
@@ -172,6 +281,11 @@ endif
 # ============================================================
 .PHONY: dxvk
 dxvk: $(DXVK_STAMP)
+
+# Focused PE32 D3D9 rebuild; deliberately does not satisfy the full DXVK stamp.
+.PHONY: dxvk-d3d9
+dxvk-d3d9:
+	bash $(SCRIPTS)/build_dxvk.sh --d3d9-only
 
 # arm64x 链接引用 wine 构建的 import lib (dlls/vulkan-1/aarch64-windows/libvulkan-1.a):
 # 必须显式前置 wine stamp, 否则干净环境 (无残留 build/) 中 dxvk 先于 wine 构建
@@ -681,6 +795,7 @@ test-hsl-pr78:
 	g++ -std=c++17 -Wall -Wextra -Werror $(ROOT)/host_tests/wine_cpu_policy_test.cpp -o $(HOST_TEST_DIR)/wine_cpu_policy_test
 	$(HOST_TEST_DIR)/wine_cpu_policy_test
 	python3 $(ROOT)/host_tests/dxvk_compat_patches_test.py
+	python3 $(ROOT)/host_tests/dxvk9_backbuffer_preservation_test.py
 	python3 $(ROOT)/host_tests/hsl_dxvk_publication_test.py
 	python3 $(ROOT)/host_tests/venus_present_retry_test.py
 	python3 $(ROOT)/host_tests/venus_present_deadline_test.py --source $(ROOT)/thirdparty/mesa --build-dir $(HOST_TEST_DIR)/venus-deadline
@@ -1192,6 +1307,15 @@ test-virgl-present-context:
 	python3 $(ROOT)/host_tests/virgl_present_context_test.py --source "$(GFX_EFFECTIVE_VIRGL)"
 graphics-migration-check: test-virgl-present-context
 
+.PHONY: test-zink-shadow-buffer test-zink-shadow-image test-zink-shadow-transfers
+GFX_MESA_GIT ?= $(ROOT)/thirdparty/mesa
+test-zink-shadow-buffer:
+	python3 $(ROOT)/host_tests/zink_shadow_buffer_test.py --mesa-git "$(GFX_MESA_GIT)"
+test-zink-shadow-image:
+	python3 $(ROOT)/host_tests/zink_shadow_image_test.py --mesa-git "$(GFX_MESA_GIT)"
+test-zink-shadow-transfers: test-zink-shadow-buffer test-zink-shadow-image
+graphics-migration-check: test-zink-shadow-transfers
+
 .PHONY: test-renderer-scopes
 test-renderer-scopes:
 	python3 $(ROOT)/host_tests/renderer_scope_test.py
@@ -1234,7 +1358,7 @@ graphics-migration-check: test-xdg-resource-lifecycle
 test: test-program-compat
 test-program-compat:
 	mkdir -p $(ROOT)/build/host_tests
-	$(CXX) -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/program_compat_test.cpp -o $(ROOT)/build/host_tests/program_compat_test
+	$(CXX) -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/program_compat_test.cpp $(ROOT)/entry/src/main/cpp/wine/dll_overrides.cpp -o $(ROOT)/build/host_tests/program_compat_test
 	$(ROOT)/build/host_tests/program_compat_test
 
 # Self-contained ICU is part of the ARM64 Wine payload, including upgrades.
@@ -1410,3 +1534,15 @@ test-virgl-opcode-timing:
 .PHONY: test-virgl-fbo-status
 test-virgl-fbo-status:
 	python3 $(ROOT)/host_tests/virgl_fbo_status_test.py --source $(VIRGL_TEST_SOURCE)
+
+# Host protocol fixtures use real Wayland resources/pipes; no graphics device.
+.PHONY: test-x11-upstream-sync
+test-x11-upstream-sync:
+	@mkdir -p $(HOST_TEST_DIR)
+	python3 $(ROOT)/host_tests/wine_wayland_clipboard_window_test.py
+	g++ -std=c++17 -Wall -Wextra -Werror -I $(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/open_protocol_test.cpp -pthread -o $(HOST_TEST_DIR)/open_protocol_test
+	$(HOST_TEST_DIR)/open_protocol_test
+	g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I $(ROOT)/entry/src/main/cpp $(ROOT)/host_tests/wayland_clipboard_lifecycle_test.cpp -lwayland-server -pthread -o $(HOST_TEST_DIR)/wayland_clipboard_lifecycle_test
+	$(HOST_TEST_DIR)/wayland_clipboard_lifecycle_test
+	$(TOOL_HOME)/tool/node/bin/node $(ROOT)/scripts/run_x11_clipboard_tests.cjs $(TOOL_HOME)/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/typescript.js
+	$(TOOL_HOME)/tool/node/bin/node $(ROOT)/scripts/run_x11_upstream_sync_tests.cjs $(TOOL_HOME)/sdk/default/openharmony/ets/build-tools/ets-loader/node_modules/typescript/lib/typescript.js

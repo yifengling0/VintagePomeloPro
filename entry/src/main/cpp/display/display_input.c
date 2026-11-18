@@ -692,6 +692,14 @@ static void InjectQueuePush(const struct inject_item *item)
         pthread_mutex_unlock(&g_inject_mutex);
         return;
     }
+    if (item->is_clipboard) {
+        for (size_t i = g_inject_head; i != g_inject_tail; i = (i + 1) % INJECT_QUEUE_CAP) {
+            if (g_inject_queue[i].is_clipboard) {
+                free(g_inject_queue[i].text); g_inject_queue[i].text = item->text;
+                pthread_mutex_unlock(&g_inject_mutex); return;
+            }
+        }
+    }
     {
         size_t next = (g_inject_tail + 1) % INJECT_QUEUE_CAP;
         if (next == g_inject_head)
@@ -884,50 +892,107 @@ static char *g_clip_cache;
 static uint64_t g_clip_version;
 static struct wl_listener g_selection_request, g_selection_changed;
 static bool g_selection_listening;
-static struct { int fd; char *text; size_t used;
-    struct wl_event_source *reader, *timer; } g_clip_read = {.fd = -1};
-static void ClipReadCancel(void) {
-    if (g_clip_read.reader) wl_event_source_remove(g_clip_read.reader);
-    if (g_clip_read.timer) wl_event_source_remove(g_clip_read.timer);
-    if (g_clip_read.fd >= 0) close(g_clip_read.fd);
-    free(g_clip_read.text);
-    memset(&g_clip_read, 0, sizeof(g_clip_read)); g_clip_read.fd = -1;
+/* Xwayland owns its write endpoint in this process; cancelled reads must
+ * drain to EOF. Ordinary wl_data_source.send only passes an fd copy. */
+extern bool data_source_is_xwayland(struct wlr_data_source *source);
+static const struct wlr_data_source_impl CLIP_SOURCE_IMPL;
+static unsigned g_clip_transfers;
+static bool g_clip_pending, g_clip_stopping;
+static struct wl_event_source *g_clip_retry;
+static struct ClipRead {
+    int fd; char *text; size_t used;
+    bool active, discard, same_process;
+    struct wl_event_source *reader, *timer;
+} g_clip_reads[4];
+static void ClipReadStartLatest(void);
+static void ClipReadFinish(struct ClipRead *read) {
+    if (read->reader) wl_event_source_remove(read->reader);
+    if (read->timer) wl_event_source_remove(read->timer);
+    close(read->fd); free(read->text); memset(read, 0, sizeof(*read));
+    __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED);
+    if (!g_clip_stopping) ClipReadStartLatest();
 }
-static int ClipReadTimeout(void *unused) { (void)unused; ClipReadCancel(); return 0; }
-static int ClipReadReady(int fd, uint32_t mask, void *unused) {
-    (void)mask; (void)unused;
-    for (;;) {
-        ssize_t n = read(fd, g_clip_read.text + g_clip_read.used, 1024 * 1024 - g_clip_read.used);
-        if (n > 0) { g_clip_read.used += n; if (g_clip_read.used == 1024 * 1024) { ClipReadCancel(); return 0; } }
-        else if (n == 0) {
-            g_clip_read.text[g_clip_read.used] = 0;
-            pthread_mutex_lock(&g_clip_cache_mutex);
-            free(g_clip_cache); g_clip_cache = g_clip_read.text; g_clip_read.text = NULL; ++g_clip_version;
-            pthread_mutex_unlock(&g_clip_cache_mutex);
-            ClipReadCancel(); return 0;
+static void ClipReadDiscard(struct ClipRead *read) {
+    read->discard = true; free(read->text); read->text = NULL;
+    if (read->same_process) {
+        if (read->timer) wl_event_source_remove(read->timer);
+        read->timer = NULL; /* The drain still owns one transfer slot. */
+    } else ClipReadFinish(read);
+}
+static void ClipReadCancel(void) {
+    g_clip_pending = false;
+    for (size_t i = 0; i < 4; ++i)
+        if (g_clip_reads[i].active && !g_clip_reads[i].discard) ClipReadDiscard(&g_clip_reads[i]);
+}
+static int ClipReadTimeout(void *data) { ClipReadDiscard(data); return 0; }
+static int ClipReadReady(int fd, uint32_t mask, void *data) {
+    (void)mask; struct ClipRead *job = data; char bytes[16384];
+    for (unsigned i = 0; i < 64; ++i) {
+        ssize_t n = read(fd, bytes, sizeof(bytes));
+        if (n > 0) {
+            if (!job->discard) {
+                if (job->used + (size_t)n > 1024 * 1024) {
+                    bool drain = job->same_process;
+                    ClipReadDiscard(job); if (!drain) return 0;
+                } else { memcpy(job->text + job->used, bytes, n); job->used += n; }
+            }
+        } else if (!n) {
+            if (!job->discard) {
+                job->text[job->used] = 0;
+                pthread_mutex_lock(&g_clip_cache_mutex);
+                free(g_clip_cache); g_clip_cache = job->text; job->text = NULL; ++g_clip_version;
+                pthread_mutex_unlock(&g_clip_cache_mutex);
+            }
+            ClipReadFinish(job); return 0;
         } else if (errno == EINTR) continue;
         else if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
-        else { ClipReadCancel(); return 0; }
+        else { ClipReadFinish(job); return 0; }
     }
+    return 0;
 }
-static void ClipSelectionChanged(struct wl_listener *listener, void *data) {
-    (void)listener; (void)data; ClipReadCancel();
-    struct wlr_data_source *source = g_seat ? g_seat->selection_source : NULL;
-    if (!source || !g_loop) return;
+static void ClipReadStartLatest(void) {
+    if (!g_clip_pending || !g_seat || !g_loop || g_clip_stopping) return;
+    struct wlr_data_source *source = g_seat->selection_source;
+    if (!source || source->impl == &CLIP_SOURCE_IMPL) { g_clip_pending = false; return; }
+    if (__atomic_add_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED) > 4) {
+        __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED); return;
+    }
+    struct ClipRead *job = NULL;
+    for (size_t i = 0; i < 4; ++i) if (!g_clip_reads[i].active) { job = &g_clip_reads[i]; break; }
+    if (!job) { __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED); return; }
+    g_clip_pending = false;
     const char *mime = NULL; char **candidate;
     wl_array_for_each(candidate, &source->mime_types) {
         if (!strcmp(*candidate, "text/plain;charset=utf-8")) { mime = *candidate; break; }
         if (!strcmp(*candidate, "text/plain")) mime = *candidate;
     }
     int pipes[2];
-    if (!mime || pipe2(pipes, O_CLOEXEC | O_NONBLOCK) != 0) return;
-    g_clip_read.fd = pipes[0]; g_clip_read.text = malloc(1024 * 1024 + 1);
-    if (!g_clip_read.text) { close(pipes[1]); ClipReadCancel(); return; }
-    g_clip_read.reader = wl_event_loop_add_fd(g_loop, pipes[0], WL_EVENT_READABLE, ClipReadReady, NULL);
-    g_clip_read.timer = wl_event_loop_add_timer(g_loop, ClipReadTimeout, NULL);
-    if (!g_clip_read.reader || !g_clip_read.timer) { close(pipes[1]); ClipReadCancel(); return; }
-    wl_event_source_timer_update(g_clip_read.timer, 1000);
-    wlr_data_source_send(source, mime, pipes[1]); // source owns write fd after send
+    if (!mime || pipe2(pipes, O_CLOEXEC | O_NONBLOCK)) {
+        __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED); return;
+    }
+    job->fd = pipes[0]; job->active = true; job->text = malloc(1024 * 1024 + 1);
+    job->same_process = data_source_is_xwayland(source);
+    job->reader = wl_event_loop_add_fd(g_loop, pipes[0], WL_EVENT_READABLE, ClipReadReady, job);
+    job->timer = wl_event_loop_add_timer(g_loop, ClipReadTimeout, job);
+    if (!job->text || !job->reader || !job->timer) { close(pipes[1]); ClipReadFinish(job); return; }
+    wl_event_source_timer_update(job->timer, 1000);
+    wlr_data_source_send(source, mime, pipes[1]);
+    if (!job->same_process) close(pipes[1]);
+}
+static void ClipSelectionChanged(struct wl_listener *listener, void *data) {
+    (void)listener; (void)data; ClipReadCancel();
+    if (!g_seat || !g_seat->selection_source) {
+        pthread_mutex_lock(&g_clip_cache_mutex);
+        free(g_clip_cache); g_clip_cache = NULL; ++g_clip_version;
+        pthread_mutex_unlock(&g_clip_cache_mutex); return;
+    }
+    g_clip_pending = true; ClipReadStartLatest();
+}
+static int ClipReadRetry(void *unused) {
+    (void)unused;
+    ClipReadStartLatest();
+    if (g_clip_retry) wl_event_source_timer_update(g_clip_retry, 100);
+    return 0;
 }
 static void ClipSelectionRequest(struct wl_listener *listener, void *data) {
     (void)listener;
@@ -944,7 +1009,7 @@ char *wl_ohos_input_clipboard_snapshot(uint64_t *version) {
 
 
 struct ClipWrite { int fd; char *text; };
-static unsigned g_clip_writers;
+
 static void *ClipWriteWorker(void *arg)
 {
     struct ClipWrite *job = arg;
@@ -954,7 +1019,7 @@ static void *ClipWriteWorker(void *arg)
     int flags = fcntl(job->fd, F_GETFL);
     if (flags < 0 || fcntl(job->fd, F_SETFL, flags | O_NONBLOCK) < 0) {
         close(job->fd); free(job->text); free(job);
-        __atomic_sub_fetch(&g_clip_writers, 1, __ATOMIC_RELAXED); return NULL;
+        __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED); return NULL;
     }
     const uint64_t deadline = NowUsec() + 1000000;
     while (off < len && NowUsec() < deadline) {
@@ -967,7 +1032,7 @@ static void *ClipWriteWorker(void *arg)
         } else break;
     }
     close(job->fd); free(job->text); free(job);
-    __atomic_sub_fetch(&g_clip_writers, 1, __ATOMIC_RELAXED);
+    __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED);
     return NULL;
 }
 static void ClipSourceSend(struct wlr_data_source *source,
@@ -980,15 +1045,15 @@ static void ClipSourceSend(struct wlr_data_source *source,
         close(fd);
         return;
     }
-    if (__atomic_add_fetch(&g_clip_writers, 1, __ATOMIC_RELAXED) > 4) {
-        __atomic_sub_fetch(&g_clip_writers, 1, __ATOMIC_RELAXED); close(fd); return;
+    if (__atomic_add_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED) > 4) {
+        __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED); close(fd); return;
     }
     struct ClipWrite *job = calloc(1, sizeof(*job));
     pthread_t worker;
     if (job) { job->fd = fd; job->text = strndup(g_clip_text, 1024 * 1024); }
     if (!job || !job->text || pthread_create(&worker, NULL, ClipWriteWorker, job) != 0) {
         if (job) { free(job->text); free(job); } close(fd);
-        __atomic_sub_fetch(&g_clip_writers, 1, __ATOMIC_RELAXED); return;
+        __atomic_sub_fetch(&g_clip_transfers, 1, __ATOMIC_RELAXED); return;
     }
     pthread_detach(worker);
 }
@@ -1028,6 +1093,9 @@ static void ApplySetClipboard(char *text) /* loop 线程, 接管 text 所有权 
     g_clip_text = text; /* send 回调读, 同 loop 线程 */
     g_clip_serial++;
     wlr_seat_set_selection(g_seat, src, g_clip_serial);
+    pthread_mutex_lock(&g_clip_cache_mutex);
+    free(g_clip_cache); g_clip_cache = strdup(g_clip_text); ++g_clip_version;
+    pthread_mutex_unlock(&g_clip_cache_mutex);
     OHLOG("clipboard set (%zu bytes)", strlen(g_clip_text));
 }
 
@@ -1047,6 +1115,7 @@ void wl_ohos_input_post_clipboard(const char *utf8)
 int wl_ohos_input_seat_create(struct wl_display *wl, struct wl_event_loop *loop)
 {
     g_loop = loop;
+    g_clip_stopping = false;
     g_display = wl;
 
     /* 跨线程注入的唤醒通道: 建在 loop 线程上 (fd 源必须挂在同一 loop)。
@@ -1328,7 +1397,14 @@ void wl_ohos_input_shutdown(void)
     g_pending_key_count = 0;
     TrackKbdFocus(NULL);
     TrackPtrFocus(NULL);
+    g_clip_stopping = true;
     ClipReadCancel();
+    // display_compositor has destroyed Xwayland before seat teardown.
+    for (size_t i = 0; i < 4; ++i)
+        if (g_clip_reads[i].active) ClipReadFinish(&g_clip_reads[i]);
+    pthread_mutex_lock(&g_clip_cache_mutex);
+    free(g_clip_cache); g_clip_cache = NULL; ++g_clip_version;
+    pthread_mutex_unlock(&g_clip_cache_mutex);
     if (g_selection_listening) {
         wl_list_remove(&g_selection_request.link); wl_list_remove(&g_selection_changed.link);
         g_selection_listening = false;

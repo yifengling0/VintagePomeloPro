@@ -1,4 +1,7 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { AppReviewService } from '../service/AppReviewService';
+import { X11ClipboardService } from '../service/X11ClipboardService';
+import { GamescopeRuntimeService } from '../service/GamescopeRuntimeService';
 import { AccountAutomaticSyncService } from '../service/valueadded/AccountAutomaticSyncService';
 import { ValueAddedService } from '../service/valueadded/ValueAddedService';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
@@ -26,6 +29,13 @@ export default class EntryAbility extends UIAbility {
   private membershipDelivery: string | null = null;
   private membershipRouteTimer: number = -1;
   private membershipRouteAttempts: number = 0;
+  private applyDiagnosticWant(want: Want): void {
+    // Explicit, non-persistent host diagnostics; unrelated Wants leave the
+    // current setting alone. No Wine environment or per-frame trace needed.
+    const value = want.parameters?.['winehua.frameDiagnostics'];
+    if (value === '1' || value === true) testNapi.setFrameLoopDiagnostics(true);
+    else if (value === '0' || value === false) testNapi.setFrameLoopDiagnostics(false);
+  }
   private rememberMembershipWant(want: Want): void {
     if (want.action !== 'com.vintagepomelo.action.MEMBERSHIP') return;
     const delivery = want.parameters?.deliveryId;
@@ -60,10 +70,12 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 日志服务最先初始化，保证后续 ArkTS/native 日志都能实时落盘。
     AppLog.init();
+    this.applyDiagnosticWant(want);
     DeviceCapabilityPolicy.startPcModeMonitoring(this.context);
     hilog.info(DOMAIN, 'EntryAbility', '%{public}s', 'Ability onCreate');
     const useForkNcp = DeviceCapabilityPolicy.isPhoneDevice();
     testNapi.setPhoneMode(useForkNcp);
+    GamescopeRuntimeService.initialize();
     hilog.info(DOMAIN, 'EntryAbility', 'NCP backend=%{public}s deviceType=%{public}s',
       useForkNcp ? 'fork' : 'system', DeviceCapabilityPolicy.deviceType());
     this.ensureDownloadGamesDirectory('onCreate');
@@ -79,6 +91,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onDestroy(): void {
+    AppReviewService.background(this.context);
     DeviceCapabilityPolicy.stopPcModeMonitoring(this.context);
     if (this.membershipRouteTimer !== -1) clearTimeout(this.membershipRouteTimer);
     this.membershipRouteTimer = -1;
@@ -86,6 +99,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onNewWant(want: Want): void {
+    this.applyDiagnosticWant(want);
     this.rememberMembershipWant(want);
     if (this.mainWindow) this.openMembershipWant();
     // A singleton Ability may receive the next launch without another
@@ -242,6 +256,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    AppReviewService.foreground(this.context);
+    X11ClipboardService.foreground(this.context);
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow);
     DeviceCapabilityPolicy.refreshPcMode(this.context);
     AccountAutomaticSyncService.getInstance().setForeground(true);
@@ -252,6 +268,8 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    AppReviewService.background(this.context);
+    X11ClipboardService.background(this.context);
     WineImeCoordinator.getInstance().background(this.mainWindow);
     AccountAutomaticSyncService.getInstance().setForeground(false);
     ValueAddedService.getInstance().onBackground();

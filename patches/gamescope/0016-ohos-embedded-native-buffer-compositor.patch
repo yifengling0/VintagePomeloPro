@@ -1,0 +1,65 @@
+--- a/src/rendervulkan.hpp
++++ b/src/rendervulkan.hpp
+@@ -164,6 +164,7 @@
+ 	};
+ 
+ 	bool BInit( uint32_t width, uint32_t height, uint32_t depth, uint32_t drmFormat, createFlags flags, wlr_dmabuf_attributes *pDMA = nullptr, uint32_t contentWidth = 0, uint32_t contentHeight = 0, CVulkanTexture *pExistingImageToReuseMemory = nullptr, gamescope::OwningRc<gamescope::IBackendFb> pBackendFb = nullptr );
++	bool BInitNativeBuffer(void* buffer, uint32_t width, uint32_t height);
+ 	bool BInitFromSwapchain( VkImage image, uint32_t width, uint32_t height, VkFormat format );
+ 
+ 	uint32_t IncRef();
+@@ -220,6 +221,7 @@
+ 	uint32_t queueFamily = VK_QUEUE_FAMILY_IGNORED;
+ 
+ private:
++	void* m_ohosBuffer = nullptr;
+ 	bool m_bInitialized = false;
+ 	bool m_bHostUploadComplete = false;
+ 	bool m_bLocalQueueDependency = false;
+@@ -953,6 +955,7 @@
+ 	bool m_bHasDrmPrimaryDevId = false;
+ 	bool m_bSupportsModifiers = false;
+ 	bool m_bDynamicRendering = false;
++	void* m_ohosBuffer = nullptr;
+ 	bool m_bInitialized = false;
+ 	bool m_bNullDescriptors = false;
+ 	std::unique_ptr<hsl::VulkanDescriptorFallback> m_descriptorFallback;
+--- a/src/rendervulkan.cpp
++++ b/src/rendervulkan.cpp
+@@ -2955,6 +2955,8 @@
+ {
+ }
+ 
++extern void OhosNativeBufferUnreference(void*);
++
+ CVulkanTexture::~CVulkanTexture( void )
+ {
+ 	wlr_dmabuf_attributes_finish( &m_dmabuf );
+@@ -2992,6 +2994,7 @@
+ 		m_vkImageMemory = VK_NULL_HANDLE;
+ 	}
+ 
++	if (m_ohosBuffer) OhosNativeBufferUnreference(m_ohosBuffer);
+ 	m_bInitialized = false;
+ }
+ 
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -143,7 +143,7 @@
+ endif
+ 
+ if get_option('ohos_native')
+-  src += ['Backends/OhosBackend.cpp', 'OhosWindow.cpp', 'OhosProcessBroker.cpp', 'OhosRuntime.cpp']
++  src += ['Backends/OhosBackend.cpp', 'OhosWindow.cpp', 'OhosProcessBroker.cpp', 'OhosRuntime.cpp', 'OhosEmbedded.cpp']
+ else
+   src += ['Backends/HslBackend.cpp', 'HslImage.cpp']
+ endif
+@@ -232,7 +232,7 @@
+       dep_wayland, dep_x11, dep_xdamage, dep_xcomposite, dep_xrender, dep_xext, dep_xfixes,
+       dep_xxf86vm, dep_xres, glm_dep, drm_dep, wayland_server,
+       xkbcommon, thread_dep, sdl2_dep, wlroots_dep,
+-      vulkan_dep, cppc.find_library('native_window', required: get_option('ohos_native')), liftoff_dep, dep_xtst, dep_xmu, cap_dep, epoll_dep, pipewire_dep, librt_dep,
++      vulkan_dep, cppc.find_library('native_window', required: get_option('ohos_native')), cppc.find_library('native_buffer', required: get_option('ohos_native')), liftoff_dep, dep_xtst, dep_xmu, cap_dep, epoll_dep, pipewire_dep, librt_dep,
+       stb_dep, displayinfo_dep, openvr_dep, dep_xcursor, avif_dep, dep_xi,
+       libdecor_dep, eis_dep, luajit_dep, libinput_dep, pixman_dep, udev_dep,
+     ],

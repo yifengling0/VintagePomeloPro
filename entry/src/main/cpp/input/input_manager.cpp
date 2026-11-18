@@ -318,6 +318,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             targetSurf = target.surface;
             inputFit.srcW = target.contentW;
             inputFit.srcH = target.contentH;
+            inputFit.srcX = target.contentX; inputFit.srcY = target.contentY;
             inputFit.offX = target.originX;
             inputFit.offY = target.originY;
             inputFit.scale = target.scale;

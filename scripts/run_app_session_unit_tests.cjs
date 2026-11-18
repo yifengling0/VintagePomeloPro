@@ -22,18 +22,22 @@ function fixture() {
   let state = models.EngineState.PREPARING;
   let root = 7;
   let rootThrows = false;
-  const starts = [], launches = [];
+  const starts = [], launches = [], gameTargets = [];
   const globalSettings = models.createDefaultGlobalSettings();
   const appSettings = models.createDefaultAppSettings('cpu-test');
   const processes = [];
   const queries = { processes: 0 };
   const stopRequests = [], killRequests = [];
   let acceptStop = false;
+  let gameEnabled = false, nativeSession = null, queryThrows = false;
+  const timers = new Map();
+  let clock = 100000, waitAction = () => {};
+  const steamCards = [];
   const native = {
     stopWineSession(id) { stopRequests.push(id); return acceptStop; },
     killProcess(pid) { killRequests.push(pid); return true; },
     getDesktopRootId() { if (rootThrows) throw new Error('native unavailable'); return root; },
-    getWineSession() { return null; }, // Explorer is registered as @engine/explorer.
+    getWineSession() { if (queryThrows) throw new Error('native unavailable'); return nativeSession; },
     getProcessList() { ++queries.processes; return processes.slice(); },
     activateWineSession() {},
     raiseToplevel() {}
@@ -50,11 +54,23 @@ function fixture() {
   const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root,
     isDesktopAbilityForeground:()=>false, usesEmbeddedDesktopHost:()=>false,
     resumeDesktopHost:async()=>{ starts.push({abilityName:'DesktopAbility',parameters:{toplevelId:root}}); } };
+  const steam = { canLaunch: () => true, ensureGpuDependencies: async () => {},
+    prepareRuntimeHelper: async () => {}, prepareLibraryPerformance: async () => {},
+    isCompatibility: () => false, getClientDirectory: () => 'C:/Steam',
+    clientCard: () => ({ id: 'steam-client-default', launchTarget: { executable: 'C:/Steam/steam.exe' } }),
+    getCards: () => steamCards,
+    processesFor: (app, processes, includeUi = false) => processes.filter(p => p.state === 'running' &&
+      (p.path === app.launchTarget.executable || (includeUi && p.path === 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe'))) };
   const dependencies = {
     'libentry.so': { default: native },
     './LogService': { hilog: { info() {}, warn() {}, error() {} } },
     '../model/AppModels': models,
+    '../model/GraphicsBackendSettings': require(path.join(compiledRoot, 'model/GraphicsBackendSettings.js')),
     '../model/AppCatalogRules': rules,
+    './GameModeService': { GameModeService: { begin() {}, finish() {}, reset() {},
+      present: id => { gameTargets.push(id); return gameEnabled; },
+      presentDesktop: () => { gameTargets.push(0); return gameEnabled; },
+      enabled: () => gameEnabled, noteActiveApp() {} } },
     './WineEngineService': { WineEngineService: { getInstance: () => engine } },
     './WineWindowManager': { WineWindowManager: { getInstance: () => windows } },
     './HostWindowTasks': taskExports,
@@ -65,14 +81,19 @@ function fixture() {
     }) } },
     './InputOverlayWindowCoordinator': {},
     './AppCatalogService': {},
-    '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => ({ getCards: () => [], processesFor: () => [] }) } },
-    '../steam/SteamLocalRules': {},
+    '../steam/SteamLocalService': { SteamLocalService: { getInstance: () => steam } },
+    '../steam/SteamLocalRules': { STEAM_CLIENT_ID: 'steam-client-default', steamLaunchArguments: () => ['steam://open/games'] },
     '@ohos.file.fs': { default: { mkdirSync() {}, OpenMode: { CREATE: 1, WRITE_ONLY: 2, TRUNC: 4 }, openSync() { return { fd: 1 }; }, writeSync() {}, closeSync() {} } },
     './GameContainer': { DEFAULT_GAME_CONTAINER_ID: 'default', wineDriveCForContainer: () => '/data/storage/el2/base/files/.wine/drive_c' }
   };
   const exports = {};
   vm.runInNewContext(compiled, {
     exports,
+    Date: { now: () => clock },
+    setTimeout: (action, delay) => { clock += delay; waitAction(); queueMicrotask(action); return 1; },
+    clearTimeout() {},
+    setInterval: action => { const id = timers.size + 1; timers.set(id, action); return id; },
+    clearInterval: id => timers.delete(id),
     require(name) {
       assert.ok(Object.hasOwn(dependencies, name), `Unexpected dependency: ${name}`);
       return dependencies[name];
@@ -81,11 +102,15 @@ function fixture() {
   const service = new exports.AppSessionService();
   service.initialize({ startAbility: async want => { starts.push(want); } });
   return {
-    service, engine, starts, launches, globalSettings, appSettings, processes, queries, stopRequests, killRequests,
+    service, engine, starts, launches, gameTargets, globalSettings, appSettings, processes, queries, stopRequests, killRequests,
     acceptStop: () => { acceptStop = true; },
     setState: next => { state = next; },
     setRoot: next => { root = next; },
-    failRootQuery: () => { rootThrows = true; }
+    failRootQuery: () => { rootThrows = true; },
+    enableGame: () => { gameEnabled = true; },
+    setNativeSession: value => { nativeSession = value; },
+    failProcessQuery: value => { queryThrows = value; },
+    timers, steam, steamCards, onWait: action => { waitAction = action; }
   };
 }
 
@@ -277,5 +302,175 @@ function fixture() {
   background.service.schedulePromoteRetry=()=>{};
   background.service.associateToplevel('ordinary',89,102);
   assert.equal(promotes,1,'Ordinary Wine launch keeps its existing automatic presentation');
-  console.log('AppSession startup/root, stop acceptance and process-incarnation reconciliation: PASS');
+  { // Return only after both the real process and all its windows are gone.
+    const f = fixture(); f.enableGame(); f.setState(models.EngineState.READY);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markDesktopForeground();
+    let returns = 0; tasks.setLauncher(async () => { ++returns; });
+    const session = { sessionId: 'game-return', appId: 'pal4', pid: 42, toplevelId: 70,
+      executable: 'C:/pal4.exe', state: models.SessionState.RUNNING,
+      presentationMode: models.WinePresentationMode.DESKTOP };
+    tasks.onEvent(70, 'created', JSON.stringify({ sessionId: session.sessionId }));
+    f.service.presentGameSession(session);
+    assert.equal(f.timers.size, 1);
+    f.setNativeSession({ state: 'running' });
+    tasks.onEvent(70, 'destroyed', '{}');
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'Splash teardown is not process exit');
+    f.setNativeSession(null); f.failProcessQuery(true);
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'Query failure retains the game');
+    f.failProcessQuery(false);
+    f.processes.push({ pid: 43, sessionId: session.sessionId, state: 'running' });
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'A surviving child retains the game session');
+    f.processes.length = 0;
+    tasks.onEvent(71, 'created', JSON.stringify({ sessionId: session.sessionId }));
+    f.service.checkGameReturn(); assert.equal(returns, 0, 'Process exit waits for its final window');
+    tasks.onEvent(71, 'destroyed', '{}');
+    f.service.checkGameReturn(); assert.equal(returns, 1);
+    f.service.checkGameReturn(); assert.equal(returns, 1, 'Exit returns once');
+    assert.equal(f.timers.size, 0);
+    tasks.markDesktopForeground(); f.service.presentGameSession(session); tasks.markLauncherForeground();
+    f.service.checkGameReturn(); assert.equal(returns, 1, 'Explicit library navigation wins');
+    tasks.markDesktopForeground(); f.service.presentGameSession(session);
+    tasks.onEvent(80, 'created', JSON.stringify({ sessionId: 'another-game' }));
+    f.service.checkGameReturn(); assert.equal(returns, 1, 'Another foreground game wins');
+    tasks.reset(); tasks.markDesktopForeground();
+    const client = { ...session, sessionId: 'steam-client', appId: 'steam-client-default' };
+    f.service.sessions.set(client.sessionId, client);
+    let resumed = null; f.service.resume = async value => { resumed = value; };
+    f.service.presentGameSession({ ...session, appId: 'steam-default-123' });
+    f.service.checkGameReturn();
+    assert.equal(resumed, client, 'Steam-dispatched game returns to its existing client');
+    assert.equal(returns, 1);
+  }
+  console.log('AppSession startup/root, stop acceptance, process reconciliation and Game exit return: PASS');
+  const steamApp = { id: 'steam-client-default', steam: { state: 'client' },
+    launchTarget: { executable: 'C:/Steam/steam.exe', arguments: [], workingDirectory: 'C:/Steam' } };
+  const launched = { appId: steamApp.id, sessionId: 'sender', pid: 42, toplevelId: 0 };
+  { // A replaced CEF window stays part of the desktop shell, not a game crop.
+    const f = fixture(); f.enableGame(); f.setState(models.EngineState.READY);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset();
+    f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'cef-browser', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    const client = { ...launched, executable: 'C:/Steam/steam.exe', sessionId: 'real-client', pid: 82, toplevelId: 94,
+      presentationMode: models.WinePresentationMode.DESKTOP, state: models.SessionState.RUNNING };
+    tasks.onEvent(94, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    tasks.onEvent(94, 'destroyed', '{}');
+    tasks.onEvent(95, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    await f.service.resume(client);
+    assert.equal(client.toplevelId, 95, 'Return resolves the replacement CEF window');
+    assert.equal(client.sessionId, 'real-client', 'Keep the actual Steam process identity');
+    assert.deepEqual(f.gameTargets, [0], 'Steam retains multiwindow desktop coordinates');
+    assert.equal(f.timers.size, 1, 'Normal Steam exit still returns to Game library');
+  }
+  { // Cold launch registers its carrier but never presents an empty desktop.
+    const f = fixture(); f.setState(models.EngineState.READY);
+    f.service.associateToplevel('desktop', 0, 7);
+    const result = await f.service.launchReady(steamApp, f.globalSettings, models.DisplayMode.DESKTOP,
+      models.WinePresentationMode.DESKTOP, '/games');
+    assert.equal(f.launches.length, 1); assert.equal(f.starts.length, 0);
+    assert.equal(result.automaticForeground, false);
+    f.steam.ensureGpuDependencies = async () => { throw Error('Steam GPU dependency failed'); };
+    await assert.rejects(f.service.launchReady(steamApp, f.globalSettings, models.DisplayMode.DESKTOP,
+      models.WinePresentationMode.DESKTOP, '/games'), /GPU dependency failed/);
+    assert.equal(f.launches.length, 1); assert.equal(f.starts.length, 0);
+  }
+  { // Desktop and a same-title unrelated app cannot satisfy Steam readiness.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    tasks.onEvent(7, 'desktop_root', '{}');
+    tasks.onEvent(90, 'created', JSON.stringify({ sessionId: 'other', clientPid: 999 }));
+    tasks.onEvent(90, 'title', JSON.stringify({ title: 'Steam' }));
+    f.processes.push({ pid: 42, sessionId: 'sender', path: 'C:/Steam/steam.exe', state: 'running' });
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    assert.equal(f.starts.length, 0, 'Do not show an empty desktop as successful startup');
+    assert.equal(f.killRequests.length, 0, 'Timeout never kills the imported client');
+    assert.equal(f.timers.size, 0, 'No background polling leaks after timeout');
+  }
+  { // Bootstrap exits; the real client/window belongs to a new native session.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    let waits = 0, resumed = null;
+    f.service.resume = async session => { resumed = session; };
+    f.onWait(() => {
+      if (++waits !== 2) return;
+      f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' });
+      tasks.onEvent(91, 'created', JSON.stringify({ sessionId: 'real-client', clientPid: 82 }));
+    });
+    const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
+    assert.equal(ready.pid, 82); assert.equal(ready.sessionId, 'real-client');
+    assert.equal(resumed, ready); assert.equal(ready.toplevelId, 91);
+    assert.equal(waits, 2); assert.equal(ready.automaticForeground, true);
+  }
+  { // The managed CEF window belongs to another native session than steam.exe.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'cef-browser', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    tasks.onEvent(94, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    let resumed; f.service.resume = async session => { resumed = session; };
+    const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
+    assert.equal(ready.sessionId, 'real-client'); assert.equal(ready.pid, 82);
+    assert.equal(ready.toplevelId, 94); assert.equal(resumed, ready);
+    assert.equal(f.service.sessions.size, 1, 'Do not register CEF as a separate game or client');
+    f.processes[1].sessionId = 'recycled-cef';
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    f.processes[1].sessionId = 'cef-browser'; f.processes[0].state = 'stopped';
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+  }
+  { // A slow translated CEF start must still bring the real client forward.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'slow-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'slow-cef', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    let elapsed = 0, resumed;
+    f.service.resume = async session => { resumed = session; };
+    f.onWait(() => {
+      elapsed += 250;
+      if (elapsed === 60000) tasks.onEvent(96, 'created', JSON.stringify({ sessionId: 'slow-cef', clientPid: 83 }));
+    });
+    const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
+    assert.equal(elapsed, 60000); assert.equal(ready.toplevelId, 96); assert.equal(resumed, ready);
+    assert.equal(ready.sessionId, 'slow-client');
+    assert.equal(f.killRequests.length, 0);
+  }
+  { // A missing window still has a bounded wait without terminating Steam.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    let elapsed = 0;
+    f.onWait(() => { elapsed += 250; });
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    assert.ok(elapsed > 60000 && elapsed <= 90000);
+    assert.equal(f.starts.length, 0); assert.equal(f.killRequests.length, 0);
+    assert.equal(f.timers.size, 0);
+  }
+  { // Warm URI forwarding uses the existing real client, respecting navigation.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    const navigation = tasks.navigationSerial(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'warm-client', path: 'C:/Steam/steam.exe', state: 'running' });
+    tasks.onEvent(92, 'created', JSON.stringify({ sessionId: 'warm-client', clientPid: 82 }));
+    let resumed = false; f.service.resume = async () => { resumed = true; };
+    assert.equal((await f.service.waitForSteamClientWindow(steamApp, launched, navigation)).pid, 82);
+    assert.equal(resumed, false, 'A later user navigation wins over startup auto-focus');
+    f.setState(models.EngineState.ERROR);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, navigation), /会话已停止/);
+  }
+  { // Queued setup errors retain their cause rather than silently returning null.
+    const f = fixture(); f.setState(models.EngineState.READY);
+    let failure;
+    f.service.launchReady = async () => { throw Error('Steam helper is unavailable'); };
+    f.service.pendingLaunches.push({ app: steamApp, settings: f.globalSettings,
+      presentationMode: models.WinePresentationMode.DESKTOP, resolve() { assert.fail('Failure was swallowed'); },
+      reject: error => { failure = error; } });
+    f.service.drainPendingLaunches(); await Promise.resolve(); await Promise.resolve();
+    assert.match(failure.message, /helper is unavailable/);
+  }
+  { // A recycled PID at the same Steam path cannot claim an old live window.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 42, sessionId: 'new-incarnation', path: 'C:/Steam/steam.exe', state: 'running' });
+    tasks.onEvent(93, 'created', JSON.stringify({ sessionId: 'sender', clientPid: 42 }));
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    assert.equal(f.starts.length, 0);
+  }
+  console.log('Steam real-window readiness, bootstrap handoff, warm navigation, bounded timeout and error propagation: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });

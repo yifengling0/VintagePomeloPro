@@ -1,5 +1,6 @@
 // Exercise the production cadence observer; mock only the system VSync API.
 #include "graphics/display_cadence.h"
+#include "graphics/game_presentation.h"
 #include <cassert>
 #include <iostream>
 struct OH_NativeVSync {};
@@ -26,6 +27,8 @@ int OH_NativeVSync_RequestFrame(OH_NativeVSync*, OH_NativeVSync_FrameCallback ca
 }
 int OH_NativeVSync_GetPeriod(OH_NativeVSync*, long long* period) { ++queries; *period = visible; return 0; }
 int main() {
+    using namespace winehua::game;
+    Configure(true, false, false, 0);
     {
         winehua::DisplayCadence cadence;
         assert(cadence.PeriodNs() == 16666667);
@@ -33,22 +36,32 @@ int main() {
         assert(created == 1);
         granted = 8333333;
         assert(cadence.Refresh(0) && cadence.PeriodNs() == 8333333);
+        assert(ProducerPeriodNs(cadence.PeriodNs()) == 8333333);
         granted = 16666667;
         assert(!cadence.Refresh(50000) && cadence.PeriodNs() == 8333333);
         assert(cadence.Refresh(100000) && cadence.PeriodNs() == 16666667);
+        assert(ProducerPeriodNs(cadence.PeriodNs()) == 16666667);
         granted = 0;
         assert(!cadence.Refresh(200000) && cadence.PeriodNs() == 16666667);
         granted = 10000000;
         assert(cadence.Refresh(300000) && cadence.PeriodNs() == 10000000);
+        assert(ProducerPeriodNs(cadence.PeriodNs()) == 10000000);
+        Configure(true, false, false, 60);
+        assert(ProducerPeriodNs(cadence.PeriodNs()) == 16666667);
+        Configure(true, false, false, 30);
+        assert(ProducerPeriodNs(cadence.PeriodNs()) == 33333334);
         assert(requests == 5 && queries == 4);
     }
     assert(destroyed == 1);
     unavailable = true;
+    Configure(true, false, false, 0);
     {
         winehua::DisplayCadence cadence;
         cadence.Initialize();
         assert(!cadence.Refresh(0) && cadence.PeriodNs() == 16666667);
+        assert(ProducerPeriodNs(cadence.PeriodNs()) == 16666667);
     }
     assert(destroyed == 1);
-    std::cout << "PASS: actual 120/60/100Hz transitions, callback-driven period, idle queries and unavailable VSync\n";
+    Configure(false, false, false, 0);
+    std::cout << "PASS: actual 120/60/100Hz transitions reach Game producers; explicit limits, callback-driven period and unavailable VSync\n";
 }

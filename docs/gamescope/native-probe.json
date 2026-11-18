@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "platform": "aarch64-linux-ohos",
+  "runtimeQualified": false,
+  "dependencyCheckScope": "pkg-config metadata presence; not linked-library closure",
+  "compiler": "OHOS (dev) clang version 15.0.4 (llvm-project b3ff6d5a4891642fe4ab487a8077f076b9f34ea0)",
+  "hostPrefix": "/shared/build/host-ext/arm64-v8a/usr",
+  "dependencies": {
+    "wayland-server": {
+      "available": true,
+      "version": "1.26.0",
+      "diagnostic": ""
+    },
+    "wayland-client": {
+      "available": true,
+      "version": "1.26.0",
+      "diagnostic": ""
+    },
+    "wlroots-0.20": {
+      "available": true,
+      "version": "0.20.2",
+      "diagnostic": ""
+    },
+    "pixman-1": {
+      "available": true,
+      "version": "0.46.4",
+      "diagnostic": ""
+    },
+    "xkbcommon": {
+      "available": true,
+      "version": "1.13.2",
+      "diagnostic": ""
+    },
+    "libdrm": {
+      "available": true,
+      "version": "2.4.134",
+      "diagnostic": ""
+    },
+    "x11": {
+      "available": true,
+      "version": "1.8.10",
+      "diagnostic": ""
+    },
+    "xdamage": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package xdamage was not found in the pkg-config search path.\nPerhaps you should add the directory containing `xdamage.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'xdamage' not found"
+    },
+    "xcomposite": {
+      "available": true,
+      "version": "0.4.6",
+      "diagnostic": ""
+    },
+    "xcursor": {
+      "available": true,
+      "version": "1.2.3",
+      "diagnostic": ""
+    },
+    "xrender": {
+      "available": true,
+      "version": "0.9.12",
+      "diagnostic": ""
+    },
+    "xext": {
+      "available": true,
+      "version": "1.3.6",
+      "diagnostic": ""
+    },
+    "xfixes": {
+      "available": true,
+      "version": "6.0.2",
+      "diagnostic": ""
+    },
+    "xxf86vm": {
+      "available": true,
+      "version": "1.1.6",
+      "diagnostic": ""
+    },
+    "xtst": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package xtst was not found in the pkg-config search path.\nPerhaps you should add the directory containing `xtst.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'xtst' not found"
+    },
+    "xres": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package xres was not found in the pkg-config search path.\nPerhaps you should add the directory containing `xres.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'xres' not found"
+    },
+    "xmu": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package xmu was not found in the pkg-config search path.\nPerhaps you should add the directory containing `xmu.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'xmu' not found"
+    },
+    "xi": {
+      "available": true,
+      "version": "1.8.2",
+      "diagnostic": ""
+    },
+    "libdisplay-info": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package libdisplay-info was not found in the pkg-config search path.\nPerhaps you should add the directory containing `libdisplay-info.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'libdisplay-info' not found"
+    },
+    "libdecor-0": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package libdecor-0 was not found in the pkg-config search path.\nPerhaps you should add the directory containing `libdecor-0.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'libdecor-0' not found"
+    },
+    "luajit": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package luajit was not found in the pkg-config search path.\nPerhaps you should add the directory containing `luajit.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'luajit' not found"
+    },
+    "libinput": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package libinput was not found in the pkg-config search path.\nPerhaps you should add the directory containing `libinput.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'libinput' not found"
+    },
+    "libudev": {
+      "available": false,
+      "version": "",
+      "diagnostic": "Package libudev was not found in the pkg-config search path.\nPerhaps you should add the directory containing `libudev.pc'\nto the PKG_CONFIG_PATH environment variable\nPackage 'libudev' not found"
+    }
+  },
+  "compilations": [
+    {
+      "source": "src/color_helpers.cpp",
+      "sourceSha256": "37a1c1a6f06248569874ba9a0b97191507b75990ce9843b6dc9eb5718b508cfb",
+      "command": [
+        "/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++",
+        "--target=aarch64-linux-ohos",
+        "--sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot",
+        "-std=c++20",
+        "-fPIC",
+        "-D_GNU_SOURCE",
+        "-DHAVE_LIBCAP=0",
+        "-DGLM_ENABLE_EXPERIMENTAL",
+        "-I/data/src/winehua/build/gamescope/arm64-v8a/source/src",
+        "-I/data/src/winehua/build/gamescope/arm64-v8a/source/subprojects/glm",
+        "-c",
+        "/data/src/winehua/build/gamescope/arm64-v8a/source/src/color_helpers.cpp",
+        "-o",
+        "/data/src/winehua/build/gamescope/arm64-v8a/native-probe/color_helpers.o"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "elfHeader": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 \n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              REL (Relocatable file)\n  Machine:                           AArch64\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          0 (bytes into file)\n  Start of section headers:          159464 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           0 (bytes)\n  Number of program headers:         0\n  Size of section headers:           64 (bytes)\n  Number of section headers:         1056\n  Section header string table index: 1\n"
+    },
+    {
+      "source": "src/Utils/Process.cpp",
+      "sourceSha256": "ac070ad50d48f71b486a3cec16ceb5f4f56e0da6b34286105ee67294d3d043d7",
+      "command": [
+        "/apps/harmony/sdk/default/openharmony/native/llvm/bin/clang++",
+        "--target=aarch64-linux-ohos",
+        "--sysroot=/apps/harmony/sdk/default/openharmony/native/sysroot",
+        "-std=c++20",
+        "-fPIC",
+        "-D_GNU_SOURCE",
+        "-DHAVE_LIBCAP=0",
+        "-DGLM_ENABLE_EXPERIMENTAL",
+        "-I/data/src/winehua/build/gamescope/arm64-v8a/source/src",
+        "-I/data/src/winehua/build/gamescope/arm64-v8a/source/subprojects/glm",
+        "-c",
+        "/data/src/winehua/build/gamescope/arm64-v8a/source/src/Utils/Process.cpp",
+        "-o",
+        "/data/src/winehua/build/gamescope/arm64-v8a/native-probe/Process.o"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "",
+      "elfHeader": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 \n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              REL (Relocatable file)\n  Machine:                           AArch64\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          0 (bytes into file)\n  Start of section headers:          247440 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           0 (bytes)\n  Number of program headers:         0\n  Size of section headers:           64 (bytes)\n  Number of section headers:         1751\n  Section header string table index: 1\n"
+    }
+  ],
+  "requiredPlatformWork": [
+    "OHOS backend replaces the GNU Xlib WSI output; preserve GPU queue and swapchain ownership.",
+    "Gamescope/Xwayland process spawning must use NativeChildProcess instead of fork/exec.",
+    "Connect VPP native shared images and fences; GNU private Control transport is not an OHOS resource handle.",
+    "Disable unavailable DRM/VR global-input entry points explicitly; never report unsupported features as supported."
+  ]
+}

@@ -35,7 +35,7 @@ void MoveGrabHandler::StartExternalResizeGrab(ToplevelManager& tmgr, uint32_t id
     if (!ExternalResizeGeometry::Valid(edges)) return;
     auto lock = tmgr.Lock();
     auto* window = tmgr.FindToplevelLocked(id);
-    if (!window || !window->HasPosition() || window->IsMinimized() || window->IsFullscreen()) return;
+    if (!window || !window->HasPosition() || window->IsMinimized() || window->IsPresentationFullscreen()) return;
     toplevelId_ = id; serial_ = serial; resizeEdges_ = edges;
     resizePointerX_ = x; resizePointerY_ = y;
     resizeStart_ = resizeBounds_ = {window->X(), window->Y(), window->Width(), window->Height()};
@@ -58,7 +58,7 @@ bool MoveGrabHandler::ProcessMoveGrabMotion(ToplevelManager& tmgr, int32_t gx, i
     auto lk = tmgr.Lock();
     if (toplevelId_ == 0) return false;
     auto* st = tmgr.FindToplevelLocked(toplevelId_);
-    if (!st || !st->HasPosition() || (resizeTarget_ && (st->IsMinimized() || st->IsFullscreen()))) {
+    if (!st || !st->HasPosition() || (resizeTarget_ && (st->IsMinimized() || st->IsPresentationFullscreen()))) {
         toplevelId_ = 0; serial_ = 0; resizeTarget_ = 0;
         return false;
     }

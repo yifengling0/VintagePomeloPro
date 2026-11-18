@@ -44,7 +44,29 @@ void ControllerHub::SetEnabled(bool enabled)
 bool ControllerHub::IsEnabled() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return enabled_;
+    return enabled_ && !uiCapture_;
+}
+
+void ControllerHub::SetUiCapture(bool captured)
+{
+    StateListener callback;
+    LogicalGamepadState states[kMaxControllerSlots];
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (uiCapture_ == captured) return;
+        uiCapture_ = captured;
+        if (!captured) return;
+        callback = listener_;
+        for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot) {
+            const bool connected = slots_[slot].logical.connected;
+            const uint64_t sequence = slots_[slot].logical.sequence + 1;
+            slots_[slot] = SlotState{};
+            slots_[slot].logical.connected = connected;
+            slots_[slot].logical.sequence = sequence;
+            states[slot] = slots_[slot].logical;
+        }
+    }
+    if (callback) for (uint32_t slot = 0; slot < kMaxControllerSlots; ++slot) callback(slot, states[slot]);
 }
 
 void ControllerHub::SetInnerDeadzone(float inner)
@@ -77,7 +99,7 @@ void ControllerHub::SetButton(ControllerSourceId source, uint32_t slot, LogicalB
     bool changed = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!enabled_) return;
+        if (!enabled_ || uiCapture_) return;
         uint32_t& owners = slots_[slot].buttonOwners[btn];
         const uint32_t bit = 1u << src;
         if (pressed) owners |= bit;
@@ -107,7 +129,7 @@ void ControllerHub::SetAxis(ControllerSourceId source, uint32_t slot, LogicalAxi
     bool changed;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!enabled_) return;
+        if (!enabled_ || uiCapture_) return;
         auto& st = slots_[slot];
         auto& stick = st.sticks[src][stIdx];
         if (ax % 2) stick.y = value;
@@ -141,7 +163,7 @@ void ControllerHub::SetStick(ControllerSourceId source, uint32_t slot, LogicalSt
     bool changed = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!enabled_) return;
+        if (!enabled_ || uiCapture_) return;
         auto& st = slots_[slot];
         auto& srcStick = st.sticks[src][stIdx];
         srcStick.x = x;
@@ -175,7 +197,7 @@ void ControllerHub::SetTrigger(ControllerSourceId source, uint32_t slot, Logical
     bool changed = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!enabled_) return;
+        if (!enabled_ || uiCapture_) return;
         slots_[slot].triggers[src][tr] = value;
         changed = RecomputeLocked(slot);
         cb = listener_;
@@ -196,7 +218,7 @@ void ControllerHub::SetHat(ControllerSourceId source, uint32_t slot, int8_t x, i
     bool changed = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (!enabled_) return;
+        if (!enabled_ || uiCapture_) return;
         slots_[slot].hatXBySource[src] = x;
         slots_[slot].hatYBySource[src] = y;
         changed = RecomputeLocked(slot);

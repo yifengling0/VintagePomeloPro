@@ -1,4 +1,5 @@
 import { WineImeCoordinator } from '../service/WineImeCoordinator';
+import { AppReviewService } from '../service/AppReviewService';
 import { LauncherSupportActions } from '../components/LauncherSupportActions';
 import { DeckHome } from '../components/hmosdeck/DeckHome';
 import { SteamClientService } from '../service/SteamClientService';
@@ -698,7 +699,10 @@ struct Index {
       this.refreshRunningState();
     };
     WineEngineService.getInstance().subscribe(this.engineCallback);
-    this.refreshTimer = setInterval(() => this.refreshRunningState(), 1500);
+    this.refreshTimer = setInterval(() => {
+      this.refreshRunningState();
+      this.maybeShowReviewPrompt();
+    }, 1500);
     // The official Windows client owns account and library operations. No legacy CM polling.
     this.artworkListener = (_appId: string, _path: string): void => {
       this.consoleBackgroundCache.delete(_appId);
@@ -805,7 +809,7 @@ struct Index {
   }
 
   private deckImmersive(): boolean {
-    return this.settings.uiSkin === UiSkin.DECK && !DeviceCapabilityPolicy.usesManagedWineWindows() &&
+    return (this.gameBrowsing || this.settings.uiSkin === UiSkin.DECK) && !DeviceCapabilityPolicy.usesManagedWineWindows() &&
       this.viewportWidth > this.viewportHeight && this.viewportHeight > 0;
   }
 
@@ -973,6 +977,24 @@ struct Index {
   private sameAppSequence(left: AppDescriptor[], right: AppDescriptor[]): boolean {
     return left.length === right.length &&
       left.every((app: AppDescriptor, index: number): boolean => app === right[index]);
+  }
+
+  private maybeShowReviewPrompt(): void {
+    void AppReviewService.maybePrompt(this.context, (): boolean =>
+      this.consolePageVisible && this.catalogInitialized && this.libraryChromeVisible() &&
+      !this.transitioning && !this.scanning && !this.isEngineBusy() &&
+      !this.consoleDetailVisible && !this.steamPop && !HostWindowTasks.getInstance().hasForegroundTask(),
+      async (): Promise<void> => {
+        const prompt = this.getUIContext().getPromptAction();
+        const result = await prompt.showDialog({
+          title: '喜欢旧柚 Pro 吗？',
+          message: '您已累计使用旧柚 Pro 满 1 小时。如果体验不错，欢迎到应用市场给我们一个 5 分好评，感谢您的支持！此提醒只显示一次。',
+          buttons: [{ text: '暂不评价', color: '#667085' }, { text: '去评 5 分', color: '#2874BC' }]
+        });
+        if (result.index === 1 && !(await AppReviewService.openReviewPage(this.context))) {
+          prompt.showToast({ message: '暂时无法打开应用市场，请稍后在应用市场搜索“旧柚 Pro”' });
+        }
+      });
   }
 
   private runningFilterLabel(): string {
@@ -1325,7 +1347,7 @@ struct Index {
         });
       }
     } catch (error) {
-      promptAction.showToast({ message: app.steam ? (error as Error).message : '程序启动异常，请稍后重试' });
+      promptAction.showToast({ message: (error as Error).message || '程序启动异常，请稍后重试' });
     } finally {
       feedback.finish(ticket);
       this.refreshRunningState();
@@ -2020,9 +2042,23 @@ struct Index {
     return 'builtin';
   }
 
+  @StorageLink('vpp.game.browsing') @Watch('gameBrowsingChanged') private gameBrowsing: boolean = false;
+  private gameBackHandler: (() => boolean) | null = null;
   private deckBackHandler: (() => boolean) | null = null;
 
+  private gameBrowsingChanged(): void {
+    InputRouter.getInstance().releaseAllKeys();
+    GamepadManager.getInstance().releaseAll();
+    if (this.gameBrowsing) this.captureScrollOffsets();
+    if (this.consolePageVisible) void this.applyPageWindowShell();
+    if (!this.gameBrowsing) setTimeout((): void => this.restoreScrollOffset(this.filter), 0);
+  }
+
+
   onBackPress(): boolean {
+    if (this.gameBrowsing) {
+      return this.gameBackHandler?.() ?? false;
+    }
     if (this.settings.uiSkin === UiSkin.DECK && this.deckBackHandler?.()) return true;
     if (this.consoleDetailVisible) {
       this.consoleDetailVisible = false;
@@ -3209,13 +3245,13 @@ struct Index {
           .opacity(0.72)
           .hitTestBehavior(HitTestMode.None)
           // 浮窗模式全屏态: 桌面铺满, 隐藏启动器背景
-          .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+          .visibility(!this.gameBrowsing && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
           .id('library-page-background')
       }
       if (this.settings.uiSkin === UiSkin.CONSOLE) {
         Column() { this.ConsoleLayout() }
           .width('100%').height('100%')
-          .visibility(this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+          .visibility(!this.gameBrowsing && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       } else {
         Row() {
           if (!this.isPhone()) {
@@ -3230,10 +3266,10 @@ struct Index {
         .width('100%')
         .height('100%')
         .padding({ top: this.isPhone() ? 0 : this.statusBarHeightVp + 16 })
-        .visibility(this.settings.uiSkin !== UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .visibility(!this.gameBrowsing && this.settings.uiSkin !== UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       }
       DeckHome({
-        active: this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
+        active: !this.gameBrowsing && this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
         onRefresh: (): Promise<void> => this.rescan(),
@@ -3250,7 +3286,25 @@ struct Index {
         .padding({ top: this.deckImmersive() ? 0 : this.statusBarHeightVp + 8,
           bottom: this.deckImmersive() ? 0 : this.navBarInsetVp,
           left: this.cutoutLeftInsetVp, right: this.cutoutRightInsetVp })
-        .visibility(this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .visibility(!this.gameBrowsing && this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+      DeckHome({
+        gameMode: true,
+        active: this.gameBrowsing && this.libraryChromeVisible() && this.consolePageVisible,
+        localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
+        windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
+        onRefresh: (): Promise<void> => this.rescan(),
+        onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
+        onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
+        onBackHandler: (handler: (() => boolean) | null): void => { this.gameBackHandler = handler; },
+        onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),
+        localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
+        onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)
+      })
+        .padding({ top: this.deckImmersive() ? 0 : this.statusBarHeightVp + 8,
+          bottom: this.deckImmersive() ? 0 : this.navBarInsetVp,
+          left: this.cutoutLeftInsetVp, right: this.cutoutRightInsetVp })
+        .visibility(this.gameBrowsing && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
+        .id('game-library')
       // 浮窗模式: 桌面由 Index 承载 — 悬浮窗态小窗缩略 / 全屏态铺满当前画面
       if (this.showDesktopLayer()) {
         Stack() {
@@ -3301,7 +3355,7 @@ struct Index {
       WineEngineBlockingOverlay()
     }
     .width('100%').height('100%')
-    .backgroundColor(skinColor('page_background'))
+    .backgroundColor(this.gameBrowsing ? '#0A0B0D' : skinColor('page_background'))
     .onAreaChange((_oldValue: Area, area: Area): void => {
       const width = area.width as number;
       const height = area.height as number;
