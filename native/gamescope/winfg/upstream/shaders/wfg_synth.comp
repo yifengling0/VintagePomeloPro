@@ -1,0 +1,197 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg — interpolated-frame synthesis (models 3 & 4 back end).
+//
+// CLEAN-ROOM STATEMENT
+// Written from first principles for win-fg. It does NOT use, reference, or
+// reimplement the traced bionic-fg / GameScope / Lossless-Scaling synthesis.
+// It contains no learned weights and derives from no third-party compiled
+// artifact. Its math is sourced from the open literature (see ATTRIBUTION),
+// implemented here independently. See docs/PROVENANCE.md.
+//
+// ATTRIBUTION (algorithms, reimplemented from published math — not code):
+//   * Importance-weighted blend of warped candidates ("softmax splatting"):
+//       Niklaus & Liu, "Softmax Splatting for Video Frame Interpolation",
+//       CVPR 2020 (arXiv:2003.05534). We adapt the forward-splat importance
+//       weighting into a scatter-free BACKWARD-warp blend (mobile real-time).
+//   * Brightness-constancy photometric residual:
+//       Horn & Schunck, "Determining Optical Flow", 1981.
+//   * Forward/backward consistency occlusion test:
+//       Sundaram et al. 2010; used e.g. by OCAI (arXiv:2403.18092).
+//   * Dual (prev-side / curr-side) disocclusion fallback concept:
+//       AMD FidelityFX FSR3 Frame Interpolation (MIT), color-only adaptation.
+//
+// MODEL 3 vs 4: identical shader. of3_expand (m3) writes symmetric flow with
+// confidence = 1; of3_expand_m4 writes independently-searched fwd/bwd flow with
+// an occlusion-gated confidence. This pass consumes whatever the front end
+// wrote, so model 4's occlusion behaviour "falls out" of the same math.
+//
+// GEOMETRY / CONVENTIONS
+//   I0 = uPrev (t=0),  I1 = uCurr (t=1),  generated frame at time = alpha.
+//   uFlowFwd = flowExpA = F10 (curr->prev), .xy px, .w conf
+//   uFlowBwd = flowExpB = F01 (prev->curr), .xy px, .w conf
+//   Linear-motion backward warp (one Gauss-Newton-free approximation, standard
+//   for real-time FRUC): the scene point seen at output pixel x came from
+//     I0 at  pA = x - alpha     * F01(x)      (-> alpha=0 gives I0(x))
+//     I1 at  pB = x - (1-alpha) * F10(x)      (-> alpha=1 gives I1(x))
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0) uniform U {
+    float flowScale;   // scales solved flow magnitude (device tuning; 1.0 = as-is)
+    float alpha;       // temporal position of generated frame, 0=prev .. 1=curr
+    float beta;        // softmax sharpness on the importance metric Z
+    float lambda;      // weight of FB-consistency vs photometric term in Z
+    float epsilon;     // floor below which both candidates are "disoccluded"
+    float photoScale;  // scales the photometric residual into Z
+    float pad0; float pad1;
+    vec4  hudRect;     // pixel coords (x0,y0,x1,y1); disabled when x0>=x1.
+                        // fragments inside are written verbatim from uCurr so
+                        // HUD/text doesn't get warped by flow (Isygold pattern).
+};
+
+layout(binding = 32) uniform sampler2D uPrev;      // I0
+layout(binding = 33) uniform sampler2D uCurr;      // I1
+layout(binding = 34) uniform sampler2D uFlowFwd;   // F10 curr->prev (.xy px, .w conf)
+layout(binding = 35) uniform sampler2D uFlowBwd;   // F01 prev->curr (.xy px, .w conf)
+
+layout(binding = 48, rgba8) uniform writeonly image2D uOut;
+
+const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);    // Rec.709
+float luma(vec3 c) { return dot(c, LUMA); }
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = imageSize(uOut);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    vec2 invDim = 1.0 / vec2(dim);
+    vec2 uv = (vec2(gid) + 0.5) * invDim;
+
+    // HUD exclusion: if this pixel is inside the host-supplied HUD rect,
+    // write the real current frame verbatim and skip all flow/warp work.
+    // Kills ghosting on text/overlays at the source. 16x16 workgroups are
+    // mostly all-inside or all-outside for any reasonable HUD rect, so the
+    // divergent early-out stays warp-coherent on Adreno.
+    if (hudRect.x < hudRect.z && hudRect.y < hudRect.w
+        && float(gid.x) >= hudRect.x && float(gid.x) < hudRect.z
+        && float(gid.y) >= hudRect.y && float(gid.y) < hudRect.w) {
+        imageStore(uOut, gid, vec4(texture(uCurr, uv).rgb, 1.0));
+        return;
+    }
+
+    // DEBUG flow visualiser: gated on flowScale>5 (an out-of-range sentinel set
+    // live via conf.toml) so we can flip it on/off with no rebuild. When on, the
+    // warp uses fs=1.0 and the generated frame is REPLACED with the raw solved
+    // flow magnitude as brightness (normalised to the 10% clamp): white = flow is
+    // saturating the clamp (warp will be wrong -> blur), grey = healthy motion.
+    bool  dbg = flowScale > 3.5;   // sentinel reachable within the [0.05,4.0] conf clamp
+    float fs  = dbg ? 1.0 : flowScale;
+
+    // Flow fields at this output pixel (px -> uv), scaled for tuning.
+    vec4 sBwd = texture(uFlowBwd, uv);            // F01 prev->curr
+    vec4 sFwd = texture(uFlowFwd, uv);            // F10 curr->prev
+    vec2 F01  = sBwd.xy * fs * invDim;
+    vec2 F10  = sFwd.xy * fs * invDim;
+    float cf01 = clamp(sBwd.w, 0.0, 1.0);         // front-end confidence
+    float cf10 = clamp(sFwd.w, 0.0, 1.0);
+
+    // Clamp flow magnitude. In low-texture regions (sky, grass, foliage) the SAD
+    // search locks onto spurious far-away matches; unclamped, those melt the whole
+    // frame. Cap displacement to a fraction of the screen so a wrong vector can only
+    // ever smear locally (and the photometric gate below then cross-fades it).
+    const float kMaxFlow = 0.10;                  // <=10% of screen
+    float m01 = length(F01); if (m01 > kMaxFlow) F01 *= kMaxFlow / m01;
+    float m10 = length(F10); if (m10 > kMaxFlow) F10 *= kMaxFlow / m10;
+
+    // ── Bidirectional backward-warp candidates ────────────────────────────────
+    vec2 pA = uv - alpha        * F01;            // sample point in I0
+    vec2 pB = uv - (1.0 - alpha) * F10;           // sample point in I1
+    vec3 C0 = texture(uPrev, pA).rgb;
+    vec3 C1 = texture(uCurr, pB).rgb;
+
+    // ── Importance Z_i = -(photometric residual + lambda * FB-inconsistency) ──
+    // Photometric (brightness constancy): warp the sample point across the pair
+    // by its own flow and measure luma disagreement. A good match -> ~0 residual
+    // -> high importance.
+    float eA = abs(luma(C0) - luma(texture(uCurr, pA + texture(uFlowBwd, pA).xy * flowScale * invDim).rgb));
+    float eB = abs(luma(C1) - luma(texture(uPrev, pB + texture(uFlowFwd, pB).xy * flowScale * invDim).rgb));
+
+    // FB-consistency: F01 and F10 should cancel where both are valid. Reuse the
+    // front-end confidence (m4 already gates on this) as the consistency term;
+    // fall back to a direct residual so model 3 (conf=1) still gets a signal.
+    vec2  fbUv = uv + F01;
+    float fbResid = length(F01 + texture(uFlowFwd, fbUv).xy * flowScale * invDim); // ~0 = consistent
+    float consist = min(cf01, cf10) * exp(-fbResid / (length(F01) + length(F10) + invDim.x));
+
+    float Z0 = -(photoScale * eA + lambda * (1.0 - consist));
+    float Z1 = -(photoScale * eB + lambda * (1.0 - consist));
+
+    // ── Softmax importance weights, biased by temporal proximity ──────────────
+    // tau: the temporally NEARER source frame is trusted more.
+    float tau0 = (1.0 - alpha);
+    float tau1 = alpha;
+    // shift by max(Z) for numerical stability (translation-invariance, as in the
+    // softmax-splatting importance metric).
+    float zmax = max(Z0, Z1);
+    float W0 = tau0 * exp(beta * (Z0 - zmax));
+    float W1 = tau1 * exp(beta * (Z1 - zmax));
+    float Wsum = W0 + W1;
+
+    vec3 warped = (Wsum > 1e-8) ? (W0 * C0 + W1 * C1) / Wsum
+                                : mix(C0, C1, alpha);
+
+    // ── Disocclusion fallback ────────────────────────────────────────────────
+    // When neither candidate is trustworthy (newly revealed content that no flow
+    // explains), degrade to a straight cross-fade of the untouched frames rather
+    // than smear along a wrong vector. This is the ghosting fix.
+    vec3 crossfade = mix(texture(uPrev, uv).rgb, texture(uCurr, uv).rgb, alpha);
+    // Photometric gate: if even the better of the two warps disagrees badly with
+    // the source pair (the flow is wrong here), distrust it and cross-fade. This is
+    // what stops the "melting" — model 3 writes confidence=1 so it had no gate at
+    // all; the warp residual now provides one for BOTH models.
+    // Cross-fade wherever the warp disagrees with the source pair. The flow field is
+    // noisy (small SAD blocks, upsampled from 1/4 res), so an over-loose gate lets
+    // wrong vectors warp -> the whole frame melts into an oil-painting smear (proven
+    // on device at flowScale>=1.0 + a loose gate). Keep this tight: warp only where
+    // the residual is genuinely small, cross-fade everything else. Blur-on-uncertainty
+    // is the safe failure; melt is not.
+    float photoErr   = min(eA, eB);
+    float photoTrust = 1.0 - smoothstep(0.04, 0.18, photoErr);
+    float trust = clamp(consist, 0.0, 1.0) * photoTrust;
+    trust *= smoothstep(0.0, epsilon, Wsum);      // both-unreliable -> 0
+
+    // ── Content-diff double-exposure fallback ─────────────────────────────────
+    // Video-analysis 2026-08-17 (Kratos hand-gesture melts at t=50/60/80):
+    // when the flow gate rejects a pixel AND prev+curr LOOK VERY DIFFERENT at
+    // that pixel (large object motion beyond flow reach — a hand that swept
+    // across 100+ px between two real frames at 24 fps), the crossfade above
+    // averages two totally different scenes = classic "two-hand double
+    // exposure" ghost. Snap to real curr in that case: lose the FG smoothness
+    // on those specific pixels for that frame, but no visible ghost. The rest
+    // of the frame keeps its interpolation. Soft switch so we don't create
+    // hard seams around moving edges.
+    vec3 prevC = texture(uPrev, uv).rgb;
+    vec3 currC = texture(uCurr, uv).rgb;
+    float contentDiff = length(currC - prevC);      // 0 = identical, ~1.7 = max diff
+    float untrusted   = 1.0 - smoothstep(0.10, 0.25, trust);   // 1 when trust < ~0.15
+    float bigDiff     = smoothstep(0.20, 0.40, contentDiff);    // 1 when diff > ~0.30
+    float snapToCurr  = untrusted * bigDiff;
+    crossfade = mix(crossfade, currC, snapToCurr);
+
+    vec3 outc = mix(crossfade, warped, trust);
+
+    // DEBUG flow visualiser (flowScale>5 sentinel): replace the generated frame with
+    // the raw solved flow so we can SEE its quality on device. black = static,
+    // green = healthy motion, red/yellow = flow saturating the 10% clamp (unreliable
+    // vectors -> the melt). If moving regions read red, the solver is the problem.
+    if (dbg) {
+        float mag = max(m01, m10);                    // screen-fraction (fs=1.0 in dbg)
+        float n   = clamp(mag / kMaxFlow, 0.0, 1.0);
+        float sat = step(kMaxFlow, mag);
+        imageStore(uOut, gid, vec4(sat, n, 0.0, 1.0));
+        return;
+    }
+
+    imageStore(uOut, gid, vec4(outc, 1.0));
+}

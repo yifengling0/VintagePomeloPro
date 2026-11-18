@@ -1,0 +1,128 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg model 3 — FSR3 Optical Flow (pass 3/4): coarse-to-fine block flow.
+//
+// Adapted from AMD FidelityFX-SDK FSR3 Optical Flow search pass:
+//   ffx_opticalflow_compute_optical_flow_v5.h
+//   (SAD block-matching, BlockSize 8, SearchRadius 8, prediction from the
+//    previous coarser pyramid level). FidelityFX SDK is MIT-licensed; see NOTICE.
+//
+// This is a self-contained, subgroup-free re-implementation of that pass so it
+// compiles with glslangValidator for Vulkan 1.1 / Turnip. The SDK version uses
+// wave intrinsics (ffxWaveSum), groupshared SAD maps, msad4 and packed-uint
+// luma — none of which are portable to bare GLSL on Adreno — so this version
+// does a direct per-pixel SAD search instead.
+//
+// DEVIATIONS (documented for device verification):
+//  * Block half-window BR and search radius SR are reduced from the SDK's
+//    8x8 / +-8 to 3x3 / +-3 per level (the coarse->fine predictor chain recovers
+//    the large-motion range; smaller windows keep the non-subgroup loop fast
+//    enough to be Turnip-viable). Tune on device.
+//  * No sub-pixel (parabola) refinement; integer-texel best match per level.
+//  * Flow vectors are carried in FULL-RESOLUTION pixel units across all levels
+//    so the predictor needs no rescale between levels.
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0) uniform U {
+    float flowScale;   // unused here (applied in synth UBO); kept for layout parity
+    uint  level;       // pyramid level being solved (0 = full res)
+    uint  pad0;
+    uint  pad1;
+};
+
+layout(binding = 32) uniform sampler2D uLumaPrev;  // prev luma at this level (R8)
+layout(binding = 33) uniform sampler2D uLumaCurr;  // curr luma at this level (R8)
+layout(binding = 34) uniform sampler2D uPredictor; // coarser flow, full-res px (.xy)
+
+layout(binding = 48, rgba16f) uniform writeonly image2D uFlow; // flow, full-res px (.xy)
+
+const int BR = 1; // block half-window  -> (2*BR+1)^2 tap SAD  (3x3)
+const int SR = 3; // search radius      -> (2*SR+1)^2 candidates (+-3)
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = imageSize(uFlow);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    vec2 invDim = 1.0 / vec2(dim);
+    vec2 uv = (vec2(gid) + 0.5) * invDim;
+
+    // Predictor flow is stored in full-res pixels. Convert to this level's texels.
+    float toLevel = exp2(-float(level)); // full-res px -> level-i texels
+    vec2 predFull = textureLod(uPredictor, uv, 0.0).xy;
+    vec2 predLevel = predFull * toLevel;
+
+    float bestSad = 3.402823466e+38;
+    vec2  bestDisp = predLevel;
+
+    for (int sy = -SR; sy <= SR; ++sy) {
+        for (int sx = -SR; sx <= SR; ++sx) {
+            vec2 cand = predLevel + vec2(float(sx), float(sy)); // level texels
+            float sad = 0.0;
+            for (int by = -BR; by <= BR; ++by) {
+                for (int bx = -BR; bx <= BR; ++bx) {
+                    vec2 bo = vec2(float(bx), float(by));
+                    float p = textureLod(uLumaPrev, uv + bo * invDim, 0.0).r;
+                    float c = textureLod(uLumaCurr, uv + (bo + cand) * invDim, 0.0).r;
+                    sad += abs(p - c);
+                }
+            }
+            // Bias toward the predictor (smoothness prior, like the SDK's prediction
+            // term) so textureless/ambiguous regions keep the coarse coherent flow
+            // instead of latching onto a spurious equal-cost match (a big source of
+            // the incoherent-vector melt). Raised from 0.002 -> 0.006.
+            sad += 0.006 * (abs(float(sx)) + abs(float(sy)));
+            if (sad < bestSad) {
+                bestSad = sad;
+                bestDisp = cand;
+            }
+        }
+    }
+
+    // ── Sub-pixel parabola-fit refinement ────────────────────────────────────
+    // The integer search returns a texel-quantized winner. Fitting a 1D parabola
+    // through the SAD at (best-1, best, best+1) in each axis independently gives
+    // us a sub-pixel offset within the winning cell — cheap classical trick
+    // (Lowe 2004 §5, RAFT arxiv:2003.12039 §3.2 lookup) that removes the
+    // texture-crawl look during smooth camera pans. 4 extra 3x3 SAD evaluations
+    // per pixel (negligible vs the SR^2 loop above).
+    //
+    // parabola vertex delta = 0.5 * (s_minus - s_plus) / (s_minus - 2*s_center + s_plus)
+    // clamped to +-0.5 so a degenerate fit can't push us out of the winning cell.
+    // Only applied at the finest level (level==0) since coarser levels get
+    // rescaled and would amplify sub-texel noise. Guarded on non-degenerate
+    // denominator.
+    if (level == 0u) {
+        float sadC = bestSad; // note: includes the smoothness bias; delta ratio cancels
+        float sadXm = 0.0, sadXp = 0.0, sadYm = 0.0, sadYp = 0.0;
+        for (int by = -BR; by <= BR; ++by) {
+            for (int bx = -BR; bx <= BR; ++bx) {
+                vec2 bo = vec2(float(bx), float(by));
+                float p = textureLod(uLumaPrev, uv + bo * invDim, 0.0).r;
+                vec2 candXm = bestDisp + vec2(-1.0, 0.0);
+                vec2 candXp = bestDisp + vec2(+1.0, 0.0);
+                vec2 candYm = bestDisp + vec2(0.0, -1.0);
+                vec2 candYp = bestDisp + vec2(0.0, +1.0);
+                sadXm += abs(p - textureLod(uLumaCurr, uv + (bo + candXm) * invDim, 0.0).r);
+                sadXp += abs(p - textureLod(uLumaCurr, uv + (bo + candXp) * invDim, 0.0).r);
+                sadYm += abs(p - textureLod(uLumaCurr, uv + (bo + candYm) * invDim, 0.0).r);
+                sadYp += abs(p - textureLod(uLumaCurr, uv + (bo + candYp) * invDim, 0.0).r);
+            }
+        }
+        // Match the smoothness-bias offset the main loop applied to `sadC`.
+        // We compare like-with-like: bias(sadXm/p) - bias(sadC) = 1.0*0.006, etc.
+        sadXm += 0.006; sadXp += 0.006; sadYm += 0.006; sadYp += 0.006;
+
+        float dx = 0.0, dy = 0.0;
+        float denomX = sadXm - 2.0 * sadC + sadXp;
+        float denomY = sadYm - 2.0 * sadC + sadYp;
+        if (denomX > 1e-6) dx = clamp(0.5 * (sadXm - sadXp) / denomX, -0.5, 0.5);
+        if (denomY > 1e-6) dy = clamp(0.5 * (sadYm - sadYp) / denomY, -0.5, 0.5);
+        bestDisp += vec2(dx, dy);
+    }
+
+    // Convert best displacement (level texels) back to full-res pixels.
+    vec2 flowFull = bestDisp * exp2(float(level));
+    imageStore(uFlow, gid, vec4(flowFull, 0.0, 0.0));
+}

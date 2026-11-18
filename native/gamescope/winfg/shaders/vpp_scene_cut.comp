@@ -1,0 +1,19 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 VintagePomelo contributors
+#version 450
+layout(local_size_x=64) in;
+layout(binding=32) uniform sampler2D previousLuma;
+layout(binding=33) uniform sampler2D currentLuma;
+layout(binding=16) buffer Scene { uint cut; } scene;
+shared float difference[64];
+void main() {
+    uint index=gl_LocalInvocationIndex;
+    vec2 uv=(vec2(index%8,index/8)+0.5)/8.0;
+    difference[index]=abs(textureLod(previousLuma,uv,0).r-textureLod(currentLuma,uv,0).r);
+    barrier();
+    for(uint step=32;step>0;step/=2) {
+        if(index<step) difference[index]+=difference[index+step];
+        barrier();
+    }
+    if(index==0) scene.cut=difference[0]/64.0>0.18?1u:0u;
+}

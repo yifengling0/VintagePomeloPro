@@ -1,0 +1,33 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg model 3 — FSR3 Optical Flow (pass 1/4): perceptual luma extract.
+//
+// Adapted from AMD FidelityFX-SDK FSR3 Optical Flow "PrepareLuma" pass:
+//   Kits/FidelityFX/framegeneration/fsr3/include/gpu/opticalflow/
+//       ffx_opticalflow_prepare_luma.h  (LinearLdrToLuminance, Rec709 weights)
+//
+// FidelityFX SDK is MIT-licensed (Copyright (C) Advanced Micro Devices, Inc.).
+// See NOTICE_FIDELITYFX_OPTICALFLOW.md for the full license text.
+//
+// DEVIATION (color-only layer): the layer only sees the final LDR backbuffer
+// color (no HDR transfer-function / MinMaxLuminance metadata, no PQ/scRGB), so
+// we always take the LDR Rec.709 luma branch and skip the HDR perceptual-luma
+// reconstruction the SDK does for transfer functions 1/2.
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 32) uniform sampler2D uSrc;          // input color (RGBA8 / AHB)
+layout(binding = 48, r32f) uniform writeonly image2D uDst; // perceptual luma (R32F)
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = imageSize(uDst);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    vec2 uv = (vec2(gid) + 0.5) / vec2(dim);
+    vec3 rgb = textureLod(uSrc, uv, 0.0).rgb;
+
+    // FFX LinearLdrToLuminance (Rec.709).
+    float fY = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+    imageStore(uDst, gid, vec4(fY, 0.0, 0.0, 0.0));
+}

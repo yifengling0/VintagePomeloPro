@@ -1,0 +1,34 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg model 3 — FSR3 Optical Flow (pass 2/4): luma pyramid downsample.
+//
+// Adapted from AMD FidelityFX-SDK FSR3 Optical Flow luminance-pyramid pass:
+//   ffx_opticalflow_compute_luminance_pyramid.h  (SpdReduce4 == 0.25 box filter,
+//   6 mip levels). FidelityFX SDK is MIT-licensed; see NOTICE.
+//
+// DEVIATION: the SDK builds the whole mip chain in one SPD dispatch using
+// groupshared + atomic workgroup counters. Turnip / Vulkan 1.1 without the SPD
+// library is more robust with one explicit 2x2 box-reduce dispatch per level,
+// which is what this shader does (mathematically identical 4-tap average).
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 32) uniform sampler2D uSrc;             // luma level i   (R32F)
+layout(binding = 48, r32f) uniform writeonly image2D uDst; // luma level i+1 (R32F)
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = imageSize(uDst);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    // Sample the 4 source texels covering this destination texel (box filter).
+    vec2 srcDim = vec2(textureSize(uSrc, 0));
+    vec2 base = (vec2(gid) * 2.0 + 1.0) / srcDim; // centre of the 2x2 footprint
+    vec2 h = 0.5 / srcDim;
+    float a = textureLod(uSrc, base + vec2(-h.x, -h.y), 0.0).r;
+    float b = textureLod(uSrc, base + vec2( h.x, -h.y), 0.0).r;
+    float c = textureLod(uSrc, base + vec2(-h.x,  h.y), 0.0).r;
+    float d = textureLod(uSrc, base + vec2( h.x,  h.y), 0.0).r;
+
+    imageStore(uDst, gid, vec4((a + b + c + d) * 0.25, 0.0, 0.0, 0.0));
+}
