@@ -33,6 +33,11 @@ public:
     void RealPresented() { pending_=false; dueNs_=0; }
     uint64_t DueNs() const { return pending_?dueNs_:0; }
     uint64_t IntervalNs() const { return intervalNs_; }
+    uint64_t GpuBudgetNs(uint64_t display) const {
+        // 30->60 on a 120Hz display has two display ticks per output, not one.
+        // Reserve 20% of the actual output interval for composition/presentation.
+        return display?std::max(display,intervalNs_/2)*8/10:0;
+    }
     uint32_t Reason(uint64_t display) const {
         if (!display) return VPP_FG_NO_CADENCE;
         if (samples_<2) return VPP_FG_WARMING;

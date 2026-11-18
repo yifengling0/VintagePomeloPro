@@ -508,7 +508,8 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             input.completedGenerated+=m_fgCountPending && !m_framegen.SceneCut();
             m_fgCountPending=false;
             if (m_framegen.SceneCut()) { m_fgSchedule.Reset(); m_fgIdentity=0; }
-            m_fgBudgetFailures=input.displayPeriodNs && input.frameGenerationGpuNs>input.displayPeriodNs*8/10?m_fgBudgetFailures+1:0;
+            const auto budget=m_fgSchedule.GpuBudgetNs(input.displayPeriodNs);
+            m_fgBudgetFailures=budget && input.frameGenerationGpuNs>budget?m_fgBudgetFailures+1:0;
         }
         return idle;
     };
@@ -678,8 +679,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
                     if (!generated->BInit(texture->width(),texture->height(),1,DRM_FORMAT_ABGR8888,flags)) generated=nullptr;
                 }
                 auto previous=m_history[m_historyIndex^1].get();
-                if (generated && m_framegen.Generate(previous->vkImage(),previous->linearView(),texture->vkImage(),texture->linearView(),
-                        generated->vkImage(),generated->linearView())) {
+                if (generated && m_framegen.Generate(previous,texture,generated.get())) {
                     texture=generated.get(); input.generated=1; input.frameGenerationState=VPP_FG_RUNNING;
                     m_fgSchedule.Generated(input.nowNs,input.displayPeriodNs);
                 } else { input.frameGenerationState=VPP_FG_FAILED; m_fgBudgetFailures=3; }

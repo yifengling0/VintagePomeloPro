@@ -91,6 +91,15 @@ public:
         if (!Idle()) return false;
         return fg_.onResize(size,VK_FORMAT_R8G8B8A8_UNORM);
     }
+    template<class Texture>
+    bool Generate(Texture* prev, Texture* curr, Texture* out) {
+        // Gamescope names views by the values returned to its compositor:
+        // srgbView is UNORM (encoded samples, storage-capable); linearView
+        // is SRGB (decodes samples, with STORAGE usage explicitly removed).
+        // Win-FG operates on encoded values and writes an rgba8 storage image.
+        return Generate(prev->vkImage(),prev->srgbView(),curr->vkImage(),curr->srgbView(),
+                        out->vkImage(),out->srgbView());
+    }
     bool Generate(VkImage prev, VkImageView prevView, VkImage curr, VkImageView currView,
                   VkImage out, VkImageView outView) {
         if (!Idle() || !fg_.valid()) return false;

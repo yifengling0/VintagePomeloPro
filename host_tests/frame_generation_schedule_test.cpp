@@ -29,6 +29,19 @@ int main() {
         for(uint64_t frame=1;frame<8;++frame) { schedule.Observe(1,frame,start+frame*period*2,0); assert(!schedule.CanGenerate()); }
     }
     using namespace winehua::game;
+    {
+        VppFrameGenerationSchedule schedule;
+        constexpr uint64_t display=8333333, source=33333332;
+        for (uint64_t frame=1;frame<=4;++frame) schedule.Observe(1,frame,frame*source,display);
+        assert(schedule.CanGenerate());
+        assert(schedule.GpuBudgetNs(display)==13333332);
+        assert(7700000<schedule.GpuBudgetNs(display)); // Mini 30->60 is not a 120 FPS compute budget
+        assert(14000000>schedule.GpuBudgetNs(display));
+        assert(schedule.GpuBudgetNs(0)==0);
+        schedule.Reset();
+        for (uint64_t frame=1;frame<=4;++frame) schedule.Observe(1,frame,frame*display*2,display);
+        assert(schedule.GpuBudgetNs(display)==6666666); // 60->120 keeps the tighter budget
+    }
     Configure(true,false,false,30,false,10,true);
     assert(FrameGeneration() && CompositionPeriodNs()==0 && ProducerPeriodNs(8333334)==33333334);
     Configure(true,false,false,0,false,10,true);

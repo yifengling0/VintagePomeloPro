@@ -9,7 +9,12 @@
 #include <unistd.h>
 
 #define CHECK(call) do { const auto r=(call); if(r!=VK_SUCCESS) { fprintf(stderr,"%s: %d\n",#call,int(r)); std::abort(); } } while(0)
-struct Image { VkImage image{}; VkImageView view{}; VkDeviceMemory memory{}; };
+struct Image {
+    VkImage image{}; VkImageView view{}, decodedView{}; VkDeviceMemory memory{};
+    VkImage vkImage() const { return image; }
+    VkImageView srgbView() const { return view; }
+    VkImageView linearView() const { return decodedView; }
+};
 static VKAPI_ATTR VkResult VKAPI_CALL FailDescriptor(VkDevice,const VkDescriptorSetAllocateInfo*,VkDescriptorSet*) {
     return VK_ERROR_OUT_OF_POOL_MEMORY;
 }
@@ -66,7 +71,8 @@ int main() {
         uint8_t* pixels=nullptr; CHECK(vkMapMemory(device,host,0,bytes*3,0,reinterpret_cast<void**>(&pixels)));
         std::array<Image,3> images{};
         for(auto& image:images) {
-            VkImageCreateInfo ci{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO}; ci.imageType=VK_IMAGE_TYPE_2D; ci.format=VK_FORMAT_R8G8B8A8_UNORM;
+            VkImageCreateInfo ci{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO}; ci.flags=VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+            ci.imageType=VK_IMAGE_TYPE_2D; ci.format=VK_FORMAT_R8G8B8A8_UNORM;
             ci.extent={w,h,1}; ci.mipLevels=ci.arrayLayers=1; ci.samples=VK_SAMPLE_COUNT_1_BIT; ci.tiling=VK_IMAGE_TILING_OPTIMAL;
             ci.usage=VK_IMAGE_USAGE_SAMPLED_BIT|VK_IMAGE_USAGE_STORAGE_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT|VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             CHECK(vkCreateImage(device,&ci,nullptr,&image.image)); vkGetImageMemoryRequirements(device,image.image,&mr);
@@ -74,6 +80,11 @@ int main() {
             CHECK(vkAllocateMemory(device,&ma,nullptr,&image.memory)); CHECK(vkBindImageMemory(device,image.image,image.memory,0));
             VkImageViewCreateInfo vi{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO}; vi.image=image.image; vi.viewType=VK_IMAGE_VIEW_TYPE_2D; vi.format=ci.format; vi.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
             CHECK(vkCreateImageView(device,&vi,nullptr,&image.view));
+            // Match CVulkanTexture::BInit: the decoded SRGB view is sampled
+            // only. The production bridge must select the UNORM storage view.
+            VkImageViewUsageCreateInfo usage{VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO};
+            usage.usage=VK_IMAGE_USAGE_SAMPLED_BIT; vi.pNext=&usage; vi.format=VK_FORMAT_R8G8B8A8_SRGB;
+            CHECK(vkCreateImageView(device,&vi,nullptr,&image.decodedView));
         }
         VppWinfgEngine engine;
         assert(engine.Init(instance,vkGetInstanceProcAddr,physical,device,family,queue));
@@ -94,7 +105,7 @@ int main() {
                 barrier(images[frame].image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,VK_IMAGE_LAYOUT_GENERAL);
             }
             barrier(images[2].image,mode?VK_IMAGE_LAYOUT_GENERAL:VK_IMAGE_LAYOUT_UNDEFINED,VK_IMAGE_LAYOUT_GENERAL); submit();
-            assert(engine.Generate(images[0].image,images[0].view,images[1].image,images[1].view,images[2].image,images[2].view));
+            assert(engine.Generate(&images[0],&images[1],&images[2]));
             CHECK(vkQueueWaitIdle(queue)); assert(engine.Idle());
             start(); barrier(images[2].image,VK_IMAGE_LAYOUT_GENERAL,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             VkBufferImageCopy copy{}; copy.bufferOffset=2*bytes; copy.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1}; copy.imageExtent={w,h,1};
@@ -129,9 +140,9 @@ int main() {
             }
         }
         engine.Destroy();
-        for(auto& image:images) { vkDestroyImageView(device,image.view,nullptr); vkDestroyImage(device,image.image,nullptr); vkFreeMemory(device,image.memory,nullptr); }
+        for(auto& image:images) { vkDestroyImageView(device,image.decodedView,nullptr); vkDestroyImageView(device,image.view,nullptr); vkDestroyImage(device,image.image,nullptr); vkFreeMemory(device,image.memory,nullptr); }
         vkUnmapMemory(device,host); vkDestroyBuffer(device,buffer,nullptr); vkFreeMemory(device,host,nullptr);
     }
     vkDestroyCommandPool(device,pool,nullptr); vkDestroyDevice(device,nullptr); vkDestroyInstance(instance,nullptr);
-    puts("PASS Win-FG GPU: encoded color, actual motion midpoint, scene-cut fallback, odd sizes, five lifecycles, descriptor failure and independent instances");
+    puts("PASS Win-FG GPU: Gamescope UNORM/storage view, encoded color, actual motion midpoint, scene-cut fallback, odd sizes, five lifecycles, descriptor failure and independent instances");
 }

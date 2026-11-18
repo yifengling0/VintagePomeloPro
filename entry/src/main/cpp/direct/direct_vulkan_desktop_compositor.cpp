@@ -542,8 +542,11 @@ private:
         const bool acquireSource=!fgEnabled || paused || gamescopeSourceDeadline_.Ready(nowNs,winehua::game::LimitPeriodNs());
         if (acquireSource) {
             if (!UpdateSources()) return false;
-            UpdateGlSources();
         }
+        // Broker GL/Venus producers already own the explicit source limit.
+        // Polling their ready queue behind another independent deadline loses
+        // frames when the two 30/60Hz clocks drift against the display tick.
+        UpdateGlSources();
         for (auto& buffer:retired_) Return(buffer,-1);
         retired_.clear();
         if (paused) return true;
@@ -659,16 +662,26 @@ private:
         ++presentationSerial_; ++presents_; desktopPresents.fetch_add(1,std::memory_order_relaxed);
         if (gameFrame) { desktopGamePresents.fetch_add(1,std::memory_order_relaxed); rootRate_.Record(); }
         else if (direct.empty() && gl.empty()) rootRate_.Record();
-        if (sourceFrame) gamescopeRealRate_.Record();
-        if (frame.completedGenerated) gamescopeGeneratedRate_.Record();
+        if (sourceFrame) { gamescopeRealRate_.Record(); ++gamescopeRealFrames_; }
+        if (frame.completedGenerated) { gamescopeGeneratedRate_.Record(); ++gamescopeGeneratedFrames_; }
         // Source acceptance occurs even when this output is interpolated. A
         // held real image counts only when it is actually submitted later.
         if (!frame.generated && buffers[0] && inputs[0].opaque &&
                 buffers[0]->frameSerial!=gamescopeLastRealSerial_) {
             gamescopeLastRealSerial_=buffers[0]->frameSerial;
             gamescopePresentedRate_.Record();
+            ++gamescopePresentedFrames_;
         }
-        if (frame.completedGenerated) gamescopePresentedRate_.Record();
+        if (frame.completedGenerated) { gamescopePresentedRate_.Record(); ++gamescopePresentedFrames_; }
+        if ((winehua::FrameLoopDiagnosticState() & 1) && fgNow-gamescopeDiagnosticUs_>=1000000) {
+            gamescopeDiagnosticUs_=fgNow;
+            OH_LOG_INFO(LOG_APP,"[GAMESCOPE-FG] us=%{public}llu real=%{public}llu gen=%{public}llu present=%{public}llu state=%{public}u gpuNs=%{public}llu displayNs=%{public}llu source=%{public}ux%{public}u output=%{public}ux%{public}u policy=%{public}u",
+                (unsigned long long)fgNow,(unsigned long long)gamescopeRealFrames_,
+                (unsigned long long)gamescopeGeneratedFrames_,(unsigned long long)gamescopePresentedFrames_,
+                frame.frameGenerationState,(unsigned long long)frame.frameGenerationGpuNs,
+                (unsigned long long)frame.displayPeriodNs,inputs[0].width,inputs[0].height,
+                frame.width,frame.height,policy);
+        }
         if (presents_==1 || presents_%300==0 || frame.gpuLayers!=lastGameGpuLayers_ || frame.fsrPasses!=lastGameFsrPasses_) OH_LOG_INFO(LOG_APP,
             "[GAMESCOPE] presents=%{public}llu native=%{public}u filter=%{public}u fsrPasses=%{public}u cpuGameCopies=0",
             (unsigned long long)presents_,frame.gpuLayers,frame.filter,frame.fsrPasses);
@@ -1115,6 +1128,7 @@ private:
     uint64_t gamescopeSourceSerial_=0, gamescopeLastTick_=0, gamescopeNextTickNs_=0, gamescopeLastRealSerial_=0;
     bool gamescopeResetHistory_=true;
     DirectFrameRate gamescopeRealRate_,gamescopeGeneratedRate_,gamescopePresentedRate_;
+    uint64_t gamescopeRealFrames_=0,gamescopeGeneratedFrames_=0,gamescopePresentedFrames_=0,gamescopeDiagnosticUs_=0;
     winehua::game::FrameDeadline gamescopeSourceDeadline_;
     uint32_t lastGameGpuLayers_=0, lastGameFsrPasses_=0;
     std::unique_ptr<DirectVulkanContext> core_;
