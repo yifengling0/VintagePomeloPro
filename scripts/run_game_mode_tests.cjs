@@ -32,14 +32,17 @@ function fixture() {
     'libentry.so': { default: { configureGamePresentation: (...args) => calls.push(args),
       presentGameToplevel: id => { targets.push(id); return true; } } },
     '../model/AppModels': models, '../model/GameModeSettings': rules,
-    './AppSettingsStore': { AppSettingsStore: { getInstance: () => ({ getAppSettings: () => appSettings }) } }
+    './AppSettingsStore': { AppSettingsStore: { getInstance: () => ({
+      getAppSettings: () => appSettings, getRenderMode: () => 'dxvk_1_10'
+    }) } }
   };
   vm.runInNewContext(code, { exports, require: name => {
     assert.ok(Object.hasOwn(dependencies, name), name); return dependencies[name];
   }, AppStorage: { get: key => values.get(key), setOrCreate: (key, value) => values.set(key, value) } });
   return { service: exports.GameModeService, values, calls, targets, appSettings, dependencies };
 }
-const app = { id: 'game', launchTarget: { kind: models.LaunchKind.WINE_EXE } };
+const app = { id: 'game', source: models.AppSource.DOWNLOAD,
+  launchTarget: { kind: models.LaunchKind.WINE_EXE, arguments: [] } };
 const global = models.createDefaultGlobalSettings();
 global.gameMode = { scaling: 'nearest', frameLimit: 30 };
 {
@@ -130,4 +133,68 @@ console.log('Game mode policy, inheritance, conflict, startup and rollback tests
   f.service.applyLive({scaling:'fsr',frameLimit:60,frameGeneration:'off'},f.service.sessionSerial());
   assert.deepEqual(f.calls.at(-1),[true,'fsr',60,10,'off']);
   console.log('Free frame generation: legacy default, per-game clone, native publish and live switch passed');
+}
+
+{
+  const f = fixture();
+  f.values.set('vpp.game.browsing', true);
+  f.appSettings.graphicsBackend = 'dxvk9';
+  f.appSettings.gameModeSettings = { scaling: 'linear', frameLimit: 0, frameGeneration: 'harmonyGpu' };
+  f.service.begin(app, global, false);
+  f.service.finish(true);
+  assert.deepEqual(f.calls.at(-1), [true, 'linear', 0, 10, 'harmonyGpu']);
+  const serial = f.service.sessionSerial();
+  const winFg = { scaling: 'fsr', frameLimit: 60, frameGeneration: 'x2' };
+  f.service.applyLive(winFg, serial);
+  assert.equal(f.service.currentSettings().frameGeneration, 'x2');
+  assert.deepEqual(f.calls.at(-1), [true, 'fsr', 60, 10, 'x2']);
+  const harmony = { ...winFg, frameGeneration: 'harmonyGpu' };
+  f.service.applyLive(harmony, serial);
+  assert.deepEqual(f.calls.at(-1), [true, 'fsr', 60, 10, 'harmonyGpu']);
+  assert.equal(f.service.currentSettings().frameGeneration, 'harmonyGpu');
+  f.service.applyLive({ ...winFg, frameGeneration: 'off' }, serial);
+  assert.deepEqual(f.calls.at(-1), [true, 'fsr', 60, 10, 'off']);
+  assert.equal(f.service.sessionSerial(), serial);
+  console.log('Harmony GPU, Win-FG and off publish within the same Wine session: PASS');
+}
+
+{
+  const f = fixture();
+  f.values.set('vpp.game.browsing', true);
+  const harmony = { scaling: 'linear', frameLimit: 0, frameGeneration: 'harmonyGpu' };
+  f.appSettings.gameModeSettings = harmony;
+  f.appSettings.graphicsBackend = 'virgl';
+  f.appSettings.graphicsLaunchPreset = 'dx11';
+  assert.match(models.harmonyGpuLaunchBlockReason(app, f.appSettings, 'dxvk_1_10'), /Direct3D 11/);
+  f.service.begin(app, global, false); f.service.finish(true);
+  assert.equal(f.calls.at(-1)[4], 'off');
+  assert.equal(f.appSettings.gameModeSettings.frameGeneration, 'harmonyGpu');
+  assert.throws(() => f.service.applyLive(harmony, f.service.sessionSerial()), /Direct3D 11/);
+  f.service.applyLive({ ...harmony, frameGeneration: 'x2' }, f.service.sessionSerial());
+  assert.equal(f.calls.at(-1)[4], 'x2');
+
+  f.appSettings.graphicsLaunchPreset = 'default';
+  f.appSettings.arguments = ['-video_app', 'OpenGL'];
+  assert.match(models.harmonyGpuLaunchBlockReason(app, f.appSettings, 'dxvk_1_10'), /OpenGL/);
+  f.appSettings.arguments = ['-video_app', 'direct3d9'];
+  assert.equal(models.harmonyGpuLaunchBlockReason(app, f.appSettings, 'dxvk_1_10'), '');
+  assert.match(models.harmonyGpuLaunchBlockReason(app, { ...f.appSettings, graphicsBackend: 'default' },
+    'zink'), /渲染后端/);
+  f.service.reset();
+  f.service.begin(app, global, false); f.service.finish(true);
+  const serial = f.service.sessionSerial();
+  for (let i = 0; i < 3; ++i) f.service.observeHarmonyScene(serial, 10, 0);
+  assert.equal(f.service.currentHarmonyBlockReason(), '');
+  f.service.observeHarmonyScene(serial, 10, 0);
+  assert.match(f.service.currentHarmonyBlockReason(), /相机数据/);
+  f.service.observeHarmonyScene(serial, 2, 1);
+  assert.equal(f.service.currentHarmonyBlockReason(), '');
+  for (let i = 0; i < 4; ++i) f.service.observeHarmonyScene(serial, 10, 1);
+  assert.equal(f.service.currentHarmonyBlockReason(), '');
+  for (let i = 0; i < 4; ++i) f.service.observeHarmonyScene(serial, 10, 0);
+  f.service.applyLive({ ...harmony, frameGeneration: 'off' }, serial);
+  assert.throws(() => f.service.applyLive(harmony, serial), /相机数据/);
+  f.service.reset();
+  assert.equal(f.service.currentHarmonyBlockReason(), '');
+  console.log('Harmony GPU compatibility, saved intent, and session scene detection: PASS');
 }

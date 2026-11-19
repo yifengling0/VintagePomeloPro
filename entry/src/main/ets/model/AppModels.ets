@@ -1,7 +1,7 @@
 import { GameModeOverride, GameModeSettings, normalizeGameModeOverride, normalizeGameModeSettings } from './GameModeSettings';
 import { bindingToEvdevName, evdevNameToBinding } from '../common/EvdevKeyNames';
 import { PerformanceHudSettings, normalizePerformanceHud } from './PerformanceHudSettings';
-import { normalizeAppGraphicsBackend } from './GraphicsBackendSettings';
+import { normalizeAppGraphicsBackend, resolveGraphicsBackend } from './GraphicsBackendSettings';
 export enum AppSource {
   BUILTIN = 'builtin',
   DOWNLOAD = 'download'
@@ -573,6 +573,25 @@ export interface AppSettings {
   displayModeOverride: DisplayMode | null;
   inputProfileId: string;
   prefixId: string;
+}
+
+export function harmonyGpuLaunchBlockReason(app: AppDescriptor, value: AppSettings, renderMode: string): string {
+  if (app.launchTarget.kind !== LaunchKind.WINE_EXE) {
+    return '当前入口未接入鸿蒙 GPU 超帧';
+  }
+  const backend = resolveGraphicsBackend(renderMode, value.graphicsBackend ?? 'default');
+  const args = resolveGraphicsLaunchArguments(value.graphicsLaunchPreset, app.launchTarget.arguments,
+    value.arguments, app.source === AppSource.DOWNLOAD).map((arg: string): string => arg.toLowerCase());
+  const video = args.lastIndexOf('-video_app');
+  const api = video >= 0 ? args[video + 1] : '';
+  if (api === 'direct3d11' || args.includes('-dx11') || args.includes('-force-d3d11')) {
+    return 'Direct3D 11 尚未接入鸿蒙 GPU 超帧';
+  }
+  if (api === 'opengl' || args.includes('-opengl') || args.includes('-force-glcore') ||
+    value.graphicsLaunchPreset === GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2) {
+    return 'OpenGL 游戏尚未接入鸿蒙 GPU 超帧';
+  }
+  return backend === 'dxvk9' || backend === 'virgl' ? '' : '当前渲染后端尚未接入鸿蒙 GPU 超帧';
 }
 
 export function cloneAppSettings(value: AppSettings): AppSettings {

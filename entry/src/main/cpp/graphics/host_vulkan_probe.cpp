@@ -1097,6 +1097,13 @@ HarmonyGpuProbeResult GetHarmonyGpuProbeResult()
 // vkGetInstanceProcAddr 不可用; 用 surface 扩展对齐 VulkanProbe 初始化。
 std::string ProbeGpuDeviceName()
 {
+    // The renderer, launch policy and settings query the same physical GPU.
+    // Repeated instance creation can invalidate the system Vulkan layer's dispatch table.
+    static std::mutex probeMutex;
+    static std::string cachedName;
+    std::lock_guard<std::mutex> lock(probeMutex);
+    if (!cachedName.empty()) return cachedName;
+
     auto closeLib = [](void* h) { if (h) dlclose(h); };
     void* vkLib = dlopen("libvulkan.so", RTLD_NOW);
     if (!vkLib) vkLib = dlopen("libvulkan.so.1", RTLD_NOW);
@@ -1147,22 +1154,20 @@ std::string ProbeGpuDeviceName()
     auto vkDestroyFn = reinterpret_cast<PFN_vkDestroyInstance>(
         vkGetInstanceProcAddrFn(instance, "vkDestroyInstance"));
 
-    std::string name;
     if (vkEnumerateFn && vkGetPropsFn) {
         uint32_t count = 0;
-        vkEnumerateFn(instance, &count, nullptr);
-        if (count > 0) {
+        if (vkEnumerateFn(instance, &count, nullptr) == VK_SUCCESS && count > 0) {
             std::vector<VkPhysicalDevice> devices(static_cast<size_t>(count));
-            if (vkEnumerateFn(instance, &count, devices.data()) == VK_SUCCESS) {
+            if (vkEnumerateFn(instance, &count, devices.data()) == VK_SUCCESS && count > 0) {
                 VkPhysicalDeviceProperties props{};
                 vkGetPropsFn(devices[0], &props);
-                name = props.deviceName ? props.deviceName : "";
+                cachedName = props.deviceName;
                 OH_LOG_INFO(LOG_APP, "[HostVulkan] gpu probe deviceName=%{public}s count=%{public}u",
-                            name.c_str(), count);
+                            cachedName.c_str(), count);
             }
         }
     }
     if (vkDestroyFn) vkDestroyFn(instance, nullptr);
     closeLib(vkLib);
-    return name;
+    return cachedName;
 }

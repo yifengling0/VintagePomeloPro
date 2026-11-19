@@ -1,3 +1,4 @@
+#include "graphics/harmony_frame_policy.h"
 #include "graphics/game_presentation.h"
 #include "Embedded.h"
 #include <dlfcn.h>
@@ -543,6 +544,10 @@ private:
         const auto policy=winehua::game::Snapshot();
         const bool policyChanged=gamescopePolicy_.Changed(policy);
         const bool cadenceChanged=cadence_.Refresh(winehua::PerfNowUs());
+        if (winehua::game::HarmonyFrameGeneration()) {
+            if (auto* framePolicy = winehua::graphics::HarmonyFramePolicyForApp())
+                __atomic_store_n(&framePolicy->displayPeriodNs, uint32_t(cadence_.PeriodNs()), __ATOMIC_RELAXED);
+        }
         const auto nowNs=winehua::PerfNowUs()*1000;
         const auto tickNs=cadence_.TickNs();
         const bool fgEnabled=(policy&16u)!=0;

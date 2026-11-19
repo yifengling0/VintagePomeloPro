@@ -14,7 +14,7 @@
         "x86/d3d10core.dll": "20222943401ba558776a8226c23c6f408e1440daf46c51e02bbe87edcfc01d82",
         "x86/d3d11.dll": "f66a873600cb16d0a135b6e5c14a6883ad05c94ec759bc8f09e475aea37ba7b6",
         "x86/dxgi.dll": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73",
-        "x86/d3d9.dll": "2bff954f1b7c0fade4ed28b2ade93b5db0575c7d967b182881f6fcab2d6ca161"
+        "x86/d3d9.dll": "e878a2744da4733f2272760718d2d3a619f3387729afe099b629ab9ec3b22e54"
       },
       "patches": [
         {
@@ -104,9 +104,21 @@
         {
           "path": "patches/dxvk/0022-send-d3d9-scene-with-wine-vulkan-present.patch",
           "sha256": "64630ad7f27f7d60d1bf7c2a3e96b84e2ec7b71ebabc6b52dafcd340c9083995"
+        },
+        {
+          "path": "patches/dxvk/0023-harmony-frame-generation-live-policy.patch",
+          "sha256": "8d7029e622a7a065232e402f531dc1cbd73db713acdbfcbf24e92d6145e13249"
+        },
+        {
+          "path": "patches/dxvk/0024-d3d9-capture-declared-camera-matrices.patch",
+          "sha256": "4966200829b117b506ad77c35d755f76f1bc22ad1c3b62afdc621c9da1cc791d"
+        },
+        {
+          "path": "patches/dxvk/0025-d3d9-harmony-deferred-depth-and-engine-camera.patch",
+          "sha256": "8050539ace270432fcb0f012b74bd3b7d99b3c7e28c7469d7b8c925ecae6528a"
         }
       ],
-      "patchedSourceSha256": "2381aef63c4f4bea38637bb37cadd32d1f80bd6608c40cabe722302f18fae0ea",
+      "patchedSourceSha256": "b309efb40cadb2aa93f2eefd6fdb661f2627ecdd69a07d1e36881db417361362",
       "qualification": "host-validated-device-pending",
       "experimentalD3D9Qualification": "opt-in only; programmable/fixed-function and four-format three-mip uploads sampled correctly; EVENT fallback and mip/backing fixes reach real Heaven ship/dragon scenes without observed invalid-call/CS errors; full benchmark, product routing, SWVP/vertex blend and long-session correctness pending",
       "backbufferQualification": "Mini PAL4 windowed DISCARD/one-backbuffer verified with rebuilt PE32 DLL and no configuration override; title/load/menu/resume/original-entry re-entry sampled; other games/fullscreen/long-session pending"

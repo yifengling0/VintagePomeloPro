@@ -24,6 +24,7 @@ import {
   DisplayMode,
   box64PresetLabel,
   cloneAppSettings,
+  harmonyGpuLaunchBlockReason,
   createDefaultAppSettings,
   formatLaunchArgumentText,
   graphicsLaunchPresetDescription,
@@ -890,6 +891,8 @@ struct AppSettingsPage {
             }.width('100%')
             if (this.value.gameModeSettings) {
               GamePresentationSettings({ value: normalizeGameModeSettings(this.value.gameModeSettings),
+                harmonyBlockReason: harmonyGpuLaunchBlockReason(this.app!, this.value,
+                  AppSettingsStore.getInstance().getRenderMode()),
                 onChange: (value: GameModeSettings): void => this.setGameSettings(value) })
             }
             Text('图形 API').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')

@@ -1,0 +1,284 @@
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+index 2e9fee4..a30addc 100644
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -1456,7 +1456,7 @@ namespace dxvk {
+            target->GetCommonTexture()->GetImage() == m_frameGenerationScene.color) ||
+           ((Flags & D3DCLEAR_ZBUFFER) && depth &&
+            depth->GetCommonTexture()->GetImage() == m_frameGenerationScene.depth))
+-        m_frameGenerationScene.ambiguous = true;
++        m_frameGenerationScene.rejection = "scene-buffer-cleared";
+     }
+ 
+     const auto& vp = m_state.viewport;
+@@ -6260,8 +6260,9 @@ namespace dxvk {
+ 
+     const auto& depthImage = depth->GetCommonTexture()->GetImage();
+     if (m_implicitSwapchain == nullptr || target != m_implicitSwapchain->GetBackBuffer(0)) {
++      ++scene.offscreenDepthDraws;
+       if (scene.depth == depthImage)
+-        scene.ambiguous = true;
++        scene.rejection = "depth-reused-offscreen";
+       return;
+     }
+ 
+@@ -6269,26 +6270,55 @@ namespace dxvk {
+     const auto extent = target->GetSurfaceExtent();
+     const auto depthExtent = depth->GetSurfaceExtent();
+     if (m_state.vertexDecl == nullptr || m_state.vertexDecl->TestFlag(D3D9VertexDeclFlag::HasPositionT) ||
+-        UseProgrammableVS() || viewport.X || viewport.Y || viewport.Width != extent.width ||
++        viewport.X || viewport.Y || viewport.Width != extent.width ||
+         viewport.Height != extent.height || viewport.MinZ != 0.0f || viewport.MaxZ != 1.0f ||
+         extent.width != depthExtent.width || extent.height != depthExtent.height ||
+         depth->GetMipLevel() || depthImage->info().sampleCount != VK_SAMPLE_COUNT_1_BIT) {
+-      scene.ambiguous = true;
++      scene.rejection = "incompatible-depth-or-viewport";
+       return;
+     }
+ 
+     const auto& color = target->GetCommonTexture()->GetImage();
+-    const auto& view = m_state.transforms[GetTransformIndex(D3DTS_VIEW)];
+-    const auto& projection = m_state.transforms[GetTransformIndex(D3DTS_PROJECTION)];
++    Matrix4 viewProjection;
++    if (UseProgrammableVS()) {
++      const auto* shader = m_state.vertexShader->GetCommonShader();
++      const auto& camera = shader->GetFrameCamera();
++      const auto readMatrix = [&](const D3D9FrameCamera::Matrix& binding, Matrix4& matrix) {
++        if (!binding.present || uint32_t(binding.firstRegister) + 4 > m_vsLayout.floatCount)
++          return false;
++        for (const auto& constant : shader->GetConstants()) {
++          if (constant.uboIdx >= binding.firstRegister &&
++              constant.uboIdx < uint32_t(binding.firstRegister) + 4)
++            return false;
++        }
++        const auto* registers = m_state.vsConsts.fConsts + binding.firstRegister;
++        matrix = Matrix4(registers[0], registers[1], registers[2], registers[3]);
++        if (binding.columnRegisters)
++          matrix = transpose(matrix);
++        return true;
++      };
++      Matrix4 view, projection;
++      if (!readMatrix(camera.viewProjection, viewProjection)) {
++        if (!readMatrix(camera.view, view) || !readMatrix(camera.projection, projection)) {
++          scene.rejection = "vertex-shader-camera-unresolved";
++          return;
++        }
++        viewProjection = projection * view;
++      }
++      scene.programmable = true;
++    } else {
++      const auto& view = m_state.transforms[GetTransformIndex(D3DTS_VIEW)];
++      const auto& projection = m_state.transforms[GetTransformIndex(D3DTS_PROJECTION)];
++      viewProjection = projection * view;
++    }
+ 
+     if (scene.color == nullptr) {
+       scene.color = color;
+       scene.depth = depthImage;
+-      scene.view = view;
+-      scene.projection = projection;
++      scene.viewProjection = viewProjection;
+     } else if (scene.color != color || scene.depth != depthImage ||
+-               scene.view != view || scene.projection != projection) {
+-      scene.ambiguous = true;
++               scene.viewProjection != viewProjection) {
++      scene.rejection = "multiple-cameras-or-depth-targets";
+     }
+   }
+ 
+@@ -6299,15 +6329,16 @@ namespace dxvk {
+     // Keep the trace bounded even on workloads which continue drawing indefinitely.
+     const bool trace = m_traceFrameScene && serial <= 24;
+ 
+-    if (scene.ambiguous || scene.color == nullptr || !backBuffer ||
++    if (scene.rejection || scene.color == nullptr || !backBuffer ||
+         scene.color != backBuffer->GetCommonTexture()->GetImage()) {
+       if (trace)
+         Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=",
+-          scene.ambiguous ? "ambiguous" : "unavailable"));
++          scene.rejection ? scene.rejection : "no-main-scene-depth",
++          " offscreenDepthDraws=", scene.offscreenDepthDraws));
+       return {};
+     }
+ 
+-    const auto viewProjection = scene.projection * scene.view;
++    const auto& viewProjection = scene.viewProjection;
+     const auto determinantValue = determinant(viewProjection);
+     if (!std::isfinite(determinantValue) || determinantValue == 0.0f) {
+       if (trace)
+@@ -6330,7 +6361,7 @@ namespace dxvk {
+     const auto& info = scene.depth->info();
+     if (trace)
+       Logger::info(str::format("VPP_FG_D3D9 serial=", serial,
+-        " scene=fixed-function color=", scene.color->handle(),
++        " scene=", scene.programmable ? "shader-camera" : "fixed-function", " color=", scene.color->handle(),
+       " depth=", scene.depth->handle(), " depthSize=", info.extent.width, "x", info.extent.height,
+       " depthFormat=", static_cast<uint32_t>(info.format),
+       " sampleable=", bool(info.usage & VK_IMAGE_USAGE_SAMPLED_BIT),
+diff --git a/src/d3d9/d3d9_device.h b/src/d3d9/d3d9_device.h
+index 95f7f7d..c947c91 100644
+--- a/src/d3d9/d3d9_device.h
++++ b/src/d3d9/d3d9_device.h
+@@ -865,9 +865,10 @@ namespace dxvk {
+     struct FrameGenerationScene {
+       Rc<DxvkImage> color;
+       Rc<DxvkImage> depth;
+-      Matrix4 view;
+-      Matrix4 projection;
+-      bool ambiguous = false;
++      Matrix4 viewProjection;
++      const char* rejection = nullptr;
++      uint32_t offscreenDepthDraws = 0;
++      bool programmable = false;
+     };
+ 
+     void CaptureFrameGenerationScene();
+diff --git a/src/d3d9/d3d9_frame_camera.h b/src/d3d9/d3d9_frame_camera.h
+new file mode 100644
+index 0000000..21fbd9c
+--- /dev/null
++++ b/src/d3d9/d3d9_frame_camera.h
+@@ -0,0 +1,101 @@
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++#include <cstring>
++#include <string_view>
++
++namespace dxvk {
++
++  struct D3D9FrameCamera {
++    struct Matrix {
++      uint16_t firstRegister = 0;
++      bool columnRegisters = false;
++      bool present = false;
++    };
++
++    Matrix viewProjection;
++    Matrix view;
++    Matrix projection;
++  };
++
++  inline D3D9FrameCamera FindD3D9FrameCamera(const uint8_t* bytecode, size_t size) {
++    // D3D9 CTAB offsets are relative to the header after the FourCC.
++    const auto read16 = [](const uint8_t* bytes) {
++      return uint16_t(bytes[0] | (uint16_t(bytes[1]) << 8));
++    };
++    const auto read32 = [&](const uint8_t* bytes) {
++      return uint32_t(read16(bytes)) | (uint32_t(read16(bytes + 2)) << 16);
++    };
++    if (size < 4 || read16(bytecode + 2) != 0xfffe || bytecode[1] < 2)
++      return {};
++
++    for (size_t offset = 4; size - offset >= 4;) {
++      const uint32_t token = read32(bytecode + offset);
++      const uint32_t opcode = token & 0xffff;
++      offset += 4;
++      if (opcode == 0xffff) break;
++      const size_t words = opcode == 0xfffe ? (token >> 16) & 0x7fff : (token >> 24) & 15;
++      if (words > (size - offset) / 4) return {};
++      const size_t bytes = words * 4;
++      const auto* comment = bytecode + offset;
++      offset += bytes;
++      if (opcode != 0xfffe || bytes < 32 || std::memcmp(comment, "CTAB", 4))
++        continue;
++
++      const auto* table = comment + 4;
++      const size_t tableSize = bytes - 4;
++      const size_t count = read32(table + 12);
++      const size_t infoOffset = read32(table + 16);
++      if (read32(table) != 28 || infoOffset < 28 || infoOffset > tableSize ||
++          count > (tableSize - infoOffset) / 20)
++        return {};
++
++      D3D9FrameCamera result;
++      for (size_t i = 0; i < count; i++) {
++        const auto* info = table + infoOffset + i * 20;
++        const size_t nameOffset = read32(info);
++        const size_t typeOffset = read32(info + 12);
++        if (nameOffset >= tableSize || typeOffset > tableSize || tableSize - typeOffset < 16)
++          return {};
++        const auto* name = reinterpret_cast<const char*>(table + nameOffset);
++        const auto* end = static_cast<const char*>(std::memchr(name, 0, tableSize - nameOffset));
++        if (!end) return {};
++
++        // Accept only named world-to-camera transforms. WorldViewProj and
++        // object transforms change per draw and are not a camera.
++        char normalized[32];
++        size_t length = 0;
++        for (const char* p = name; p != end && length < sizeof(normalized); ++p) {
++          if (*p == '_') continue;
++          normalized[length++] = *p >= 'A' && *p <= 'Z' ? char(*p + ('a' - 'A')) : *p;
++        }
++        auto semantic = std::string_view(normalized, length);
++        if (semantic.size() >= 2 && name + 1 < end && name[1] == '_' &&
++            (semantic.front() == 'g' || semantic.front() == 'u'))
++          semantic.remove_prefix(1);
++        D3D9FrameCamera::Matrix* matrix = nullptr;
++        if (semantic == "viewprojection" || semantic == "viewproj" ||
++            semantic == "viewprojectionmatrix" || semantic == "matviewproj")
++          matrix = &result.viewProjection;
++        else if (semantic == "view" || semantic == "viewmatrix" || semantic == "matview")
++          matrix = &result.view;
++        else if (semantic == "projection" || semantic == "projectionmatrix" ||
++                 semantic == "matprojection" || semantic == "matproj")
++          matrix = &result.projection;
++
++        if (!matrix) continue;
++        const auto* type = table + typeOffset;
++        const auto matrixClass = read16(type);
++        if (matrix->present || read16(info + 4) != 2 || read16(info + 8) != 4 ||
++            (matrixClass != 2 && matrixClass != 3) || read16(type + 2) != 3 ||
++            read16(type + 4) != 4 || read16(type + 6) != 4 || read16(type + 8) != 1)
++          return {};
++        *matrix = {read16(info + 6), matrixClass == 3, true};
++      }
++      return result;
++    }
++    return {};
++  }
++
++}
+diff --git a/src/d3d9/d3d9_shader.cpp b/src/d3d9/d3d9_shader.cpp
+index 8b5bb8b..690c42c 100644
+--- a/src/d3d9/d3d9_shader.cpp
++++ b/src/d3d9/d3d9_shader.cpp
+@@ -19,6 +19,8 @@ namespace dxvk {
+     const uint32_t bytecodeLength = AnalysisInfo.bytecodeByteLength;
+     m_bytecode.resize(bytecodeLength);
+     std::memcpy(m_bytecode.data(), pShaderBytecode, bytecodeLength);
++    if (ShaderStage == VK_SHADER_STAGE_VERTEX_BIT)
++      m_frameCamera = FindD3D9FrameCamera(m_bytecode.data(), m_bytecode.size());
+ 
+     const std::string name = Key.toString();
+     Logger::debug(str::format("Compiling shader ", name));
+diff --git a/src/d3d9/d3d9_shader.h b/src/d3d9/d3d9_shader.h
+index d896f01..62c2c63 100644
+--- a/src/d3d9/d3d9_shader.h
++++ b/src/d3d9/d3d9_shader.h
+@@ -4,6 +4,7 @@
+ #include "../dxso/dxso_module.h"
+ #include "d3d9_shader_permutations.h"
+ #include "d3d9_util.h"
++#include "d3d9_frame_camera.h"
+ 
+ #include <array>
+ 
+@@ -58,6 +59,8 @@ namespace dxvk {
+ 
+     uint32_t GetMaxDefinedConstant() const { return m_maxDefinedConst; }
+ 
++    const D3D9FrameCamera& GetFrameCamera() const { return m_frameCamera; }
++
+   private:
+ 
+     DxsoIsgn              m_isgn;
+@@ -72,6 +75,7 @@ namespace dxvk {
+     DxsoPermutations      m_shaders;
+ 
+     std::vector<uint8_t>  m_bytecode;
++    D3D9FrameCamera       m_frameCamera;
+ 
+   };
+ 

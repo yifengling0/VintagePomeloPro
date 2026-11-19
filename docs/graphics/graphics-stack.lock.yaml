@@ -463,6 +463,10 @@
       {
         "path": "patches/virglrenderer/0021-venus-resolve-frame-generation-scene-images.patch",
         "sha256": "fdbfd528b37da67f2a79c185f9bbb3cf7a441608ad6d4299875a417986ca00e7"
+      },
+      {
+        "path": "patches/virglrenderer/0022-harmony-gles-frame-scene.patch",
+        "sha256": "b8dfa398586df927bef605d798f7c14bee26a26905fed0c3ca852f638a2408f0"
       }
     ],
     "mesa": [
@@ -892,7 +896,7 @@
       "dlls/ntdll/loader.c": "100f2f514fa20cbccdeeb20fa86eb797b71bdc01ea8214a73d5acb5dbf02ed2d"
     },
     "virglrenderer": {
-      "src/vrend/vrend_renderer.c": "35bcf434d1882f83c42fcd79e086e2b6c307835287d3652f6e8ac92309702ee1",
+      "src/vrend/vrend_renderer.c": "9cb823e0b4e4c5acb79cdbe159540cda2892db518bd8a5a56dd2a6d6a55f7e9d",
       "src/vrend/vrend_shader.c": "ab200053b589e5381a58a5687c5cf38c8ceaf5a3fb587d3ab396ae8b9ea329aa",
       "src/vrend/vrend_shader.h": "f5122579e8a5d7c22f01da334a986e5571977990135cf74498bc4b65133b58b6",
       "vtest/vtest_renderer.c": "e08b5ff06350c2b9c917dfd641f88c52d1da8fcd0fb61dd868a0736a1ab63f1b",

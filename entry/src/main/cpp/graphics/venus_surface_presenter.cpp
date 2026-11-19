@@ -4,13 +4,16 @@
 #include "native_window_lease.h"
 #include "native_window_vk_target.h"
 #include "presenter_common.h"
+#include "harmony_frame_policy.h"
 #include "queue_retirement.h"
+#include "FrameGenerationSchedule.h"
 
 extern "C" {
 VkImage VppHarmonyWineFrameDispatchGame(void** state, VkInstance instance, VkPhysicalDevice physical,
                                        VkDevice device, VkQueue queue, uint32_t family,
-                                       uint32_t presentFormat, const void* scene);
-void VppHarmonyWineFrameDestroy(void* state);
+                                       uint32_t presentFormat, const void* scene, bool* failed);
+void VppHarmonyWineFrameResetGame(void* state);
+void VppHarmonyWineFrameDestroyGame(void* state, bool abandon);
 }
 
 #include <hilog/log.h>
@@ -317,6 +320,9 @@ struct VenusSurfaceQueueTarget::Impl {
             // do not destroy pending command buffers or return an acquired
             // NativeBuffer to the consumer while the GPU may still write it.
             vkDirect_.Abandon();
+            VppHarmonyWineFrameDestroyGame(frameGeneration_, true);
+            frameGeneration_ = nullptr;
+            ResetFrameGenerationLocked();
             ClearVulkanStateLocked();
         }
         deviceReleasing_ = false;
@@ -345,44 +351,86 @@ struct VenusSurfaceQueueTarget::Impl {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const uint64_t start = NowNs();
+        static auto* const policy = graphics::MapHarmonyFramePolicy(false);
+        const uint32_t request = graphics::HarmonyFrameRequest(policy);
+        const bool harmony = (request & 1u) != 0;
+        bool historyReady = true;
+        if (request != frameGenerationRequest_) {
+            historyReady = !frameGeneration_ || WaitForOutstandingFramesLocked() == VK_SUCCESS;
+            if (historyReady) {
+                VppHarmonyWineFrameResetGame(frameGeneration_);
+                ResetFrameGenerationLocked();
+                frameGenerationRequest_ = request;
+            }
+        }
+        const auto* frameScene = static_cast<const graphics::HarmonyFrameScene*>(scene);
+        const bool sceneReady = harmony && frameScene && (frameScene->serial >> 32) == request;
+        const uint64_t measuredPeriod = policy ? __atomic_load_n(&policy->displayPeriodNs, __ATOMIC_RELAXED) : 0;
+        const uint64_t displayPeriod = measuredPeriod ? NormalizeVenusFramePeriodNs(measuredPeriod) : displayPeriodNs_;
         bool inserted = false;
         const uint64_t sourceInterval = lastSceneNs_ ? start - lastSceneNs_ : 0;
-        if (scene && serial != lastSceneSerial_) {
+        if (sceneReady && serial != lastSceneSerial_) {
             lastSceneNs_ = start;
             lastSceneSerial_ = serial;
         }
+        const bool budgetExceeded =
+            !harmonyBudget_.Allow(start) || sourceInterval > graphics::kHarmonyMaxSourceIntervalNs;
         // The source callback owns both images and the queue until return.
-        const bool tryInterpolation = scene && (nativeReady_ || swapchain_) && !nativeFailed_ &&
+        const bool tryInterpolation = sceneReady && historyReady && !budgetExceeded &&
+            swapchain_ && !nativeFailed_ && !AsyncReleaseEnabled() &&
             !swapchainDirty_ &&
             !deviceReleasing_ && !retirement_.Pending() &&
             device_ == reinterpret_cast<VkDevice>(device) && contextId_ == contextId &&
             queue_ == reinterpret_cast<VkQueue>(queue) &&
             sourceWidth_ == width && sourceHeight_ == height &&
             sourceFormat_ == static_cast<VkFormat>(format) &&
-            sourceInterval >= displayPeriodNs_ * 2 && sourceInterval <= 70000000 &&
+            sourceInterval + kDispatchLeadNs >= displayPeriod * 2 &&
             (!lastPresentNs_ || start - lastPresentNs_ >= framePeriodNs_);
-        if (scene && !sceneReceived_) {
+        if (sceneReady && !sceneReceived_) {
             sceneReceived_ = true;
             OH_LOG_INFO(LOG_APP, "Wine Harmony GPU scene received serial=%{public}u color=%{public}u",
                         serial, format);
         }
+        bool dispatchLate = false;
+        bool missedPresent = false;
+        bool generationFailed = false;
         if (tryInterpolation) {
+            const uint64_t deadline = start + std::min<uint64_t>(sourceInterval / 2, 17000000);
             const VkImage prediction = VppHarmonyWineFrameDispatchGame(&frameGeneration_,
                 reinterpret_cast<VkInstance>(instance), reinterpret_cast<VkPhysicalDevice>(physicalDevice),
-                device_, reinterpret_cast<VkQueue>(queue), queueFamily, format, scene);
-            const uint64_t halfPeriod = std::min<uint64_t>(sourceInterval / 2, 17000000);
-            if (prediction && NowNs() < start + halfPeriod) {
+                device_, reinterpret_cast<VkQueue>(queue), queueFamily, format, scene, &generationFailed);
+            const uint64_t dispatchDone = NowNs();
+            dispatchLate = dispatchDone >= deadline;
+            if (prediction && !dispatchLate && graphics::HarmonyFrameRequest(policy) == request) {
                 const uint32_t previousSourceSerial = lastSerial_;
                 inserted = PresentOne(contextId, instance, physicalDevice, device, queue,
                     static_cast<uint64_t>(reinterpret_cast<uintptr_t>(prediction)),
                     queueFamily, width, height, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    serial, nullptr, nullptr, nullptr, false) == 0;
+                    serial, nullptr, nullptr, nullptr, false, deadline) == 0;
+                missedPresent = !inserted;
                 if (inserted) {
                     lastSerial_ = previousSourceSerial;
                     const uint64_t now = NowNs();
-                    if (now < start + halfPeriod)
-                        std::this_thread::sleep_for(std::chrono::nanoseconds(start + halfPeriod - now));
+                    if (now < deadline)
+                        std::this_thread::sleep_for(std::chrono::nanoseconds(deadline - now));
                 }
+            }
+            const uint64_t finished = NowNs();
+            // Share Win-FG's retry policy. One slow frame is skipped without
+            // dropping the next two seconds of otherwise usable history.
+            if (dispatchLate || missedPresent)
+                harmonyBudget_.Missed(finished);
+            else if (inserted)
+                harmonyBudget_.Reset();
+            if (dispatchLate || missedPresent) {
+                const auto skipped = ++skippedPredictions_;
+                if (skipped == 1 || !(skipped % 30))
+                    OH_LOG_INFO(LOG_APP,
+                        "Wine Harmony GPU skipped serial=%{public}u late=%{public}u "
+                        "present_deferred=%{public}u dispatch_us=%{public}llu budget_us=%{public}llu",
+                        serial, static_cast<unsigned>(dispatchLate), static_cast<unsigned>(missedPresent),
+                        static_cast<unsigned long long>((dispatchDone - start) / 1000),
+                        static_cast<unsigned long long>((deadline - start) / 1000));
             }
         }
         const int result = PresentOne(contextId, instance, physicalDevice, device, queue, image,
@@ -390,10 +438,17 @@ struct VenusSurfaceQueueTarget::Impl {
             releaseQueue, queueSyncData, inserted);
         if (inserted && result == 0) {
             lastPresentNs_ = start;
-            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = start + sourceInterval / 2 + framePeriodNs_;
+            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = start + framePeriodNs_;
             if (++generatedFrames_ == 1 || !(generatedFrames_ % 120))
                 OH_LOG_INFO(LOG_APP, "Wine Harmony GPU generated presents=%{public}llu",
                             static_cast<unsigned long long>(generatedFrames_));
+        }
+        if (harmony && result == 0) {
+            const uint32_t state = !sceneReady ? 10 : (!historyReady || !swapchain_) ? 6 : inserted ? 2 :
+                (budgetExceeded || dispatchLate || missedPresent) ? 9 :
+                sourceInterval && sourceInterval + kDispatchLeadNs < displayPeriod * 2 ? 3 :
+                generationFailed || AsyncReleaseEnabled() ? 6 : 1;
+            graphics::ReportHarmonyFrameGeneration(policy, request, state, static_cast<uint32_t>(generatedFrames_));
         }
         return result;
     }
@@ -402,7 +457,7 @@ struct VenusSurfaceQueueTarget::Impl {
                    uintptr_t device, uintptr_t queue, uint64_t image, uint32_t queueFamily,
                    uint32_t width, uint32_t height, uint32_t format, uint32_t layout, uint32_t serial,
                    uint64_t* nextPresentDeadlineNs, void (*releaseQueue)(void*),
-                   void* queueSyncData, bool skipPacing)
+                   void* queueSyncData, bool skipPacing, uint64_t interpolationDeadline = 0)
     {
         const uint64_t presentStartNs = NowNs();
         TracePresentStage("enter", serial, image);
@@ -412,6 +467,7 @@ struct VenusSurfaceQueueTarget::Impl {
             return -EAGAIN;
         }
         if (deviceReleasing_) return -ENODEV;
+        if (interpolationDeadline && presentStartNs >= interpolationDeadline) return 1;
 
         const uint64_t nowNs = NowNs();
         if (!skipPacing && lastPresentNs_ && nowNs - lastPresentNs_ < framePeriodNs_) {
@@ -461,7 +517,8 @@ struct VenusSurfaceQueueTarget::Impl {
         const bool asyncRelease = AsyncReleaseEnabled();
         VkResult result = vkWaitForFences(
             device_, 1, &frame.complete, VK_TRUE,
-            (asyncRelease || nativeReady_) ? kReleaseFenceWatchdogNs : displayPeriodNs_ * 4);
+            interpolationDeadline ? 0 :
+                (asyncRelease || nativeReady_) ? kReleaseFenceWatchdogNs : displayPeriodNs_ * 4);
         const uint64_t waitFenceUs = (NowNs() - stageStartNs) / 1000;
         if (result == VK_TIMEOUT) return 1;
         if (result != VK_SUCCESS) return FailLocked("wait fence", result, serial);
@@ -484,7 +541,11 @@ struct VenusSurfaceQueueTarget::Impl {
         result = vkResetFences(device_, 1, &frame.acquisitionComplete);
         if (result != VK_SUCCESS) return FailLocked("reset acquisition fence", result, serial);
         frame.acquisitionPending = false;
-        result = vkAcquireNextImageKHR(device_, swapchain_, displayPeriodNs_ * 2,
+        const uint64_t remainingNs = interpolationDeadline > stageStartNs
+            ? interpolationDeadline - stageStartNs : 0;
+        if (interpolationDeadline && !remainingNs) return 1;
+        result = vkAcquireNextImageKHR(device_, swapchain_,
+                                       interpolationDeadline ? remainingNs : displayPeriodNs_ * 2,
                                        frame.acquired, frame.acquisitionComplete, &imageIndex);
         frame.acquisitionPending = result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR;
         const uint64_t acquireUs = (NowNs() - stageStartNs) / 1000;
@@ -1605,13 +1666,21 @@ private:
             reinterpret_cast<uintptr_t>(device_) == device;
     }
 
-    void DestroyVulkanLocked()
+    void ResetFrameGenerationLocked()
     {
-        VppHarmonyWineFrameDestroy(frameGeneration_);
-        frameGeneration_ = nullptr;
         generatedFrames_ = 0;
+        skippedPredictions_ = 0;
+        harmonyBudget_.Reset();
         lastSceneNs_ = 0;
         lastSceneSerial_ = 0;
+        sceneReceived_ = false;
+    }
+
+    void DestroyVulkanLocked()
+    {
+        VppHarmonyWineFrameDestroyGame(frameGeneration_, false);
+        frameGeneration_ = nullptr;
+        ResetFrameGenerationLocked();
         if (device_) {
             for (auto& frame : frames_) {
                 if (frame.gpuTiming) vkDestroyQueryPool(device_, frame.gpuTiming, nullptr);
@@ -1733,6 +1802,9 @@ private:
     uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
     void* frameGeneration_ = nullptr;
     uint64_t generatedFrames_ = 0;
+    VppFrameGenerationBudget harmonyBudget_;
+    uint64_t skippedPredictions_ = 0;
+    uint32_t frameGenerationRequest_ = 0;
     bool sceneReceived_ = false;
     uint64_t lastSceneNs_ = 0;
     uint32_t lastSceneSerial_ = 0;

@@ -1,0 +1,100 @@
+diff --git a/src/vrend/vrend_renderer.c b/src/vrend/vrend_renderer.c
+index 0ec8e33..54ed3ad 100644
+--- a/src/vrend/vrend_renderer.c
++++ b/src/vrend/vrend_renderer.c
+@@ -850,7 +850,16 @@ struct vrend_untyped_resource {
+    struct list_head head;
+ };
+ 
++struct winehua_gl_frame {
++   uint32_t request, width, height, clip_zero_to_one, depth_texture;
++   float view_projection[16], inverse_view_projection[16];
++};
++_Static_assert(sizeof(struct winehua_gl_frame) == 148, "WineHua GLES frame ABI");
++
+ struct vrend_context {
++   struct winehua_gl_frame winehua_gl_frame;
++   struct vrend_surface *winehua_gl_depth;
++   bool winehua_gl_frame_ready;
+    char debug_name[64];
+ 
+    struct list_head sub_ctxs;
+@@ -8296,6 +8305,7 @@ void vrend_destroy_context(struct vrend_context *ctx)
+ 
+    vrend_clicbs->make_current(ctx->sub->gl_context);
+    /* reset references on framebuffers */
++   vrend_surface_reference(&ctx->winehua_gl_depth, NULL);
+    vrend_set_framebuffer_state(ctx, 0, NULL, 0);
+ 
+    vrend_set_num_sampler_views(ctx, PIPE_SHADER_VERTEX, 0, 0);
+@@ -13210,7 +13220,8 @@ static void vrend_renderer_fill_caps_v2(int gl_ver, int gles_ver,  union virgl_c
+       caps->v2.capability_bits_v2 |= VIRGL_CAP_V2_MEMINFO;
+    }
+ 
+-   if (has_feature(feat_khr_debug))
++   /* The renderer handles frame scene markers on GLES without GL_KHR_debug. */
++   if (vrend_state.use_gles || has_feature(feat_khr_debug))
+        caps->v2.capability_bits_v2 |= VIRGL_CAP_V2_STRING_MARKER;
+ 
+    if (has_feature(feat_implicit_msaa))
+@@ -14144,8 +14155,60 @@ static uint32_t vrend_renderer_get_video_memory(void)
+    return video_memory;
+ }
+ 
++/* Consumed on the vtest thread after selecting the producing context. Retain
++ * the bound render surface through the callback, including its read fence. */
++VIRGL_EXPORT int virgl_renderer_winehua_take_gl_scene(void *output, unsigned size);
++VIRGL_EXPORT int virgl_renderer_winehua_take_gl_scene(void *output, unsigned size)
++{
++    struct vrend_context *ctx = vrend_state.current_hw_ctx;
++    if (!ctx || !ctx->winehua_gl_frame_ready || size != sizeof(ctx->winehua_gl_frame) || !output)
++        return 0;
++    ctx->winehua_gl_frame_ready = false;
++    memcpy(output, &ctx->winehua_gl_frame, size);
++    ctx->winehua_gl_frame.request = 0;
++    return 1;
++}
++
++static bool vrend_winehua_gl_marker(struct vrend_context *ctx, GLsizei length, const char *message)
++{
++    if (length == 8 && !memcmp(message, "VPPFGOUT", 8)) {
++        ctx->winehua_gl_frame_ready = false;
++        ctx->winehua_gl_frame.request = 0;
++        vrend_surface_reference(&ctx->winehua_gl_depth, NULL);
++        return true;
++    }
++    if (length == 8 && !memcmp(message, "VPPFGEND", 8)) {
++        ctx->winehua_gl_frame_ready = ctx->winehua_gl_frame.request && ctx->winehua_gl_depth;
++        return true;
++    }
++    if (length != 152 || memcmp(message, "VPPFGGL1", 8))
++        return false;
++
++    struct winehua_gl_frame *frame = &ctx->winehua_gl_frame;
++    struct vrend_surface *depth = ctx->sub->zsurf;
++    ctx->winehua_gl_frame_ready = false;
++    frame->request = 0;
++    vrend_surface_reference(&ctx->winehua_gl_depth, NULL);
++    /* The GLES SDK adapter checks the backing texture's actual internal format. */
++    if (!depth || depth->nr_samples > 1 || depth->level || depth->first_layer ||
++        depth->last_layer || depth->texture->target != GL_TEXTURE_2D)
++        return true;
++    memcpy(frame, message + 8, 16);
++    memcpy(frame->view_projection, message + 24, 128);
++    if (!(frame->request & 1u) || frame->width != depth->texture->base.width0 ||
++        frame->height != depth->texture->base.height0 || frame->clip_zero_to_one > 1u) {
++        frame->request = 0;
++        return true;
++    }
++    frame->depth_texture = depth->gl_id;
++    vrend_surface_reference(&ctx->winehua_gl_depth, depth);
++    return true;
++}
++
+ void vrend_context_emit_string_marker(struct vrend_context *ctx, GLsizei length, const char * message)
+ {
++    if (vrend_winehua_gl_marker(ctx, length, message))
++        return;
+     VREND_DEBUG(dbg_khr, ctx, "MARKER: '%.*s'\n", length, message);
+ 
+ #ifdef ENABLE_TRACING

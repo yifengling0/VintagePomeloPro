@@ -388,7 +388,14 @@ export const setSystemOpenEnabled: (enabled: boolean) => void;
 export const setOpenTargetCallback: (callback: ((target: string) => boolean) | null) => void;
 
 export const configureGamePresentation: (enabled: boolean, scaling: string, frameLimit: number, sharpness?: number, frameGeneration?: string) => void;
-export interface GameFrameGenerationStatus { state: number; realFps: number; generatedFps: number; presentedFps: number; gpuMs: number; }
+export interface GameFrameGenerationStatus {
+  state: number;
+  realFps: number;
+  generatedFps: number;
+  presentedFps: number;
+  gpuMs: number;
+  generatedPresents: number;
+}
 export const getGameFrameGenerationStatus: () => GameFrameGenerationStatus;
 
 export const presentGameToplevel: (id: number) => boolean;

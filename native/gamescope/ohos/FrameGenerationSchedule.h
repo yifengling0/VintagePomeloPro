@@ -20,6 +20,9 @@ public:
     }
     void Completed(uint64_t now,uint64_t gpuNs,uint64_t budgetNs) {
         if (!budgetNs || gpuNs<=budgetNs) { Reset(); return; }
+        Missed(now);
+    }
+    void Missed(uint64_t now) {
         if (++failures_>=3) Suspend(now);
     }
     void Suspend(uint64_t now) {

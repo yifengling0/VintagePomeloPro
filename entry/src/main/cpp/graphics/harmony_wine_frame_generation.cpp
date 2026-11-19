@@ -1,26 +1,22 @@
 #include <vulkan/vulkan.h>
 
 #include "harmony_gpu_frame_generation.h"
+#include "harmony_frame_policy.h"
 #include "gamescope/harmony_frame_generation.h"
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <memory>
 #include <new>
+#include <pthread.h>
 
 namespace {
 
 using winehua::graphics::FrameGenerationImage;
 using winehua::graphics::HarmonyGpuFrameGeneration;
 
-struct Scene {
-    uint32_t version, size;
-    uint64_t serial, color, depth;
-    uint32_t colorFormat, colorLayout, depthFormat, depthLayout, width, height;
-    float viewProjection[16], inverseViewProjection[16];
-};
-
-static_assert(sizeof(Scene) == 184);
+using Scene = winehua::graphics::HarmonyFrameScene;
 static_assert(sizeof(FG_Mat4x4) == sizeof(Scene::viewProjection));
 
 struct Session {
@@ -52,7 +48,7 @@ struct Session {
     bool Start(const FG_ContextDescription_VK& context, uint32_t family, const Scene& scene,
                bool systemPresent, VkFormat presentFormat)
     {
-        const auto capability = winehua::gamescope::ProbeHarmonyFrameGeneration();
+        static const auto capability = winehua::gamescope::ProbeHarmonyFrameGeneration();
         if (!capability.gpuVulkan.vulkanEntryPointsAvailable) {
             std::fprintf(stderr, "VPP_FG_WINE capability=%s\n", capability.gpuVulkan.stage.c_str());
             return false;
@@ -191,6 +187,102 @@ struct Session {
     bool produced = false;
 };
 
+// Resource creation and SDK activation use only the device and image formats.
+// The worker never sees a borrowed image, command buffer or render queue.
+class GameSession {
+public:
+    ~GameSession() { Join(); }
+
+    VkImage Dispatch(const FG_ContextDescription_VK& context, uint32_t queueFamily,
+                     VkQueue queue, const Scene& scene, VkFormat format, bool& failed)
+    {
+        if (preparing_) {
+            if (!finished_.load(std::memory_order_acquire)) return VK_NULL_HANDLE;
+            Join();
+        }
+        if (session_ &&
+            ((session_->lastSerial && scene.serial != session_->lastSerial + 1) ||
+             session_->extent.width != scene.width || session_->extent.height != scene.height ||
+             session_->inputFormat != static_cast<VkFormat>(scene.colorFormat) ||
+             session_->depthFormat != static_cast<VkFormat>(scene.depthFormat) ||
+             session_->output.format != format))
+            session_.reset();
+
+        if (!session_) {
+            if (failed_) {
+                failed = true;
+                return VK_NULL_HANDLE;
+            }
+            description_ = context;
+            queueFamily_ = queueFamily;
+            format_ = format;
+            geometry_.width = scene.width;
+            geometry_.height = scene.height;
+            geometry_.colorFormat = scene.colorFormat;
+            geometry_.depthFormat = scene.depthFormat;
+            finished_.store(false, std::memory_order_relaxed);
+            preparing_ = pthread_create(&worker_, nullptr, Prepare, this) == 0;
+            failed = failed_ = !preparing_;
+            return VK_NULL_HANDLE;
+        }
+        const bool success = session_->Dispatch(queue, scene);
+        session_->ClearInputs();
+        if (!success) {
+            session_.reset();
+            failed = failed_ = true;
+            return VK_NULL_HANDLE;
+        }
+        return session_->produced ? session_->output.image : VK_NULL_HANDLE;
+    }
+
+    void Reset()
+    {
+        // A prepared context has no frame history and can be reused after a toggle.
+        if (!preparing_) {
+            session_.reset();
+            failed_ = false;
+        }
+    }
+
+    void Abandon()
+    {
+        Join();
+        // The Vulkan owner could not retire the device. Leave active handles to
+        // device teardown. An unused context owns no submitted command buffers.
+        if (session_ && session_->lastSerial) session_.release();
+    }
+
+private:
+    static void* Prepare(void* data)
+    {
+        auto& self = *static_cast<GameSession*>(data);
+        std::unique_ptr<Session> session(new (std::nothrow) Session(self.description_.vkDevice));
+        if (session && session->Start(self.description_, self.queueFamily_, self.geometry_,
+                                      false, self.format_))
+            self.session_ = std::move(session);
+        self.failed_ = !self.session_;
+        self.finished_.store(true, std::memory_order_release);
+        return nullptr;
+    }
+
+    void Join()
+    {
+        if (!preparing_) return;
+        pthread_join(worker_, nullptr);
+        preparing_ = false;
+    }
+
+    std::unique_ptr<Session> session_;
+    std::atomic<bool> finished_{false};
+    FG_ContextDescription_VK description_{};
+    Scene geometry_{};
+    VkFormat format_ = VK_FORMAT_UNDEFINED;
+    uint32_t queueFamily_ = 0;
+    pthread_t worker_{};
+    bool preparing_ = false;
+    bool failed_ = false;
+};
+
 } // namespace
 
 extern "C" __attribute__((visibility("default")))
@@ -232,6 +324,13 @@ bool VppHarmonyWineFrameDispatch(void** state, VkInstance instance, VkPhysicalDe
                                 VkDevice device, VkQueue queue, uint32_t family,
                                 PFN_vkGetInstanceProcAddr loader, const void* payload)
 {
+    static const auto* const policy = winehua::graphics::MapHarmonyFramePolicy(false);
+    const auto request = winehua::graphics::HarmonyFrameRequest(policy);
+    if (!(request & 1u) || static_cast<const Scene*>(payload)->serial >> 32 != request) {
+        VppHarmonyWineFrameDestroy(*state);
+        *state = nullptr;
+        return true;
+    }
     return DispatchScene(state, instance, physical, device, queue, family, loader, payload, true,
                          static_cast<VkFormat>(static_cast<const Scene*>(payload)->colorFormat));
 }
@@ -239,12 +338,26 @@ bool VppHarmonyWineFrameDispatch(void** state, VkInstance instance, VkPhysicalDe
 extern "C" __attribute__((visibility("default")))
 VkImage VppHarmonyWineFrameDispatchGame(void** state, VkInstance instance, VkPhysicalDevice physical,
                                        VkDevice device, VkQueue queue, uint32_t family,
-                                       uint32_t presentFormat, const void* payload)
+                                       uint32_t presentFormat, const void* payload, bool* failed)
 {
-    if (!DispatchScene(state, instance, physical, device, queue, family, vkGetInstanceProcAddr, payload,
-                       false, static_cast<VkFormat>(presentFormat)))
-        return VK_NULL_HANDLE;
-    const auto* session = static_cast<Session*>(*state);
-    VppHarmonyWineFramePresented(*state);
-    return session->produced ? session->output.image : VK_NULL_HANDLE;
+    if (!*state) *state = new (std::nothrow) GameSession();
+    *failed = !*state;
+    if (*failed) return VK_NULL_HANDLE;
+    const FG_ContextDescription_VK context{instance, physical, device, 1, vkGetInstanceProcAddr};
+    return static_cast<GameSession*>(*state)->Dispatch(context, family, queue,
+        *static_cast<const Scene*>(payload), static_cast<VkFormat>(presentFormat), *failed);
+}
+
+extern "C" __attribute__((visibility("default")))
+void VppHarmonyWineFrameResetGame(void* state)
+{
+    if (state) static_cast<GameSession*>(state)->Reset();
+}
+
+extern "C" __attribute__((visibility("default")))
+void VppHarmonyWineFrameDestroyGame(void* state, bool abandon)
+{
+    auto* session = static_cast<GameSession*>(state);
+    if (session && abandon) session->Abandon();
+    delete session;
 }

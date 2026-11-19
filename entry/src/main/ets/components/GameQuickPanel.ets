@@ -16,6 +16,7 @@ export struct GameQuickPanel {
   onResume: () => void = (): void => {};
   @State private tasks: HostWindowTask[] = [];
   @State private settings: GameModeSettings = normalizeGameModeSettings();
+  @State private harmonyBlockReason: string = '';
   @State private hud: boolean = false;
   @State private panelWidth: number = 340;
   private sessionSerial: number = 0;
@@ -25,6 +26,7 @@ export struct GameQuickPanel {
   private visible: boolean = false;
   private navigation: GamepadNavigationListener | null = null;
   private focusIndex: number = 0;
+  private focusedControl: string = 'game-panel-resume';
   private listener: ((tasks: HostWindowTask[]) => void) | null = null;
 
   aboutToAppear(): void {
@@ -39,6 +41,7 @@ export struct GameQuickPanel {
     this.sessionSerial = GameModeService.sessionSerial();
     this.settingsAppId = GameModeService.activeAppId();
     this.settings = GameModeService.currentSettings();
+    this.harmonyBlockReason = GameModeService.currentHarmonyBlockReason();
     this.hud = ThemeSettingsService.getInstance().getSettings().showFpsHud;
     this.listener = (_tasks: HostWindowTask[]): void => { this.tasks = HostWindowTasks.getInstance().controllableGames(); };
     HostWindowTasks.getInstance().subscribe(this.listener);
@@ -57,11 +60,20 @@ export struct GameQuickPanel {
     const ids = ['game-panel-resume',
       'game-scaling-linear', 'game-scaling-nearest', 'game-scaling-integer', 'game-scaling-fsr'];
     ids.push('game-framegen-off', 'game-framegen-x2');
+    if (this.harmonyBlockReason.length === 0) ids.push('game-framegen-harmony');
     if (this.settings.scaling === 'fsr') ids.push('game-fsr-sharpness');
     ids.push('game-limit-0', 'game-limit-30', 'game-limit-60');
     ids.push('game-panel-hud', 'game-panel-library');
     ids.push(...this.tasks.map((task: HostWindowTask): string => 'game-panel-close-' + task.key));
-    this.focusIndex = Math.min(this.focusIndex, ids.length - 1);
+    const focused = ids.indexOf(this.focusedControl);
+    if (focused < 0) {
+      this.focusIndex = 0;
+      this.focusedControl = ids[0];
+      try { focusControl.requestFocus(this.focusedControl); } catch (_) {}
+      if ([2301, 2050, 2054, 2016].includes(code)) return true;
+    } else {
+      this.focusIndex = focused;
+    }
     if (code === 2302 || code === 2070) { this.onResume(); return true; }
     if (ids[this.focusIndex] === 'game-fsr-sharpness' && (code === 2014 || code === 2015)) {
       this.save({ scaling: 'fsr', frameLimit: this.settings.frameLimit,
@@ -71,7 +83,8 @@ export struct GameQuickPanel {
     const delta = code === 2012 || code === 2014 ? -1 : code === 2013 || code === 2015 ? 1 : 0;
     if (delta) {
       this.focusIndex = Math.max(0, Math.min(ids.length - 1, this.focusIndex + delta));
-      try { focusControl.requestFocus(ids[this.focusIndex]); } catch (_) {}
+      this.focusedControl = ids[this.focusIndex];
+      try { focusControl.requestFocus(this.focusedControl); } catch (_) {}
     } else if ([2301, 2050, 2054, 2016].includes(code)) {
       const id = ids[this.focusIndex];
       if (id === 'game-panel-resume') this.onResume();
@@ -82,7 +95,8 @@ export struct GameQuickPanel {
       else if (id.startsWith('game-limit-')) this.save({ scaling: this.settings.scaling,
         frameLimit: Number(id.substring(11)), sharpness: this.settings.sharpness, frameGeneration: this.settings.frameGeneration });
       else if (id.startsWith('game-framegen-')) this.save({ scaling: this.settings.scaling, frameLimit: this.settings.frameLimit,
-        sharpness: this.settings.sharpness, frameGeneration: id === 'game-framegen-x2' ? 'x2' : 'off' });
+        sharpness: this.settings.sharpness,
+        frameGeneration: id === 'game-framegen-harmony' ? 'harmonyGpu' : id === 'game-framegen-x2' ? 'x2' : 'off' });
       else { const task = this.tasks.find((item: HostWindowTask): boolean => 'game-panel-close-' + item.key === id); if (task) void this.close(task); }
     }
     return true;
@@ -109,7 +123,7 @@ export struct GameQuickPanel {
         await store.saveAppSettings(next);
       }
     } catch (_) {
-      if (this.visible) promptAction.showToast({ message: '画面已调整，设置未保存，请重试' });
+      if (this.visible) promptAction.showToast({ message: '画面设置未保存，请重试' });
     } finally { this.saving = false; }
   }
   private async toggleHud(): Promise<void> {
@@ -142,7 +156,11 @@ export struct GameQuickPanel {
         Divider().color('#2E3746')
         Scroll() {
           Column({ space: 20 }) {
-            GamePresentationSettings({ value: this.settings, inGame: true,
+            GamePresentationSettings({ value: this.settings, inGame: true, harmonyBlockReason: this.harmonyBlockReason,
+              onHarmonyStatus: (state: number, generated: number): void => {
+                GameModeService.observeHarmonyScene(this.sessionSerial, state, generated);
+                this.harmonyBlockReason = GameModeService.currentHarmonyBlockReason();
+              },
               onChange: (value: GameModeSettings): void => this.save(value) })
             Divider().color('#2E3746')
             GameActionButton({ label: this.hud ? '隐藏性能浮层' : '显示性能浮层', fullWidth: true,
