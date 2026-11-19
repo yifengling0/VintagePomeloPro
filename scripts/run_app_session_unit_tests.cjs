@@ -54,7 +54,7 @@ function fixture() {
   const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root,
     isDesktopAbilityForeground:()=>false, usesEmbeddedDesktopHost:()=>false,
     resumeDesktopHost:async()=>{ starts.push({abilityName:'DesktopAbility',parameters:{toplevelId:root}}); } };
-  const steam = { canLaunch: () => true, prepareLaunch: async () => {},
+  const steam = { canLaunch: () => true, hasForeignClient: () => false, prepareLaunch: async () => {},
     isCompatibility: () => false, getClientDirectory: () => 'C:/Steam',
     clientCard: () => ({ id: 'steam-client-default', launchTarget: { executable: 'C:/Steam/steam.exe' } }),
     getCards: () => steamCards,
@@ -421,9 +421,12 @@ function fixture() {
     assert.equal(ready.sessionId, 'real-client'); assert.equal(ready.pid, 82);
     assert.equal(ready.toplevelId, 94); assert.equal(resumed, ready);
     assert.equal(f.service.sessions.size, 1, 'Do not register CEF as a separate game or client');
+    assert.equal(f.service.steamClientWindowKey(steamApp), tasks.snapshot().find(task => task.toplevelId === 94).key);
     f.processes[1].sessionId = 'recycled-cef';
+    assert.equal(f.service.steamClientWindowKey(steamApp), '', 'A recycled CEF PID cannot restore an old window');
     await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
     f.processes[1].sessionId = 'cef-browser'; f.processes[0].state = 'stopped';
+    assert.equal(f.service.steamClientWindowKey(steamApp), '', 'A helper alone does not represent a live Steam client');
     await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
   }
   { // A slow translated CEF start must still bring the real client forward.

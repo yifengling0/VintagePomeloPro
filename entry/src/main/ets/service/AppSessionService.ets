@@ -475,6 +475,24 @@ export class AppSessionService {
     return session;
   }
 
+  steamClientWindowKey(app: AppDescriptor): string {
+    if (app.id !== STEAM_CLIENT_ID || !WineEngineService.getInstance().isReady()) return '';
+    const processes = this.getNativeProcesses();
+    const steam = SteamLocalService.getInstance();
+    if (steam.hasForeignClient(processes)) return '';
+    const clients = steam.processesFor(app, processes);
+    const session = Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+      item.appId === app.id && item.toplevelId > 0 && clients.some((client: NativeProcessInfo): boolean =>
+        client.pid === item.pid && (!client.sessionId || client.sessionId === item.sessionId)));
+    if (!session) return '';
+
+    const owners = steam.processesFor(app, processes, true);
+    const window = HostWindowTasks.getInstance().snapshot().find((task): boolean =>
+      task.toplevelId === session.toplevelId && owners.some((owner: NativeProcessInfo): boolean =>
+        task.clientPid === owner.pid && (!task.sessionId || !owner.sessionId || task.sessionId === owner.sessionId)));
+    return window?.key ?? '';
+  }
+
   async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
     navigation: number): Promise<RuntimeSession> {
     // On translated ARM64 cold starts, CEF can create its first real window

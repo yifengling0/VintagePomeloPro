@@ -8,6 +8,11 @@ const state = {installed: false, importing: false, running: false, result: {}, f
 const calls = [], readiness = [];
 let returns = 0;
 let gate = null;
+let navigation = 1;
+let windowKey = '';
+let activeKeys = [];
+let activationResult = true;
+let navigateDuringActivation = false;
 const singleton = value => ({getInstance: () => value});
 const windows = {isInstalled: () => state.installed, isImporting: () => state.importing,
   hasRunningProcesses: () => state.running,
@@ -17,8 +22,17 @@ const deps = {
   '../steam/SteamLocalService': {SteamLocalService: singleton(windows)},
   './AppCatalogService': {AppCatalogService: singleton({getWineHomeDirectory: () => '/download'})},
   './AppSettingsStore': {AppSettingsStore: singleton({getGlobalSettings: () => ({displayMode: 'desktop'})})},
-  './HostWindowTasks': {HostWindowTasks: singleton({navigationSerial: () => 1, showLauncher: async () => { ++returns; }})},
-  './AppSessionService': {AppSessionService: singleton({async launch(app, settings, root) {
+  './HostWindowTasks': {HostWindowTasks: singleton({
+    navigationSerial: () => navigation,
+    showLauncher: async () => { ++returns; },
+    async activate(key) {
+      activeKeys.push(key);
+      ++navigation;
+      if (navigateDuringActivation) queueMicrotask(() => { ++navigation; });
+      return activationResult;
+    }
+  })},
+  './AppSessionService': {AppSessionService: singleton({steamClientWindowKey: () => windowKey, async launch(app, settings, root) {
     calls.push([app, settings, root]); if (gate) await gate;
     if (state.failure) throw Error('wine failure'); return state.result;
   }, async waitForSteamClientWindow(app, result, navigation) {
@@ -47,6 +61,21 @@ const service = new out.SteamClientService();
   }
   state.running = true; assert.equal(service.isRunning(), true);
   await service.open(); assert.equal(calls.at(-1)[0].steam.clientAction, 'library', 'warm navigation reaches the existing session owner');
+  windowKey = 'steam-window';
+  const beforeRestore = calls.length;
+  await service.open('library', true);
+  assert.deepEqual(activeKeys, ['steam-window']);
+  assert.equal(calls.length, beforeRestore, 'Show Steam restores the known window without starting a command sender');
+  activationResult = false;
+  navigateDuringActivation = true;
+  await service.open('library', true);
+  assert.equal(calls.length, beforeRestore, 'A later navigation cancels restoration without a second launch');
+  navigateDuringActivation = false;
+  await service.open('library', true);
+  assert.equal(calls.length, beforeRestore + 1, 'A window that disappears falls back to library navigation');
+  windowKey = '';
+  await service.open('library', true);
+  assert.equal(calls.length, beforeRestore + 2, 'A silent client still receives a library command');
   state.running = false; assert.equal(service.isRunning(), false);
   const before = calls.length;
   state.importing = true;
