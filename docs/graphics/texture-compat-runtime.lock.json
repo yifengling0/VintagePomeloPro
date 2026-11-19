@@ -138,7 +138,7 @@
   },
   "venus": {
     "commit": "557fa3e781ea6e78fcff3ee759c25f60c3055064",
-    "sha256": "5648eea4d30fa5659cc62d057ed2947be1a0d773f8f3590dfcd930d2e7507158",
+    "sha256": "fc9ca6a1c4d83d863713ae6ae344a80284395771f80feed3bf82d9e8d164c46f",
     "patches": [
       {
         "path": "patches/mesa/0001-ohos-arm64-keep-vtest-map-fd.patch",
@@ -231,6 +231,10 @@
       {
         "path": "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
         "sha256": "c010b4c2b9de52531935d48535e064f04addfd9d11ebeec2cdfb500f419ecffe"
+      },
+      {
+        "path": "patches/mesa/0028-venus-forward-frame-generation-scene.patch",
+        "sha256": "24d75af56c188076f868c126c00371ddd1f1af368f9096901855a2c537189811"
       }
     ]
   }

@@ -19,6 +19,8 @@ PATCHES = (
     '0068-wined3d-ohos-command-event-wake.patch',
 )
 SOURCE_FILES = ('adapter_gl.c', 'buffer.c', 'cs.c', 'glsl_shader.c', 'resource.c', 'swapchain.c')
+HARMONY_PATCH = ROOT / 'scripts/patches/wine-upstream/0088-virgl-harmony-frame-scene.patch'
+HARMONY_SOURCE_FILES = ('context_gl.c', 'stateblock.c', 'wined3d_private.h')
 
 
 def sha(data):
@@ -67,10 +69,16 @@ def validate_module(data, arch):
 
 
 def validate_runtime(record, read):
-    if record.get('version') != 1 or record.get('patches') != patch_records():
+    patches = patch_records()
+    source_names = SOURCE_FILES
+    harmony = HARMONY_PATCH.name in record.get('patches', {})
+    if harmony:
+        patches[HARMONY_PATCH.name] = sha(HARMONY_PATCH.read_bytes().replace(b'\r\n', b'\n'))
+        source_names += HARMONY_SOURCE_FILES
+    if record.get('version') != 1 or record.get('patches') != patches:
         raise ValueError('WineD3D graphics overlay inventory/hash mismatch')
     sources = record.get('sourceFiles', {})
-    if (set(sources) != {'dlls/wined3d/' + name for name in SOURCE_FILES}
+    if (set(sources) != {'dlls/wined3d/' + name for name in source_names}
             or not all(re.fullmatch('[0-9a-f]{64}', value) for value in sources.values())):
         raise ValueError('WineD3D effective source identities are incomplete')
     files = record.get('files', [])
@@ -82,6 +90,8 @@ def validate_runtime(record, read):
         if len(data) != item['bytes'] or sha(data) != item['sha256']:
             raise ValueError('WineD3D graphics DLL identity mismatch: ' + item['path'])
         validate_module(data, item['path'].split('/')[1])
+        if harmony and b'VPPFGGL1' not in data:
+            raise ValueError('Missing WineD3D Harmony GPU scene marker: ' + item['path'])
 
 
 def main():
