@@ -54,8 +54,7 @@ function fixture() {
   const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root,
     isDesktopAbilityForeground:()=>false, usesEmbeddedDesktopHost:()=>false,
     resumeDesktopHost:async()=>{ starts.push({abilityName:'DesktopAbility',parameters:{toplevelId:root}}); } };
-  const steam = { canLaunch: () => true, ensureGpuDependencies: async () => {},
-    prepareRuntimeHelper: async () => {}, prepareLibraryPerformance: async () => {},
+  const steam = { canLaunch: () => true, prepareLaunch: async () => {},
     isCompatibility: () => false, getClientDirectory: () => 'C:/Steam',
     clientCard: () => ({ id: 'steam-client-default', launchTarget: { executable: 'C:/Steam/steam.exe' } }),
     getCards: () => steamCards,
@@ -379,7 +378,7 @@ function fixture() {
       models.WinePresentationMode.DESKTOP, '/games');
     assert.equal(f.launches.length, 1); assert.equal(f.starts.length, 0);
     assert.equal(result.automaticForeground, false);
-    f.steam.ensureGpuDependencies = async () => { throw Error('Steam GPU dependency failed'); };
+    f.steam.prepareLaunch = async () => { throw Error('Steam GPU dependency failed'); };
     await assert.rejects(f.service.launchReady(steamApp, f.globalSettings, models.DisplayMode.DESKTOP,
       models.WinePresentationMode.DESKTOP, '/games'), /GPU dependency failed/);
     assert.equal(f.launches.length, 1); assert.equal(f.starts.length, 0);

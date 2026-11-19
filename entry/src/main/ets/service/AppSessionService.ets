@@ -399,24 +399,25 @@ export class AppSessionService {
     }
     let launchExecutable = app.launchTarget.executable;
     if (app.steam) {
-      if (!SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
-      await SteamLocalService.getInstance().ensureGpuDependencies();
-      await SteamLocalService.getInstance().prepareRuntimeHelper();
-      await SteamLocalService.getInstance().prepareLibraryPerformance();
+      const steam = SteamLocalService.getInstance();
+      if (!steam.canLaunch()) throw new Error('Steam 正在更新，请稍候');
+      const preparationStarted = Date.now();
+      await steam.prepareLaunch();
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';
       launchArguments = steamLaunchArguments(action, app.steam.appId,
-        SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : [],
+        steam.isCompatibility(), action === 'play' ? launchArguments : [],
         app.steam.clientAction ?? 'library');
       if (action === 'open') {
         // Keep cold and warm launches on the same managed argument policy.
         // Imported batch files can discard the library URI and leave startup
         // waiting on the remote store instead of opening the local library.
         // Re-resolve the executable so cached cards cannot restore that path.
-        launchExecutable = SteamLocalService.getInstance().getClientDirectory() + '/steam.exe';
+        launchExecutable = steam.getClientDirectory() + '/steam.exe';
       }
       // Do not let old per-process diagnostics reintroduce conflicting GPU flags.
       envOverrides.push('WINEHUA_CEF_FORCE_GPU=0', 'WINEHUA_CEF_FORCE_SOFTWARE=0', 'WINEHUA_CEF_STEAM_DISABLE_GPU=0');
+      hilog.info(DOMAIN, '[SESS]', 'Steam prepared action=%{public}s ms=%{public}d', action, Date.now() - preparationStarted);
     }
     if (app.steam && !SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
     const result = WineEngineService.getInstance().launchExecutable(
@@ -482,6 +483,7 @@ export class AppSessionService {
     const deadline = Date.now() + 90000;
     const tasks = HostWindowTasks.getInstance();
     const steam = SteamLocalService.getInstance();
+    let webHelperSeen = false;
     while (Date.now() < deadline) {
       let ready: RuntimeSession | null = null;
       const state = WineEngineService.getInstance().getState();
@@ -499,6 +501,11 @@ export class AppSessionService {
           // CEF owns the actual client windows and has its own native process
           // session. It is a window owner, not a replacement Steam client/game.
           const owners = steam.processesFor(app, processes, true);
+          if (!webHelperSeen && owners.length > clients.length) {
+            webHelperSeen = true;
+            hilog.info(DOMAIN, '[SESS]', 'Steam WebHelper observed after dispatch ms=%{public}d',
+              Date.now() - launched.startedAt);
+          }
           const window = tasks.snapshot().find((task): boolean => !task.minimized &&
             task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
               (task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)) ||
@@ -520,6 +527,8 @@ export class AppSessionService {
         hilog.warn(DOMAIN, '[SESS]', 'Steam window pending: %{public}s', (error as Error).message);
       }
       if (ready) {
+        hilog.info(DOMAIN, '[SESS]', 'Steam window observed after dispatch ms=%{public}d',
+          Date.now() - launched.startedAt);
         // A deliberate navigation while loading wins over auto-focus.
         if (tasks.navigationSerial() === navigation) await this.resume(ready);
         ready.automaticForeground = true;
