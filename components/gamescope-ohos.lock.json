@@ -596,7 +596,7 @@
     {
       "source": "native/gamescope/ohos/FrameGenerationSchedule.h",
       "destination": "src/FrameGenerationSchedule.h",
-      "sha256": "40b10b2af9053a87eb7753d157111009e665c26c060811fb680508745404f4b9"
+      "sha256": "74a0d63e0d03c0ef0adf0cea19415cff1340185adbda01784f664330e2ddb8d7"
     }
   ],
   "options": [
