@@ -107,25 +107,31 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  assert.deepEqual(Array.from(local.processesFor(game,uiProcesses,true),p=>p.pid),[2]);
  assert.equal(local.hasRunningProcesses(),true);assert.equal(local.hasForeignClient(),false);
  processes.push({pid:4,path:'C:\\OldSteam\\steam.exe',state:'running'});assert.equal(local.hasForeignClient(),true);processes.pop();
- put(client+'/bin/existing.dll');local.context={resourceManager:{getRawFileContent:async()=>new Uint8Array(1024).fill(13)}};
- await local.ensureGpuDependencies();assert.equal(fs.statSync(client+'/bin/SDL2.dll').size,1024);
- put(client+'/bin/SDL2.dll','provided-by-package');await local.ensureGpuDependencies();assert.equal(fs.readFileSync(client+'/bin/SDL2.dll','utf8'),'provided-by-package');
+ let rawFiles=[];
+ put(client+'/bin/existing.dll');local.context={resourceManager:{getRawFileContent:async name=>{
+   rawFiles.push(name);
+   return new Uint8Array(1024).fill(13);
+ }}};
+ await Promise.all([local.prepareLaunch(),local.prepareLaunch()]);
+ assert.equal(fs.statSync(client+'/bin/SDL2.dll').size,1024);
+ assert.deepEqual(rawFiles,['sdl2-x86.dll'],'warm dispatch coalesces dependency preparation and skips migrations');
+ put(client+'/bin/SDL2.dll','provided-by-package');await local.prepareLaunch();assert.equal(fs.readFileSync(client+'/bin/SDL2.dll','utf8'),'provided-by-package');
  // Account-level migration only runs with the client and games stopped.
  const migrated=new Map();
  local.store={getSync:(k,d)=>migrated.get(k)||d,put:async(k,v)=>migrated.set(k,v.slice()),flush:async()=>{}};
  const conf=client+'/userdata/123/config/localconfig.vdf';
  const original='"UserLocalConfigStore" { "LibraryLowPerfMode" "0" "Apps" { "42" { "LaunchOptions" "keep" } } }';
  put(conf,original);
- await local.prepareLibraryPerformance();assert.equal(fs.readFileSync(conf,'utf8'),original,'running client config is untouched');
+ await local.prepareLaunch();assert.equal(fs.readFileSync(conf,'utf8'),original,'running client config is untouched');
  const priorProcesses=processes.splice(0);
  const partial=client+'/userdata/456/config/localconfig.vdf';put(partial,'"UserLocalConfigStore" {');
- await local.prepareLibraryPerformance();
+ await local.prepareLaunch();
  assert.equal(fs.readFileSync(conf,'utf8'),original.replace('"LibraryLowPerfMode" "0"','"LibraryLowPerfMode" "1"'));
  assert.equal(fs.readFileSync(partial,'utf8'),'"UserLocalConfigStore" {','partial writes remain intact');
  assert.equal(fs.existsSync(conf+'.new'),false);
  put(conf,original); // A later manual choice in Steam must persist.
  put(partial,'"UserLocalConfigStore" {}');
- await local.prepareLibraryPerformance();
+ await local.prepareLaunch();
  assert.equal(fs.readFileSync(conf,'utf8'),original,'migration does not override a subsequent user choice');
  assert.ok(fs.readFileSync(partial,'utf8').includes('"LibraryLowPerfMode"'));
  processes.push(...priorProcesses);local.store=null;

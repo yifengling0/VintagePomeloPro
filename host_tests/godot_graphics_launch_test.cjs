@@ -20,6 +20,19 @@ vm.runInNewContext(compiled.outputText, context);
 const api = context.exports;
 const resolve = (preset, base = [], extras = []) =>
   Array.from(api.resolveGraphicsLaunchArguments(preset, base, extras));
+const local = (base, current, preset = 'default') =>
+  Array.from(api.resolveGraphicsLaunchArguments(preset, base, current, true));
+assert.deepEqual(resolve('default', [], ['-video_multisample', '0', '-video_vsync', '0']),
+  ['-video_multisample', '0', '-video_vsync', '0']);
+assert.deepEqual(local(['-video_app', 'direct3d11'], ['-video_app', 'direct3d9']),
+  ['-video_app', 'direct3d9']);
+assert.deepEqual(local(['-video_app', 'direct3d11'], []), []);
+assert.deepEqual(local(['old'], ['--path', 'Data', '--path', 'data', '', '0', '0']),
+  ['--path', 'Data', '--path', 'data', '', '0', '0']);
+assert.deepEqual(resolve('default', ['cmd.exe'], ['/c', 'echo', 'echo']),
+  ['cmd.exe', '/c', 'echo', 'echo']);
+assert.deepEqual(resolve('dx11', [], ['-DX11', '-video_multisample', '0', '-video_vsync', '0', '--', '-dx11']),
+  ['-dx11', '-force-d3d11', '-video_multisample', '0', '-video_vsync', '0', '--', '-dx11']);
 const preset = api.GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2;
 assert.equal(api.normalizeGraphicsLaunchPreset(preset), preset);
 assert(api.GRAPHICS_LAUNCH_PRESET_IDS.includes(preset));

@@ -2,6 +2,7 @@
 #include "runtime_napi.h"
 #include "runtime_session.h"
 #include "process_backend.h"
+#include "harmony_frame_generation.h"
 #include "SessionProtocol.h"
 #include "BrokerTransport.h"
 #include <dlfcn.h>
@@ -12,6 +13,49 @@
 
 namespace winehua::gamescope {
 namespace {
+struct FrameGenerationProbe {
+    napi_async_work work = nullptr;
+    napi_deferred promise = nullptr;
+    HarmonyFrameGenerationCapability capability;
+};
+void ExecuteFrameGenerationProbe(napi_env, void* context) {
+    static_cast<FrameGenerationProbe*>(context)->capability = ProbeHarmonyFrameGeneration();
+}
+void CompleteFrameGenerationProbe(napi_env env, napi_status status, void* context) {
+    auto* probe = static_cast<FrameGenerationProbe*>(context);
+    if (status != napi_ok) {
+        napi_value message, error;
+        napi_create_string_utf8(env, "Frame generation capability query cancelled", NAPI_AUTO_LENGTH, &message);
+        napi_create_error(env, nullptr, message, &error);
+        napi_reject_deferred(env, probe->promise, error);
+    } else {
+        const auto& c = probe->capability;
+        napi_value object, value;
+        napi_create_object(env, &object);
+        for (auto entry : {std::pair{"libraryLoaded", c.libraryLoaded},
+                           {"supportQueryAvailable", c.supportQueryAvailable},
+                           {"renderQualified", false}}) {
+            napi_get_boolean(env, entry.second, &value);
+            napi_set_named_property(env, object, entry.first, value);
+        }
+        for (auto entry : {std::pair{"gpuVulkan", &c.gpuVulkan}, {"aiVulkan", &c.aiVulkan}}) {
+            const auto& mode = *entry.second;
+            napi_value modeObject;
+            napi_create_object(env, &modeObject);
+            napi_get_boolean(env, mode.vulkanEntryPointsAvailable, &value);
+            napi_set_named_property(env, modeObject, "vulkanEntryPointsAvailable", value);
+            for (auto property : {std::pair{"deviceSupport", mode.deviceSupport},
+                                  {"stage", mode.stage}, {"detail", mode.detail}}) {
+                napi_create_string_utf8(env, property.second.c_str(), NAPI_AUTO_LENGTH, &value);
+                napi_set_named_property(env, modeObject, property.first, value);
+            }
+            napi_set_named_property(env, object, entry.first, modeObject);
+        }
+        napi_resolve_deferred(env, probe->promise, object);
+    }
+    napi_delete_async_work(env, probe->work);
+    delete probe;
+}
 bool Installed() {
     Dl_info info{};
     if (!dladdr(reinterpret_cast<void*>(&PrepareRuntime), &info) || !info.dli_fname) return false;
@@ -84,6 +128,27 @@ void Complete(napi_env env, napi_status status, void* context) {
     napi_delete_async_work(env, p->work);
     delete p;
 }
+}
+napi_value ProbeHarmonyFrameGenerationNapi(napi_env env, napi_callback_info) {
+    auto* probe = new FrameGenerationProbe;
+    napi_value promise, name;
+    napi_create_string_utf8(env, "HarmonyFrameGenerationCapability", NAPI_AUTO_LENGTH, &name);
+    if (napi_create_promise(env, &probe->promise, &promise) != napi_ok) {
+        delete probe;
+        napi_throw_error(env, nullptr, "Cannot create frame generation capability promise");
+        return nullptr;
+    }
+    if (napi_create_async_work(env, nullptr, name, ExecuteFrameGenerationProbe,
+            CompleteFrameGenerationProbe, probe, &probe->work) != napi_ok ||
+        napi_queue_async_work(env, probe->work) != napi_ok) {
+        if (probe->work) napi_delete_async_work(env, probe->work);
+        napi_value message, error;
+        napi_create_string_utf8(env, "Cannot schedule frame generation capability query", NAPI_AUTO_LENGTH, &message);
+        napi_create_error(env, nullptr, message, &error);
+        napi_reject_deferred(env, probe->promise, error);
+        delete probe;
+    }
+    return promise;
 }
 napi_value PrepareRuntime(napi_env env, napi_callback_info) {
     const int status = Installed() ? PrepareProcessBackend() : NCP_ERR_NOT_SUPPORTED;

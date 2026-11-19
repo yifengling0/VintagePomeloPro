@@ -23,6 +23,7 @@ prefix=r"""
 #include <utility>
 #include <thread>
 #include "graphics/renderer_repaint_state.h"
+#include "graphics/game_presentation.h"
 #define OH_LOG_INFO(...)
 #define OH_LOG_WARN(...)
 #define OH_LOG_ERROR(...)
@@ -141,21 +142,28 @@ struct GraphicsBroker {
 };
 struct VulkanDesktopRenderer {
  Core core;Core* core_=&core;
+ bool gamescopeStop_=false,repaint=false;int expectedW=0,expectedH=0;
+ bool RenderGamescope(int,int,bool,bool){assert(false);return false;}
  struct Frame{bool inFlight=false;std::vector<int> references;}frames_[2];
  struct Layer {Buffer current;};
  std::unordered_map<int,Layer> layers_;
  std::unordered_map<int,std::unique_ptr<Layer>> glLayers_;
  bool background_=false;
  int scene_=17,renderedExtent_=23;
- struct Cadence{uint64_t PeriodNs(){return 16666667;}}cadence_;
+ struct Cadence{bool fresh=true;uint64_t PeriodNs(){return 8333334;}bool HasFreshTick(uint64_t){return fresh;}}cadence_;
+ winehua::game::FrameDeadline gamescopeSourceDeadline_;
+ uint64_t gamescopeNextTickNs_=0;
+ unsigned sourcePolls=0,glPolls=0;
  Buffer incoming;bool remove=false,updateOk=true;
  bool UpdateSources(){
+   ++sourcePolls;
    if(!updateOk)return false;
    if(remove){for(auto& [id,l]:layers_)Retire(l.current);layers_.clear();}
    if(incoming.windowBuffer){Retire(layers_[1].current);layers_[1].current=std::move(incoming);incoming={};}
    return true;
  }
- void UpdateGlSources(){}
+ void UpdateGlSources(){++glPolls;}
+ bool UpdateGamescopeSources(uint64_t,bool,bool,bool);
  void Retire(Buffer&);bool Step(bool paused);
  std::vector<Buffer> retired_;
  unsigned producerRetired_=0,releaseErrors_=0,releaseFences_=0;
@@ -165,7 +173,7 @@ struct VulkanDesktopRenderer {
 };
 """
 vkmethods='\n'.join(block(vk,'    '+kind+' '+name+'(').replace(name+'(', 'VulkanDesktopRenderer::'+name+'(',1)
-    for kind,name in [('bool','DrainBackgroundBuffers'),('void','Return'),('void','Retire')])
+    for kind,name in [('bool','DrainBackgroundBuffers'),('void','Return'),('void','Retire'),('bool','UpdateGamescopeSources')])
 # Execute the production Render background/resume preamble; all output work is
 # deliberately outside this test. No replacement policy is recreated here.
 preamble=vk[vk.index('    bool Render(int expectedW, int expectedH, bool paused, bool repaint) {'):vk.index('        PublishFrameRates();')]
@@ -203,7 +211,7 @@ static void retainedFrame(){
  CHECK(v.layers_[1].current.windowBuffer==(void*)101);
  CHECK(v.glLayers_[2]->current.windowBuffer==(void*)102);
  CHECK(v.Step(false));CHECK(!v.background_&&v.scene_==0&&v.renderedExtent_==0);
- CHECK(GraphicsBroker::GetInstance().period==16666667);
+ CHECK(GraphicsBroker::GetInstance().period==8333334);
  CHECK(v.layers_[1].current.windowBuffer==(void*)101&&returns==baseReturns);
  // A queue of three can advance while one latest image remains acquired.
  // Every replaced buffer must be returned exactly once. The first old image
@@ -239,7 +247,37 @@ static void repaint(){
  CHECK(state.NeedsRedraw(state.CaptureRequest()));
  state.DidPresent(state.CaptureRequest());CHECK(!state.NeedsRedraw(state.CaptureRequest()));
 }
-int main(){management();release();retainedFrame();repaint();printf("production renderer lifecycle: %u checks PASS\n",checks);}
+static void frameGenerationAdmission(){
+ using namespace winehua::game;
+ VulkanDesktopRenderer v;Configure(true,false,false,60,false,10,true);
+ constexpr uint64_t source=25000000,display=8333334;
+ // After a generated midpoint, the current real endpoint must survive a
+ // newly ready producer until its due tick; neither Direct nor GL may poll.
+ v.gamescopeNextTickNs_=source+source/2;
+ CHECK(v.UpdateGamescopeSources(source+display,true,false,false));
+ CHECK(v.UpdateGamescopeSources(source+2*display,true,false,false));
+ CHECK(v.sourcePolls==0&&v.glPolls==0&&v.gamescopeSourceDeadline_.next==0);
+ // Submission of that endpoint clears the pending deadline. Ready GL input
+ // still polls independently when Direct's explicit source cap is not due.
+ v.gamescopeNextTickNs_=0;
+ CHECK(v.UpdateGamescopeSources(source+2*display,true,false,false));
+ CHECK(v.sourcePolls==1&&v.glPolls==1);
+ CHECK(v.UpdateGamescopeSources(source+2*display+1,true,false,false));
+ CHECK(v.sourcePolls==1&&v.glPolls==2);
+ // Stale deadlines, callback loss, reset, pause and disabling FG all allow
+ // new input instead of trapping the renderer on an old held real image.
+ v.gamescopeNextTickNs_=1;
+ CHECK(v.UpdateGamescopeSources(source,true,false,false));CHECK(v.glPolls==3);
+ v.gamescopeNextTickNs_=source*3;v.cadence_.fresh=false;
+ CHECK(v.UpdateGamescopeSources(source,true,false,false));CHECK(v.glPolls==4);
+ v.cadence_.fresh=true;
+ CHECK(v.UpdateGamescopeSources(source,true,false,true));CHECK(v.glPolls==5);
+ CHECK(v.UpdateGamescopeSources(source,true,true,false));CHECK(v.glPolls==6);
+ CHECK(v.UpdateGamescopeSources(source,false,false,false));CHECK(v.glPolls==7);
+ v.updateOk=false;
+ CHECK(!v.UpdateGamescopeSources(source,false,false,false));CHECK(v.glPolls==7);
+}
+int main(){management();release();retainedFrame();repaint();frameGenerationAdmission();printf("production renderer lifecycle and FG admission: %u checks PASS\n",checks);}
 """
 with tempfile.TemporaryDirectory(prefix='renderer-lifecycle-') as d:
  d=Path(d);unit=d/'test.cpp';unit.write_text(prefix+methods+management+vkstub+vkmethods+vktest)

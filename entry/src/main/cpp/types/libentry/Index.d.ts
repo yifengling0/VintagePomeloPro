@@ -12,6 +12,20 @@ export interface GamescopeRuntimeStatus {
 export const prepareGamescopeProcessBackend: () => number;
 export const startGamescopeDiagnosticClient: () => number;
 export const probeGamescopeRuntime: () => Promise<GamescopeRuntimeStatus>;
+export interface HarmonyFrameGenerationModeCapability {
+  deviceSupport: 'unknown' | 'supported' | 'unsupported';
+  vulkanEntryPointsAvailable: boolean;
+  stage: string;
+  detail: string;
+}
+export interface HarmonyFrameGenerationCapability {
+  libraryLoaded: boolean;
+  supportQueryAvailable: boolean;
+  renderQualified: boolean;
+  gpuVulkan: HarmonyFrameGenerationModeCapability;
+  aiVulkan: HarmonyFrameGenerationModeCapability;
+}
+export const probeHarmonyFrameGeneration: () => Promise<HarmonyFrameGenerationCapability>;
 export interface GamescopeSessionOptions {
   surfaceId: bigint;
   renderWidth: number;
@@ -351,7 +365,18 @@ export const wineTextInputActive: () => boolean;
 export const wineTextInputFocusedToplevel: () => number;
 /** The current native implementation accepts but ignores armed. */
 export const wineTextInputSetArmed: (armed: boolean) => void;
-export const runHostVulkanProbe: (surfaceId: BigInt, runId: string) => boolean;
+export const runHostVulkanProbe: (surfaceId: BigInt, runId: string, harmonyGpu?: boolean) => boolean;
+export interface HarmonyGpuProbeResult {
+  runId: string;
+  stage: string;
+  detail: string;
+  baselineFrames: number;
+  realFrames: number;
+  generatedFrames: number;
+  sdkError: number;
+  active: boolean;
+}
+export const getHarmonyGpuProbeResult: () => HarmonyGpuProbeResult;
 export const stopHostVulkanProbe: () => boolean;
 export interface SteamZipProgress { done: number; total: number; }
 export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>;
@@ -362,7 +387,16 @@ export const setToplevelIsolated: (id: number, isolated: boolean) => void;
 export const setSystemOpenEnabled: (enabled: boolean) => void;
 export const setOpenTargetCallback: (callback: ((target: string) => boolean) | null) => void;
 
-export const configureGamePresentation: (enabled: boolean, scaling: string, frameLimit: number, sharpness?: number) => void;
+export const configureGamePresentation: (enabled: boolean, scaling: string, frameLimit: number, sharpness?: number, frameGeneration?: string) => void;
+export interface GameFrameGenerationStatus {
+  state: number;
+  realFps: number;
+  generatedFps: number;
+  presentedFps: number;
+  gpuMs: number;
+  generatedPresents: number;
+}
+export const getGameFrameGenerationStatus: () => GameFrameGenerationStatus;
 
 export const presentGameToplevel: (id: number) => boolean;
 

@@ -1044,6 +1044,11 @@ export class WineEngineService {
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
     const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset)
       .concat(this.depthStorageEnvironment(), envOverrides);
+    const systemScript = argumentsValue.lastIndexOf('-system_script');
+    if (this.d3dBackend === 'dxvk_legacy_d3d9' && systemScript >= 0 &&
+      argumentsValue[systemScript + 1] === 'vpp-harmony-frame-camera.cpp') {
+      launchEnvironment.push('WINEHUA_DXVK9_CAMERA_FILE=../data/vpp-harmony-frame-camera.bin');
+    }
     // App overrides are last, matching native environment application. Validate
     // the selected module even when the already-running desktop uses FEX.
     let launchCpuEngine = settings.wineTranslationEngine;

@@ -302,11 +302,14 @@ export struct DeckHome {
         'deck-category-steam', 'deck-category-local');
       for (const game of this.filtered()) ids.push('deck-game-' + game.key);
       for (const game of this.filteredLocal()) ids.push('deck-local-' + game.id, 'deck-local-settings-' + game.id);
-    } else for (const task of this.tasks) {
-      ids.push('deck-task-' + task.key);
-      if (HostWindowTasks.getInstance().canControlGame(task.key)) {
-        ids.push('deck-task-close-' + task.key, 'deck-task-kill-' + task.key);
+    } else {
+      for (const task of this.tasks) {
+        ids.push('deck-task-' + task.key);
+        if (HostWindowTasks.getInstance().canControlGame(task.key)) {
+          ids.push('deck-task-close-' + task.key, 'deck-task-kill-' + task.key);
+        }
       }
+      if (this.steamRunning) ids.push('deck-running-steam');
     }
     return ids;
   }
@@ -346,6 +349,7 @@ export struct DeckHome {
     else if (id === 'deck-nav-more') this.openSheet('more');
     else if (id === 'deck-sheet-close') this.closeSheet();
     else if (id === 'deck-steam-downloads') void this.open('downloads');
+    else if (id === 'deck-running-steam') void this.open('library', true);
     else if (id === 'deck-account') void this.open('account');
     else if (id === 'deck-big-picture') void this.open('bigPicture');
     else if (id === 'deck-desktop') void this.open('desktop');
@@ -409,12 +413,12 @@ export struct DeckHome {
   private async openGame(game: DeckSteamGame): Promise<void> {
     await this.openLocal(game.windowsCard);
   }
-  private async open(action: SteamClientAction): Promise<void> {
+  private async open(action: SteamClientAction, restoreWindow: boolean = false): Promise<void> {
     if (this.busy) return;
     const service = SteamClientService.getInstance();
     if (!service.installed()) { this.manageComponents(); return; }
     await this.beginLaunch('Steam', '', '正在打开 Windows Steam…', undefined,
-      async (): Promise<void> => { await service.open(action); });
+      async (): Promise<void> => { await service.open(action, restoreWindow); });
   }
   @Builder
   private RailItem(label: string, icon: Resource, id: string, selected: boolean, callback: () => void) {
@@ -745,7 +749,7 @@ export struct DeckHome {
           }
         }, (task: HostWindowTask): string => task.key)
         if (this.steamRunning) Button('显示 Steam').height(46).fontColor('#03111F').backgroundColor('#1A9FFF')
-          .onClick((): void => { void this.open('library'); }).id(this.scopeId('deck-running-steam'))
+          .onClick((): void => { void this.open('library', true); }).id(this.scopeId('deck-running-steam'))
       }.padding(this.inset()).width('100%').alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).id(this.scopeId('deck-running-page'))
   }

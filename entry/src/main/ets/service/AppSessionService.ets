@@ -9,6 +9,7 @@ import {
   resolveAppWineTranslationEngine,
   resolveWineCpuEnvironment,
   AppDescriptor,
+  AppSource,
   DisplayMode,
   EngineState,
   GlobalSettings,
@@ -381,10 +382,10 @@ export class AppSessionService {
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
     // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。
-    // settings.arguments 是自定义参数的权威来源（目录扫描写入 launchTarget，
-    // 但改设定后可能尚未 rescan）；再与 launchTarget 去重合并。
+    // 本地卡片的 launchTarget.arguments 是扫描时的旧设置快照，必须被最新设置
+    // 整体替换（包括清空）。内置工具的固定参数仍追加用户参数，不能逐词去重。
     let launchArguments = resolveGraphicsLaunchArguments(appSettings.graphicsLaunchPreset,
-      app.launchTarget.arguments, appSettings.arguments);
+      app.launchTarget.arguments, appSettings.arguments, app.source === AppSource.DOWNLOAD);
     hilog.info(DOMAIN, '[SESS]', 'launch: argv=%{public}s gfx=%{public}s',
       JSON.stringify(launchArguments), appSettings.graphicsLaunchPreset);
     // Unity 兼容档：自动追加 -force-gfx-direct（跳过 GDI 间接渲染），
@@ -398,24 +399,25 @@ export class AppSessionService {
     }
     let launchExecutable = app.launchTarget.executable;
     if (app.steam) {
-      if (!SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
-      await SteamLocalService.getInstance().ensureGpuDependencies();
-      await SteamLocalService.getInstance().prepareRuntimeHelper();
-      await SteamLocalService.getInstance().prepareLibraryPerformance();
+      const steam = SteamLocalService.getInstance();
+      if (!steam.canLaunch()) throw new Error('Steam 正在更新，请稍候');
+      const preparationStarted = Date.now();
+      await steam.prepareLaunch();
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';
       launchArguments = steamLaunchArguments(action, app.steam.appId,
-        SteamLocalService.getInstance().isCompatibility(), action === 'play' ? launchArguments : [],
+        steam.isCompatibility(), action === 'play' ? launchArguments : [],
         app.steam.clientAction ?? 'library');
       if (action === 'open') {
         // Keep cold and warm launches on the same managed argument policy.
         // Imported batch files can discard the library URI and leave startup
         // waiting on the remote store instead of opening the local library.
         // Re-resolve the executable so cached cards cannot restore that path.
-        launchExecutable = SteamLocalService.getInstance().getClientDirectory() + '/steam.exe';
+        launchExecutable = steam.getClientDirectory() + '/steam.exe';
       }
       // Do not let old per-process diagnostics reintroduce conflicting GPU flags.
       envOverrides.push('WINEHUA_CEF_FORCE_GPU=0', 'WINEHUA_CEF_FORCE_SOFTWARE=0', 'WINEHUA_CEF_STEAM_DISABLE_GPU=0');
+      hilog.info(DOMAIN, '[SESS]', 'Steam prepared action=%{public}s ms=%{public}d', action, Date.now() - preparationStarted);
     }
     if (app.steam && !SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
     const result = WineEngineService.getInstance().launchExecutable(
@@ -473,6 +475,24 @@ export class AppSessionService {
     return session;
   }
 
+  steamClientWindowKey(app: AppDescriptor): string {
+    if (app.id !== STEAM_CLIENT_ID || !WineEngineService.getInstance().isReady()) return '';
+    const processes = this.getNativeProcesses();
+    const steam = SteamLocalService.getInstance();
+    if (steam.hasForeignClient(processes)) return '';
+    const clients = steam.processesFor(app, processes);
+    const session = Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+      item.appId === app.id && item.toplevelId > 0 && clients.some((client: NativeProcessInfo): boolean =>
+        client.pid === item.pid && (!client.sessionId || client.sessionId === item.sessionId)));
+    if (!session) return '';
+
+    const owners = steam.processesFor(app, processes, true);
+    const window = HostWindowTasks.getInstance().snapshot().find((task): boolean =>
+      task.toplevelId === session.toplevelId && owners.some((owner: NativeProcessInfo): boolean =>
+        task.clientPid === owner.pid && (!task.sessionId || !owner.sessionId || task.sessionId === owner.sessionId)));
+    return window?.key ?? '';
+  }
+
   async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
     navigation: number): Promise<RuntimeSession> {
     // On translated ARM64 cold starts, CEF can create its first real window
@@ -481,6 +501,7 @@ export class AppSessionService {
     const deadline = Date.now() + 90000;
     const tasks = HostWindowTasks.getInstance();
     const steam = SteamLocalService.getInstance();
+    let webHelperSeen = false;
     while (Date.now() < deadline) {
       let ready: RuntimeSession | null = null;
       const state = WineEngineService.getInstance().getState();
@@ -498,6 +519,11 @@ export class AppSessionService {
           // CEF owns the actual client windows and has its own native process
           // session. It is a window owner, not a replacement Steam client/game.
           const owners = steam.processesFor(app, processes, true);
+          if (!webHelperSeen && owners.length > clients.length) {
+            webHelperSeen = true;
+            hilog.info(DOMAIN, '[SESS]', 'Steam WebHelper observed after dispatch ms=%{public}d',
+              Date.now() - launched.startedAt);
+          }
           const window = tasks.snapshot().find((task): boolean => !task.minimized &&
             task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
               (task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)) ||
@@ -519,6 +545,8 @@ export class AppSessionService {
         hilog.warn(DOMAIN, '[SESS]', 'Steam window pending: %{public}s', (error as Error).message);
       }
       if (ready) {
+        hilog.info(DOMAIN, '[SESS]', 'Steam window observed after dispatch ms=%{public}d',
+          Date.now() - launched.startedAt);
         // A deliberate navigation while loading wins over auto-focus.
         if (tasks.navigationSerial() === navigation) await this.resume(ready);
         ready.automaticForeground = true;

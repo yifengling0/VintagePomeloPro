@@ -1,0 +1,158 @@
+--- a/framegen.hpp
++++ b/framegen.hpp
+@@ -38,6 +38,7 @@
+     bool record(VkCommandBuffer cmd, VkImageView prevView, VkImageView currView,
+                 VkImageView outView, float alpha, uint32_t gmSlot = 0);
+     void destroy();
++    bool sceneCut() const { return scenePtr_ && *scenePtr_ != 0; }
+     bool valid() const { return device_ != VK_NULL_HANDLE && ready_; }
+     const Config& config() const { return cfg_; }
+ 
+@@ -108,6 +109,10 @@
+     int  flowFinest_ = kFlowFinestDefault;
+ 
+     // pipelines
++    VkBuffer sceneBuffer_ = VK_NULL_HANDLE;
++    VkDeviceMemory sceneMemory_ = VK_NULL_HANDLE;
++    uint32_t* scenePtr_ = nullptr;
++    Pipe pScene_;
+     Pipe pLuma_, pDown_, pFlow_, pFlowM4_, pExpand_, pExpandM4_, pSynth_;
+     // C1: LK normal-equation reduce + curr-luma stabilization pre-warp
+     Pipe pGmReduce_, pGmPrewarp_;
+--- a/framegen.cpp
++++ b/framegen.cpp
+@@ -150,14 +150,16 @@
+     // C1: expand sets gain a second UBO (binding 1 = GMUBO) for the global-motion add-back.
+     if (!buildSetLayout(dd_, dev, {B{0,U},B{1,U},B{32,S},B{48,W},B{49,W}}, pExpand_.setLayout)) return false;
+     if (!buildSetLayout(dd_, dev, {B{0,U},B{1,U},B{32,S},B{48,W},B{49,W}}, pExpandM4_.setLayout)) return false;
+-    if (!buildSetLayout(dd_, dev, {B{0,U},B{32,S},B{33,S},B{34,S},B{35,S},B{48,W}}, pSynth_.setLayout)) return false;
++    if (!buildSetLayout(dd_, dev, {B{0,U},B{16,SB},B{32,S},B{33,S},B{34,S},B{35,S},B{48,W}}, pSynth_.setLayout)) return false;
+     // C1: LK-reduce (UBO, SSBO, prev, curr) and curr-luma stabilization prewarp (UBO, src, dst).
+     if (!buildSetLayout(dd_, dev, {B{1,U},B{16,SB},B{32,S},B{33,S}}, pGmReduce_.setLayout)) return false;
+     if (!buildSetLayout(dd_, dev, {B{1,U},B{32,S},B{48,W}}, pGmPrewarp_.setLayout)) return false;
+     // C2: flow-reg (UBO, u_in, f0_obs, luma, out).
+     if (!buildSetLayout(dd_, dev, {B{0,U},B{32,S},B{33,S},B{34,S},B{48,W}}, pFlowReg_.setLayout)) return false;
+ 
++    if (!buildSetLayout(dd_, dev, {B{16,SB},B{32,S},B{33,S}}, pScene_.setLayout)) return false;
+     std::vector<VkDescriptorType> unused;
++    if (!makePipe(pScene_, embedded::VPP_SCENE_CUT, unused)) return false;
+     if (!makePipe(pLuma_,     embedded::OF3_LUMA, unused)) return false;
+     if (!makePipe(pDown_,     embedded::OF3_DOWNSAMPLE, unused)) return false;
+     if (!makePipe(pFlow_,     embedded::OF3_FLOW, unused)) return false;
+@@ -169,6 +171,17 @@
+     if (!makePipe(pFlowReg_,  embedded::OF3_FLOWREG, unused)) return false;
+     if (!makePipe(pSynth_,    embedded::WFG_SYNTH, unused)) return false;
+     if (cfg_.gmMode != 2 && !makeGmBuffers()) { WFG_LOGE("framegen: GM SSBO alloc failed — C1 disabled"); }
++    VkBufferCreateInfo scene{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
++    scene.size=sizeof(uint32_t); scene.usage=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
++    VKOK(dd_->CreateBuffer(device_,&scene,nullptr,&sceneBuffer_));
++    VkMemoryRequirements mr{}; dd_->GetBufferMemoryRequirements(device_,sceneBuffer_,&mr);
++    VkMemoryAllocateInfo memory{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO}; memory.allocationSize=mr.size;
++    memory.memoryTypeIndex=findMemType(mr.memoryTypeBits,VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
++    if (memory.memoryTypeIndex==UINT32_MAX) return false;
++    VKOK(dd_->AllocateMemory(device_,&memory,nullptr,&sceneMemory_));
++    VKOK(dd_->BindBufferMemory(device_,sceneBuffer_,sceneMemory_,0));
++    VKOK(dd_->MapMemory(device_,sceneMemory_,0,sizeof(uint32_t),0,reinterpret_cast<void**>(&scenePtr_)));
++    *scenePtr_=0;
+     WFG_LOGI("framegen init ok (queueFamily=%u, 10 pipelines, model=%d, C1 gm=%d, C2 flow_reg=%d iters=%d)",
+              queueFamily_, cfg_.model, cfg_.gmMode, cfg_.frMode, cfg_.frIters);
+     return true;
+@@ -244,6 +257,11 @@
+     if (!device_) return;
+     dd_->DeviceWaitIdle(device_);
+     resetScratch();
++    if (scenePtr_) dd_->UnmapMemory(device_,sceneMemory_);
++    if (sceneBuffer_) dd_->DestroyBuffer(device_,sceneBuffer_,nullptr);
++    if (sceneMemory_) dd_->FreeMemory(device_,sceneMemory_,nullptr);
++    scenePtr_=nullptr; sceneBuffer_=VK_NULL_HANDLE; sceneMemory_=VK_NULL_HANDLE;
++    destroyPipe(pScene_);
+     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
+     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
+     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
+--- a/record_impl.inc
++++ b/record_impl.inc
+@@ -44,6 +44,7 @@
+     // ping-pong. sFlowReg0: in=flowLvl_[F] (=f0), out=A. sFlowRegAB: in=A, out=B.
+     // sFlowRegBA: in=B, out=A. f0 (binding 33) = flowLvl_[F] in all three.
+     VkDescriptorSet sFlowReg0 = VK_NULL_HANDLE, sFlowRegAB = VK_NULL_HANDLE, sFlowRegBA = VK_NULL_HANDLE;
++    VkDescriptorSet sScene = VK_NULL_HANDLE;
+     VkDescriptorSet sSynth = VK_NULL_HANDLE;
+     // C1: per-slot reduce set + per-slot per-level prewarp sets
+     VkDescriptorSet sGmReduce[winfg::FrameGen::kGmSlots]{};
+@@ -167,7 +168,7 @@
+                           const FrameGen::Pipe& pSynth, const FrameGen::Pipe& pGmReduce,
+                           const FrameGen::Pipe& pGmPrewarp, const FrameGen::Pipe& pFlowReg,
+                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
+-                          int kLevels, const Config& cfg);
++                          int kLevels, const Config& cfg, const FrameGen::Pipe& pScene, VkBuffer sceneBuffer);
+ 
+ // Tear down the lazily-built scratch (all UBO buffers + every descriptor set) so a
+ // live perf_preset rebuild neither leaks them nor exhausts the descriptor pool.
+@@ -331,7 +332,7 @@
+         if (!ensureScratch(S, this, dd_, device_, memProps_, descPool_, linear_, extent_,
+                       pyrA_, pyrB_, pyrAs_, flowLvl_, flowExpA_, flowExpB_,
+                       pLuma_, pDown_, flowP, expandP, pSynth_, pGmReduce_, pGmPrewarp_,
+-                      pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_)) {
++                      pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_, pScene_, sceneBuffer_)) {
+             destroyScratch(S, dd_, device_, descPool_); return false;
+         }
+     }
+@@ -422,6 +423,14 @@
+         disp(pDown_, S.sDownB[l - 1], levelExtent(extent_, l));
+         bar(pyrA_[l]); bar(pyrB_[l]);
+     }
++    // VPP: one workgroup classifies a cut from the GPU luma pyramid.
++    // Only this four-byte result is host-visible after the generation fence.
++    disp(pScene_, S.sScene, {1,1});
++    VkMemoryBarrier sceneVisible{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
++    sceneVisible.srcAccessMask=VK_ACCESS_SHADER_WRITE_BIT;
++    sceneVisible.dstAccessMask=VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_HOST_READ_BIT;
++    dd_->CmdPipelineBarrier(cmd,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
++        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT|VK_PIPELINE_STAGE_HOST_BIT,0,1,&sceneVisible,0,nullptr,0,nullptr);
+     // 2b) C1: LK normal-equation reduce (fixed grid, 1/8-res) → this slot's SSBO.
+     //     Reads raw prev/curr luma at kGmLevel; writes per-thread partials. A
+     //     compute→host barrier makes the write visible to the CPU readback that
+@@ -527,7 +536,7 @@
+                           const FrameGen::Pipe& pSynth, const FrameGen::Pipe& pGmReduce,
+                           const FrameGen::Pipe& pGmPrewarp, const FrameGen::Pipe& pFlowReg,
+                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
+-                          int kLevels, const Config& cfg) {
++                          int kLevels, const Config& cfg, const FrameGen::Pipe& pScene, VkBuffer sceneBuffer) {
+     S = ScratchState{};
+     const auto GEN = VK_IMAGE_LAYOUT_GENERAL;
+ 
+@@ -650,9 +659,15 @@
+         wImg(dd, dev, S.sFlowRegBA, 48, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          flowRegA.view,   VK_NULL_HANDLE, GEN);
+     }
+ 
++    S.sScene=allocSet(dd,dev,pool,pScene.setLayout);
++    if (!S.sScene) return false;
++    wSsbo(dd,dev,S.sScene,16,sceneBuffer,sizeof(uint32_t));
++    wImg(dd,dev,S.sScene,32,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,pyrB[kLevels-1].view,samp,GEN);
++    wImg(dd,dev,S.sScene,33,VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,pyrA[kLevels-1].view,samp,GEN);
+     // synth set: external prev/curr/out wired per frame; flow inputs fixed
+     S.sSynth = allocSet(dd, dev, pool, pSynth.setLayout);
+     if (!S.sSynth) return false;
++    wSsbo(dd,dev,S.sSynth,16,sceneBuffer,sizeof(uint32_t));
+     wUbo(dd, dev, S.sSynth, 0, S.synthUbo, sizeof(SynthUBO));
+     // GENERAL (not SR): these internal flow images stay in GENERAL across the whole
+     // record() (written as storage by expand, sampled here) — see the discard
+--- a/shaders/wfg_synth.comp
++++ b/shaders/wfg_synth.comp
+@@ -57,6 +57,8 @@
+ 
+ layout(binding = 48, rgba8) uniform writeonly image2D uOut;
+ 
++layout(binding=16) readonly buffer Scene { uint cut; } scene;
++
+ const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);    // Rec.709
+ float luma(vec3 c) { return dot(c, LUMA); }
+ 
+@@ -68,6 +70,7 @@
+     vec2 invDim = 1.0 / vec2(dim);
+     vec2 uv = (vec2(gid) + 0.5) * invDim;
+ 
++    if (scene.cut!=0u) { imageStore(uOut,gid,vec4(texture(uCurr,uv).rgb,1.0)); return; }
+     // HUD exclusion: if this pixel is inside the host-supplied HUD rect,
+     // write the real current frame verbatim and skip all flow/warp work.
+     // Kills ghosting on text/overlays at the source. 16x16 workgroups are

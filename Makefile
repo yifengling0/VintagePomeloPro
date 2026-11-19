@@ -75,6 +75,20 @@ test-gamescope-workers:
 	$(ROOT)/build/host-tests/gamescope_workers_test
 
 .PHONY: test-gamescope-transport test-gamescope-recipe
+.PHONY: test-harmony-frame-generation-probe
+test-harmony-frame-generation-probe:
+	python3 $(ROOT)/host_tests/harmony_frame_generation_probe_test.py
+
+.PHONY: test-winfg-gpu test-frame-generation-schedule
+test-winfg-gpu:
+	python3 $(ROOT)/host_tests/winfg_gpu_test.py --vulkan-headers $(GAMESCOPE_VULKAN_HEADERS)
+
+test-frame-generation-schedule:
+	mkdir -p $(ROOT)/build/host-tests
+	g++ -std=c++17 -Wall -Wextra -Werror -I$(ROOT)/native/gamescope/ohos -I$(ROOT)/entry/src/main/cpp \
+	  $(ROOT)/host_tests/frame_generation_schedule_test.cpp -o $(ROOT)/build/host-tests/frame_generation_schedule_test
+	$(ROOT)/build/host-tests/frame_generation_schedule_test
+
 test-gamescope-transport:
 	@mkdir -p $(ROOT)/build/host-tests
 	g++ -std=c++20 -Wall -Wextra -Werror -pthread -o $(ROOT)/build/host-tests/gamescope_transport_test $(ROOT)/host_tests/gamescope_transport_test.cpp

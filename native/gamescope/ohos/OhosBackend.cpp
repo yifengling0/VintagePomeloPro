@@ -36,6 +36,8 @@
 #include "Embedded.h"
 #include "EmbeddedContract.h"
 #include "OutputTransport.h"
+#include "FrameGeneration.h"
+#include "FrameGenerationSchedule.h"
 #include "convar.h"
 #include <unordered_map>
 #include <unistd.h>
@@ -45,6 +47,7 @@
 #include <cstdlib>
 #include <array>
 #include <algorithm>
+#include <bit>
 #include <bitset>
 #include <cerrno>
 #include <cstring>
@@ -87,6 +90,18 @@ private:
 };
 
 class COhosBackend final : public CBaseBackend {
+    // Like HSL's ShmUploads, keep mapped staging alive until GPU completion.
+    // Embedded presentation already fences each slot, including its uploads.
+    struct ShmStaging {
+        VkBuffer buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        void* mapped = nullptr;
+        size_t capacity = 0;
+
+        ~ShmStaging() { clear(); }
+        void clear();
+        bool reserve(size_t bytes);
+    };
     struct Frame {
         VkSemaphore acquired = VK_NULL_HANDLE;
         VkFence fence = VK_NULL_HANDLE;
@@ -94,7 +109,9 @@ class COhosBackend final : public CBaseBackend {
         VkSemaphore released = VK_NULL_HANDLE;
         std::vector<VkSemaphore> waits;
         std::vector<Rc<CVulkanTexture>> inputs;
+        ShmStaging shm;
         std::vector<OwningRc<CVulkanTexture>> upright;
+        OwningRc<CVulkanTexture> generated;
     };
     struct Output {
         bool storage = false;
@@ -112,6 +129,8 @@ public:
             // Lifecycle drain only. Normal frames use slot fences/semaphores.
             g_device.vk.QueueWaitIdle(g_device.queue());
             g_device.waitIdle();
+            m_framegen.Destroy();
+            m_history={};
             destroyOutput(m_output);
             for (auto& f : m_frames) {
                 for (auto sem : f.waits) g_device.vk.DestroySemaphore(g_device.device(), sem, nullptr);
@@ -233,6 +252,8 @@ protected:
     std::unordered_map<uint64_t, CachedInput> embeddedCache;
     bool PrepareEmbedded(Frame& slot, FrameInfo_t& info);
     void InputBarrier(VkCommandBuffer command, CVulkanTexture* texture, bool acquire, bool vulkan);
+    static void RecordShmUpload(VkCommandBuffer command, VkBuffer buffer, size_t offset,
+                                CVulkanTexture* texture, bool initialized);
 
 private:
     bool error(const char* stage, VkResult result) {
@@ -261,6 +282,16 @@ private:
     uint64_t m_frameNumber = 0;
     uint64_t m_requestedSize = 0;
     bool m_ready = false, m_visible = true, m_resize = false, m_failed = false;
+    VppWinfgEngine m_framegen;
+    VppFrameGenerationSchedule m_fgSchedule;
+    std::array<OwningRc<CVulkanTexture>,2> m_history{};
+    uint32_t m_historyIndex=0;
+    uint64_t m_fgIdentity=0;
+    bool m_fgTried=false, m_fgReady=false, m_fgEnabled=false;
+    bool m_fgCountPending=false;
+    VppFrameGenerationBudget m_fgBudget;
+    uint64_t m_fgCompleted=0;
+    std::array<uint64_t,2> m_historyNs{};
 };
 
 bool COhosBackend::recreateOutput() {
@@ -422,10 +453,9 @@ int COhosBackend::present(const FrameInfo_t* info) {
     VppGamescopeRecordOutput(g_device.vk,frame.command,target->vkImage(),m_output.images[index],
                              target->width(),target->height(),m_output.storage);
     if (embeddedFrame) {
-        size_t nativeIndex = 0;
         for (uint32_t i = 0; i < embeddedFrame->count; ++i)
             if (embeddedFrame->layers[i].native)
-                InputBarrier(frame.command, frame.inputs[nativeIndex++].get(), false, embeddedFrame->layers[i].vulkan);
+                InputBarrier(frame.command, frame.inputs[i].get(), false, embeddedFrame->layers[i].vulkan);
     }
     result = g_device.vk.EndCommandBuffer(frame.command);
     if (result != VK_SUCCESS) { error("end output command", result); return -EIO; }
@@ -445,6 +475,7 @@ int COhosBackend::present(const FrameInfo_t* info) {
     }
     const VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,nullptr,1,&m_output.rendered[index],1,&m_output.swapchain,&index,nullptr};
     result = g_device.vk.QueuePresentKHR(g_device.queue(), &present);
+    if (embeddedFrame && embeddedFrame->generated) m_fgCountPending=result==VK_SUCCESS || result==VK_SUBOPTIMAL_KHR;
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) m_resize = true;
     else if (result != VK_SUCCESS) { error("present output", result); return -EIO; }
     ++m_frameNumber;
@@ -471,14 +502,104 @@ void COhosBackend::InputBarrier(VkCommandBuffer command, CVulkanTexture* texture
         0,0,nullptr,0,nullptr,1,&b);
 }
 
+void COhosBackend::ShmStaging::clear() {
+    if (mapped) g_device.vk.UnmapMemory(g_device.device(), memory);
+    if (buffer) g_device.vk.DestroyBuffer(g_device.device(), buffer, nullptr);
+    if (memory) g_device.vk.FreeMemory(g_device.device(), memory, nullptr);
+    buffer = VK_NULL_HANDLE;
+    memory = VK_NULL_HANDLE;
+    mapped = nullptr;
+    capacity = 0;
+}
+
+bool COhosBackend::ShmStaging::reserve(size_t bytes) {
+    if (bytes <= capacity) return true;
+    clear();
+    VkBufferCreateInfo info{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+    info.size = std::bit_ceil(bytes);
+    info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    if (g_device.vk.CreateBuffer(g_device.device(), &info, nullptr, &buffer) != VK_SUCCESS)
+        return false;
+    VkMemoryRequirements requirements;
+    g_device.vk.GetBufferMemoryRequirements(g_device.device(), buffer, &requirements);
+    const int32_t type = g_device.findMemoryType(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, requirements.memoryTypeBits);
+    if (type < 0) return false;
+    const VkMemoryAllocateInfo allocate{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, nullptr,
+        requirements.size, uint32_t(type)};
+    if (g_device.vk.AllocateMemory(g_device.device(), &allocate, nullptr, &memory) != VK_SUCCESS ||
+        g_device.vk.BindBufferMemory(g_device.device(), buffer, memory, 0) != VK_SUCCESS ||
+        g_device.vk.MapMemory(g_device.device(), memory, 0, VK_WHOLE_SIZE, 0, &mapped) != VK_SUCCESS)
+        return false;
+    capacity = info.size;
+    return true;
+}
+
+void COhosBackend::RecordShmUpload(VkCommandBuffer command, VkBuffer buffer, size_t offset,
+                                  CVulkanTexture* texture, bool initialized) {
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.image = texture->vkImage();
+    barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    barrier.srcQueueFamilyIndex = barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.oldLayout = initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcAccessMask = initialized ? VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT : 0u;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    const VkPipelineStageFlags source = initialized
+        ? VkPipelineStageFlags(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT)
+        : VkPipelineStageFlags(VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
+    g_device.vk.CmdPipelineBarrier(command, source, VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0, 0, nullptr, 0, nullptr, 1, &barrier);
+    const VkBufferImageCopy region{offset, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+        {0, 0, 0}, {texture->width(), texture->height(), 1}};
+    g_device.vk.CmdCopyBufferToImage(command, buffer, texture->vkImage(), barrier.newLayout, 1, &region);
+    barrier.oldLayout = barrier.newLayout;
+    barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    g_device.vk.CmdPipelineBarrier(command, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
 bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
     auto& input = *embeddedFrame;
+    input.generated=0; input.completedGenerated=0; input.nextTickNs=0; input.frameGenerationGpuNs=0;
+    input.frameGenerationState=VPP_FG_OFF;
+    if (bool(input.frameGeneration)!=m_fgEnabled) {
+        m_fgEnabled=bool(input.frameGeneration);
+        m_framegen.Destroy(); m_fgSchedule.Reset(); m_history={}; m_fgIdentity=0;
+        m_fgTried=m_fgReady=false;
+        m_fgBudget.Reset();
+        m_fgCompleted=0;
+        m_fgCountPending=false;
+    }
+    if (input.historyReset) { m_fgSchedule.Reset(); m_fgIdentity=0; }
+    auto collectCompleted=[&]() {
+        const bool idle=m_framegen.Idle();
+        input.frameGenerationGpuNs=m_framegen.GpuNs();
+        if (m_fgCompleted!=m_framegen.Completed()) {
+            m_fgCompleted=m_framegen.Completed();
+            input.completedGenerated+=m_fgCountPending && !m_framegen.SceneCut();
+            m_fgCountPending=false;
+            if (m_framegen.SceneCut()) { m_fgSchedule.Reset(); m_fgIdentity=0; }
+            const auto budget=m_fgSchedule.GpuBudgetNs(input.displayPeriodNs);
+            m_fgBudget.Completed(input.nowNs,input.frameGenerationGpuNs,budget);
+        }
+        return idle;
+    };
+    if (m_fgReady) collectCompleted();
     if (g_device.vk.ResetCommandBuffer(slot.acquire,0) != VK_SUCCESS) return false;
     const VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,nullptr,VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
     if (g_device.vk.BeginCommandBuffer(slot.acquire,&begin) != VK_SUCCESS) return false;
     std::vector<VkSemaphore> waits; std::vector<VkPipelineStageFlags> stages;
-    std::vector<Rc<CVulkanTexture>> textures;
+    struct Upload {
+        const void* pixels = nullptr;
+        size_t offset = 0, bytes = 0;
+        bool initialized = false;
+    };
+    std::array<Upload, VppGamescopeMaxLayers> uploads{};
     slot.upright.resize(input.count);
+    slot.inputs.reserve(input.count);
     size_t uploadBytes = 0;
     for (uint32_t i=0;i<input.count;++i) {
         const auto& layer = input.layers[i];
@@ -488,27 +609,34 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
         // GPU and SHM identities occupy separate cache namespaces.
         key = (key << 1) | (layer.native ? 1 : 0);
         auto& cached = embeddedCache[key];
-        if (!cached.texture || cached.texture->width()!=layer.width || cached.texture->height()!=layer.height ||
-            cached.opaque!=bool(layer.opaque) ||
-            (!layer.native && cached.serial!=layer.serial)) {
-            OwningRc<CVulkanTexture> texture;
+        const bool changed = !cached.texture || cached.texture->width() != layer.width ||
+            cached.texture->height() != layer.height || cached.opaque != bool(layer.opaque);
+        const bool dirty = !layer.native && (changed || cached.serial != layer.serial);
+        // If a layer key repeats within the scene with a different serial, the
+        // prior layer still needs to sample the texture recorded for its serial.
+        const bool allocate = changed || (dirty && cached.seen == m_frameNumber);
+        if (allocate) {
+            OwningRc<CVulkanTexture> texture = new CVulkanTexture();
             if (layer.native) {
-                texture = new CVulkanTexture();
                 if (!texture->BInitNativeBuffer(layer.native,layer.width,layer.height,layer.opaque)) return false;
             } else {
-                uploadBytes += size_t(layer.width)*layer.height*4;
-                if (!layer.pixels || uploadBytes>32u*1024*1024) return false;
                 CVulkanTexture::createFlags flags;
-                texture = vulkan_create_texture_from_bits(layer.width,layer.height,layer.width,layer.height,
-                    layer.opaque?DRM_FORMAT_XRGB8888:DRM_FORMAT_ARGB8888,flags,const_cast<void*>(layer.pixels));
-                if (!texture) return false;
+                flags.bSampled = flags.bTransferDst = true;
+                const uint32_t format = layer.opaque ? DRM_FORMAT_XRGB8888 : DRM_FORMAT_ARGB8888;
+                if (!texture->BInit(layer.width, layer.height, 1, format, flags)) return false;
             }
-            cached.texture=std::move(texture); cached.serial=layer.serial; cached.opaque=layer.opaque;
+            cached.texture = std::move(texture);
+            cached.opaque = layer.opaque;
+        }
+        if (dirty) {
+            const size_t bytes = size_t(layer.width) * layer.height * 4;
+            uploads[i] = {layer.pixels, uploadBytes, bytes, !allocate};
+            uploadBytes += bytes;
+            cached.serial = layer.serial;
         }
         cached.seen=m_frameNumber;
-        textures.push_back(cached.texture.get());
-        if (!layer.native) continue;
         slot.inputs.push_back(cached.texture.get());
+        if (!layer.native) continue;
         if (layer.fence>=0) {
             const size_t n=waits.size();
             if (n>=slot.waits.size()) {
@@ -525,6 +653,13 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
         }
         InputBarrier(slot.acquire,cached.texture.get(),true,layer.vulkan);
     }
+    if (!slot.shm.reserve(uploadBytes)) return false;
+    for (uint32_t i = 0; i < input.count; ++i) {
+        const auto& upload = uploads[i];
+        if (!upload.bytes) continue;
+        memcpy(static_cast<uint8_t*>(slot.shm.mapped) + upload.offset, upload.pixels, upload.bytes);
+        RecordShmUpload(slot.acquire, slot.shm.buffer, upload.offset, slot.inputs[i].get(), upload.initialized);
+    }
     if (g_device.vk.EndCommandBuffer(slot.acquire)!=VK_SUCCESS) return false;
     if (m_output.storage) {
         waits.push_back(slot.acquired); stages.push_back(VppGamescopeOutputWaitStage(true));
@@ -535,20 +670,75 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
     // once, blend in linear light, and explicitly encode the final SDR output.
     info.applyOutputColorMgmt=true;
     info.outputEncodingEOTF=EOTF_Gamma22;
+    const auto fgLayerIndex=VppGamescopeFrameGenerationLayer(input);
+    if (m_fgEnabled && fgLayerIndex==input.count) {
+        m_fgSchedule.Reset(); m_fgIdentity=0;
+        input.frameGenerationState=VPP_FG_NO_GPU_GAME;
+    }
     for (uint32_t i=0;i<input.count;++i) {
-        const auto& src=input.layers[i]; auto texture=textures[i];
+        const auto& src=input.layers[i]; auto texture=slot.inputs[i];
+        bool fgLayer=m_fgEnabled && i==fgLayerIndex;
+        bool fresh=false;
+        if (fgLayer) {
+            // Geometry/renderer changes are history boundaries. Exclude the
+            // producer's rotating buffer address and its frame serial.
+            uint64_t identity=1469598103934665603ull;
+            auto hash=[&](const auto& value) {
+                const auto* p=reinterpret_cast<const uint8_t*>(&value);
+                for (size_t n=0;n<sizeof(value);++n) identity=(identity^p[n])*1099511628211ull;
+            };
+            hash(src.key); hash(src.width); hash(src.height); hash(src.vulkan);
+            hash(src.u0); hash(src.u1); hash(src.v0); hash(src.v2);
+            hash(src.x); hash(src.y); hash(src.w); hash(src.h); hash(input.width); hash(input.height);
+            if (m_fgIdentity!=identity) {
+                // Lifecycle boundary only. Do not destroy an image still used
+                // by normalization/composition from the previous geometry.
+                g_device.vk.QueueWaitIdle(g_device.queue()); g_device.waitIdle();
+                m_fgSchedule.Reset(); m_history={}; m_historyNs={}; m_historyIndex=0; m_fgIdentity=identity;
+                m_fgBudget.Reset();
+            }
+            const bool cooling=m_fgBudget.CoolingDown();
+            const bool budgetAllows=m_fgBudget.Allow(input.nowNs);
+            if (cooling && budgetAllows) {
+                // No interpolation across the cooldown gap. Re-warm with
+                // new endpoints without reallocating or draining the queue.
+                m_fgSchedule.Reset(); m_historyNs={};
+            }
+            fresh=m_fgSchedule.Observe(identity,src.serial,input.nowNs,input.displayPeriodNs);
+            input.frameGenerationState=m_fgSchedule.Reason(input.displayPeriodNs);
+            if (fresh) m_historyIndex^=1;
+            // Saturated/unsupported paths keep the original compositor cost.
+            // Capture only while warming, generating, or releasing a held real.
+            if (!input.displayPeriodNs || (input.frameGenerationState==VPP_FG_DISPLAY_RATE &&
+                    !m_fgSchedule.CanGenerate() && !m_fgSchedule.Pending())) fgLayer=false;
+            if (m_fgTried && !m_fgReady) { fgLayer=false; input.frameGenerationState=VPP_FG_UNSUPPORTED; }
+            if (!budgetAllows || std::abs(src.u1*src.v2)*double(src.width)*src.height>1920u*1080u) {
+                fgLayer=false; input.frameGenerationState=VPP_FG_BUDGET;
+            }
+        }
         // Normalize GLES row direction and client cropping on GPU at source
         // resolution. FSR then receives upright client pixels, never borders.
-        const bool normalize=src.u0!=0 || src.u1!=1 || src.v0!=0 || src.v2!=1;
+        const bool crop=src.u0!=0 || src.u1!=1 || src.v0!=0 || src.v2!=1;
+        const bool normalize=crop || fgLayer;
         if (normalize) {
             const uint32_t w=std::lround(std::abs(src.u1)*src.width), h=std::lround(std::abs(src.v2)*src.height);
             if (!w || !h || w>8192 || h>8192) return false;
-            auto& upright=slot.upright[i];
-            if (!upright || upright->width()!=w || upright->height()!=h) {
-                upright=new CVulkanTexture(); CVulkanTexture::createFlags flags;
+            auto* upright=fgLayer?&m_history[m_historyIndex]:&slot.upright[i];
+            auto allocate=[&]() {
+                if (*upright && (*upright)->width()==w && (*upright)->height()==h) return true;
+                *upright=new CVulkanTexture(); CVulkanTexture::createFlags flags;
                 flags.bStorage=flags.bSampled=true;
-                if (!upright->BInit(w,h,1,DRM_FORMAT_ABGR8888,flags)) return false;
+                if ((*upright)->BInit(w,h,1,DRM_FORMAT_ABGR8888,flags)) return true;
+                *upright=nullptr; return false;
+            };
+            if (!allocate()) {
+                if (!fgLayer) return false;
+                fgLayer=false; m_fgBudget.Suspend(input.nowNs); input.frameGenerationState=VPP_FG_BUDGET;
+                upright=crop?&slot.upright[i]:nullptr;
+                if (upright && !allocate()) return false;
             }
+            if (upright) {
+            if (!fgLayer || fresh) {
             FrameInfo_t normalizeInfo{}; auto* l=normalizeInfo.layers.push(); l->tex=texture;
             l->scale={src.u1*src.width/w,src.v2*src.height/h};
             l->offset={src.u0*src.width/l->scale.x,src.v0*src.height/l->scale.y};
@@ -558,10 +748,49 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             l->colorspace=GAMESCOPE_APP_TEXTURE_COLORSPACE_PASSTHRU;
             const auto outputW=currentOutputWidth, outputH=currentOutputHeight;
             currentOutputWidth=w; currentOutputHeight=h;
-            auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright.get(),false);
+            auto submitted=vulkan_composite(&normalizeInfo,nullptr,false,upright->get(),false);
             currentOutputWidth=outputW; currentOutputHeight=outputH;
             if (!submitted) return false;
-            texture=upright.get();
+            if (fgLayer) m_historyNs[m_historyIndex]=input.nowNs;
+            }
+            texture=upright->get();
+            }
+        }
+        const bool historyReady=m_history[m_historyIndex^1] && input.nowNs>=m_historyNs[m_historyIndex^1] &&
+            input.nowNs-m_historyNs[m_historyIndex^1]<=m_fgSchedule.IntervalNs()*3/2;
+        if (fgLayer && m_fgSchedule.CanGenerate() && !historyReady) input.frameGenerationState=VPP_FG_WARMING;
+        if (fgLayer && m_fgSchedule.CanGenerate() && historyReady) {
+            if (!m_fgTried) {
+                m_fgTried=true;
+                m_fgReady=m_framegen.Init(vulkan_get_instance(),g_pfn_vkGetInstanceProcAddr,
+                    g_device.physDev(),g_device.device(),g_device.queueFamily(),g_device.queue());
+            }
+            if (!m_fgReady) input.frameGenerationState=VPP_FG_UNSUPPORTED;
+            // Completion may arrive during source normalization. Account for
+            // it before recording another generation or replacing its token.
+            else if (!collectCompleted()) input.frameGenerationState=VPP_FG_GPU_BUSY;
+            else if (!m_fgSchedule.CanGenerate()) input.frameGenerationState=VPP_FG_WARMING;
+            else if (!m_fgBudget.Allow(input.nowNs)) input.frameGenerationState=VPP_FG_BUDGET;
+            else if (!m_framegen.Resize({texture->width(),texture->height()})) {
+                input.frameGenerationState=VPP_FG_FAILED; m_fgBudget.Suspend(input.nowNs);
+            }
+            else {
+                auto& generated=slot.generated;
+                if (!generated || generated->width()!=texture->width() || generated->height()!=texture->height()) {
+                    generated=new CVulkanTexture(); CVulkanTexture::createFlags flags;
+                    flags.bStorage=flags.bSampled=true;
+                    if (!generated->BInit(texture->width(),texture->height(),1,DRM_FORMAT_ABGR8888,flags)) generated=nullptr;
+                }
+                auto previous=m_history[m_historyIndex^1].get();
+                if (generated && m_framegen.Generate(previous,texture.get(),generated.get())) {
+                    texture=generated.get(); input.generated=1; input.frameGenerationState=VPP_FG_RUNNING;
+                    m_fgSchedule.Generated(input.nowNs,input.displayPeriodNs);
+                } else { input.frameGenerationState=VPP_FG_FAILED; m_fgBudget.Suspend(input.nowNs); }
+            }
+        }
+        if (fgLayer) {
+            if (!input.generated) m_fgSchedule.RealPresented();
+            input.nextTickNs=m_fgSchedule.DueNs();
         }
         if (info.layers.count()==k_nMaxLayers) {
             // Preserve arbitrary desktop/UI stacking using bounded core passes.

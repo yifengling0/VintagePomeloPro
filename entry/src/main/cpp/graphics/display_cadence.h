@@ -2,6 +2,7 @@
 #include <native_vsync/native_vsync.h>
 #include <cstdint>
 #include <cstring>
+#include <atomic>
 
 namespace winehua {
 
@@ -34,13 +35,22 @@ public:
         // GetPeriod is refreshed by RequestFrame callbacks, not by polling
         // alone. The callback has no renderer pointer or Vulkan work, so it
         // cannot race the renderer's teardown or issue queue operations.
-        OH_NativeVSync_RequestFrame(vsync_, [](long long, void*) {}, nullptr);
+        if (!requested_ || nowUs-lastRequestUs_>=periodNs_*3/4000) {
+        requested_=true; lastRequestUs_=nowUs;
+        OH_NativeVSync_RequestFrame(vsync_, [](long long timestamp, void*) {
+            // Static clock only: no renderer pointer can outlive destruction.
+            auto previous=tickNs_.load(std::memory_order_relaxed);
+            while (timestamp>0 && uint64_t(timestamp)>previous &&
+                !tickNs_.compare_exchange_weak(previous,uint64_t(timestamp),std::memory_order_relaxed)) {}
+        }, nullptr);
+        }
         if (queried_ && nowUs - lastQueryUs_ < 100000) return false;
         queried_ = true;
         lastQueryUs_ = nowUs;
         long long period = 0;
         if (OH_NativeVSync_GetPeriod(vsync_, &period) != 0 ||
             period < 1000000 || period > 1000000000) return false;
+        valid_=true;
         const auto value = static_cast<uint64_t>(period);
         const auto delta = value > periodNs_ ? value - periodNs_ : periodNs_ - value;
         if (delta < 500000) return false;
@@ -48,12 +58,29 @@ public:
         return true;
     }
     uint64_t PeriodNs() const { return periodNs_; }
+    uint64_t TickNs() const { return tickNs_.load(std::memory_order_relaxed); }
+    bool HasPeriod() const { return valid_; }
+    bool HasFreshTick(uint64_t nowNs) const {
+        const auto tick=TickNs();
+        // A stopped/failed VSync callback must never hold real game frames.
+        // Keep a short grace window for scheduling jitter and resume, then
+        // let the caller bypass interpolation until live ticks return.
+        const uint64_t grace=periodNs_*4>100000000?periodNs_*4:100000000;
+        return valid_ && tick && nowNs>=tick && nowNs-tick<grace;
+    }
+    bool WaitForNextTick(uint64_t nowNs,uint64_t lastSubmittedTick) const {
+        return HasFreshTick(nowNs) && TickNs()==lastSubmittedTick;
+    }
 
 private:
     OH_NativeVSync* vsync_ = nullptr;
     uint64_t periodNs_ = 16666667;
     uint64_t lastQueryUs_ = 0;
     bool queried_ = false;
+    bool valid_ = false;
+    bool requested_ = false;
+    uint64_t lastRequestUs_ = 0;
+    inline static std::atomic<uint64_t> tickNs_{0};
 };
 
 } // namespace winehua

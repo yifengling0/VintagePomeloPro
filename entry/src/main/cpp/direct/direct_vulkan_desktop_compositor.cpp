@@ -1,3 +1,4 @@
+#include "graphics/harmony_frame_policy.h"
 #include "graphics/game_presentation.h"
 #include "Embedded.h"
 #include <dlfcn.h>
@@ -106,6 +107,7 @@ class VulkanDesktopRenderer {
         bool owned = false;
         DirectFrameAcceptance accepted;
         bool glSource = false;
+        uint64_t frameSerial = 0;
     };
     struct Layer {
         DirectDesktopSource source;
@@ -134,6 +136,8 @@ public:
     ~VulkanDesktopRenderer() {
         desktopVulkanActive.store(false, std::memory_order_relaxed);
         if (gamescopeStop_) {
+            winehua::game::fgState.store(0); winehua::game::fgGpuNs.store(0);
+            winehua::game::fgRealMilliFps.store(0); winehua::game::fgGeneratedMilliFps.store(0); winehua::game::fgPresentedMilliFps.store(0);
             // Drain core reads and release FOREIGN ownership before queues.
             if (gamescopeTiming_) gamescopeTiming_(false,nullptr);
             gamescopeStop_();
@@ -514,23 +518,56 @@ public:
     uint64_t PresentationSerial() const { return presentationSerial_; }
 
 private:
+    bool UpdateGamescopeSources(uint64_t nowNs, bool fgEnabled, bool paused, bool reset) {
+        // Deliver the real endpoint before replacing its producer buffer. A
+        // completed interpolation may already have consumed most of this tick;
+        // polling first used to discard that endpoint at higher source rates.
+        // A stale deadline/cadence never holds up newly available game frames.
+        const bool pendingReal = gamescopeNextTickNs_ &&
+            (nowNs <= gamescopeNextTickNs_ || nowNs - gamescopeNextTickNs_ < cadence_.PeriodNs());
+        if (fgEnabled && !paused && !reset && pendingReal && cadence_.HasFreshTick(nowNs)) return true;
+        const bool acquireSource = !fgEnabled || paused || gamescopeSourceDeadline_.Ready(nowNs, winehua::game::LimitPeriodNs());
+        if (acquireSource && !UpdateSources()) return false;
+        // Broker GL/Venus producers already own the explicit source limit.
+        // Only the pending-real hold above applies to both producer routes.
+        UpdateGlSources();
+        return true;
+    }
     bool RenderGamescope(int width, int height, bool paused, bool repaint) {
+        double fgFps=0;
+        const auto fgNow=winehua::PerfNowUs();
+        if (gamescopeRealRate_.Sample(fgNow,fgFps)) winehua::game::fgRealMilliFps.store(uint32_t(fgFps*1000));
+        if (gamescopeGeneratedRate_.Sample(fgNow,fgFps)) winehua::game::fgGeneratedMilliFps.store(uint32_t(fgFps*1000));
+        if (gamescopePresentedRate_.Sample(fgNow,fgFps)) winehua::game::fgPresentedMilliFps.store(uint32_t(fgFps*1000));
         if (gamescopeTiming_) gamescopeTiming_((winehua::FrameLoopDiagnosticState() & 1)!=0,
             [](const char* detail) { OH_LOG_INFO(LOG_APP,"[GAMESCOPE-GPU] %{public}s",detail); });
         const auto policy=winehua::game::Snapshot();
         const bool policyChanged=gamescopePolicy_.Changed(policy);
         const bool cadenceChanged=cadence_.Refresh(winehua::PerfNowUs());
+        if (winehua::game::HarmonyFrameGeneration()) {
+            if (auto* framePolicy = winehua::graphics::HarmonyFramePolicyForApp())
+                __atomic_store_n(&framePolicy->displayPeriodNs, uint32_t(cadence_.PeriodNs()), __ATOMIC_RELAXED);
+        }
+        const auto nowNs=winehua::PerfNowUs()*1000;
+        const auto tickNs=cadence_.TickNs();
+        const bool fgEnabled=(policy&16u)!=0;
+        if (paused!=background_ || cadenceChanged || policyChanged) gamescopeResetHistory_=true;
         if (paused!=background_ || cadenceChanged || policyChanged) {
             for (const auto& [key,layer]:glLayers_)
                 GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(key,
                     paused?100000000ull:winehua::game::ProducerPeriodNs(cadence_.PeriodNs()));
         }
         background_=paused;
-        if (!UpdateSources()) return false;
-        UpdateGlSources();
+        if (policyChanged) gamescopeSourceDeadline_.next=0;
+        if (!UpdateGamescopeSources(nowNs,fgEnabled,paused,gamescopeResetHistory_)) return false;
         for (auto& buffer:retired_) Return(buffer,-1);
         retired_.clear();
         if (paused) return true;
+        // NativeVSync is the extra-frame clock; FIFO still owns swapchain
+        // availability. Never enqueue gen+real together on the same tick.
+        if (fgEnabled && cadence_.WaitForNextTick(nowNs,gamescopeLastTick_) && !policyChanged) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1)); return true;
+        }
         PublishFrameRates();
         std::vector<GpuDesktopDirectSource> direct;
         for (const auto& [id,layer]:layers_) if (layer.current.image)
@@ -548,7 +585,9 @@ private:
         bool fresh=false;
         for (auto& [id,layer]:layers_) fresh|=layer.current.accepted.pending;
         for (auto& [key,layer]:glLayers_) fresh|=layer->current.accepted.pending;
-        if (!fresh && !repaint && !policyChanged && SameGpuDesktopScene(next,scene_) && width==gamescopeWidth_ && height==gamescopeHeight_) {
+        if (!fresh && !repaint && !policyChanged && SameGpuDesktopScene(next,scene_) && width==gamescopeWidth_ && height==gamescopeHeight_ &&
+                (!gamescopeNextTickNs_ || nowNs<gamescopeNextTickNs_)) {
+            if (gamescopeNextTickNs_) { std::this_thread::sleep_for(std::chrono::milliseconds(1)); return true; }
             std::this_thread::sleep_for(std::chrono::milliseconds(8)); return true;
         }
         scene_=std::move(next);
@@ -571,6 +610,7 @@ private:
             }
             if (buffer && buffer->image) {
                 input.native=buffer->image->native; input.fence=buffer->acquireFence;
+                input.serial=buffer->frameSerial;
                 input.width=buffer->image->width; input.height=buffer->image->height;
                 input.vulkan=!buffer->glSource;
                 // Broker Vulkan images are Venus NativePresent copies in
@@ -600,6 +640,10 @@ private:
         VppGamescopeFrame frame; frame.width=width; frame.height=height;
         frame.filter=(policy&8u)?3:(policy&4u)?2:(policy&2u)?1:0;
         frame.sharpness=(policy>>16)&31u; frame.count=inputs.size(); frame.layers=inputs.data();
+        frame.frameGeneration=fgEnabled; frame.nowNs=nowNs;
+        frame.displayPeriodNs=cadence_.HasFreshTick(nowNs)?cadence_.PeriodNs():0;
+        frame.historyReset=gamescopeResetHistory_;
+        const auto fgLayerIndex=VppGamescopeFrameGenerationLayer(frame);
         const int result=gamescopePresent_(&frame);
         // Even a present error may follow successful GPU submission. Always
         // adopt its completion before returning a sampled buffer to producer.
@@ -616,11 +660,45 @@ private:
         if (result) return Fail("gamescope_gpu_present",VK_ERROR_INITIALIZATION_FAILED);
         gamescopeWidth_=frame.width; gamescopeHeight_=frame.height;
         gamescopePolicy_.Presented(policy);
+        gamescopeResetHistory_=false; gamescopeLastTick_=tickNs;
+        gamescopeNextTickNs_=frame.nextTickNs;
+        winehua::game::fgState.store(frame.frameGenerationState);
+        winehua::game::fgGpuNs.store(frame.frameGenerationGpuNs);
+        bool sourceFrame=false;
         bool gameFrame=false;
-        for (auto* buffer:buffers) if (buffer) gameFrame|=buffer->accepted.Presented(true,true);
+        for (size_t i=0;i<buffers.size();++i) if (auto* buffer=buffers[i]) {
+            const bool accepted=buffer->accepted.Presented(true,true);
+            gameFrame|=accepted;
+            // FG operates on the selected opaque GPU client. A popup or another
+            // window submitting a buffer must not inflate the source FPS.
+            if (i==fgLayerIndex) sourceFrame=accepted;
+        }
         ++presentationSerial_; ++presents_; desktopPresents.fetch_add(1,std::memory_order_relaxed);
         if (gameFrame) { desktopGamePresents.fetch_add(1,std::memory_order_relaxed); rootRate_.Record(); }
         else if (direct.empty() && gl.empty()) rootRate_.Record();
+        if (sourceFrame) { gamescopeRealRate_.Record(); ++gamescopeRealFrames_; }
+        if (frame.completedGenerated) { gamescopeGeneratedRate_.Record(); ++gamescopeGeneratedFrames_; }
+        // Source acceptance occurs even when this output is interpolated. A
+        // held real image counts only when it is actually submitted later.
+        if (!frame.generated && fgLayerIndex<buffers.size() && buffers[fgLayerIndex] &&
+                (inputs[fgLayerIndex].key!=gamescopeLastRealKey_ ||
+                 buffers[fgLayerIndex]->frameSerial!=gamescopeLastRealSerial_)) {
+            gamescopeLastRealKey_=inputs[fgLayerIndex].key;
+            gamescopeLastRealSerial_=buffers[fgLayerIndex]->frameSerial;
+            gamescopePresentedRate_.Record();
+            ++gamescopePresentedFrames_;
+        }
+        if (frame.completedGenerated) { gamescopePresentedRate_.Record(); ++gamescopePresentedFrames_; }
+        if ((winehua::FrameLoopDiagnosticState() & 1) && fgNow-gamescopeDiagnosticUs_>=1000000) {
+            gamescopeDiagnosticUs_=fgNow;
+            OH_LOG_INFO(LOG_APP,"[GAMESCOPE-FG] us=%{public}llu real=%{public}llu gen=%{public}llu present=%{public}llu state=%{public}u gpuNs=%{public}llu displayNs=%{public}llu source=%{public}ux%{public}u output=%{public}ux%{public}u policy=%{public}u fgLayer=%{public}u layers=%{public}u gpuLayers=%{public}u",
+                (unsigned long long)fgNow,(unsigned long long)gamescopeRealFrames_,
+                (unsigned long long)gamescopeGeneratedFrames_,(unsigned long long)gamescopePresentedFrames_,
+                frame.frameGenerationState,(unsigned long long)frame.frameGenerationGpuNs,
+                (unsigned long long)frame.displayPeriodNs,fgLayerIndex<inputs.size()?inputs[fgLayerIndex].width:0,
+                fgLayerIndex<inputs.size()?inputs[fgLayerIndex].height:0,
+                frame.width,frame.height,policy,fgLayerIndex,frame.count,frame.gpuLayers);
+        }
         if (presents_==1 || presents_%300==0 || frame.gpuLayers!=lastGameGpuLayers_ || frame.fsrPasses!=lastGameFsrPasses_) OH_LOG_INFO(LOG_APP,
             "[GAMESCOPE] presents=%{public}llu native=%{public}u filter=%{public}u fsrPasses=%{public}u cpuGameCopies=0",
             (unsigned long long)presents_,frame.gpuLayers,frame.filter,frame.fsrPasses);
@@ -748,6 +826,7 @@ private:
             DirectDesktopSource source{}; source.queue = layer.queue;
             layer.current = {source, buffer, image, fence, false, {}, true};
             layer.current.accepted.Acquired();
+            layer.current.frameSerial=++gamescopeSourceSerial_;
             layer.width = config.width; layer.height = config.height;
             compositor_.zc().NoteProducerPresent(layer.key, now);
             compositor_.zc().Activate(layer.key, root);
@@ -832,6 +911,7 @@ private:
             Retire(layer.current);
             layer.current = {source, windowBuffer, image, fence, false, {}};
             layer.current.accepted.Acquired();
+            layer.current.frameSerial=++gamescopeSourceSerial_;
             for (auto it = layer.cache.begin(); it != layer.cache.end();)
                 if (it->second && (it->second->width != config.width || it->second->height != config.height))
                     it = layer.cache.erase(it); else ++it;
@@ -1062,6 +1142,11 @@ private:
     int (*gamescopePresent_)(VppGamescopeFrame*) = nullptr;
     int gamescopeWidth_=0, gamescopeHeight_=0;
     winehua::game::AppliedPolicy gamescopePolicy_;
+    uint64_t gamescopeSourceSerial_=0, gamescopeLastTick_=0, gamescopeNextTickNs_=0, gamescopeLastRealSerial_=0, gamescopeLastRealKey_=0;
+    bool gamescopeResetHistory_=true;
+    DirectFrameRate gamescopeRealRate_,gamescopeGeneratedRate_,gamescopePresentedRate_;
+    uint64_t gamescopeRealFrames_=0,gamescopeGeneratedFrames_=0,gamescopePresentedFrames_=0,gamescopeDiagnosticUs_=0;
+    winehua::game::FrameDeadline gamescopeSourceDeadline_;
     uint32_t lastGameGpuLayers_=0, lastGameFsrPasses_=0;
     std::unique_ptr<DirectVulkanContext> core_;
     VkSampler sampler_ = VK_NULL_HANDLE;

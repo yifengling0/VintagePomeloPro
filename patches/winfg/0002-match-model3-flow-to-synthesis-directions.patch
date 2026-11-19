@@ -1,0 +1,14 @@
+--- a/shaders/of3_expand.comp
++++ b/shaders/of3_expand.comp
+@@ -108,6 +108,9 @@
+     mat2 A2  = mat2(1.0 + gmApp.x, gmApp.y, gmApp.z, 1.0 + gmApp.w);  // I + P
+     vec2 full = gpx + A2 * d;
+ 
+-    imageStore(uFwd, gid, vec4( full, 0.0, 1.0));
+-    imageStore(uBwd, gid, vec4(-full, 0.0, 1.0));
++    // SAD searches prev -> curr. Synthesis names flowExpA/Fwd F10
++    // (curr -> prev), and flowExpB/Bwd F01 (prev -> curr).
++    // Reversing these warps away from the temporal midpoint.
++    imageStore(uFwd, gid, vec4(-full, 0.0, 1.0));
++    imageStore(uBwd, gid, vec4( full, 0.0, 1.0));
+ }

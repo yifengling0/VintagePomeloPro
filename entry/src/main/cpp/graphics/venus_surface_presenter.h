@@ -47,7 +47,7 @@ public:
                      uint32_t serial,
                      uint64_t* nextPresentDeadlineNs,
                      void (*releaseQueue)(void*),
-                     void* queueSyncData) override;
+                     void* queueSyncData, const void* frameScene) override;
 
 private:
     struct Impl;

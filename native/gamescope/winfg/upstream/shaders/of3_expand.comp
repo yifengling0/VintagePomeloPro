@@ -1,0 +1,99 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg model 3 — FSR3 Optical Flow (pass 4/4): scale to full res + fwd/bwd.
+//
+// Adapted from AMD FidelityFX-SDK FSR3 Optical Flow scale pass:
+//   ffx_opticalflow_scale_optical_flow_advanced_v5.h (bilinear upscale of the
+//   coarse flow field to display resolution). FidelityFX SDK is MIT-licensed.
+//
+// Produces the two full-resolution flow images win-fg's synthesis pass
+// (wfg_synth) consumes as flowExpA / flowExpB.
+//
+// DEVIATION (color-only, single-direction OF): FSR3 OF estimates one motion
+// field (curr vs prev). win-fg's synthesis wants a forward and a
+// backward field. With no second (true backward) estimate available we use the
+// symmetric assumption backward = -forward; the per-frame blend alpha and
+// flowScale are applied downstream by the synth UBO exactly as in model 0.
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0) uniform U {
+    float flowScale;   // kept for layout parity; scaling applied in synth UBO
+    uint  level;
+    uint  pad0;
+    uint  pad1;
+};
+
+// C1 global-motion add-back. The finest solved flow is now an OBJECT-ONLY
+// residual (of3_gm_prewarp removed the global/camera motion before the search),
+// so recombine the estimated global affine here to hand wfg_synth the SAME full
+// flow it would have received with no pre-warp. Identity params ⇒ exact
+// pass-through (byte-identical to pre-C1). See of3_gm_reduce/of3_gm_prewarp.
+layout(binding = 1) uniform GM {
+    vec4 gmLin;    // running estimate (unused here)
+    vec4 gmLinT;   // (unused here)
+    vec4 gmApp;    // APPLIED p1,p2,p3,p4  -> P=[[p1,p3],[p2,p4]]
+    vec4 gmAppT;   // APPLIED tx,ty
+};
+
+layout(binding = 32) uniform sampler2D uFlowFine;            // finest solved flow, full-res px (residual)
+layout(binding = 48, rgba16f) uniform writeonly image2D uFwd; // -> flowExpA_
+layout(binding = 49, rgba16f) uniform writeonly image2D uBwd; // -> flowExpB_
+
+// median of 5 floats via sorting network — 9 min/max, standard reference. Used
+// per-axis on the 5-tap flow cross below. Purpose: strip isolated outlier flow
+// vectors (single-block SAD hiccups on textureless regions) before they melt
+// the synth. Not a smoothness filter (unlike Gaussian): edges through the flow
+// field survive intact.
+float med5(float a, float b, float c, float d, float e) {
+    float x, y;
+    // sort a,b
+    x = min(a,b); a = max(a,b); b = x;
+    // sort c,d
+    x = min(c,d); c = max(c,d); d = x;
+    // sort a,c and b,d
+    x = min(a,c); a = max(a,c); c = x;
+    x = min(b,d); b = max(b,d); d = x;
+    // sort b,c
+    x = min(b,c); b = max(b,c); c = x;
+    // insert e; median of the middle three (b,c,e sorted) is the answer
+    y = min(b, e); x = max(b, e);
+    return min(max(y, c), x);
+}
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = imageSize(uFwd);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    vec2 uv = (vec2(gid) + 0.5) / vec2(dim);
+
+    // 5-tap median cross on the input flow field. Offsets are one input-texel
+    // wide so neighbours are distinct flow cells (input res is 1/4 output res
+    // when kFlowFinest=2, so the cross spans one flow tile in each direction).
+    // Kills speckle outliers that produce the crawling / melting look during
+    // smooth pans, without the softening that a Gaussian would introduce.
+    // Cost: 5 flow reads + 2 med5 (18 min/max) per output pixel, negligible.
+    vec2 fs = 1.0 / vec2(textureSize(uFlowFine, 0));
+    vec2 c  = textureLod(uFlowFine, uv,                    0.0).xy;
+    vec2 xm = textureLod(uFlowFine, uv - vec2(fs.x, 0.0), 0.0).xy;
+    vec2 xp = textureLod(uFlowFine, uv + vec2(fs.x, 0.0), 0.0).xy;
+    vec2 ym = textureLod(uFlowFine, uv - vec2(0.0, fs.y), 0.0).xy;
+    vec2 yp = textureLod(uFlowFine, uv + vec2(0.0, fs.y), 0.0).xy;
+    vec2 d = vec2(med5(c.x, xm.x, xp.x, ym.x, yp.x),
+                  med5(c.y, xm.y, xp.y, ym.y, yp.y));
+
+    // ── C1 global-motion add-back ─────────────────────────────────────────────
+    // full(x) = g(x) + (I+P)·residual, the exact linear composition of the global
+    // affine warp W (prev→curr) with the residual searched in stabilized space:
+    //   W_px(x) - x = g(x)   (global disp, full-res px),   dW/dx = I+P.
+    // Identity affine (gmApp=0) ⇒ g=0, I+P=I ⇒ full=d (pre-C1 behaviour exactly).
+    vec2 q   = uv - 0.5;
+    vec2 gpx = vec2(gmApp.x * q.x + gmApp.z * q.y + gmAppT.x,
+                    gmApp.y * q.x + gmApp.w * q.y + gmAppT.y) * vec2(dim);
+    mat2 A2  = mat2(1.0 + gmApp.x, gmApp.y, gmApp.z, 1.0 + gmApp.w);  // I + P
+    vec2 full = gpx + A2 * d;
+
+    imageStore(uFwd, gid, vec4( full, 0.0, 1.0));
+    imageStore(uBwd, gid, vec4(-full, 0.0, 1.0));
+}

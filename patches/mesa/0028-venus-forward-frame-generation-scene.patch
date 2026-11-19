@@ -1,0 +1,187 @@
+diff --git a/src/virtio/vulkan/vpp_frame_scene_vk.h b/src/virtio/vulkan/vpp_frame_scene_vk.h
+new file mode 100644
+--- /dev/null
++++ b/src/virtio/vulkan/vpp_frame_scene_vk.h
+@@ -0,0 +1,27 @@
++/* Optional WineHua scene data, carried with one Vulkan present. */
++#ifndef VPP_FRAME_SCENE_VK_H
++#define VPP_FRAME_SCENE_VK_H
++
++#include <stdint.h>
++
++#define VPP_FRAME_SCENE_PARAM 0x57480103
++#define VPP_FRAME_SCENE_VERSION 1
++#define VPP_FRAME_SCENE_DWORDS 46
++
++struct vpp_frame_scene_data {
++   uint32_t version, size;
++   uint64_t serial, color, depth;
++   uint32_t color_format, color_layout, depth_format, depth_layout, width, height;
++   float view_projection[16], inverse_view_projection[16];
++};
++
++_Static_assert(sizeof(struct vpp_frame_scene_data) == VPP_FRAME_SCENE_DWORDS * 4,
++               "Wine frame scene wire layout");
++
++int vn_winehua_present_scene(VkQueue queue_handle, VkImage image_handle,
++                             uint32_t width, uint32_t height, VkFormat format,
++                             VkImageLayout layout, uint32_t client_pid,
++                             uint32_t surface_id, uint32_t serial,
++                             uint64_t *next_present_deadline_ns,
++                             const struct vpp_frame_scene_data *scene);
++#endif
+diff --git a/src/virtio/vulkan/vn_renderer.h b/src/virtio/vulkan/vn_renderer.h
+--- a/src/virtio/vulkan/vn_renderer.h
++++ b/src/virtio/vulkan/vn_renderer.h
+@@ -131,6 +131,7 @@
+    uint32_t serial;
+    uint32_t flags;
+    uint64_t *next_present_deadline_ns;
++   const void *scene;
+ };
+ 
+ struct vn_renderer_ops {
+diff --git a/src/virtio/vulkan/vn_renderer_vtest.c b/src/virtio/vulkan/vn_renderer_vtest.c
+--- a/src/virtio/vulkan/vn_renderer_vtest.c
++++ b/src/virtio/vulkan/vn_renderer_vtest.c
+@@ -30,6 +30,7 @@
+ #include "vtest/vtest_protocol.h"
+ 
+ #include "vn_renderer_internal.h"
++#include "vpp_frame_scene_vk.h"
+ #include "vn_device.h"
+ #include "vn_image.h"
+ #include "vn_queue.h"
+@@ -97,6 +98,7 @@
+ struct vtest {
+    struct vn_renderer base;
+ 
++   bool winehua_frame_scene;
+    struct vn_instance *instance;
+ 
+    mtx_t sock_mutex;
+@@ -686,8 +688,10 @@
+    struct vtest *vtest,
+    const struct vn_renderer_winehua_present *present)
+ {
++   const bool with_scene = vtest->winehua_frame_scene && present->scene;
+    const uint32_t header[VTEST_HDR_SIZE] = {
+-      [VTEST_CMD_LEN] = VCMD_WINEHUA_VK_PRESENT_SIZE,
++      [VTEST_CMD_LEN] = VCMD_WINEHUA_VK_PRESENT_SIZE +
++         (with_scene ? VPP_FRAME_SCENE_DWORDS : 0),
+       [VTEST_CMD_ID] = VCMD_WINEHUA_VK_PRESENT,
+    };
+    const uint32_t command[VCMD_WINEHUA_VK_PRESENT_SIZE] = {
+@@ -718,6 +722,8 @@
+              present->serial, present->queue_id, present->image_id);
+    vtest_write(vtest, header, sizeof(header));
+    vtest_write(vtest, command, sizeof(command));
++   if (with_scene)
++      vtest_write(vtest, present->scene, sizeof(struct vpp_frame_scene_data));
+    if (vtest_winehua_present_trace_enabled())
+       vn_log(vtest->instance, "winehua vk present: waiting reply serial=%u",
+              present->serial);
+@@ -1297,6 +1303,8 @@
+       return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    vtest->max_timeline_count = val;
++   vtest->winehua_frame_scene =
++      vtest_vcmd_get_param(vtest, (enum vcmd_param)VPP_FRAME_SCENE_PARAM) == VPP_FRAME_SCENE_VERSION;
+ 
+    return VK_SUCCESS;
+ }
+@@ -1412,8 +1420,8 @@
+    return VK_SUCCESS;
+ }
+ 
+-__attribute__((visibility("default"))) int
+-vn_winehua_present(VkQueue queue_handle,
++static int
++vn_winehua_present_impl(VkQueue queue_handle,
+                    VkImage image_handle,
+                    uint32_t width,
+                    uint32_t height,
+@@ -1422,7 +1430,8 @@
+                    uint32_t client_pid,
+                    uint32_t surface_id,
+                    uint32_t serial,
+-                   uint64_t *next_present_deadline_ns)
++                   uint64_t *next_present_deadline_ns,
++                   const struct vpp_frame_scene_data *scene)
+ {
+    struct vn_queue *queue = vn_queue_from_handle(queue_handle);
+    struct vn_image *image = vn_image_from_handle(image_handle);
+@@ -1470,7 +1479,23 @@
+       }
+    }
+ 
++   struct vpp_frame_scene_data object_ids;
++   const struct vpp_frame_scene_data *present_scene = NULL;
++   if (scene && scene->version == VPP_FRAME_SCENE_VERSION &&
++       scene->size == sizeof(*scene) && scene->width == width && scene->height == height &&
++       scene->color && scene->depth) {
++      const struct vn_image *color = vn_image_from_handle((VkImage)(uintptr_t)scene->color);
++      const struct vn_image *depth = vn_image_from_handle((VkImage)(uintptr_t)scene->depth);
++      if (color && depth) {
++         object_ids = *scene;
++         object_ids.color = color->base.id;
++         object_ids.depth = depth->base.id;
++         present_scene = &object_ids;
++      }
++   }
++
+    const struct vn_renderer_winehua_present present = {
++      .scene = present_scene,
+       .queue_id = queue->base.id,
+       .image_id = image->base.id,
+       .width = width,
+@@ -1652,3 +1677,38 @@
+ 
+    return result;
+ }
++
++__attribute__((visibility("default"))) int
++vn_winehua_present(VkQueue queue_handle,
++                   VkImage image_handle,
++                   uint32_t width,
++                   uint32_t height,
++                   VkFormat format,
++                   VkImageLayout layout,
++                   uint32_t client_pid,
++                   uint32_t surface_id,
++                   uint32_t serial,
++                   uint64_t *next_present_deadline_ns)
++{
++   return vn_winehua_present_impl(queue_handle, image_handle, width, height,
++                                  format, layout, client_pid, surface_id, serial,
++                                  next_present_deadline_ns, NULL);
++}
++
++__attribute__((visibility("default"))) int
++vn_winehua_present_scene(VkQueue queue_handle,
++                   VkImage image_handle,
++                   uint32_t width,
++                   uint32_t height,
++                   VkFormat format,
++                   VkImageLayout layout,
++                   uint32_t client_pid,
++                   uint32_t surface_id,
++                   uint32_t serial,
++                   uint64_t *next_present_deadline_ns,
++                   const struct vpp_frame_scene_data *scene)
++{
++   return vn_winehua_present_impl(queue_handle, image_handle, width, height,
++                                  format, layout, client_pid, surface_id, serial,
++                                  next_present_deadline_ns, scene);
++}
+diff --git a/src/vulkan/vulkan.sym b/src/vulkan/vulkan.sym
+--- a/src/vulkan/vulkan.sym
++++ b/src/vulkan/vulkan.sym
+@@ -4,6 +4,7 @@
+ 		vk_icdGetPhysicalDeviceProcAddr;
+ 		vk_icdNegotiateLoaderICDInterfaceVersion;
+ 		vn_winehua_present;
++		vn_winehua_present_scene;
+ 
+ 	local:
+ 		# When static linking LLVM, all its symbols are public API.

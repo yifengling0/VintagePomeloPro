@@ -2,6 +2,7 @@
 #include "surface_queue_recovery.h"
 #include "venus_surface_presenter.h"
 #include "native_window_lease.h"
+#include "harmony_gles_frame_generation.h"
 #include "present_target.h"
 #include "presenter_common.h"
 #include "shader_utils.h"
@@ -19,6 +20,7 @@
 #include <cstdlib>
 #include <memory>
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 
 #undef LOG_DOMAIN
@@ -144,6 +146,11 @@ public:
         const bool sourceVisible = sourceDisplay != EGL_NO_DISPLAY &&
             sourceContext != EGL_NO_CONTEXT && texture != 0 &&
             glIsTexture(texture) == GL_TRUE;
+        static auto* const framePolicy = winehua::graphics::MapHarmonyFramePolicy(false);
+        const auto request = winehua::graphics::HarmonyFrameRequest(framePolicy);
+        const bool harmony = (request & 1u) != 0;
+        const auto fgScene = harmony ? winehua::graphics::TakeHarmonyGlesFrameScene() :
+            winehua::graphics::HarmonyGlesFrameScene{};
         GLsync sourceReady = nullptr;
 
         if (!windowLease_) return kPresentNoTarget;
@@ -172,6 +179,7 @@ public:
             ++throttled_;
             return kPresentThrottled;
         }
+        const uint64_t sourcePeriod = lastPresentNs_ ? nowNs - lastPresentNs_ : 0;
         lastPresentNs_ = nowNs;
         sourceReady = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
         if (!sourceReady) return failed(kPresentFenceSyncFailed);
@@ -196,16 +204,58 @@ public:
         glWaitSync(sourceReady, 0, GL_TIMEOUT_IGNORED);
         glDeleteSync(sourceReady);
 
-        glViewport(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
-        glDisable(GL_BLEND);
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_SCISSOR_TEST);
-        glDisable(GL_STENCIL_TEST);
-        glUseProgram(program_);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glBindSampler(0, sampler_);
-        glUniform1i(textureLocation_, 0);
+        if (fgRequest_ != request) {
+            frameGeneration_.Reset();
+            fgRequest_ = request;
+            generatedFrames_ = 0;
+        }
+        auto draw = [&](GLuint image) {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
+            glDisable(GL_BLEND);
+            glDisable(GL_DEPTH_TEST);
+            glDisable(GL_SCISSOR_TEST);
+            glDisable(GL_STENCIL_TEST);
+            glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            glUseProgram(program_);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, image);
+            glBindSampler(0, sampler_);
+            glUniform1i(textureLocation_, 0);
+            glDrawArrays(GL_TRIANGLES, 0, 3);
+        };
+        uint32_t fgState = 10;
+        if (harmony && fgScene.request == request && fgScene.width == width && fgScene.height == height &&
+            serial != fgSerial_) {
+            fgSerial_ = serial;
+            const uint64_t measured = __atomic_load_n(&framePolicy->displayPeriodNs, __ATOMIC_RELAXED);
+            const uint64_t period = measured ? NormalizeVirglFramePeriodNs(measured) : displayPeriodNs_;
+            fgState = 1;
+            if (sourcePeriod + kDispatchLeadNs < period * 2) {
+                fgState = sourcePeriod ? 3 : 1;
+                frameGeneration_.Reset();
+            } else if (sourcePeriod <= 70000000) {
+                const GLuint generated = frameGeneration_.Generate(fgScene, texture, fgState);
+                const uint64_t deadline = nowNs + std::min<uint64_t>(sourcePeriod / 2, 17000000);
+                if (generated && NowNs() < deadline &&
+                    winehua::graphics::HarmonyFrameRequest(framePolicy) == request) {
+                    draw(generated);
+                    if (glGetError() == GL_NO_ERROR &&
+                        OH_NativeWindow_NativeWindowHandleOpt(windowLease_.Get(), SET_UI_TIMESTAMP, NowNs()) == 0 &&
+                        eglSwapBuffers(display_, surface_) == EGL_TRUE) {
+                        ++generatedFrames_;
+                        fgState = 2;
+                        const auto now = NowNs();
+                        if (now < deadline)
+                            std::this_thread::sleep_for(std::chrono::nanoseconds(deadline - now));
+                    }
+                }
+            } else {
+                frameGeneration_.Reset();
+            }
+        } else if (harmony) {
+            frameGeneration_.Reset();
+        }
         const uint64_t frameTimestamp = NowNs();
         const int32_t timestampResult = OH_NativeWindow_NativeWindowHandleOpt(
             windowLease_.Get(), SET_UI_TIMESTAMP, frameTimestamp);
@@ -219,7 +269,7 @@ public:
                             serial, timestampResult,
                             static_cast<unsigned long long>(timestampFailures_));
         }
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        draw(texture);
         const GLenum glError = glGetError();
         // The shared source texture can be reused as soon as this method
         // returns. Swap/flush submits this context without completing its
@@ -264,6 +314,8 @@ public:
 
         failureBackoff_.Reset();
         ++frames_;
+        if (harmony)
+            winehua::graphics::ReportHarmonyFrameGeneration(framePolicy, request, fgState, generatedFrames_);
         if (nextPresentDeadlineNs)
             *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
         if (PresentPerfSummaryEnabled() &&
@@ -294,7 +346,7 @@ public:
                      uint32_t /*height*/, uint32_t /*format*/, uint32_t /*layout*/,
                      uint32_t /*serial*/,
                      uint64_t* /*nextPresentDeadlineNs*/,
-                     void (*)(void*), void*) override
+                     void (*)(void*), void*, const void*) override
     {
         return kPresentInvalid;
     }
@@ -478,6 +530,7 @@ private:
                 eglMakeCurrent(display_, surface_, surface_, context_) == EGL_TRUE;
             if (cleanupCurrent)
             {
+                frameGeneration_.Reset();
                 if (sampler_) glDeleteSamplers(1, &sampler_);
                 if (program_) glDeleteProgram(program_);
                 if (previousDisplay != EGL_NO_DISPLAY)
@@ -537,6 +590,10 @@ private:
     winehua::GlPresentFailureBackoff failureBackoff_;
     uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
     uint64_t framePeriodNs_ = kDefaultFramePeriodNs;
+    winehua::graphics::HarmonyGlesFrameGeneration frameGeneration_;
+    uint32_t fgRequest_ = 0;
+    uint32_t fgSerial_ = 0;
+    uint32_t generatedFrames_ = 0;
 };
 
 class SurfaceQueuePresenterManager {
@@ -731,7 +788,7 @@ public:
                      uint32_t serial,
                      uint64_t* nextPresentDeadlineNs,
                      void (*releaseQueue)(void*),
-                     void* queueSyncData)
+                     void* queueSyncData, const void* frameScene)
     {
         if (!clientPid || !surfaceId) return kPresentInvalid;
         const uint64_t surfaceKey =
@@ -779,7 +836,7 @@ public:
         return readyIt->second.target->PresentVenus(
             contextId, instance, physicalDevice, device, queue, image,
             queueFamily, width, height, format, layout, serial,
-            nextPresentDeadlineNs, releaseQueue, queueSyncData);
+            nextPresentDeadlineNs, releaseQueue, queueSyncData, frameScene);
     }
 
     winehua::virgl_ipc::SurfaceQueryReply Query() const
@@ -923,12 +980,12 @@ int PresentVenusSurface(uint32_t contextId,
                         uint32_t serial,
                         uint64_t* nextPresentDeadlineNs,
                         void (*releaseQueue)(void*),
-                        void* queueSyncData)
+                        void* queueSyncData, const void* frameScene)
 {
     return g_presenters.PresentVenus(
         contextId, instance, physicalDevice, device, queue, image,
         queueFamily, width, height, format, layout, clientPid, surfaceId,
-        serial, nextPresentDeadlineNs, releaseQueue, queueSyncData);
+        serial, nextPresentDeadlineNs, releaseQueue, queueSyncData, frameScene);
 }
 
 int PrepareVenusDeviceRelease(uint32_t contextId, uintptr_t device)

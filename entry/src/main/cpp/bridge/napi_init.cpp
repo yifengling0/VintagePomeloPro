@@ -1,5 +1,6 @@
 #include "input/controller/controller_hub.h"
 #include "bridge/system_open.h"
+#include "graphics/harmony_frame_policy.h"
 #include "graphics/game_presentation.h"
 #include "gamescope/runtime_napi.h"
 #include "wine/prefix_reset.h"
@@ -1540,24 +1541,46 @@ static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) 
 }
 
 static napi_value RunHostVulkanProbe(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {};
+    size_t argc = 3;
+    napi_value args[3] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     uint64_t surfaceId = 0;
     bool lossless = false;
+    bool harmonyGpu = false;
     char runId[128] = {};
     if (argc < 2 ||
         napi_get_value_bigint_uint64(env, args[0], &surfaceId, &lossless) != napi_ok || !lossless ||
-        napi_get_value_string_utf8(env, args[1], runId, sizeof(runId), nullptr) != napi_ok) {
+        napi_get_value_string_utf8(env, args[1], runId, sizeof(runId), nullptr) != napi_ok ||
+        (argc >= 3 && napi_get_value_bool(env, args[2], &harmonyGpu) != napi_ok)) {
         napi_value result;
         napi_get_boolean(env, false, &result);
         return result;
     }
-    bool started = StartHostVulkanProbe(surfaceId, runId);
+    bool started = StartHostVulkanProbe(surfaceId, runId, harmonyGpu);
     OH_LOG_INFO(LOG_APP, "[HostVulkan] start surface=%{public}llu run=%{public}s result=%{public}s",
                 static_cast<unsigned long long>(surfaceId), runId, started ? "true" : "false");
     napi_value result;
     napi_get_boolean(env, started, &result);
+    return result;
+}
+
+static napi_value GetHarmonyGpuProbeResultNapi(napi_env env, napi_callback_info) {
+    const auto state = GetHarmonyGpuProbeResult();
+    napi_value result, value;
+    napi_create_object(env, &result);
+    for (const auto& [key, text] : {std::pair{"runId", &state.runId}, {"stage", &state.stage}, {"detail", &state.detail}}) {
+        napi_create_string_utf8(env, text->c_str(), NAPI_AUTO_LENGTH, &value);
+        napi_set_named_property(env, result, key, value);
+    }
+    for (const auto& [key, frames] : {std::pair{"baselineFrames", state.baselineFrames},
+                                      {"realFrames", state.realFrames}, {"generatedFrames", state.generatedFrames}}) {
+        napi_create_uint32(env, frames, &value);
+        napi_set_named_property(env, result, key, value);
+    }
+    napi_create_int32(env, state.sdkError, &value);
+    napi_set_named_property(env, result, "sdkError", value);
+    napi_get_boolean(env, state.active, &value);
+    napi_set_named_property(env, result, "active", value);
     return result;
 }
 
@@ -1833,20 +1856,47 @@ static napi_value Init(napi_env env, napi_value exports) {
 
     napi_property_descriptor desc[] = {
         {"configureGamePresentation", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
-            size_t argc = 4; napi_value argv[4];
+            size_t argc = 5; napi_value argv[5];
             bool enabled = false; char scaling[16]{}; size_t length = 0; int32_t fps = 0, sharpness = 10;
+            char frameGeneration[16]="off";
             napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr);
-            if ((argc != 3 && argc != 4) || napi_get_value_bool(env, argv[0], &enabled) != napi_ok ||
+            if ((argc < 3 || argc > 5) || napi_get_value_bool(env, argv[0], &enabled) != napi_ok ||
                 napi_get_value_string_utf8(env, argv[1], scaling, sizeof(scaling), &length) != napi_ok ||
                 napi_get_value_int32(env, argv[2], &fps) != napi_ok ||
                 (fps != 0 && fps != 30 && fps != 60) ||
-                (argc == 4 && (napi_get_value_int32(env,argv[3],&sharpness)!=napi_ok || sharpness<0 || sharpness>20)) ||
+                (argc >= 4 && (napi_get_value_int32(env,argv[3],&sharpness)!=napi_ok || sharpness<0 || sharpness>20)) ||
+                (argc == 5 && (napi_get_value_string_utf8(env,argv[4],frameGeneration,sizeof(frameGeneration),&length)!=napi_ok ||
+                    (strcmp(frameGeneration,"off") && strcmp(frameGeneration,"x2") &&
+                     strcmp(frameGeneration,"harmonyGpu")))) ||
                 (strcmp(scaling, "linear") && strcmp(scaling, "nearest") && strcmp(scaling, "integer") && strcmp(scaling, "fsr"))) {
                 napi_throw_type_error(env, nullptr, "Invalid Game presentation settings"); return nullptr;
             }
             if (!enabled) WaylandServer::GetInstance()->PresentGameToplevel(0);
-            winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"), fps, !strcmp(scaling, "fsr"), sharpness);
+            const bool harmony = enabled && !strcmp(frameGeneration, "harmonyGpu");
+            auto* policy = winehua::graphics::HarmonyFramePolicyForApp();
+            if (!harmony) winehua::graphics::SelectHarmonyFrameGeneration(policy, false);
+            winehua::game::Configure(enabled, !strcmp(scaling, "nearest"), !strcmp(scaling, "integer"),
+                                     fps, !strcmp(scaling, "fsr"), sharpness,
+                                     !strcmp(frameGeneration, "x2"), harmony);
+            if (harmony) winehua::graphics::SelectHarmonyFrameGeneration(policy, true);
             napi_value result; napi_get_undefined(env, &result); return result;
+        }, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getGameFrameGenerationStatus", nullptr, [](napi_env env,napi_callback_info) -> napi_value {
+            napi_value result; napi_create_object(env,&result);
+            auto number=[&](const char* name,double value) { napi_value v; napi_create_double(env,value,&v); napi_set_named_property(env,result,name,v); };
+            const bool harmony = winehua::game::HarmonyFrameGeneration();
+            const auto* policy = harmony ? winehua::graphics::HarmonyFramePolicyForApp() : nullptr;
+            const auto request = winehua::graphics::HarmonyFrameRequest(policy);
+            const uint64_t status = policy ? __atomic_load_n(&policy->result, __ATOMIC_ACQUIRE) : 0;
+            const bool current = (request & 1u) && (status >> 32) == request;
+            number("state", harmony ? (current ? status & 255u : policy ? 7 : 6) :
+                   winehua::game::FrameGeneration() ? winehua::game::fgState.load() : 0);
+            number("generatedPresents", harmony && current ? (status >> 8) & 0x00ffffffu : 0);
+            number("realFps",winehua::game::fgRealMilliFps.load()/1000.0);
+            number("generatedFps",winehua::game::fgGeneratedMilliFps.load()/1000.0);
+            number("presentedFps",winehua::game::fgPresentedMilliFps.load()/1000.0);
+            number("gpuMs",winehua::game::fgGpuNs.load()/1000000.0);
+            return result;
         }, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"controllerSetUiCapture", nullptr, [](napi_env env, napi_callback_info info) -> napi_value {
             size_t count = 1; napi_value arg; bool capture = false;
@@ -1867,6 +1917,8 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"startGamescopeDiagnosticClient", nullptr, winehua::gamescope::StartDiagnosticClient,
             nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probeGamescopeRuntime", nullptr, winehua::gamescope::ProbeRuntime,
+            nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probeHarmonyFrameGeneration", nullptr, winehua::gamescope::ProbeHarmonyFrameGenerationNapi,
             nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startGamescopeSession", nullptr, winehua::gamescope::StartRuntimeSession,
             nullptr, nullptr, nullptr, napi_default, nullptr},
@@ -2014,6 +2066,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         // ---- VPP product surface ----
         {"setHostGraphicsBackend", nullptr, SetHostGraphicsBackend, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runHostVulkanProbe", nullptr, RunHostVulkanProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getHarmonyGpuProbeResult", nullptr, GetHarmonyGpuProbeResultNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopHostVulkanProbe", nullptr, StopHostVulkanProbeNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getHostGpuName", nullptr, GetHostGpuNameNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"refreshRenderer", nullptr, RefreshRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},

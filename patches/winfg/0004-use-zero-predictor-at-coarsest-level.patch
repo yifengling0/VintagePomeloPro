@@ -1,0 +1,14 @@
+--- a/shaders/of3_flow.comp
++++ b/shaders/of3_flow.comp
+@@ -56,7 +56,10 @@
+ 
+     // Predictor flow is stored in full-res pixels. Convert to this level's texels.
+     float toLevel = exp2(-float(level)); // full-res px -> level-i texels
+-    vec2 predFull = textureLod(uPredictor, uv, 0.0).xy;
++    // The coarsest descriptor aliases this dispatch's output. Sampling its
++    // neighbours while writing would race within a workgroup/dispatch.
++    vec2 predFull = all(equal(textureSize(uPredictor,0),dim))
++        ? vec2(0.0) : textureLod(uPredictor,uv,0.0).xy;
+     vec2 predLevel = predFull * toLevel;
+ 
+     float bestSad = 3.402823466e+38;

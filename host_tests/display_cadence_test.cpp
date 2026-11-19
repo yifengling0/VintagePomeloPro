@@ -7,7 +7,7 @@ struct OH_NativeVSync {};
 static OH_NativeVSync connection;
 static int created, destroyed, requests, queries;
 static bool unavailable;
-static long long granted, visible;
+static long long granted, visible, callbackTimestamp;
 OH_NativeVSync* OH_NativeVSync_Create(const char*, unsigned) {
     ++created;
     return unavailable ? nullptr : &connection;
@@ -22,7 +22,7 @@ int OH_NativeVSync_RequestFrame(OH_NativeVSync*, OH_NativeVSync_FrameCallback ca
     assert(data == nullptr);
     // The SDK updates its cache on a callback; mere GetPeriod polling is stale.
     visible = granted;
-    callback(0, data);
+    callback(callbackTimestamp, data);
     return 0;
 }
 int OH_NativeVSync_GetPeriod(OH_NativeVSync*, long long* period) { ++queries; *period = visible; return 0; }
@@ -36,6 +36,8 @@ int main() {
         assert(created == 1);
         granted = 8333333;
         assert(cadence.Refresh(0) && cadence.PeriodNs() == 8333333);
+        for (uint64_t us=1000;us<6000;us+=1000) assert(!cadence.Refresh(us));
+        assert(requests==1); // a busy FG loop must not flood the VSync service
         assert(ProducerPeriodNs(cadence.PeriodNs()) == 8333333);
         granted = 16666667;
         assert(!cadence.Refresh(50000) && cadence.PeriodNs() == 8333333);
@@ -51,6 +53,18 @@ int main() {
         Configure(true, false, false, 30);
         assert(ProducerPeriodNs(cadence.PeriodNs()) == 33333334);
         assert(requests == 5 && queries == 4);
+        assert(!cadence.HasFreshTick(1000000000)); // no callback timestamp yet
+        callbackTimestamp=1000000000;
+        assert(!cadence.Refresh(310000));
+        assert(cadence.HasFreshTick(1001000000));
+        assert(cadence.WaitForNextTick(1001000000,1000000000));
+        assert(!cadence.WaitForNextTick(1001000000,990000000));
+        assert(!cadence.HasFreshTick(999999999)); // future or mixed clock
+        assert(!cadence.WaitForNextTick(1100000000,1000000000)); // stalled callback releases real frames
+        callbackTimestamp=1200000000;
+        assert(!cadence.Refresh(320000));
+        assert(cadence.HasFreshTick(1201000000)); // interpolation can recover
+        assert(cadence.WaitForNextTick(1201000000,1200000000));
     }
     assert(destroyed == 1);
     unavailable = true;
@@ -63,5 +77,5 @@ int main() {
     }
     assert(destroyed == 1);
     Configure(false, false, false, 0);
-    std::cout << "PASS: actual 120/60/100Hz transitions reach Game producers; explicit limits, callback-driven period and unavailable VSync\n";
+    std::cout << "PASS: actual 120/60/100Hz transitions, explicit caps, stale/future VSync bypass and callback recovery\n";
 }

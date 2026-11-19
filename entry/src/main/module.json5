@@ -103,6 +103,10 @@
     ],
     "metadata": [
       {
+        "name": "GraphicsAccelerateKit_FusionAware",
+        "value": "Vulkan"
+      },
+      {
         "name": "client_id",
         "value": "6917605913989898754"
       }

@@ -1,0 +1,237 @@
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -1459,6 +1459,24 @@
+         m_frameGenerationScene.rejection = "scene-buffer-cleared";
+     }
+ 
++    if ((m_frameSceneRequest & 1u) && !m_engineCameraFile.empty()) {
++      const auto image = (Flags & D3DCLEAR_ZBUFFER) && m_state.depthStencil != nullptr
++          ? m_state.depthStencil->GetCommonTexture()->GetImage() : nullptr;
++      for (auto& pass : m_deferredFrameDepth) {
++        if (image != nullptr && pass.depth == image)
++          pass = {};
++        if (!(Flags & D3DCLEAR_TARGET))
++          continue;
++        for (const auto& rt : m_state.renderTargets) {
++          if (rt == nullptr)
++            continue;
++          const auto& target = rt->GetCommonTexture()->GetImage();
++          for (auto& color : pass.colors)
++            if (color == target) color = nullptr;
++        }
++      }
++    }
++
+     const auto& vp = m_state.viewport;
+     const auto& sc = m_state.scissorRect;
+ 
+@@ -6250,10 +6268,134 @@
+     return mapping.view ? __atomic_load_n(mapping.view, __ATOMIC_ACQUIRE) : 0;
+   }
+ 
++  void D3D9DeviceEx::CaptureDeferredFrameGenerationScene(D3D9Surface* target, D3D9Surface* depth) {
++    if (!target || m_implicitSwapchain == nullptr || !UseProgrammableVS())
++      return;
++
++    auto* backBuffer = m_implicitSwapchain->GetBackBuffer(0);
++    const auto size = target->GetSurfaceExtent();
++    const auto& viewport = m_state.viewport;
++    if (!backBuffer || size != backBuffer->GetSurfaceExtent() || target->GetSubresource() ||
++        viewport.X || viewport.Y || viewport.Width != size.width || viewport.Height != size.height ||
++        viewport.MinZ != 0.0f || viewport.MaxZ != 1.0f)
++      return;
++
++    const bool writesDepth = depth && m_state.renderStates[D3DRS_ZENABLE] &&
++        m_state.renderStates[D3DRS_ZWRITEENABLE];
++    if (target != backBuffer && writesDepth) {
++      if (depth->GetSubresource() || size != depth->GetSurfaceExtent())
++        return;
++      const auto& depthImage = depth->GetCommonTexture()->GetImage();
++      if (depthImage == nullptr || depthImage->info().sampleCount != VK_SAMPLE_COUNT_1_BIT)
++        return;
++      auto pass = std::find_if(m_deferredFrameDepth.begin(), m_deferredFrameDepth.end(),
++        [&](const auto& item) { return item.depth == depthImage || item.depth == nullptr; });
++      if (pass == m_deferredFrameDepth.end())
++        return;
++      pass->depth = depthImage;
++      const auto& color = target->GetCommonTexture()->GetImage();
++      auto slot = std::find_if(pass->colors.begin(), pass->colors.end(),
++        [&](const auto& item) { return item == color || item == nullptr; });
++      if (slot != pass->colors.end())
++        *slot = color;
++
++      const auto* shader = m_state.vertexShader->GetCommonShader();
++      const auto& binding = shader->GetFrameCamera();
++      const auto projection = binding.sceneProjection.firstRegister;
++      const auto rotation = binding.inverseViewRotation.firstRegister;
++      if (!binding.sceneProjection.present || !binding.inverseViewRotation.present ||
++          uint32_t(projection) + 4 > m_vsLayout.floatCount || uint32_t(rotation) + 3 > m_vsLayout.floatCount)
++        return;
++      for (const auto& constant : shader->GetConstants()) {
++        if ((constant.uboIdx >= projection && constant.uboIdx < uint32_t(projection) + 4) ||
++            (constant.uboIdx >= rotation && constant.uboIdx < uint32_t(rotation) + 3))
++          return;
++      }
++      const auto* registers = m_state.vsConsts.fConsts;
++      const Matrix4 project(registers[projection], registers[projection + 1],
++                            registers[projection + 2], registers[projection + 3]);
++      if (project[2][3] != -1.0f || project[3][3] != 0.0f)
++        return;
++      const Matrix4 viewToWorld(registers[rotation], registers[rotation + 1],
++                               registers[rotation + 2], Vector4(0, 0, 0, 1));
++      pass->ambiguous |= pass->cameraReady &&
++          (pass->projection != project || pass->viewToWorldRotation != viewToWorld);
++      pass->cameraReady = true;
++      pass->projection = project;
++      pass->viewToWorldRotation = viewToWorld;
++      return;
++    }
++
++    auto& scene = m_frameGenerationScene;
++    if (target != backBuffer || writesDepth || scene.color != nullptr)
++      return;
++
++    // Only use a depth attachment whose color was consumed by this present's
++    // backbuffer pass. The actual pixel shader sampler mask excludes stale bindings.
++    const uint32_t samplers = m_activeTextures & m_psShaderMasks.samplerMask;
++    const DeferredFrameDepth* selected = nullptr;
++    for (const auto& pass : m_deferredFrameDepth) {
++      if (!pass.cameraReady || pass.ambiguous)
++        continue;
++      bool sampled = false;
++      for (auto sampler : bit::BitMask(samplers)) {
++        const auto& image = GetCommonTexture(m_state.textures[sampler])->GetImage();
++        sampled |= image != nullptr &&
++            std::find(pass.colors.begin(), pass.colors.end(), image) != pass.colors.end();
++      }
++      if (!sampled)
++        continue;
++      if (selected)
++        return;
++      selected = &pass;
++    }
++    if (!selected)
++      return;
++
++    // A camera provider writes one little-endian record in the render callback
++    // before drawing. Camera-to-world translation must come from the engine,
++    // since the geometry shaders operate in a per-frame camera-relative space.
++    struct EngineCamera {
++      uint32_t sequence;
++      float position[3];
++      float worldToViewRotation[3][3];
++    } camera{};
++    static_assert(sizeof(EngineCamera) == 52);
++    auto* file = std::fopen(m_engineCameraFile.c_str(), "rb");
++    if (!file)
++      return;
++    const bool valid = std::fread(&camera, 1, sizeof(camera), file) == sizeof(camera) &&
++        std::fgetc(file) == EOF;
++    std::fclose(file);
++    if (!valid || camera.sequence <= m_lastEngineCameraSequence)
++      return;
++    m_lastEngineCameraSequence = camera.sequence;
++
++    const auto& rotation = selected->viewToWorldRotation;
++    for (unsigned row = 0; row < 3; ++row) {
++      if (!std::isfinite(camera.position[row]))
++        return;
++      for (unsigned col = 0; col < 3; ++col) {
++        // Columns of inverse rotation correspond to rows of the view matrix.
++        if (!(std::abs(camera.worldToViewRotation[row][col] - rotation[row][col]) < 0.0001f))
++          return;
++      }
++    }
++    const Vector4 position(camera.position[0], camera.position[1], camera.position[2], 1.0f);
++    const Matrix4 viewToWorld(rotation[0], rotation[1], rotation[2], position);
++    scene.viewProjection = selected->projection * inverse(viewToWorld);
++    scene.depth = selected->depth;
++    scene.color = target->GetCommonTexture()->GetImage();
++    scene.programmable = true;
++  }
++
++
+   void D3D9DeviceEx::CaptureFrameGenerationScene() {
+     auto& scene = m_frameGenerationScene;
+     auto* target = m_state.renderTargets[0].ptr();
+     auto* depth = m_state.depthStencil.ptr();
++    if ((m_frameSceneRequest & 1u) && !m_engineCameraFile.empty())
++      CaptureDeferredFrameGenerationScene(target, depth);
+     if (!target || !depth || !m_state.renderStates[D3DRS_ZENABLE] ||
+         !m_state.renderStates[D3DRS_ZWRITEENABLE])
+       return;
+@@ -6325,6 +6467,7 @@
+ 
+   std::shared_ptr<const vk::FrameScene> D3D9DeviceEx::TakeFrameGenerationScene(
+           D3D9Surface* backBuffer, VkExtent2D surfaceExtent, uint64_t serial) {
++    m_deferredFrameDepth = {};
+     auto scene = std::exchange(m_frameGenerationScene, {});
+     // Keep the trace bounded even on workloads which continue drawing indefinitely.
+     const bool trace = m_traceFrameScene && serial <= 24;
+diff --git a/src/d3d9/d3d9_device.h b/src/d3d9/d3d9_device.h
+--- a/src/d3d9/d3d9_device.h
++++ b/src/d3d9/d3d9_device.h
+@@ -871,6 +871,16 @@
+       bool programmable = false;
+     };
+ 
++    struct DeferredFrameDepth {
++      Rc<DxvkImage> depth;
++      std::array<Rc<DxvkImage>, 4> colors;
++      Matrix4 projection;
++      Matrix4 viewToWorldRotation;
++      bool cameraReady = false;
++      bool ambiguous = false;
++    };
++
++    void CaptureDeferredFrameGenerationScene(D3D9Surface* target, D3D9Surface* depth);
+     void CaptureFrameGenerationScene();
+     uint32_t ReadFrameSceneRequest() const;
+     std::shared_ptr<const vk::FrameScene> TakeFrameGenerationScene(
+@@ -1294,6 +1304,9 @@
+     const bool                      m_traceFrameScene =
+       env::getEnvVar("WINEHUA_DXVK9_FRAME_SCENE_TRACE") == "1";
+     uint32_t                        m_frameSceneRequest = 0;
++    uint32_t                        m_lastEngineCameraSequence = 0;
++    std::array<DeferredFrameDepth, 4> m_deferredFrameDepth;
++    const std::string m_engineCameraFile = env::getEnvVar("WINEHUA_DXVK9_CAMERA_FILE");
+ 
+   };
+ 
+diff --git a/src/d3d9/d3d9_frame_camera.h b/src/d3d9/d3d9_frame_camera.h
+--- a/src/d3d9/d3d9_frame_camera.h
++++ b/src/d3d9/d3d9_frame_camera.h
+@@ -17,6 +17,8 @@
+     Matrix viewProjection;
+     Matrix view;
+     Matrix projection;
++    Matrix sceneProjection;
++    Matrix inverseViewRotation;
+   };
+ 
+   inline D3D9FrameCamera FindD3D9FrameCamera(const uint8_t* bytecode, size_t size) {
+@@ -84,8 +86,22 @@
+                  semantic == "matprojection" || semantic == "matproj")
+           matrix = &result.projection;
+ 
+-        if (!matrix) continue;
+         const auto* type = table + typeOffset;
++        if (!matrix) {
++          // Legacy UNIGINE shaders expose the render projection and the
++          // rotation of the inverse view in three column registers.
++          const bool rotation = std::string_view(name, end - name) == "s_imodelview";
++          const bool projection = std::string_view(name, end - name) == "s_projection";
++          if ((rotation || projection) && read16(info + 4) == 2 &&
++              read16(type) == 3 && read16(type + 2) == 3 && read16(type + 4) == 4 &&
++              read16(type + 6) == 4 && read16(type + 8) == 1 &&
++              (read16(info + 8) == 4 || (rotation && read16(info + 8) == 3))) {
++            auto& binding = rotation ? result.inverseViewRotation : result.sceneProjection;
++            if (binding.present) return {};
++            binding = {read16(info + 6), true, true};
++          }
++          continue;
++        }
+         const auto matrixClass = read16(type);
+         if (matrix->present || read16(info + 4) != 2 || read16(info + 8) != 4 ||
+             (matrixClass != 2 && matrixClass != 3) || read16(type + 2) != 3 ||

@@ -1,0 +1,141 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg C1 — GLOBAL-MOTION PRE-WARP (stage 1/2): LK normal-equation reduce.
+//
+// CLEAN-ROOM STATEMENT
+// Written from first principles for win-fg. No code from LSFG, Max's wnfg_XX
+// blobs, GameScope, or any NC-licensed source. The math is the classic
+// image-alignment normal-equation accumulation, reimplemented here from the
+// open literature (equations only):
+//   * Inverse-compositional Lucas-Kanade image alignment:
+//       Baker & Matthews, "Lucas-Kanade 20 Years On: A Unifying Framework",
+//       IJCV 2004 (and the 2001 CMU-RI tech report). We accumulate the 6-param
+//       affine Hessian H = Σ SD·SDᵀ and residual vector b = Σ SD·e using the
+//       TEMPLATE (prev-frame) gradient for the steepest-descent images SD, which
+//       is the inverse-compositional formulation.
+//   * Affine warp / gradient-descent alignment background:
+//       Szeliski, "Computer Vision: Algorithms and Applications", §6.2.
+//   * Huber M-estimator robustification (down-weight foreground / occlusion so
+//       the estimate stays a *camera* estimate): Huber 1964, standard robust LSQ.
+//
+// WHAT THIS DOES
+// Estimates the per-frame global (camera) affine between prev (template T) and
+// curr (image I) at a heavily downsampled luma level (1/8 res) so the cost is
+// tiny. It does NOT solve — it only accumulates the 6x6 normal equations that
+// the CPU (framegen record()) reads back and solves. The solved affine is then
+// used by of3_gm_prewarp to remove the global motion BEFORE the dense SAD flow
+// search runs, so that search only ever sees small, coherent, object-only
+// residual motion (fast camera pans no longer saturate it → no oil-paint melt).
+//
+// WARP CONVENTION (matches of3_gm_prewarp + the expand add-back):
+//   Affine W maps a template(prev) coord to the image(curr) coord it samples:
+//     uvSrc = uv + [ p1 p3 ; p2 p4 ] · (uv-0.5) + [tx ty]
+//   i.e. W = prev→curr, in centered-UV space (uv-0.5 ∈ ~[-0.5,0.5]) for good
+//   conditioning. This is the "Winv" the prewarp needs and the g(x) the expand
+//   add-back uses. Identity params ⇒ no-op.
+//
+// TURNIP NOTE (no float atomics): Adreno/Turnip does not guarantee
+// VK_EXT_shader_atomic_float, so we do NOT atomicAdd into shared accumulators.
+// Instead each of a FIXED number of threads (NT) strides over the image and
+// writes its OWN partial sum (STRIDE floats) to the SSBO with plain stores; the
+// CPU sums the NT partials in double precision and solves the 6x6. This is the
+// task's "two-stage reduction" fallback: atomic-free, overflow-free (per-thread
+// float sum of a few hundred bounded terms), and portable to bare GLSL.
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 64) in;
+
+// Must match framegen.cpp: NT threads (NUM_GROUPS*local_size_x) and STRIDE floats.
+const uint NT     = 512u;   // total threads = 8 groups * 64
+const uint STRIDE = 32u;    // floats per thread: 21 H + 6 b + coverage + resid + pad
+
+layout(binding = 1) uniform GM {
+    vec4 gmLin;    // running estimate p1,p2,p3,p4  (linearization point for THIS reduce)
+    vec4 gmLinT;   // tx,ty, engaged, pad
+    vec4 gmApp;    // applied p1,p2,p3,p4            (unused here)
+    vec4 gmAppT;   // tx,ty, pad, pad               (unused here)
+};
+
+layout(binding = 32) uniform sampler2D uPrev;   // template T (prev luma, level L) R32F
+layout(binding = 33) uniform sampler2D uCurr;   // image    I (curr luma, level L) R32F
+
+layout(std430, binding = 16) buffer Partials { float part[]; };
+
+// Huber threshold on the photometric residual (luma units). Below it a pixel is
+// a full-weight inlier; above, its weight decays ~1/|e| so a moving foreground
+// object or a disocclusion cannot drag the camera estimate.
+const float HUBER_C = 0.06;
+
+void main() {
+    uint gtid = gl_GlobalInvocationID.x;
+    if (gtid >= NT) return;
+
+    ivec2 dim = textureSize(uPrev, 0);
+    uint total = uint(dim.x) * uint(dim.y);
+    vec2 invDim = 1.0 / vec2(dim);
+
+    // linearization affine (prev→curr, centered-UV)
+    vec2 pcol0 = vec2(gmLin.x, gmLin.y);   // column for q.x : (p1, p2)
+    vec2 pcol1 = vec2(gmLin.z, gmLin.w);   // column for q.y : (p3, p4)
+    vec2 t     = gmLinT.xy;
+
+    float acc[32];
+    for (uint k = 0u; k < STRIDE; ++k) acc[k] = 0.0;
+
+    for (uint i = gtid; i < total; i += NT) {
+        ivec2 px = ivec2(int(i % uint(dim.x)), int(i / uint(dim.x)));
+        // skip a 1px apron so central-difference gradients stay in-bounds
+        if (px.x < 1 || px.y < 1 || px.x >= dim.x - 1 || px.y >= dim.y - 1) continue;
+
+        vec2 uv = (vec2(px) + 0.5) * invDim;
+        vec2 q  = uv - 0.5;
+        vec2 uvSrc = uv + pcol0 * q.x + pcol1 * q.y + t;
+        // require the warped sample to be inside the image (clamp sampler would
+        // otherwise fold edge texels into the fit and bias it)
+        if (uvSrc.x < 0.0 || uvSrc.y < 0.0 || uvSrc.x > 1.0 || uvSrc.y > 1.0) continue;
+
+        float T = textureLod(uPrev, uv,    0.0).r;
+        float I = textureLod(uCurr, uvSrc, 0.0).r;
+        float e = I - T;                                   // error = I(W) - T
+
+        // template gradient (central diff), expressed per unit uv so it is
+        // consistent with the translation params tx,ty (also uv units).
+        float Txm = textureLod(uPrev, uv - vec2(invDim.x, 0.0), 0.0).r;
+        float Txp = textureLod(uPrev, uv + vec2(invDim.x, 0.0), 0.0).r;
+        float Tym = textureLod(uPrev, uv - vec2(0.0, invDim.y), 0.0).r;
+        float Typ = textureLod(uPrev, uv + vec2(0.0, invDim.y), 0.0).r;
+        float Tx = (Txp - Txm) * 0.5 / invDim.x;
+        float Ty = (Typ - Tym) * 0.5 / invDim.y;
+
+        // Huber weight
+        float ae = abs(e);
+        float w = (ae <= HUBER_C) ? 1.0 : (HUBER_C / max(ae, 1e-6));
+
+        // steepest-descent images for affine (inverse-compositional, template grad):
+        //   W(x;p)=[(1+p1)qx+p3 qy+tx ; p2 qx+(1+p4)qy+ty]
+        //   SD = ∇T · ∂W/∂p = { Tx·qx, Ty·qx, Tx·qy, Ty·qy, Tx, Ty }
+        float sd[6];
+        sd[0] = Tx * q.x; sd[1] = Ty * q.x;
+        sd[2] = Tx * q.y; sd[3] = Ty * q.y;
+        sd[4] = Tx;       sd[5] = Ty;
+
+        // H upper-triangle (row-major over i<=j) and b, both weighted by w.
+        uint idx = 0u;
+        for (uint r = 0u; r < 6u; ++r) {
+            for (uint c = r; c < 6u; ++c) {
+                acc[idx] += w * sd[r] * sd[c];
+                ++idx;
+            }
+        }
+        acc[21] += w * sd[0] * e;
+        acc[22] += w * sd[1] * e;
+        acc[23] += w * sd[2] * e;
+        acc[24] += w * sd[3] * e;
+        acc[25] += w * sd[4] * e;
+        acc[26] += w * sd[5] * e;
+        acc[27] += w;            // coverage (Σ weights)
+        acc[28] += w * e * e;    // weighted residual energy (fit quality)
+    }
+
+    uint base = gtid * STRIDE;
+    for (uint k = 0u; k < STRIDE; ++k) part[base + k] = acc[k];
+}

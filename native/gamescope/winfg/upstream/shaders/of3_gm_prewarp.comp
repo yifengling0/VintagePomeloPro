@@ -1,0 +1,54 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg C1 — GLOBAL-MOTION PRE-WARP (stage 2/2): stabilize curr luma.
+//
+// CLEAN-ROOM STATEMENT
+// Written from first principles for win-fg. No code from LSFG, Max's wnfg_XX
+// blobs, GameScope, or any NC-licensed source. Standard affine image warp
+// (bilinear resample) — Szeliski, "Computer Vision", §3.6 (image warping) / §6.2
+// (parametric alignment). The affine is estimated by of3_gm_reduce + the CPU
+// inverse-compositional LK solve (Baker & Matthews, IJCV 2004).
+//
+// WHAT THIS DOES
+// Resamples one curr-luma pyramid level so the estimated GLOBAL (camera) motion
+// is removed relative to prev. For a static (global-only) scene point at prev
+// coord x, its curr coord is W(x) (the prev→curr affine). Writing
+//     currLuma'(x) = currLuma( W(x) )
+// makes currLuma'(x) ≈ prevLuma(x) for all static content, so the dense SAD flow
+// search that runs next on (prevLuma, currLuma') only ever sees the small,
+// coherent OBJECT residual — never the large global displacement that saturates
+// the search during fast pans and melts the frame. The global part is composed
+// back into the emitted flow by of3_expand(_m4) so wfg_synth is unchanged and
+// the final result is correct end-to-end. Identity affine ⇒ exact copy (no-op),
+// so the whole pipeline degrades to the pre-C1 behaviour when GM is disengaged.
+//
+// The affine is in centered-UV space and is scale-invariant, so the SAME params
+// stabilize every pyramid level (this shader is dispatched once per flow level).
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 1) uniform GM {
+    vec4 gmLin;    // running estimate p1,p2,p3,p4  (unused here)
+    vec4 gmLinT;   // tx,ty, engaged, pad           (unused here)
+    vec4 gmApp;    // APPLIED p1,p2,p3,p4  -> P=[[p1,p3],[p2,p4]]
+    vec4 gmAppT;   // APPLIED tx,ty, pad, pad
+};
+
+layout(binding = 32) uniform sampler2D uCurr;               // raw curr luma, this level (R32F)
+layout(binding = 48, r32f) uniform writeonly image2D uDst;  // stabilized curr luma (R32F)
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = imageSize(uDst);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    vec2 uv = (vec2(gid) + 0.5) / vec2(dim);
+    vec2 q  = uv - 0.5;
+
+    vec2 pcol0 = vec2(gmApp.x, gmApp.y);   // (p1, p2)
+    vec2 pcol1 = vec2(gmApp.z, gmApp.w);   // (p3, p4)
+    vec2 uvSrc = uv + pcol0 * q.x + pcol1 * q.y + gmAppT.xy;
+
+    float v = textureLod(uCurr, uvSrc, 0.0).r;   // CLAMP_TO_EDGE sampler
+    imageStore(uDst, gid, vec4(v, 0.0, 0.0, 0.0));
+}

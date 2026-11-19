@@ -459,6 +459,14 @@
       {
         "path": "patches/virglrenderer/0020-cache-immutable-framebuffer-completeness.patch",
         "sha256": "57aca6e0b16df0f0fef20a7df96c558b90408dee5f3a7fa033048cb8fef0bcf9"
+      },
+      {
+        "path": "patches/virglrenderer/0021-venus-resolve-frame-generation-scene-images.patch",
+        "sha256": "fdbfd528b37da67f2a79c185f9bbb3cf7a441608ad6d4299875a417986ca00e7"
+      },
+      {
+        "path": "patches/virglrenderer/0022-harmony-gles-frame-scene.patch",
+        "sha256": "b8dfa398586df927bef605d798f7c14bee26a26905fed0c3ca852f638a2408f0"
       }
     ],
     "mesa": [
@@ -585,6 +593,10 @@
       {
         "path": "patches/mesa/0027-zink-isolate-shadow-image-staging.patch",
         "sha256": "57b4f8575fb552a8977b7fc076363674fd5e0991912cba5951fb0111fea872bc"
+      },
+      {
+        "path": "patches/mesa/0028-venus-forward-frame-generation-scene.patch",
+        "sha256": "24d75af56c188076f868c126c00371ddd1f1af368f9096901855a2c537189811"
       }
     ],
     "vkd3d-proton": [
@@ -884,10 +896,10 @@
       "dlls/ntdll/loader.c": "100f2f514fa20cbccdeeb20fa86eb797b71bdc01ea8214a73d5acb5dbf02ed2d"
     },
     "virglrenderer": {
-      "src/vrend/vrend_renderer.c": "35bcf434d1882f83c42fcd79e086e2b6c307835287d3652f6e8ac92309702ee1",
+      "src/vrend/vrend_renderer.c": "9cb823e0b4e4c5acb79cdbe159540cda2892db518bd8a5a56dd2a6d6a55f7e9d",
       "src/vrend/vrend_shader.c": "ab200053b589e5381a58a5687c5cf38c8ceaf5a3fb587d3ab396ae8b9ea329aa",
       "src/vrend/vrend_shader.h": "f5122579e8a5d7c22f01da334a986e5571977990135cf74498bc4b65133b58b6",
-      "vtest/vtest_renderer.c": "9bdb6045807a9369415b225ab714d9ff851428f5d6266640e0f44d9fb75d3e2a",
+      "vtest/vtest_renderer.c": "e08b5ff06350c2b9c917dfd641f88c52d1da8fcd0fb61dd868a0736a1ab63f1b",
       "server/render_context.c": "95696c32b639ba4f16aef9c648f1aaa0d80f1342558aa285ffd3703754977527",
       "src/venus/vkr_buffer.c": "32ba505a7b4c0e3fb67c050da4346e094a9d97e19d3c3efc68081b3396de4b3a",
       "src/venus/vkr_device_memory.c": "5cefdbdff40fd75d9c94ac6c8c4314fe45b533bf3dfd36ef6facc4e9140286b7",
@@ -895,7 +907,7 @@
       "src/virglrenderer.h": "6ec183c8de6d7c5ffc5105385373d26eb0e651a39a7d02e6345a2e5a93b026fa",
       "vtest/vtest_protocol.h": "37c0eb24269e0203e4f981533927f66dcc8576c892ee49e505db09b7ab026c10",
       "src/venus/vkr_context.h": "1c86db045b7f8e3ecef6ad363a561a2c77a78213f45315e013a414cf668e1bf0",
-      "src/venus/vkr_renderer.c": "055414e0b2dd5d59c2ffe5054e6c1c8dfcbf8653735efdc92e3355efe8d54b25",
+      "src/venus/vkr_renderer.c": "8831fd9a273a1faf6ad25f88bf296587f487ed62d456d5b2ec4bb264d1057a19",
       "src/meson.build": "1384bcf4ad54cd1c15fe71115efdee8b0bf1590412c5440bcdeb76f0dc1ad0d9",
       "src/proxy/proxy_context.c": "4972526a0524bd5ee9ca3e2edda8d858450e2b28b9c2d3fe2b54b10c22582b00",
       "src/proxy/proxy_context.h": "c11eadcd59b82bcd3741fb4149e97ce0da8188a6847f1b4a9964ec92fbcd3be6",
@@ -910,14 +922,20 @@
       "src/venus/vkr_physical_device.c": "bdb83f4492b09912d3f35d1ddcb09b338bedae138cef408d103682a8e7256e35",
       "src/venus/vkr_physical_device.h": "5888201316c046a2edbe0592251a5f13191627a2d239505124416cf38ebc43c6",
       "src/virgl_resource.h": "a3d31be53cadaa6836713a3a38da8964e30cdd35fe77f4f03db8ea3cffe948ab",
-      "src/virglrenderer.c": "3302226f94c97adf470e33ee26f673eed00ba7ced5535596bc7bf4e7b82bcc8d",
+      "src/virglrenderer.c": "a9317a8cb67f46ea4112bbbbc963710a09a13fda20b173d61852573d1a50e5b4",
       "src/venus/vkr_queue.c": "dc00fd5d0f6c9eed125f435dea060e2f5dac06dd4eabdec882f5a14a229beafa",
       "src/proxy/proxy_renderer.c": "50b71794c943914426331c565275f3544ff32dac28def04caf198b142f5ff00f",
-      "src/vrend/vrend_decode.c": "d9b134d63bf516d6c1ca156b2bfb11dcd39bc59f99e7fa4f54babd052ef79872"
+      "src/vrend/vrend_decode.c": "d9b134d63bf516d6c1ca156b2bfb11dcd39bc59f99e7fa4f54babd052ef79872",
+      "src/venus/vpp_frame_scene_vk.h": "70939ade8fe75320bcf43a8b5dd54e6c35dbba3ea0ccaa7e320be66822d9aea8",
+      "src/venus/vkr_renderer.h": "5d1907b936c20d4027aa3e3542634e301bc6456c65c55c402d9214b0958c3ea1"
     },
     "mesa": {
       "src/gallium/drivers/zink/zink_resource.c": "d1d963a9df6e75ed09680f8f64539ccc1527eedff94542f440c295935de4147d",
-      "src/gallium/drivers/zink/zink_resource.h": "302c7c60b93064f6d77f1af70db0025ab55c40fbb8753330c35fe5b55eea79ae"
+      "src/gallium/drivers/zink/zink_resource.h": "302c7c60b93064f6d77f1af70db0025ab55c40fbb8753330c35fe5b55eea79ae",
+      "src/virtio/vulkan/vpp_frame_scene_vk.h": "a5f47b97838c60acb6bbf7bed1d8baea50bad8338766928b04d55356aa78d0c7",
+      "src/virtio/vulkan/vn_renderer.h": "f674f3a90639a065acf67df7d8b56b22875ef39c57de51fd0e08637075a850a4",
+      "src/virtio/vulkan/vn_renderer_vtest.c": "26848648b5eec9d5832b3eae14c49f3e9761f641ad8559d2c88a75c80532e431",
+      "src/vulkan/vulkan.sym": "719d75dc6c7a3cf928047044f6c8322f616cace6d143d6fddce7594eebb45047"
     }
   },
   "capability_decisions": {
@@ -969,6 +987,7 @@
     "patches/mesa/0024-zink-opt-in-batch-private-uploads.patch",
     "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
     "patches/mesa/0026-zink-shadow-buffer-map-offset.patch",
-    "patches/mesa/0027-zink-isolate-shadow-image-staging.patch"
+    "patches/mesa/0027-zink-isolate-shadow-image-staging.patch",
+    "patches/mesa/0028-venus-forward-frame-generation-scene.patch"
   ]
 }

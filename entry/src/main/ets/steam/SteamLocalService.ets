@@ -64,7 +64,7 @@ export class SteamLocalService {
   private coverAttempts: Map<string, number> = new Map<string, number>();
   private coverDownloads: number = 0;
   private scanning: Promise<AppDescriptor[]> | null = null;
-  private preparingRuntime: Promise<void> | null = null;
+  private preparingLaunch: Promise<void> | null = null;
   private progress: SteamImportProgress = { busy: false, message: '', percent: 0 };
 
   async initialize(context: common.UIAbilityContext, root: string): Promise<void> {
@@ -79,15 +79,37 @@ export class SteamLocalService {
   isCompatibility(): boolean { return this.compatibility; }
   isImporting(): boolean { return this.importing; }
   canLaunch(): boolean { return !this.committing; }
-  hasForeignClient(): boolean {
+  hasForeignClient(processes: NativeProcessInfo[] = testNapi.getProcessList() as NativeProcessInfo[]): boolean {
     const c = wineDriveCForContainer('default');
     const expected = steamWindowsPath(this.getClientDirectory() + '/steam.exe', this.root, c).toLowerCase();
-    return (testNapi.getProcessList() as NativeProcessInfo[]).some((process: NativeProcessInfo): boolean => {
+    return processes.some((process: NativeProcessInfo): boolean => {
       const path = steamWindowsPath(process.path, this.root, c).toLowerCase();
       return process.state === 'running' && path.endsWith('/steam.exe') && path !== expected;
     });
   }
-  async ensureGpuDependencies(): Promise<void> {
+  async prepareLaunch(): Promise<void> {
+    if (this.preparingLaunch) return this.preparingLaunch;
+    const pending = this.prepareLaunchFiles();
+    this.preparingLaunch = pending;
+    try { await pending; } finally { this.preparingLaunch = null; }
+  }
+
+  private async prepareLaunchFiles(): Promise<void> {
+    await this.ensureGpuDependencies();
+    // An existing client accepts the URI/game request without touching its
+    // installation. Keep the same check at each migration's write boundary.
+    if (!this.canPrepareClientFiles()) return;
+    await this.prepareClientFiles();
+    await this.prepareLibraryPerformance();
+  }
+
+  private canPrepareClientFiles(): boolean {
+    if (this.importing) return false;
+    const processes = testNapi.getProcessList() as NativeProcessInfo[];
+    return !this.hasRunningProcesses(processes) && !this.hasForeignClient(processes);
+  }
+
+  private async ensureGpuDependencies(): Promise<void> {
     if (!this.context) return;
     const bin = this.getClientDirectory() + '/bin';
     const target = bin + '/SDL2.dll';
@@ -108,10 +130,10 @@ export class SteamLocalService {
     } finally { if (exists(temporary)) await fs.unlink(temporary); }
   }
 
-  async prepareLibraryPerformance(): Promise<void> {
+  private async prepareLibraryPerformance(): Promise<void> {
     // Steam owns localconfig while running. Never race its config writer,
     // or reapply the initial default after the user changes it in Steam.
-    if (!this.store || this.hasRunningProcesses() || this.hasForeignClient()) return;
+    if (!this.store || !this.canPrepareClientFiles()) return;
     const key = 'lightLibraryAccountsV1';
     const applied = this.store.getSync(key, []) as string[];
     const userdata = this.getClientDirectory() + '/userdata';
@@ -121,6 +143,7 @@ export class SteamLocalService {
       try {
         const original = textFile(file);
         const updated = steamLightLibraryConfiguration(original);
+        if (!this.canPrepareClientFiles()) return;
         if (updated !== original) await atomicText(file, updated);
         applied.push(file);
         await this.store.put(key, applied);
@@ -131,12 +154,6 @@ export class SteamLocalService {
     }
   }
 
-  async prepareRuntimeHelper(): Promise<void> {
-    if (this.preparingRuntime) return this.preparingRuntime;
-    const pending = this.prepareClientFiles();
-    this.preparingRuntime = pending;
-    try { await pending; } finally { this.preparingRuntime = null; }
-  }
   private async prepareClientFiles(): Promise<void> {
     await this.upgradeRuntimeHelper();
     const context = this.context;
@@ -146,7 +163,7 @@ export class SteamLocalService {
       const identity = JSON.parse(ConfigurationFiles.text(raw)) as SteamLibraryNetworkIdentity;
       const file = this.getClientDirectory() + '/steamui/index.html';
       const adapter: SteamLibraryNetworkFiles = {
-        stopped: (): boolean => !this.importing && !this.hasRunningProcesses() && !this.hasForeignClient(),
+        stopped: (): boolean => this.canPrepareClientFiles(),
         read: async (): Promise<string> => ConfigurationFiles.text(ConfigurationFiles.read(file, 65536)),
         resource: async (): Promise<string> => ConfigurationFiles.text(
           await context.resourceManager.getRawFileContent('windows-steam/library-network.js')),
@@ -164,7 +181,7 @@ export class SteamLocalService {
       const identity = JSON.parse(ConfigurationFiles.text(raw)) as SteamRuntimeIdentity;
       const base = this.getClientDirectory();
       const adapter: SteamRuntimeFiles = {
-        stopped: (): boolean => !this.importing && !this.hasRunningProcesses() && !this.hasForeignClient(),
+        stopped: (): boolean => this.canPrepareClientFiles(),
         hash: async (name: string): Promise<string> => ConfigurationFiles.fileHash(base + '/' + name),
         resource: async (): Promise<Uint8Array> => context.resourceManager.getRawFileContent('windows-steam/vpsteamtrust32.dll'),
         hashBytes: async (bytes: Uint8Array): Promise<string> => ConfigurationFiles.hash(bytes),
@@ -491,8 +508,7 @@ export class SteamLocalService {
            path === exe.slice(0, -'steam.exe'.length) + 'bin/cef/cef.win7/steamwebhelper.exe'));
     });
   }
-  hasRunningProcesses(): boolean {
-    const processes = testNapi.getProcessList() as NativeProcessInfo[];
+  hasRunningProcesses(processes: NativeProcessInfo[] = testNapi.getProcessList() as NativeProcessInfo[]): boolean {
     const c = wineDriveCForContainer('default');
     const client = steamWindowsPath(this.getClientDirectory(), this.root, c).toLowerCase() + '/';
     return processes.some((process: NativeProcessInfo): boolean => process.state === 'running' &&

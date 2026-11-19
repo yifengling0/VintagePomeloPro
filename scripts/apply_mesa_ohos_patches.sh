@@ -35,6 +35,7 @@ PATCHES=(
     "$SCRIPT_DIR/../patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch"
     "$SCRIPT_DIR/../patches/mesa/0026-zink-shadow-buffer-map-offset.patch"
     "$SCRIPT_DIR/../patches/mesa/0027-zink-isolate-shadow-image-staging.patch"
+    "$SCRIPT_DIR/../patches/mesa/0028-venus-forward-frame-generation-scene.patch"
 )
 
 [ -f "$MESA_SOURCE/meson.build" ] || {

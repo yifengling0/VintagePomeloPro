@@ -24,14 +24,17 @@ export async function prepareSteamLibraryNetwork(identity: SteamLibraryNetworkId
     const original = await files.read();
     if (original.length > 65536) return false;
     const originalHash = await files.hash(original);
+    if (originalHash === identity.patchedSha256) return false;
     let bootstrap = original;
     if (originalHash === identity.previousPatchedSha256) {
       const start = original.indexOf('<script>');
       const end = original.indexOf('</script>', start);
       if (start < 0 || end < start) return false;
       bootstrap = original.slice(0, start) + original.slice(end + '</script>'.length);
+      if (await files.hash(bootstrap) !== identity.originalSha256) return false;
+    } else if (originalHash !== identity.originalSha256) {
+      return false;
     }
-    if (await files.hash(bootstrap) !== identity.originalSha256) return false;
     const script = await files.resource();
     if (!script || script.length > 16384 || /<\/script/i.test(script) ||
       await files.hash(script) !== identity.scriptSha256) return false;

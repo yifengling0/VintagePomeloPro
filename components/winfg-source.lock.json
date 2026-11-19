@@ -1,0 +1,174 @@
+{
+  "repository": "https://github.com/The412Banner/win-fg",
+  "revision": "fbc69ed6c5bf16b824d0a29bd8b171675101f9dd",
+  "license": "MIT",
+  "destination": "native/gamescope/winfg/upstream",
+  "files": [
+    {
+      "path": "LICENSE",
+      "bytes": 1069,
+      "sha256": "9ad2839085f404318dc880f1fb8e637e59f751b3ba2a8a94f70b05304e43da1d"
+    },
+    {
+      "path": "NOTICE_FIDELITYFX_OPTICALFLOW.md",
+      "bytes": 2522,
+      "sha256": "4c2f1dee901c0a5ee3d0cbfdafdb39eed1355bb00f4331b408b7739d6f90ea4d"
+    },
+    {
+      "path": "docs/PROVENANCE.md",
+      "bytes": 10814,
+      "sha256": "21e0138662bc11320e2949ba83fd0f223f9fb2287ff13463ac5ffba8a28c2427"
+    },
+    {
+      "path": "src/framegen.cpp",
+      "bytes": 15304,
+      "sha256": "6f5dc388996ce91c9778cb1f70b54f4d3809697ac2f9c6703f4cd3f5d48522d3"
+    },
+    {
+      "path": "src/framegen.hpp",
+      "bytes": 8988,
+      "sha256": "6bb57f75785ecfec8e935fdf9a2f1200c2eebede415fc84c3b43367f302be2f6"
+    },
+    {
+      "path": "src/record_impl.inc",
+      "bytes": 40592,
+      "sha256": "619b4d6355a9af8492fa4dcf5707ab2ab5fb6f17126f59e8733fcdf512ff54ce"
+    },
+    {
+      "path": "src/vk_dispatch.hpp",
+      "bytes": 7191,
+      "sha256": "08c88f53014eb14248c4bd1e0137e8d73f6cabd0f7afaaba47e58cb1705e3c6f"
+    },
+    {
+      "path": "src/config.hpp",
+      "bytes": 21842,
+      "sha256": "0f58f003f55931d876459754168d517394754a9b9b413be3f97eee25492776eb"
+    },
+    {
+      "path": "src/log.hpp",
+      "bytes": 1210,
+      "sha256": "a4d259a162a443c171408ed25021d308fe6a0aa847384a330706e02e4e7cbbc2"
+    },
+    {
+      "path": "src/embedded_shaders.hpp",
+      "bytes": 215914,
+      "sha256": "a942984774d6ecf1a3aeea7fd06c6636268b267c6559f27e2b599d1368be5f59"
+    },
+    {
+      "path": "tools/embed_spv.py",
+      "bytes": 2332,
+      "sha256": "1017823aca572ef3a014814e159325559afd6b1f7d6e216fd258189356148ac5"
+    },
+    {
+      "path": "tools/build_shaders.sh",
+      "bytes": 457,
+      "sha256": "1e2220466c9d7f407c7541b07cba600a0dd838958d2717d6e02ea059216f4f20"
+    },
+    {
+      "path": "shaders/of3_luma.comp",
+      "bytes": 1842,
+      "sha256": "9bc5b4393658b123ed5f706d591e97ccf80810a5cc90470fa3074956e6765930"
+    },
+    {
+      "path": "shaders/of3_downsample.comp",
+      "bytes": 2028,
+      "sha256": "73a1d8b1a692d5e99aa24c24d5a69b12ec06be645645f7a05209ffa7c6d50e27"
+    },
+    {
+      "path": "shaders/of3_flow.comp",
+      "bytes": 6922,
+      "sha256": "8233580ff1163f4f9d78847fe6a2020b36469d6a881c1e4067d5f02d364779cf"
+    },
+    {
+      "path": "shaders/of3_flow_m4.comp",
+      "bytes": 7328,
+      "sha256": "2feae4a0f65c80fb31ddf3315a40685a3daa9a48d25b03c2788c6107e6b0f8da"
+    },
+    {
+      "path": "shaders/of3_expand.comp",
+      "bytes": 5248,
+      "sha256": "02dc7435988766401f86ccfd96506394c533ac1cf4ebdaf396a137fc6ee6c6c7"
+    },
+    {
+      "path": "shaders/of3_expand_m4.comp",
+      "bytes": 6266,
+      "sha256": "fcce564a42ed80afadf1b0bd7bb9cf3e6a8e6cf475a68428c903ad77c3786439"
+    },
+    {
+      "path": "shaders/of3_flowreg.comp",
+      "bytes": 8110,
+      "sha256": "ebff0564c7e40cbfca6399fcc9d23273bdfb299aa4236aeef60109ae578817c8"
+    },
+    {
+      "path": "shaders/of3_gm_reduce.comp",
+      "bytes": 7262,
+      "sha256": "4ec1a9ad0a11756fa29de31d79f1d0f7661e304071b0a967c53ec9fa974d021c"
+    },
+    {
+      "path": "shaders/of3_gm_prewarp.comp",
+      "bytes": 3022,
+      "sha256": "bdeb05d193597d9b3db9f75a709357653c3f17ae08458b07a3d1bc0b78f8771e"
+    },
+    {
+      "path": "shaders/wfg_synth.comp",
+      "bytes": 11701,
+      "sha256": "190f73ce79ac3e5197e9a6fa450e2d71644d79f822a11ee1bccaf3f23209e89a"
+    }
+  ],
+  "productUse": "model 3 Balanced; GPU core only; no CPU global motion, capture, training or Vulkan layer",
+  "patches": [
+    {
+      "path": "patches/winfg/0001-owned-scratch-and-safe-compute-fallback.patch",
+      "sha256": "7b598f8caf84a3d8c93f9e56f4ad9c541bd69c550a7db1d4a79500ac3058ff20"
+    },
+    {
+      "path": "patches/winfg/0002-match-model3-flow-to-synthesis-directions.patch",
+      "sha256": "c3d61279b2d82f43911b2dfe10f14ad49c9c0ba429a05caee2c512eb6b5d21a9"
+    },
+    {
+      "path": "patches/winfg/0003-bypass-scene-cuts-and-report-gpu-metadata.patch",
+      "sha256": "f9810678201c1e2a3521df9b9140fe1c15b2a2a44a4720bf9ecd75b299638c19"
+    },
+    {
+      "path": "patches/winfg/0004-use-zero-predictor-at-coarsest-level.patch",
+      "sha256": "05efd0cc0c11c945d0a5fa28255f69668839f9950a4709c23eaad368a5eef0f0"
+    },
+    {
+      "path": "patches/winfg/0005-preserve-real-pixels-for-unreliable-motion.patch",
+      "sha256": "ecd8cd5912ebf3eca8d554a7ee24e8581e89771ab54546fc71b966df6fd8d0c7"
+    },
+    {
+      "path": "patches/winfg/0006-reject-chroma-disagreement-at-occlusions.patch",
+      "sha256": "4aee8e1fbe3350ca6405cf3d3b8c91c8d8e81dc55c5692979cd237ba6eccacbb"
+    }
+  ],
+  "adapted": [
+    {
+      "path": "framegen.cpp",
+      "sha256": "f00a3a50f43de28f7871bda9592805a4cce8a617fcddeee49e88bfe31dbdc9f2"
+    },
+    {
+      "path": "framegen.hpp",
+      "sha256": "764a22e484f15a37c48b7343a9976c2d8478af8c9d069c2c4f9a006887a0c98c"
+    },
+    {
+      "path": "record_impl.inc",
+      "sha256": "3f12042b4bbb3d21c5b9ab4db52f6f4455809835bbac97efd9b1ab609543e86a"
+    },
+    {
+      "path": "vk_dispatch.hpp",
+      "sha256": "e2df3bdb7ef5c4ff268f46b9a5de5440a44b7bc3d8e56e75ec85f1b2f0ce0365"
+    },
+    {
+      "path": "shaders/wfg_synth.comp",
+      "sha256": "49444123d2d31bcf6d3decba414bd3b6b6ab0a685ded49d49924513776179e7b"
+    }
+  ],
+  "additionalFiles": [
+    {
+      "source": "native/gamescope/winfg/shaders/vpp_scene_cut.comp",
+      "destination": "shaders/vpp_scene_cut.comp",
+      "sha256": "099f986eec80ba8dee060e987a66fcf2bcf2b65afaf0a4dde0467d1389eb424d"
+    }
+  ]
+}

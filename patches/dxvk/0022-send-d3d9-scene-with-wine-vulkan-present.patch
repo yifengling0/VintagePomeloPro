@@ -1,0 +1,330 @@
+diff --git a/src/vulkan/vulkan_presenter.h b/src/vulkan/vulkan_presenter.h
+--- a/src/vulkan/vulkan_presenter.h
++++ b/src/vulkan/vulkan_presenter.h
+@@ -20,6 +20,29 @@
+    * the swap chain. This is passed as
+    * an input during swap chain creation.
+    */
++  // Private WineHua payload. The Win32 thunk makes a fixed-width copy
++  // at vkQueuePresentKHR and removes it before the native Vulkan call.
++  constexpr VkStructureType FrameSceneStructureType = static_cast<VkStructureType>(0x6b565046);
++  struct FrameScene {
++    VkStructureType sType = FrameSceneStructureType;
++    const void* pNext = nullptr;
++    uint32_t version = 1;
++    uint32_t size = 184;
++    uint64_t serial = 0;
++    VkImage color = VK_NULL_HANDLE;
++    VkImage depth = VK_NULL_HANDLE;
++    uint32_t colorFormat = 0;
++    uint32_t colorLayout = 0;
++    uint32_t depthFormat = 0;
++    uint32_t depthLayout = 0;
++    uint32_t width = 0;
++    uint32_t height = 0;
++    float viewProjection[16] = {};
++    float inverseViewProjection[16] = {};
++  };
++
++  static_assert(sizeof(FrameScene) - offsetof(FrameScene, version) == 184);
++
+   struct PresenterDesc {
+     VkExtent2D          imageExtent;
+     uint32_t            imageCount;
+@@ -140,7 +163,7 @@
+      * but do not present before acquiring an image.
+      * \returns Status of the operation
+      */
+-    VkResult presentImage();
++    VkResult presentImage(const FrameScene* scene);
+     
+     /**
+      * \brief Changes presenter properties
+diff --git a/src/vulkan/vulkan_presenter.cpp b/src/vulkan/vulkan_presenter.cpp
+--- a/src/vulkan/vulkan_presenter.cpp
++++ b/src/vulkan/vulkan_presenter.cpp
+@@ -91,13 +91,13 @@
+   }
+ 
+ 
+-  VkResult Presenter::presentImage() {
++  VkResult Presenter::presentImage(const FrameScene* scene) {
+     PresenterSync sync = m_semaphores.at(m_frameIndex);
+     const uint64_t presentSequence = ++m_winehuaPresentSequence;
+ 
+     VkPresentInfoKHR info;
+     info.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+-    info.pNext              = nullptr;
++    info.pNext              = scene;
+     info.waitSemaphoreCount = 1;
+     info.pWaitSemaphores    = &sync.present;
+     info.swapchainCount     = 1;
+diff --git a/src/dxvk/dxvk_queue.h b/src/dxvk/dxvk_queue.h
+--- a/src/dxvk/dxvk_queue.h
++++ b/src/dxvk/dxvk_queue.h
+@@ -46,6 +46,7 @@
+    */
+   struct DxvkPresentInfo {
+     Rc<vk::Presenter>   presenter;
++    std::shared_ptr<const vk::FrameScene> frameScene;
+   };
+ 
+ 
+diff --git a/src/dxvk/dxvk_queue.cpp b/src/dxvk/dxvk_queue.cpp
+--- a/src/dxvk/dxvk_queue.cpp
++++ b/src/dxvk/dxvk_queue.cpp
+@@ -108,7 +108,7 @@
+             entry.submit.waitSync,
+             entry.submit.wakeSync);
+         } else if (entry.present.presenter != nullptr) {
+-          status = entry.present.presenter->presentImage();
++          status = entry.present.presenter->presentImage(entry.present.frameScene.get());
+         }
+       } else {
+         // Don't submit anything after device loss
+diff --git a/src/dxvk/dxvk_device.h b/src/dxvk/dxvk_device.h
+--- a/src/dxvk/dxvk_device.h
++++ b/src/dxvk/dxvk_device.h
+@@ -400,7 +400,8 @@
+      */
+     void presentImage(
+       const Rc<vk::Presenter>&        presenter,
+-            DxvkSubmitStatus*         status);
++            DxvkSubmitStatus*         status,
++            std::shared_ptr<const vk::FrameScene> frameScene = {});
+     
+     /**
+      * \brief Submits a command list
+diff --git a/src/dxvk/dxvk_device.cpp b/src/dxvk/dxvk_device.cpp
+--- a/src/dxvk/dxvk_device.cpp
++++ b/src/dxvk/dxvk_device.cpp
+@@ -201,11 +201,13 @@
+   
+   void DxvkDevice::presentImage(
+     const Rc<vk::Presenter>&        presenter,
+-          DxvkSubmitStatus*         status) {
++          DxvkSubmitStatus*         status,
++          std::shared_ptr<const vk::FrameScene> frameScene) {
+     status->result = VK_NOT_READY;
+ 
+     DxvkPresentInfo presentInfo;
+     presentInfo.presenter = presenter;
++    presentInfo.frameScene = std::move(frameScene);
+     m_submissionQueue.present(presentInfo, status);
+     
+     std::lock_guard<sync::Spinlock> statLock(m_statLock);
+diff --git a/src/d3d9/d3d9_device.h b/src/d3d9/d3d9_device.h
+--- a/src/d3d9/d3d9_device.h
++++ b/src/d3d9/d3d9_device.h
+@@ -871,7 +871,8 @@
+     };
+ 
+     void CaptureFrameGenerationScene();
+-    void TraceFrameGenerationScene(D3D9Surface* backBuffer, uint64_t serial);
++    std::shared_ptr<const vk::FrameScene> TakeFrameGenerationScene(
++      D3D9Surface* backBuffer, VkExtent2D surfaceExtent, uint64_t serial);
+ 
+     template <DxsoProgramType ShaderStage>
+     void BindShader(
+@@ -1290,6 +1291,9 @@
+     FrameGenerationScene            m_frameGenerationScene;
+     const bool                      m_traceFrameScene =
+       env::getEnvVar("WINEHUA_DXVK9_FRAME_SCENE_TRACE") == "1";
++    const bool                      m_sendFrameScene =
++      env::getEnvVar("WINEHUA_DXVK9_FRAME_SCENE_WINE") == "1" &&
++      GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version");
+ 
+   };
+ 
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -6261,24 +6261,26 @@
+   }
+ 
+ 
+-  void D3D9DeviceEx::TraceFrameGenerationScene(D3D9Surface* backBuffer, uint64_t serial) {
++  std::shared_ptr<const vk::FrameScene> D3D9DeviceEx::TakeFrameGenerationScene(
++          D3D9Surface* backBuffer, VkExtent2D surfaceExtent, uint64_t serial) {
+     auto scene = std::exchange(m_frameGenerationScene, {});
+     // Keep the trace bounded even on workloads which continue drawing indefinitely.
+-    if (serial > 24)
+-      return;
++    const bool trace = m_traceFrameScene && serial <= 24;
+ 
+     if (scene.ambiguous || scene.color == nullptr || !backBuffer ||
+         scene.color != backBuffer->GetCommonTexture()->GetImage()) {
+-      Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=",
+-        scene.ambiguous ? "ambiguous" : "unavailable"));
+-      return;
++      if (trace)
++        Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=",
++          scene.ambiguous ? "ambiguous" : "unavailable"));
++      return {};
+     }
+ 
+     const auto viewProjection = scene.projection * scene.view;
+     const auto determinantValue = determinant(viewProjection);
+     if (!std::isfinite(determinantValue) || determinantValue == 0.0f) {
+-      Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=singular-camera"));
+-      return;
++      if (trace)
++        Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=singular-camera"));
++      return {};
+     }
+ 
+     const auto inverseViewProjection = inverse(viewProjection);
+@@ -6286,24 +6288,52 @@
+       for (size_t row = 0; row < 4; row++) {
+         if (!std::isfinite(viewProjection[col][row]) ||
+             !std::isfinite(inverseViewProjection[col][row])) {
+-          Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=non-finite-camera"));
+-          return;
++          if (trace)
++            Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=non-finite-camera"));
++          return {};
+         }
+       }
+     }
+ 
+     const auto& info = scene.depth->info();
+-    Logger::info(str::format("VPP_FG_D3D9 serial=", serial,
+-      " scene=fixed-function color=", scene.color->handle(),
++    if (trace)
++      Logger::info(str::format("VPP_FG_D3D9 serial=", serial,
++        " scene=fixed-function color=", scene.color->handle(),
+       " depth=", scene.depth->handle(), " depthSize=", info.extent.width, "x", info.extent.height,
+       " depthFormat=", static_cast<uint32_t>(info.format),
+       " sampleable=", bool(info.usage & VK_IMAGE_USAGE_SAMPLED_BIT),
+-      " viewProj=", viewProjection, " invViewProj=", inverseViewProjection));
++        " viewProj=", viewProjection, " invViewProj=", inverseViewProjection));
++    const auto& colorInfo = scene.color->info();
++    if (!m_sendFrameScene || !(info.usage & VK_IMAGE_USAGE_SAMPLED_BIT) ||
++        !(colorInfo.usage & VK_IMAGE_USAGE_SAMPLED_BIT) || colorInfo.sampleCount != VK_SAMPLE_COUNT_1_BIT ||
++        surfaceExtent.width != info.extent.width || surfaceExtent.height != info.extent.height)
++      return {};
++
++    // Keep the depth allocation alive through the asynchronous presentation.
++    struct RetainedFrameScene : vk::FrameScene {
++      Rc<DxvkImage> colorImage;
++      Rc<DxvkImage> depthImage;
++    };
++    auto frame = std::make_shared<RetainedFrameScene>();
++    frame->colorImage = scene.color;
++    frame->depthImage = scene.depth;
++    frame->serial = serial;
++    frame->color = scene.color->handle();
++    frame->depth = scene.depth->handle();
++    frame->colorFormat = colorInfo.format;
++    frame->colorLayout = colorInfo.layout;
++    frame->depthFormat = info.format;
++    frame->depthLayout = info.layout;
++    frame->width = surfaceExtent.width;
++    frame->height = surfaceExtent.height;
++    std::memcpy(frame->viewProjection, viewProjection.data, sizeof(frame->viewProjection));
++    std::memcpy(frame->inverseViewProjection, inverseViewProjection.data, sizeof(frame->inverseViewProjection));
++    return frame;
+   }
+ 
+ 
+   void D3D9DeviceEx::PrepareDraw(D3DPRIMITIVETYPE PrimitiveType) {
+-    if (unlikely(m_traceFrameScene))
++    if (unlikely(m_traceFrameScene || m_sendFrameScene))
+       CaptureFrameGenerationScene();
+ 
+     if (unlikely(m_activeHazardsRT != 0)) {
+diff --git a/src/d3d9/d3d9_swapchain.h b/src/d3d9/d3d9_swapchain.h
+--- a/src/d3d9/d3d9_swapchain.h
++++ b/src/d3d9/d3d9_swapchain.h
+@@ -131,9 +131,10 @@
+ 
+     double                    m_displayRefreshRate = 0.0;
+ 
+-    void PresentImage(UINT PresentInterval);
+-
+-    void SubmitPresent(const vk::PresenterSync& Sync, uint32_t FrameId);
++    void PresentImage(UINT PresentInterval, std::shared_ptr<const vk::FrameScene> scene);
++
++    void SubmitPresent(const vk::PresenterSync& Sync, uint32_t FrameId,
++                       std::shared_ptr<const vk::FrameScene> scene);
+ 
+     void SynchronizePresent();
+ 
+diff --git a/src/d3d9/d3d9_swapchain.cpp b/src/d3d9/d3d9_swapchain.cpp
+--- a/src/d3d9/d3d9_swapchain.cpp
++++ b/src/d3d9/d3d9_swapchain.cpp
+@@ -252,9 +252,11 @@
+           DWORD    dwFlags) {
+     D3D9DeviceLock lock = m_parent->LockDevice();
+ 
+-    if (unlikely(m_parent->m_traceFrameScene) && this == m_parent->m_implicitSwapchain.ptr())
+-      m_parent->TraceFrameGenerationScene(
+-        m_backBuffers.empty() ? nullptr : m_backBuffers.front().ptr(), ++m_frameSceneSerial);
++    std::shared_ptr<const vk::FrameScene> frameScene;
++    if (unlikely(m_parent->m_traceFrameScene || m_parent->m_sendFrameScene) &&
++        this == m_parent->m_implicitSwapchain.ptr())
++      frameScene = m_parent->TakeFrameGenerationScene(
++        m_backBuffers.empty() ? nullptr : m_backBuffers.front().ptr(), GetPresentExtent(), ++m_frameSceneSerial);
+ 
+     uint32_t presentInterval = m_presentParams.PresentationInterval;
+ 
+@@ -307,7 +309,7 @@
+       if (!m_presenter->hasSwapChain())
+         return D3D_OK;
+ 
+-      PresentImage(presentInterval);
++      PresentImage(presentInterval, std::move(frameScene));
+       return D3D_OK;
+     } catch (const DxvkError& e) {
+       Logger::err(e.message());
+@@ -812,7 +814,7 @@
+   }
+ 
+ 
+-  void D3D9SwapChainEx::PresentImage(UINT SyncInterval) {
++  void D3D9SwapChainEx::PresentImage(UINT SyncInterval, std::shared_ptr<const vk::FrameScene> scene) {
+     m_parent->Flush();
+ 
+     // Retrieve the image and image view to present
+@@ -861,7 +863,13 @@
+       if (i + 1 >= SyncInterval)
+         m_context->signal(m_frameLatencySignal, m_frameId);
+ 
+-      SubmitPresent(sync, i);
++      // Only the first successful presentation corresponds to a new game frame.
++      if (scene && (scene->width != info.imageExtent.width || scene->height != info.imageExtent.height ||
++                    srcRect.offset.x || srcRect.offset.y || dstRect.offset.x || dstRect.offset.y ||
++                    srcRect.extent.width != scene->width || srcRect.extent.height != scene->height ||
++                    dstRect.extent.width != scene->width || dstRect.extent.height != scene->height))
++        scene.reset();
++      SubmitPresent(sync, i, std::move(scene));
+     }
+ 
+     SyncFrameLatency();
+@@ -875,7 +883,8 @@
+   }
+ 
+ 
+-  void D3D9SwapChainEx::SubmitPresent(const vk::PresenterSync& Sync, uint32_t FrameId) {
++  void D3D9SwapChainEx::SubmitPresent(const vk::PresenterSync& Sync, uint32_t FrameId,
++                                    std::shared_ptr<const vk::FrameScene> scene) {
+     // Present from CS thread so that we don't
+     // have to synchronize with it first.
+     m_presentStatus.result = VK_NOT_READY;
+@@ -884,6 +893,7 @@
+       cFrameId     = FrameId,
+       cSync        = Sync,
+       cHud         = m_hud,
++      cFrameScene  = std::move(scene),
+       cCommandList = m_context->endRecording()
+     ] (DxvkContext* ctx) {
+       m_device->submitCommandList(cCommandList,
+@@ -892,7 +902,7 @@
+       if (cHud != nullptr && !cFrameId)
+         cHud->update();
+ 
+-      m_device->presentImage(m_presenter, &m_presentStatus);
++      m_device->presentImage(m_presenter, &m_presentStatus, cFrameScene);
+     });
+ 
+     m_parent->FlushCsChunk();
