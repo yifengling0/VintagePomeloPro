@@ -80,8 +80,7 @@ export struct FpsHud {
     try {
       const fg = testNapi.getGameFrameGenerationStatus();
       if (fg.state > 0) {
-        const gpu = fg.gpuMs > 0 ? ' · 插帧GPU ' + fg.gpuMs.toFixed(1) + 'ms' : '';
-        return '真实 ' + Math.round(fg.realFps) + ' · 生成 ' + Math.round(fg.generatedFps) + ' · 呈现 ' + Math.round(fg.presentedFps) + ' FPS' + gpu;
+        return Math.round(fg.presentedFps) + ' FPS' + (fg.generatedFps > 0 ? ' · 插帧' : '');
       }
       const id: number = this.toplevelId > 0 ? this.toplevelId : testNapi.getDesktopRootId() as number;
       const fps: number = testNapi.getDisplayFps(id) as number;

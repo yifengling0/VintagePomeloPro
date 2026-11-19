@@ -8,6 +8,8 @@ export struct GamePresentationSettings {
   @Prop value: GameModeSettings = normalizeGameModeSettings();
   @Prop inGame: boolean = false;
   @State private fgStatus: string = '';
+  @State private fgRates: string = '';
+  @State private fgGpuTime: string = '';
   private fgTimer: number = -1;
   onChange: (value: GameModeSettings) => void = (_value: GameModeSettings): void => {};
 
@@ -23,8 +25,17 @@ export struct GamePresentationSettings {
   }
   aboutToDisappear(): void { if (this.fgTimer >= 0) clearInterval(this.fgTimer); this.fgTimer = -1; }
   private readFgStatus(): void {
-    try { this.fgStatus = frameGenerationStateText(testNapi.getGameFrameGenerationStatus().state); }
-    catch (_) { this.fgStatus = '插帧状态暂不可用'; }
+    try {
+      const fg = testNapi.getGameFrameGenerationStatus();
+      this.fgStatus = frameGenerationStateText(fg.state);
+      this.fgRates = fg.state > 0 ? '真实 ' + Math.round(fg.realFps) + ' · 生成 ' +
+        Math.round(fg.generatedFps) + ' · 呈现 ' + Math.round(fg.presentedFps) + ' FPS' : '';
+      this.fgGpuTime = fg.generatedFps > 0 && fg.gpuMs > 0 ? '插帧 GPU 耗时 ' + fg.gpuMs.toFixed(1) + ' ms' : '';
+    } catch (_) {
+      this.fgStatus = '插帧状态暂不可用';
+      this.fgRates = '';
+      this.fgGpuTime = '';
+    }
   }
 
   build() {
@@ -47,7 +58,15 @@ export struct GamePresentationSettings {
           onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'x2') })
       }.width('100%')
       if (this.inGame && this.value.frameGeneration === 'x2') {
-        Text(this.fgStatus).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-status')
+        Column({ space: 4 }) {
+          Text(this.fgStatus).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-status')
+          if (this.fgRates.length > 0) {
+            Text(this.fgRates).fontSize(12).fontColor('#E8EDF5').width('100%').id('game-framegen-rates')
+          }
+          if (this.fgGpuTime.length > 0) {
+            Text(this.fgGpuTime).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-gpu-time')
+          }
+        }.width('100%')
       }
       Text('改善画面流畅度，实际效果取决于设备和游戏；不改变游戏逻辑及输入帧率。')
         .fontSize(12).fontColor(this.inGame ? '#9AA9BE' : skinColor('text_secondary')).width('100%')
