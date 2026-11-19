@@ -1,6 +1,8 @@
 #define VK_USE_PLATFORM_OHOS 1
 
 #include "graphics/host_vulkan_probe.h"
+#include "graphics/harmony_gpu_probe_scene.h"
+#include "gamescope/harmony_frame_generation.h"
 
 #include <native_window/external_window.h>
 #include <vulkan/vulkan.h>
@@ -36,6 +38,9 @@ using Clock = std::chrono::steady_clock;
 
 std::atomic<bool> gRunning{false};
 std::atomic<bool> gCancel{false};
+std::mutex gHarmonyMutex;
+HarmonyGpuProbeResult gHarmonyResult;
+using winehua::graphics::HarmonyGpuProbeScene;
 
 std::string JsonEscape(const char* value)
 {
@@ -295,13 +300,17 @@ bool HasExtension(const std::vector<VkExtensionProperties>& extensions, const ch
 
 class VulkanProbe {
 public:
-    VulkanProbe(OHNativeWindow* window, std::string runId)
-        : window_(window), runId_(std::move(runId)) {}
+    VulkanProbe(OHNativeWindow* window, std::string runId, bool harmonyGpu)
+        : window_(window), runId_(std::move(runId)), harmonyGpu_(harmonyGpu) {}
 
     ~VulkanProbe() { Cleanup(); }
 
     void Run()
     {
+        if (harmonyGpu_) {
+            RunHarmony();
+            return;
+        }
         const char* failure = nullptr;
         bool unsupported = false;
         if (!InitInstance(failure, unsupported) || !InitDevice(failure, unsupported) ||
@@ -352,6 +361,58 @@ public:
     }
 
 private:
+    void ReportHarmony(const char* stage, const char* detail = "")
+    {
+        std::lock_guard<std::mutex> lock(gHarmonyMutex);
+        gHarmonyResult = {runId_, stage, detail, realFrames_, generatedFrames_, baselineFrames_,
+                          harmonyScene_ ? harmonyScene_->Error() : 0};
+        OH_LOG_INFO(LOG_APP, "HarmonyGPU stage=%{public}s baseline=%{public}u real=%{public}u "
+                    "generated=%{public}u sdk=%{public}d detail=%{public}s",
+                    stage, baselineFrames_, realFrames_, generatedFrames_, gHarmonyResult.sdkError, detail);
+    }
+
+    void RunHarmony()
+    {
+        const auto capability = winehua::gamescope::ProbeHarmonyFrameGeneration().gpuVulkan;
+        if (!capability.vulkanEntryPointsAvailable) {
+            ReportHarmony("unsupported", capability.detail.c_str());
+            return;
+        }
+        const char* failure = nullptr;
+        bool unsupported = false;
+        if (!InitInstance(failure, unsupported) || !InitDevice(failure, unsupported) ||
+            !CreateSwapchain(failure, unsupported) || !CreateCommands(failure)) {
+            ReportHarmony(unsupported ? "unsupported" : "failed", failure);
+            return;
+        }
+        harmonyScene_ = std::make_unique<HarmonyGpuProbeScene>(physical_, device_);
+        if (const char* error = harmonyScene_->Start(instance_)) {
+            ReportHarmony("failed", error);
+            return;
+        }
+        ReportHarmony("running");
+        for (uint32_t frame = 0; frame < 150 && !gCancel.load(); ++frame) {
+            harmonyEnabled_ = frame >= 30;
+            const auto target = Clock::now() + std::chrono::milliseconds(harmonyEnabled_ ? 17 : 34);
+            if (!DrawFrame(failure)) {
+                ReportHarmony(gCancel.load() ? "cancelled" : "failed", failure);
+                return;
+            }
+            if (frame == 29 || frame == 79) ReportHarmony("running");
+            std::this_thread::sleep_until(target);
+        }
+        if (gCancel.load()) {
+            ReportHarmony("cancelled");
+        } else if (baselineFrames_ > 0 && generatedFrames_ > 0 && realFrames_ > 0) {
+            ReportHarmony("passed");
+            // Retain the final presented buffer for observation.
+            for (int i = 0; i < 50 && !gCancel.load(); ++i)
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        } else {
+            ReportHarmony("failed", "No predicted frame was presented");
+        }
+    }
+
     void QueryExtendedCapabilities(const std::vector<VkExtensionProperties>& extensions)
     {
         auto formatSupported = [this](VkFormat format) {
@@ -512,7 +573,8 @@ private:
             for (uint32_t i = 0; i < queueCount; ++i) {
                 VkBool32 supported = VK_FALSE;
                 vkGetPhysicalDeviceSurfaceSupportKHR(candidate, i, surface_, &supported);
-                if ((queues[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && graphics == UINT32_MAX) graphics = i;
+                const auto renderer = VK_QUEUE_GRAPHICS_BIT | (harmonyGpu_ ? VK_QUEUE_COMPUTE_BIT : 0);
+                if ((queues[i].queueFlags & renderer) == renderer && graphics == UINT32_MAX) graphics = i;
                 if (supported && present == UINT32_MAX) present = i;
             }
             uint32_t extCount = 0;
@@ -659,6 +721,18 @@ private:
             }
         }
         caps_.format = chosen.format;
+        if (harmonyGpu_) {
+            VkFormatProperties source{}, target{};
+            vkGetPhysicalDeviceFormatProperties(physical_, HarmonyGpuProbeScene::ColorFormat, &source);
+            vkGetPhysicalDeviceFormatProperties(physical_, chosen.format, &target);
+            if (!(caps_.surface.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ||
+                !(source.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_SRC_BIT) ||
+                !(target.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT)) {
+                failure = "Vulkan surface or color format cannot receive the predicted frame";
+                unsupported = true;
+                return false;
+            }
+        }
         caps_.presentMode = VK_PRESENT_MODE_FIFO_KHR;
         extent_ = caps_.surface.currentExtent;
         if (extent_.width == UINT32_MAX) {
@@ -681,6 +755,7 @@ private:
         create.imageExtent = extent_;
         create.imageArrayLayers = 1;
         create.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        if (harmonyGpu_) create.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         create.imageSharingMode = families[0] == families[1] ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT;
         create.queueFamilyIndexCount = families[0] == families[1] ? 0 : 2;
         create.pQueueFamilyIndices = families[0] == families[1] ? nullptr : families;
@@ -696,6 +771,18 @@ private:
         vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, nullptr);
         images_.resize(imageCount);
         vkGetSwapchainImagesKHR(device_, swapchain_, &imageCount, images_.data());
+        if (harmonyGpu_) {
+            // Acquiring a swapchain image retires its previous present wait.
+            VkSemaphoreCreateInfo semaphore{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+            harmonyPresentReady_.resize(imageCount);
+            for (auto& ready : harmonyPresentReady_) {
+                if (vkCreateSemaphore(device_, &semaphore, nullptr, &ready) != VK_SUCCESS) {
+                    failure = "Presentation semaphore creation failed";
+                    return false;
+                }
+            }
+            return true;
+        }
         views_.resize(imageCount);
         for (uint32_t i = 0; i < imageCount; ++i) {
             VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -781,7 +868,8 @@ private:
     {
         auto frameStart = Clock::now();
         auto renderStart = frameStart;
-        if (vkWaitForFences(device_, 1, &fence_, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
+        const uint64_t timeout = harmonyGpu_ ? 500'000'000ull : UINT64_MAX;
+        if (vkWaitForFences(device_, 1, &fence_, VK_TRUE, timeout) != VK_SUCCESS) {
             failure = "vkWaitForFences failed";
             return false;
         }
@@ -789,7 +877,7 @@ private:
 
         uint32_t imageIndex = 0;
         auto acquireStart = Clock::now();
-        VkResult result = vkAcquireNextImageKHR(device_, swapchain_, UINT64_MAX, acquire_, VK_NULL_HANDLE, &imageIndex);
+        VkResult result = vkAcquireNextImageKHR(device_, swapchain_, timeout, acquire_, VK_NULL_HANDLE, &imageIndex);
         metrics_.acquireWaitUs += std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - acquireStart).count();
         if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             failure = "vkAcquireNextImageKHR failed";
@@ -798,7 +886,64 @@ private:
         vkResetFences(device_, 1, &fence_);
         vkResetCommandBuffer(command_, 0);
         VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-        vkBeginCommandBuffer(command_, &begin);
+        if (vkBeginCommandBuffer(command_, &begin) != VK_SUCCESS) {
+            failure = "vkBeginCommandBuffer failed";
+            return false;
+        }
+        auto frame = HarmonyGpuProbeScene::Frame::Real;
+        if (harmonyScene_) {
+            frame = harmonyScene_->Record(command_, images_[imageIndex], extent_, harmonyEnabled_);
+            if (frame == HarmonyGpuProbeScene::Frame::Failed) {
+                failure = "HMS_FG_Dispatch_VK failed";
+                return false;
+            }
+        } else {
+            DrawSmokePattern(imageIndex);
+        }
+        if (vkEndCommandBuffer(command_) != VK_SUCCESS) {
+            failure = "vkEndCommandBuffer failed";
+            return false;
+        }
+        const VkPipelineStageFlags waitStage = harmonyGpu_ ? VK_PIPELINE_STAGE_TRANSFER_BIT :
+                                                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        const VkSemaphore rendered = harmonyGpu_ ? harmonyPresentReady_[imageIndex] : rendered_;
+        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+        submit.waitSemaphoreCount = 1;
+        submit.pWaitSemaphores = &acquire_;
+        submit.pWaitDstStageMask = &waitStage;
+        submit.commandBufferCount = 1;
+        submit.pCommandBuffers = &command_;
+        submit.signalSemaphoreCount = 1;
+        submit.pSignalSemaphores = &rendered;
+        if (vkQueueSubmit(graphicsQueue_, 1, &submit, fence_) != VK_SUCCESS) {
+            failure = "vkQueueSubmit failed";
+            return false;
+        }
+        metrics_.queueSubmitCount++;
+        VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
+        present.waitSemaphoreCount = 1;
+        present.pWaitSemaphores = &rendered;
+        present.swapchainCount = 1;
+        present.pSwapchains = &swapchain_;
+        present.pImageIndices = &imageIndex;
+        auto presentStart = Clock::now();
+        result = vkQueuePresentKHR(presentQueue_, &present);
+        metrics_.presentWaitUs += std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - presentStart).count();
+        if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            failure = "vkQueuePresentKHR failed";
+            return false;
+        }
+        if (harmonyGpu_ && result == VK_SUCCESS) {
+            if (!harmonyEnabled_) ++baselineFrames_;
+            else if (frame == HarmonyGpuProbeScene::Frame::Generated) ++generatedFrames_;
+            else ++realFrames_;
+        }
+        metrics_.frameMs.push_back(std::chrono::duration<double, std::milli>(Clock::now() - frameStart).count());
+        return true;
+    }
+
+    void DrawSmokePattern(uint32_t imageIndex)
+    {
         VkClearValue black{};
         black.color.float32[3] = 1.0f;
         VkRenderPassBeginInfo pass{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};
@@ -825,39 +970,6 @@ private:
             vkCmdClearAttachments(command_, 1, &clear, 1, &rect);
         }
         vkCmdEndRenderPass(command_);
-        if (vkEndCommandBuffer(command_) != VK_SUCCESS) {
-            failure = "vkEndCommandBuffer failed";
-            return false;
-        }
-        VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-        submit.waitSemaphoreCount = 1;
-        submit.pWaitSemaphores = &acquire_;
-        submit.pWaitDstStageMask = &waitStage;
-        submit.commandBufferCount = 1;
-        submit.pCommandBuffers = &command_;
-        submit.signalSemaphoreCount = 1;
-        submit.pSignalSemaphores = &rendered_;
-        if (vkQueueSubmit(graphicsQueue_, 1, &submit, fence_) != VK_SUCCESS) {
-            failure = "vkQueueSubmit failed";
-            return false;
-        }
-        metrics_.queueSubmitCount++;
-        VkPresentInfoKHR present{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
-        present.waitSemaphoreCount = 1;
-        present.pWaitSemaphores = &rendered_;
-        present.swapchainCount = 1;
-        present.pSwapchains = &swapchain_;
-        present.pImageIndices = &imageIndex;
-        auto presentStart = Clock::now();
-        result = vkQueuePresentKHR(presentQueue_, &present);
-        metrics_.presentWaitUs += std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - presentStart).count();
-        if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-            failure = "vkQueuePresentKHR failed";
-            return false;
-        }
-        metrics_.frameMs.push_back(std::chrono::duration<double, std::milli>(Clock::now() - frameStart).count());
-        return true;
     }
 
     void DestroySwapchain()
@@ -877,6 +989,10 @@ private:
     void Cleanup()
     {
         if (device_) vkDeviceWaitIdle(device_);
+        harmonyScene_.reset();
+        for (const auto ready : harmonyPresentReady_) {
+            if (ready) vkDestroySemaphore(device_, ready, nullptr);
+        }
         if (fence_) vkDestroyFence(device_, fence_, nullptr);
         if (rendered_) vkDestroySemaphore(device_, rendered_, nullptr);
         if (acquire_) vkDestroySemaphore(device_, acquire_, nullptr);
@@ -893,6 +1009,13 @@ private:
 
     OHNativeWindow* window_ = nullptr;
     std::string runId_;
+    bool harmonyGpu_;
+    bool harmonyEnabled_ = false;
+    uint32_t baselineFrames_ = 0;
+    uint32_t realFrames_ = 0;
+    uint32_t generatedFrames_ = 0;
+    std::unique_ptr<HarmonyGpuProbeScene> harmonyScene_;
+    std::vector<VkSemaphore> harmonyPresentReady_;
     ProbeCaps caps_;
     ProbeMetrics metrics_;
     VkInstance instance_ = VK_NULL_HANDLE;
@@ -916,7 +1039,7 @@ private:
 
 } // namespace
 
-bool StartHostVulkanProbe(uint64_t surfaceId, const std::string& runId)
+bool StartHostVulkanProbe(uint64_t surfaceId, const std::string& runId, bool harmonyGpu)
 {
     if (!SafeId(runId) || gRunning.exchange(true)) return false;
     gCancel.store(false);
@@ -926,17 +1049,35 @@ bool StartHostVulkanProbe(uint64_t surfaceId, const std::string& runId)
         gRunning.store(false);
         return false;
     }
-    std::thread([window, runId]() {
-        VulkanProbe probe(window, runId);
-        probe.Run();
+    if (harmonyGpu) {
+        std::lock_guard<std::mutex> lock(gHarmonyMutex);
+        gHarmonyResult = {runId, "starting", ""};
+    }
+    try {
+        std::thread([window, runId, harmonyGpu]() {
+            {
+                VulkanProbe probe(window, runId, harmonyGpu);
+                probe.Run();
+            }
+            gRunning.store(false);
+        }).detach();
+    } catch (...) {
+        OH_NativeWindow_DestroyNativeWindow(window);
         gRunning.store(false);
-    }).detach();
+        return false;
+    }
     return true;
 }
 
 void StopHostVulkanProbe()
 {
     gCancel.store(true);
+}
+
+HarmonyGpuProbeResult GetHarmonyGpuProbeResult()
+{
+    std::lock_guard<std::mutex> lock(gHarmonyMutex);
+    return gHarmonyResult;
 }
 
 // 轻量 GPU 名称查询: 创建 instance, 枚举首个物理设备返回 deviceName

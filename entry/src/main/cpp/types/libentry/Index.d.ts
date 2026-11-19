@@ -365,7 +365,17 @@ export const wineTextInputActive: () => boolean;
 export const wineTextInputFocusedToplevel: () => number;
 /** The current native implementation accepts but ignores armed. */
 export const wineTextInputSetArmed: (armed: boolean) => void;
-export const runHostVulkanProbe: (surfaceId: BigInt, runId: string) => boolean;
+export const runHostVulkanProbe: (surfaceId: BigInt, runId: string, harmonyGpu?: boolean) => boolean;
+export interface HarmonyGpuProbeResult {
+  runId: string;
+  stage: string;
+  detail: string;
+  baselineFrames: number;
+  realFrames: number;
+  generatedFrames: number;
+  sdkError: number;
+}
+export const getHarmonyGpuProbeResult: () => HarmonyGpuProbeResult;
 export const stopHostVulkanProbe: () => boolean;
 export interface SteamZipProgress { done: number; total: number; }
 export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>;

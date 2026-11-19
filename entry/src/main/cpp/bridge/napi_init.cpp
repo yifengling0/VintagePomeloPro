@@ -1540,24 +1540,44 @@ static napi_value SetHostGraphicsBackend(napi_env env, napi_callback_info info) 
 }
 
 static napi_value RunHostVulkanProbe(napi_env env, napi_callback_info info) {
-    size_t argc = 2;
-    napi_value args[2] = {};
+    size_t argc = 3;
+    napi_value args[3] = {};
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     uint64_t surfaceId = 0;
     bool lossless = false;
+    bool harmonyGpu = false;
     char runId[128] = {};
     if (argc < 2 ||
         napi_get_value_bigint_uint64(env, args[0], &surfaceId, &lossless) != napi_ok || !lossless ||
-        napi_get_value_string_utf8(env, args[1], runId, sizeof(runId), nullptr) != napi_ok) {
+        napi_get_value_string_utf8(env, args[1], runId, sizeof(runId), nullptr) != napi_ok ||
+        (argc >= 3 && napi_get_value_bool(env, args[2], &harmonyGpu) != napi_ok)) {
         napi_value result;
         napi_get_boolean(env, false, &result);
         return result;
     }
-    bool started = StartHostVulkanProbe(surfaceId, runId);
+    bool started = StartHostVulkanProbe(surfaceId, runId, harmonyGpu);
     OH_LOG_INFO(LOG_APP, "[HostVulkan] start surface=%{public}llu run=%{public}s result=%{public}s",
                 static_cast<unsigned long long>(surfaceId), runId, started ? "true" : "false");
     napi_value result;
     napi_get_boolean(env, started, &result);
+    return result;
+}
+
+static napi_value GetHarmonyGpuProbeResultNapi(napi_env env, napi_callback_info) {
+    const auto state = GetHarmonyGpuProbeResult();
+    napi_value result, value;
+    napi_create_object(env, &result);
+    for (const auto& [key, text] : {std::pair{"runId", &state.runId}, {"stage", &state.stage}, {"detail", &state.detail}}) {
+        napi_create_string_utf8(env, text->c_str(), NAPI_AUTO_LENGTH, &value);
+        napi_set_named_property(env, result, key, value);
+    }
+    for (const auto& [key, frames] : {std::pair{"baselineFrames", state.baselineFrames},
+                                      {"realFrames", state.realFrames}, {"generatedFrames", state.generatedFrames}}) {
+        napi_create_uint32(env, frames, &value);
+        napi_set_named_property(env, result, key, value);
+    }
+    napi_create_int32(env, state.sdkError, &value);
+    napi_set_named_property(env, result, "sdkError", value);
     return result;
 }
 
@@ -2029,6 +2049,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         // ---- VPP product surface ----
         {"setHostGraphicsBackend", nullptr, SetHostGraphicsBackend, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"runHostVulkanProbe", nullptr, RunHostVulkanProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getHarmonyGpuProbeResult", nullptr, GetHarmonyGpuProbeResultNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopHostVulkanProbe", nullptr, StopHostVulkanProbeNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getHostGpuName", nullptr, GetHostGpuNameNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"refreshRenderer", nullptr, RefreshRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
