@@ -6,7 +6,7 @@
 
 插帧设置规划为「关闭」「Win-FG 2×」「鸿蒙超帧」。Win-FG 和鸿蒙官方超帧各自独立选择，旧设置 `x2` 对应 Win-FG。鸿蒙超帧按系统能力和游戏提供的帧数据开放。功能免费、离线。
 
-当前可选择 Win-FG 2×。**Mini 的 PAL4/VirGL 已完成 30 FPS 档和调度修复后 60 FPS 上限档的两轮对照，每轮关开各 3×60 秒，完整画质和三端矩阵仍未验收**。具体包身份、调度修复及数据见 [评价记录](frame-generation-validation.zh-CN.md)。鸿蒙官方超帧目前处于能力探测阶段。`candidate-available` 表示设备报告支持且指定的 Vulkan 入口齐全，实际送显待验证。
+当前可选择 Win-FG 2×。**Mini 的 PAL4/VirGL 已完成 30 FPS 档和调度修复后 60 FPS 上限档的两轮对照，每轮关开各 3×60 秒，完整画质和三端矩阵仍未验收**。具体包身份、调度修复及数据见 [评价记录](frame-generation-validation.zh-CN.md)。鸿蒙官方 GPU 超帧已通过 Mini 原生 Vulkan 样例送显验证，VPP 的 Windows 游戏接入仍需渲染端提供深度和相机矩阵。
 
 官方接口（2026-11-19 核对）
 
@@ -24,7 +24,7 @@
 6. 明确历史图像使用期限、resize/旋转/后台重置和超时回退；不能长时间占住游戏 producer ring。
 7. `HMS_FG_SetTargetFps_VK` 的 SDK 注释说明首次上架后生效。调试包结果必须区分能力查询、激活结果及真实系统送显，不能用 Dispatch 成功或重复显示代替生成帧计数。
 
-先在设备报告支持时使用有真实深度和相机数据的原生 Vulkan 场景验证，再按游戏逐一验证渲染端能否提供上述数据。
+Mini 的原生 Vulkan 样例已验证游戏送显。VPP 普通 Vulkan 桌面同样通过 Vulkan 交换链提交画面。Windows 游戏能否接入取决于渲染端是否能同步提供与颜色对应的场景数据。DXVK 的 D3D9 固定管线保留视图和投影变换。可编程顶点着色器使用无相机语义的常量寄存器，需由游戏或引擎提供对应关系。PAL4 和 Heaven 的帧数据尚未接通。
 
 ## 通用实现与来源
 
@@ -66,7 +66,9 @@
 - `probeHarmonyFrameGeneration()` 在异步工作线程内动态加载系统库，不增加 API 23 的硬链接依赖，不启动 NCP、Wine 或 Gamescope。
 - 调试签名诊断页分别显示 GPU 和 AI Vulkan 内插结果。
 - 主机行为测试覆盖库缺失、旧系统缺少查询、设备否定、GPU 与 AI 各自支持、Vulkan 入口缺失，以及只有 AI 需要系统送显入口的情况。上下文操作的替身入口调用即中止，用于检查探测的副作用。
-- Mini MLR-AL10，`7.0.0.111(SP16C00E111R1P2)` / API 26 的历史调试包查询中，`INTERPOLATION_AI_VULKAN` 返回 false。该包只查了 AI，GPU Vulkan 结果待真机复测。
+- Mini MLR-AL10，`7.0.0.111(SP16C00E111R1P2)` / API 26。VPP 2.0.6 调试包 `c1f341c9` 在应用内查得 `INTERPOLATION_GPU_VULKAN=true`，必要的 Vulkan 入口齐全。独立查询 `INTERPOLATION_AI_VULKAN=false`。
+- 在同一个应用身份下临时安装华为 Vulkan 样例功能模块。样例用真实颜色、深度和相机矩阵调用基础内插，再通过自己的 Vulkan 交换链送显。开启时连续 20.996 秒成功提交 600 张真实帧和 600 张生成帧，合计约 57.2 FPS。关闭时 10.935 秒提交 720 张真实帧，约 65.8 FPS，生成计数不变。再次开启后生成计数恢复增长。计数点在 `vkQueuePresentKHR` 成功返回处，用于验证生成帧提交和开关行为。样例窗口的提交速率和 VPP 游戏性能需要分别测量。[华为 Vulkan 样例](https://gitcode.com/HarmonyOS_Samples/frame-generation-vulkan-samplecode-clientdemo-cpp/tree/a99257f2949e1d4490c3259b48d573bd9d0e6b35)
+- 移除临时模块后，入口 HAP 的原生接口首次加载异常。用相同签名、相同版本的 `c1f341c9` 保留数据覆盖安装后恢复启动。
 - 覆盖升级安装成功、应用可启动、查询后正常返回 Game 游戏库；原有 17 项游戏条目仍存在，未清数据或变更图形设置。M80 当前未确认在线，PC 未测。
 - 原能力检查包：633,928,457 字节；SHA-256 `5cf02b422709474489bc7468873554f52dfaa647386e91ce0530f5976f582291`，源码 `59d87b0c`。它仅是能力检查包，不能作为插帧功能或性能验收证据；当前交付包身份另见任务 `package.json`。
 
