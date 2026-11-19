@@ -64,6 +64,9 @@ add_library(gamescope_child SHARED gamescope/gamescope_child.cpp)
 target_include_directories(gamescope_child PRIVATE ${NATIVERENDER_ROOT_PATH})
 target_link_libraries(gamescope_child PRIVATE libdl.so libchild_process.so libipc_capi.so libnative_window.so)
 
+add_library(vpp_harmony_wine_fg SHARED graphics/harmony_wine_frame_generation.cpp)
+target_link_libraries(vpp_harmony_wine_fg PRIVATE libdl.so libvulkan.so)
+
 add_library(entry SHARED
     gamescope/process_backend.cpp
     gamescope/output_connection.cpp
@@ -331,6 +334,7 @@ add_library(virgl_child SHARED
     graphics/shader_utils.cpp
     phone_adapter/phone_virgl_dispatch.cpp
 )
+target_link_libraries(virgl_child PRIVATE vpp_harmony_wine_fg)
 target_link_libraries(virgl_child PUBLIC
     libnative_buffer.so
     libEGL.so

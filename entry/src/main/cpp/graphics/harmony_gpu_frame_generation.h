@@ -33,7 +33,7 @@ public:
 
     const char* Start(const FG_ContextDescription_VK& device, VkExtent2D extent,
                       const FrameGenerationImage& color, const FrameGenerationImage& depth,
-                      const FrameGenerationImage& prediction)
+                      const FrameGenerationImage& prediction, bool systemPresent = false)
     {
         library_ = dlopen("libframegeneration.so", RTLD_NOW | RTLD_LOCAL);
         if (!library_) return "libframegeneration.so unavailable";
@@ -63,27 +63,65 @@ public:
         const FG_ImageFormat_VK formats{color.format, depth.format, prediction.format};
         error_ = setFormat_(context_, &formats);
         if (error_ != FG_SUCCESS) return "HMS_FG_SetImageFormat_VK failed";
+        if (systemPresent) {
+            decltype(&HMS_FG_SetIntegrationMode_VK) setIntegration = nullptr;
+            decltype(&HMS_FG_SetCvvZSemantic_VK) setClipDepth = nullptr;
+            if (!Load(setIntegration, "HMS_FG_SetIntegrationMode_VK") ||
+                !Load(setClipDepth, "HMS_FG_SetCvvZSemantic_VK"))
+                return "System frame generation entry point unavailable";
+            FG_IntegrationInfo integration{};
+            integration.presentMode = FG_PRESENT_BY_SYSTEM;
+            error_ = setIntegration(context_, &integration);
+            if (error_ == FG_SUCCESS)
+                error_ = setClipDepth(context_, FG_CVV_Z_SEMANTIC_ZERO_TO_ONE_FORWARD_Z);
+            if (error_ != FG_SUCCESS) return "System frame generation setup failed";
+        }
         error_ = activate_(context_);
         if (error_ != FG_SUCCESS) return "HMS_FG_Activate_VK failed";
         active_ = true;
         unsigned index = 0;
         for (const auto* image : {&color, &depth, &prediction}) {
-            images_[index] = createImage_(context_, image->image, image->view);
-            if (!images_[index++]) return "HMS_FG_CreateImage_VK failed";
+            if (image->image) {
+                images_[index] = createImage_(context_, image->image, image->view);
+                if (!images_[index]) return "HMS_FG_CreateImage_VK failed";
+            }
+            ++index;
         }
         return nullptr;
     }
 
+    bool BindInputs(const FrameGenerationImage& color, const FrameGenerationImage& depth)
+    {
+        ReleaseInputs();
+        images_[0] = createImage_(context_, color.image, color.view);
+        images_[1] = createImage_(context_, depth.image, depth.view);
+        return images_[0] && images_[1];
+    }
+
+    void ReleaseInputs()
+    {
+        for (unsigned index = 0; index < 2; ++index) {
+            if (images_[index]) destroyImage_(context_, images_[index]);
+            images_[index] = nullptr;
+        }
+    }
+
     FG_ErrorCode Record(VkCommandBuffer command, const FG_Mat4x4& camera,
-                        const FG_Mat4x4& inverseCamera, bool predictionInitialized)
+                        const FG_Mat4x4& inverseCamera, bool predictionInitialized,
+                        VkImageLayout colorLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        VkImageLayout depthLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
     {
         const FG_ImageSync_VK sample{VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT};
         const FG_ImageSync_VK undefined{static_cast<VkAccessFlagBits>(0), VK_IMAGE_LAYOUT_UNDEFINED,
                                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
         FG_DispatchDescription_VK frame{};
-        frame.inputColorInfo = {images_[0], sample, sample};
-        frame.inputDepthStencilInfo = {images_[1], sample, sample};
+        const auto inputSync = [&sample](VkImageLayout layout) {
+            if (layout == sample.layout) return sample;
+            return FG_ImageSync_VK{VK_ACCESS_MEMORY_WRITE_BIT, layout, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT};
+        };
+        frame.inputColorInfo = {images_[0], inputSync(colorLayout), inputSync(colorLayout)};
+        frame.inputDepthStencilInfo = {images_[1], inputSync(depthLayout), inputSync(depthLayout)};
         frame.outputColorInfo = {images_[2], predictionInitialized ? sample : undefined, sample};
         frame.viewProj = camera;
         frame.invViewProj = inverseCamera;

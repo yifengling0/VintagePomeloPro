@@ -1,0 +1,300 @@
+diff --git a/include/wine/vpp_frame_scene.h b/include/wine/vpp_frame_scene.h
+new file mode 100644
+--- /dev/null
++++ b/include/wine/vpp_frame_scene.h
+@@ -0,0 +1,33 @@
++/* Private VPP presentation data shared by the Wine Vulkan thunk and win32u. */
++#ifndef __WINE_VPP_FRAME_SCENE_H
++#define __WINE_VPP_FRAME_SCENE_H
++
++#define VPP_FRAME_SCENE_STYPE ((VkStructureType)0x6b565046)
++#define VPP_FRAME_SCENE_VERSION 1
++
++struct vpp_frame_scene_data
++{
++    uint32_t version, size;
++    uint64_t serial, color, depth;
++    uint32_t color_format, color_layout, depth_format, depth_layout, width, height;
++    float view_projection[16], inverse_view_projection[16];
++};
++
++struct vpp_frame_scene
++{
++    VkBaseInStructure header;
++    struct vpp_frame_scene_data data;
++};
++
++C_ASSERT(sizeof(struct vpp_frame_scene_data) == 184);
++
++static inline BOOL vpp_read_frame_scene(struct vpp_frame_scene_data *data, const void *bytes)
++{
++    uint32_t fields[2];
++    memcpy(fields, bytes, sizeof(fields));
++    if (fields[0] != VPP_FRAME_SCENE_VERSION || fields[1] != sizeof(*data)) return FALSE;
++    memcpy(data, bytes, sizeof(*data));
++    return data->serial && data->color && data->depth && data->width && data->height &&
++           data->width <= 8192 && data->height <= 8192;
++}
++#endif
+diff --git a/dlls/winevulkan/vulkan_thunks.c b/dlls/winevulkan/vulkan_thunks.c
+--- a/dlls/winevulkan/vulkan_thunks.c
++++ b/dlls/winevulkan/vulkan_thunks.c
+@@ -23,6 +23,7 @@
+ #include <stdlib.h>
+ 
+ #include "vulkan_private.h"
++#include "wine/vpp_frame_scene.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
+ 
+@@ -66822,14 +66823,28 @@
+ static NTSTATUS thunk64_vkQueuePresentKHR(void *args)
+ {
+     struct vkQueuePresentKHR_params *params = args;
++    struct vpp_frame_scene scene = {.header.sType = VPP_FRAME_SCENE_STYPE};
+     VkPresentInfoKHR pPresentInfo_host;
++    VkPresentInfoKHR info = *params->pPresentInfo;
++    const VkBaseInStructure *head = info.pNext;
++    BOOL has_scene = FALSE;
+     struct conversion_context local_ctx;
+     struct conversion_context *ctx = &local_ctx;
+ 
+     TRACE("%p, %p\n", params->queue, params->pPresentInfo);
+ 
++    if (head && head->sType == VPP_FRAME_SCENE_STYPE)
++    {
++        info.pNext = head->pNext;
++        has_scene = info.swapchainCount == 1 && vpp_read_frame_scene(&scene.data, head + 1);
++    }
+     init_conversion_context(ctx);
+-    convert_VkPresentInfoKHR_win64_to_unwrapped_host(ctx, params->pPresentInfo, &pPresentInfo_host);
++    convert_VkPresentInfoKHR_win64_to_unwrapped_host(ctx, &info, &pPresentInfo_host);
++    if (has_scene)
++    {
++        scene.header.pNext = pPresentInfo_host.pNext;
++        pPresentInfo_host.pNext = &scene.header;
++    }
+     params->result = vk_funcs->p_vkQueuePresentKHR(params->queue, &pPresentInfo_host);
+     free_conversion_context(ctx);
+     return STATUS_SUCCESS;
+@@ -66844,14 +66859,28 @@
+         PTR32 pPresentInfo;
+         VkResult result;
+     } *params = args;
++    struct vpp_frame_scene scene = {.header.sType = VPP_FRAME_SCENE_STYPE};
+     VkPresentInfoKHR pPresentInfo_host;
++    VkPresentInfoKHR32 info = *(const VkPresentInfoKHR32 *)UlongToPtr(params->pPresentInfo);
++    const VkBaseInStructure32 *head = UlongToPtr(info.pNext);
++    BOOL has_scene = FALSE;
+     struct conversion_context local_ctx;
+     struct conversion_context *ctx = &local_ctx;
+ 
+     TRACE("%#x, %#x\n", params->queue, params->pPresentInfo);
+ 
++    if (head && head->sType == VPP_FRAME_SCENE_STYPE)
++    {
++        info.pNext = head->pNext;
++        has_scene = info.swapchainCount == 1 && vpp_read_frame_scene(&scene.data, head + 1);
++    }
+     init_conversion_context(ctx);
+-    convert_VkPresentInfoKHR_win32_to_unwrapped_host(ctx, (const VkPresentInfoKHR32 *)UlongToPtr(params->pPresentInfo), &pPresentInfo_host);
++    convert_VkPresentInfoKHR_win32_to_unwrapped_host(ctx, &info, &pPresentInfo_host);
++    if (has_scene)
++    {
++        scene.header.pNext = pPresentInfo_host.pNext;
++        pPresentInfo_host.pNext = &scene.header;
++    }
+     params->result = vk_funcs->p_vkQueuePresentKHR((VkQueue)UlongToPtr(params->queue), &pPresentInfo_host);
+     free_conversion_context(ctx);
+     return STATUS_SUCCESS;
+diff --git a/dlls/win32u/vulkan.c b/dlls/win32u/vulkan.c
+--- a/dlls/win32u/vulkan.c
++++ b/dlls/win32u/vulkan.c
+@@ -47,6 +47,7 @@
+ #define WIN32_NO_STATUS
+ #include "win32u_private.h"
+ #include "ntuser_private.h"
++#include "wine/vpp_frame_scene.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(vulkan);
+ 
+@@ -338,6 +339,9 @@
+     pthread_mutex_t mutex;
+     pthread_cond_t cond;
+ 
++    void *frame_generation;
++    BOOL frame_generation_failed;
++
+     /* fs hack data below */
+     UINT fshack_dpi;
+     VkExtent2D host_extents;
+@@ -352,6 +356,59 @@
+     VkPipeline pipeline;
+ };
+ 
++typedef bool (*vpp_dispatch_frame_scene_fn)(void **, VkInstance, VkPhysicalDevice,
++    VkDevice, VkQueue, uint32_t, PFN_vkGetInstanceProcAddr, const void *);
++typedef void (*vpp_frame_scene_lifetime_fn)(void *);
++
++static vpp_dispatch_frame_scene_fn vpp_frame_dispatch;
++static vpp_frame_scene_lifetime_fn vpp_frame_destroy, vpp_frame_presented;
++static pthread_once_t vpp_frame_library_once = PTHREAD_ONCE_INIT;
++
++static void vpp_load_frame_library(void)
++{
++    void *library = dlopen("libvpp_harmony_wine_fg.so", RTLD_NOW | RTLD_LOCAL);
++    if (!library) return;
++    vpp_frame_destroy = dlsym(library, "VppHarmonyWineFrameDestroy");
++    vpp_frame_presented = dlsym(library, "VppHarmonyWineFramePresented");
++    if (vpp_frame_destroy && vpp_frame_presented)
++        vpp_frame_dispatch = dlsym(library, "VppHarmonyWineFrameDispatch");
++}
++
++static void vpp_destroy_frame_scene(struct swapchain *swapchain)
++{
++    if (!swapchain->frame_generation) return;
++    vpp_frame_destroy(swapchain->frame_generation);
++    swapchain->frame_generation = NULL;
++}
++
++static void vpp_dispatch_frame_scene(struct swapchain *swapchain, struct vulkan_queue *queue,
++                                     const struct vpp_frame_scene_data *scene)
++{
++    struct vulkan_device *device = queue->device;
++    struct vulkan_physical_device *physical = device->physical_device;
++    const uint32_t family = queue->info.queueFamilyIndex;
++    const VkQueueFlags required = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
++    BOOL submitted;
++
++    if (swapchain->frame_generation_failed || swapchain->extents.width != scene->width ||
++        swapchain->extents.height != scene->height ||
++        (device->queue_props[family].queueFlags & required) != required)
++        return;
++    pthread_once(&vpp_frame_library_once, vpp_load_frame_library);
++    if (!vpp_frame_dispatch)
++    {
++        swapchain->frame_generation_failed = TRUE;
++        WARN("VPP_FG_WINE system frame generation library unavailable\n");
++        return;
++    }
++    submitted = vpp_frame_dispatch(&swapchain->frame_generation, physical->instance->host.instance,
++                                   physical->host.physical_device, device->host.device,
++                                   queue->host.queue, family, p_vkGetInstanceProcAddr, scene);
++    if (!submitted) swapchain->frame_generation_failed = TRUE;
++    if (scene->serial <= 24 || !submitted)
++        TRACE("VPP_FG_WINE serial=%s sdk_submit=%u\n", wine_dbgstr_longlong(scene->serial), submitted);
++}
++
+ static struct swapchain *swapchain_from_handle( VkSwapchainKHR handle )
+ {
+     struct vulkan_swapchain *obj = vulkan_swapchain_from_handle( handle );
+@@ -417,6 +474,9 @@
+                                   VkImageLayout, uint32_t, uint32_t, uint32_t,
+                                   uint64_t *);
+ 
++typedef int (*winehua_present_scene_fn)(VkQueue, VkImage, uint32_t, uint32_t, VkFormat,
++    VkImageLayout, uint32_t, uint32_t, uint32_t, uint64_t *, const struct vpp_frame_scene_data *);
++static winehua_present_scene_fn winehua_present_scene;
+ static winehua_present_fn winehua_present;
+ static pthread_once_t winehua_present_once = PTHREAD_ONCE_INIT;
+ static struct list wow64_copy_maps = LIST_INIT( wow64_copy_maps );
+@@ -430,6 +490,7 @@
+ {
+     void *handle = dlopen("libvulkan_virtio.so", RTLD_NOW | RTLD_LOCAL | RTLD_NOLOAD);
+     if (handle) winehua_present = (winehua_present_fn)dlsym(handle, "vn_winehua_present");
++    if (handle) winehua_present_scene = (winehua_present_scene_fn)dlsym(handle, "vn_winehua_present_scene");
+     if (!winehua_present)
+         WARN("WineHua Vulkan private present entry is unavailable\n");
+ }
+@@ -438,7 +499,7 @@
+                                  uint32_t width, uint32_t height, VkFormat format,
+                                  VkImageLayout layout, uint32_t surface_id,
+                                  uint32_t owner_pid, HWND hwnd, uint32_t serial,
+-                                 uint64_t *deadline)
++                                 uint64_t *deadline, const struct vpp_frame_scene_data *scene)
+ {
+     pthread_once(&winehua_present_once, winehua_present_init);
+     if (!winehua_present)
+@@ -463,6 +524,10 @@
+ 
+     /* owner_pid == 0 means "this process owns the window" (GDI/D3D and DXVK
+      * same-process games), which is exactly the old behaviour. */
++    if (scene && winehua_present_scene)
++        return winehua_present_scene(queue->host.queue, image, width, height, format, layout,
++                                     owner_pid ? owner_pid : (uint32_t)getpid(),
++                                     surface_id, serial, deadline, scene);
+     return winehua_present(queue->host.queue, image, width, height, format, layout,
+                            owner_pid ? owner_pid : (uint32_t)getpid(),
+                            surface_id, serial, deadline);
+@@ -4227,6 +4292,7 @@
+ 
+     if (allocator) FIXME( "Support for allocation callbacks not implemented yet\n" );
+     if (!swapchain) return;
++    vpp_destroy_frame_scene(swapchain);
+ 
+     if (swapchain->winehua_private)
+     {
+@@ -4365,7 +4431,8 @@
+     return VK_ERROR_INITIALIZATION_FAILED;
+ }
+ 
+-static VkResult winehua_queue_present(struct vulkan_queue *queue, VkPresentInfoKHR *present_info)
++static VkResult winehua_queue_present(struct vulkan_queue *queue, VkPresentInfoKHR *present_info,
++                                      const struct vpp_frame_scene_data *scene)
+ {
+     struct vulkan_device *device = queue->device;
+     VkSemaphore stack_semaphores[16];
+@@ -4423,7 +4490,7 @@
+                                                    swapchain->surface->winehua_surface_id,
+                                                    swapchain->surface->winehua_owner_pid,
+                                                    swapchain->surface->hwnd,
+-                                                   serial, &deadline);
++                                                   serial, &deadline, scene);
+             if (winehua_present_image_trace_enabled())
+                 fprintf(stderr,
+                         "WineHuaPresentImage: layer=wine event=present "
+@@ -4649,12 +4716,26 @@
+     struct mempool pool = {0};
+     uint32_t blit_count = 0;
+     VkSemaphore blit_sema;
++    const VkBaseInStructure *head;
++    const struct vpp_frame_scene *scene = NULL;
++    struct swapchain *fg_swapchain = NULL;
+     BOOL private_route;
+ 
+     TRACE( "queue %p, present_info %p\n", queue, present_info );
+ 
+     if ((res = winehua_validate_present_swapchains(present_info, &private_route))) return res;
+-    if (private_route) return winehua_queue_present(queue, present_info);
++    head = present_info->pNext;
++    if (head && head->sType == VPP_FRAME_SCENE_STYPE)
++    {
++        scene = (const struct vpp_frame_scene *)head;
++        present_info->pNext = head->pNext;
++        if (scene->data.serial <= 24)
++            TRACE("VPP_FG_WINE serial=%s route=%s image_index=%u depth=%s format=%u layout=%u size=%ux%u\n",
++                  wine_dbgstr_longlong(scene->data.serial), private_route ? "venus" : "native",
++                  present_info->pImageIndices[0], wine_dbgstr_longlong(scene->data.depth),
++                  scene->data.depth_format, scene->data.depth_layout, scene->data.width, scene->data.height);
++    }
++    if (private_route) return winehua_queue_present(queue, present_info, scene ? &scene->data : NULL);
+     res = VK_ERROR_OUT_OF_HOST_MEMORY;
+ 
+     if (!(swapchains = mem_alloc( &pool, present_info->swapchainCount * sizeof(*swapchains) ))) return VK_ERROR_OUT_OF_HOST_MEMORY;
+@@ -4732,7 +4813,16 @@
+     }
+ 
+     pthread_mutex_lock( &lock );
++    if (winehua_direct_vulkan_enabled() && present_info->swapchainCount == 1)
++    {
++        fg_swapchain = swapchain_from_handle(client_swapchains[0]);
++        if (fg_swapchain->fshack_dpi) fg_swapchain = NULL;
++        if (fg_swapchain && scene) vpp_dispatch_frame_scene(fg_swapchain, queue, &scene->data);
++        else if (fg_swapchain) vpp_destroy_frame_scene(fg_swapchain);
++    }
+     res = device->p_vkQueuePresentKHR( queue->host.queue, present_info );
++    if (fg_swapchain && fg_swapchain->frame_generation)
++        vpp_frame_presented(fg_swapchain->frame_generation);
+     pthread_mutex_unlock( &lock );
+ 
+     for (uint32_t i = 0; i < present_info->swapchainCount; i++)

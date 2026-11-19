@@ -6,6 +6,13 @@
 #include "presenter_common.h"
 #include "queue_retirement.h"
 
+extern "C" {
+VkImage VppHarmonyWineFrameDispatchGame(void** state, VkInstance instance, VkPhysicalDevice physical,
+                                       VkDevice device, VkQueue queue, uint32_t family,
+                                       uint32_t presentFormat, const void* scene);
+void VppHarmonyWineFrameDestroy(void* state);
+}
+
 #include <hilog/log.h>
 #include <native_buffer/native_buffer.h>
 #include <vulkan/vulkan.h>
@@ -334,9 +341,69 @@ struct VenusSurfaceQueueTarget::Impl {
                 uint32_t serial,
                 uint64_t* nextPresentDeadlineNs,
                 void (*releaseQueue)(void*),
-                void* queueSyncData)
+                void* queueSyncData, const void* scene)
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        const uint64_t start = NowNs();
+        bool inserted = false;
+        const uint64_t sourceInterval = lastSceneNs_ ? start - lastSceneNs_ : 0;
+        if (scene && serial != lastSceneSerial_) {
+            lastSceneNs_ = start;
+            lastSceneSerial_ = serial;
+        }
+        // The source callback owns both images and the queue until return.
+        const bool tryInterpolation = scene && (nativeReady_ || swapchain_) && !nativeFailed_ &&
+            !swapchainDirty_ &&
+            !deviceReleasing_ && !retirement_.Pending() &&
+            device_ == reinterpret_cast<VkDevice>(device) && contextId_ == contextId &&
+            queue_ == reinterpret_cast<VkQueue>(queue) &&
+            sourceWidth_ == width && sourceHeight_ == height &&
+            sourceFormat_ == static_cast<VkFormat>(format) &&
+            sourceInterval >= displayPeriodNs_ * 2 && sourceInterval <= 70000000 &&
+            (!lastPresentNs_ || start - lastPresentNs_ >= framePeriodNs_);
+        if (scene && !sceneReceived_) {
+            sceneReceived_ = true;
+            OH_LOG_INFO(LOG_APP, "Wine Harmony GPU scene received serial=%{public}u color=%{public}u",
+                        serial, format);
+        }
+        if (tryInterpolation) {
+            const VkImage prediction = VppHarmonyWineFrameDispatchGame(&frameGeneration_,
+                reinterpret_cast<VkInstance>(instance), reinterpret_cast<VkPhysicalDevice>(physicalDevice),
+                device_, reinterpret_cast<VkQueue>(queue), queueFamily, format, scene);
+            const uint64_t halfPeriod = std::min<uint64_t>(sourceInterval / 2, 17000000);
+            if (prediction && NowNs() < start + halfPeriod) {
+                const uint32_t previousSourceSerial = lastSerial_;
+                inserted = PresentOne(contextId, instance, physicalDevice, device, queue,
+                    static_cast<uint64_t>(reinterpret_cast<uintptr_t>(prediction)),
+                    queueFamily, width, height, format, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    serial, nullptr, nullptr, nullptr, false) == 0;
+                if (inserted) {
+                    lastSerial_ = previousSourceSerial;
+                    const uint64_t now = NowNs();
+                    if (now < start + halfPeriod)
+                        std::this_thread::sleep_for(std::chrono::nanoseconds(start + halfPeriod - now));
+                }
+            }
+        }
+        const int result = PresentOne(contextId, instance, physicalDevice, device, queue, image,
+            queueFamily, width, height, format, layout, serial, nextPresentDeadlineNs,
+            releaseQueue, queueSyncData, inserted);
+        if (inserted && result == 0) {
+            lastPresentNs_ = start;
+            if (nextPresentDeadlineNs) *nextPresentDeadlineNs = start + sourceInterval / 2 + framePeriodNs_;
+            if (++generatedFrames_ == 1 || !(generatedFrames_ % 120))
+                OH_LOG_INFO(LOG_APP, "Wine Harmony GPU generated presents=%{public}llu",
+                            static_cast<unsigned long long>(generatedFrames_));
+        }
+        return result;
+    }
+
+    int PresentOne(uint32_t contextId, uintptr_t instance, uintptr_t physicalDevice,
+                   uintptr_t device, uintptr_t queue, uint64_t image, uint32_t queueFamily,
+                   uint32_t width, uint32_t height, uint32_t format, uint32_t layout, uint32_t serial,
+                   uint64_t* nextPresentDeadlineNs, void (*releaseQueue)(void*),
+                   void* queueSyncData, bool skipPacing)
+    {
         const uint64_t presentStartNs = NowNs();
         TracePresentStage("enter", serial, image);
         if (nextPresentDeadlineNs) *nextPresentDeadlineNs = 0;
@@ -347,7 +414,7 @@ struct VenusSurfaceQueueTarget::Impl {
         if (deviceReleasing_) return -ENODEV;
 
         const uint64_t nowNs = NowNs();
-        if (lastPresentNs_ && nowNs - lastPresentNs_ < framePeriodNs_) {
+        if (!skipPacing && lastPresentNs_ && nowNs - lastPresentNs_ < framePeriodNs_) {
             if (nextPresentDeadlineNs)
                 *nextPresentDeadlineNs = lastPresentNs_ + framePeriodNs_;
             ++throttled_;
@@ -1540,6 +1607,11 @@ private:
 
     void DestroyVulkanLocked()
     {
+        VppHarmonyWineFrameDestroy(frameGeneration_);
+        frameGeneration_ = nullptr;
+        generatedFrames_ = 0;
+        lastSceneNs_ = 0;
+        lastSceneSerial_ = 0;
         if (device_) {
             for (auto& frame : frames_) {
                 if (frame.gpuTiming) vkDestroyQueryPool(device_, frame.gpuTiming, nullptr);
@@ -1659,6 +1731,11 @@ private:
     bool swapchainDirty_ = false;
     uint64_t sourceRebuilds_ = 0;
     uint64_t displayPeriodNs_ = kDefaultFramePeriodNs;
+    void* frameGeneration_ = nullptr;
+    uint64_t generatedFrames_ = 0;
+    bool sceneReceived_ = false;
+    uint64_t lastSceneNs_ = 0;
+    uint32_t lastSceneSerial_ = 0;
     uint64_t framePeriodNs_ = kDefaultFramePeriodNs;
     uint64_t lastPresentNs_ = 0;
     uint64_t lastDeviceMismatchLogNs_ = 0;
@@ -1757,12 +1834,12 @@ int VenusSurfaceQueueTarget::PresentVenus(uint32_t contextId,
                                           uint32_t serial,
                                           uint64_t* nextPresentDeadlineNs,
                                           void (*releaseQueue)(void*),
-                                          void* queueSyncData)
+                                          void* queueSyncData, const void* frameScene)
 {
     return impl_->Present(contextId, instance, physicalDevice, device, queue,
                           image, queueFamily, width, height, format, layout,
                           serial, nextPresentDeadlineNs, releaseQueue,
-                          queueSyncData);
+                          queueSyncData, frameScene);
 }
 
 } // namespace winehua

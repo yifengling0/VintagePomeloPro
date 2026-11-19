@@ -14,7 +14,7 @@
         "x86/d3d10core.dll": "20222943401ba558776a8226c23c6f408e1440daf46c51e02bbe87edcfc01d82",
         "x86/d3d11.dll": "f66a873600cb16d0a135b6e5c14a6883ad05c94ec759bc8f09e475aea37ba7b6",
         "x86/dxgi.dll": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73",
-        "x86/d3d9.dll": "d397536ee35d6cdc7ef7a8ac5c57d1d34b15662806262b9fa449cad6d2249775"
+        "x86/d3d9.dll": "2bff954f1b7c0fade4ed28b2ade93b5db0575c7d967b182881f6fcab2d6ca161"
       },
       "patches": [
         {
@@ -96,9 +96,17 @@
         {
           "path": "patches/dxvk/0020-d3d9-preserve-copy-and-windowed-backbuffers.patch",
           "sha256": "13568cd5c4853e71454d007856603e46b85057eaedba09d68b81b6034f11033c"
+        },
+        {
+          "path": "patches/dxvk/0021-d3d9-harmony-frame-scene-capture.patch",
+          "sha256": "28002cc477696cb187f0ef6a168f29fdc21accba76505969715ddd39e35ca805"
+        },
+        {
+          "path": "patches/dxvk/0022-send-d3d9-scene-with-wine-vulkan-present.patch",
+          "sha256": "64630ad7f27f7d60d1bf7c2a3e96b84e2ec7b71ebabc6b52dafcd340c9083995"
         }
       ],
-      "patchedSourceSha256": "8760581afc626aaafe031431507ef0db945737a5ef79e4045cacd44f5dad2203",
+      "patchedSourceSha256": "2381aef63c4f4bea38637bb37cadd32d1f80bd6608c40cabe722302f18fae0ea",
       "qualification": "host-validated-device-pending",
       "experimentalD3D9Qualification": "opt-in only; programmable/fixed-function and four-format three-mip uploads sampled correctly; EVENT fallback and mip/backing fixes reach real Heaven ship/dragon scenes without observed invalid-call/CS errors; full benchmark, product routing, SWVP/vertex blend and long-session correctness pending",
       "backbufferQualification": "Mini PAL4 windowed DISCARD/one-backbuffer verified with rebuilt PE32 DLL and no configuration override; title/load/menu/resume/original-entry re-entry sampled; other games/fullscreen/long-session pending"

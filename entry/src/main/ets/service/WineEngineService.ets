@@ -24,6 +24,7 @@ import {
   resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
+import { GameModeService } from './GameModeService';
 import { normalizeAppGraphicsBackend, resolveGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
@@ -1044,6 +1045,9 @@ export class WineEngineService {
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
     const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset)
       .concat(this.depthStorageEnvironment(), envOverrides);
+    if (!isWineDesktopProgram(program) && GameModeService.currentSettings().frameGeneration === 'harmonyGpu') {
+      launchEnvironment.push('WINEHUA_DXVK9_FRAME_SCENE_WINE=1');
+    }
     // App overrides are last, matching native environment application. Validate
     // the selected module even when the already-running desktop uses FEX.
     let launchCpuEngine = settings.wineTranslationEngine;

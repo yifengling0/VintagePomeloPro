@@ -81,6 +81,10 @@ export class GameModeService {
       throw new Error('游戏会话已变化，请重新打开画面侧栏');
     }
     const next: GamePresentation = { enabled: true, settings: normalizeGameModeSettings(value) };
+    if ((next.settings.frameGeneration === 'harmonyGpu') !==
+        (GameModeService.owner.settings.frameGeneration === 'harmonyGpu')) {
+      throw new Error('切换鸿蒙 GPU 超帧需重新启动游戏');
+    }
     GameModeService.publish(next);
     GameModeService.owner = next;
   }
@@ -94,7 +98,7 @@ export class GameModeService {
   private static publish(value: GamePresentation | null): void {
     const enabled = value?.enabled === true;
     testNapi.configureGamePresentation(enabled, value?.settings.scaling ?? 'linear', value?.settings.frameLimit ?? 0, value?.settings.sharpness ?? 10,
-      value?.settings.frameGeneration ?? 'off');
+      value?.settings.frameGeneration === 'x2' ? 'x2' : 'off');
     AppStorage.setOrCreate<boolean>('vpp.game.session', enabled);
   }
 }

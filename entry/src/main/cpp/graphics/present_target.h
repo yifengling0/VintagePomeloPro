@@ -75,7 +75,7 @@ public:
                              uint32_t serial,
                              uint64_t* nextPresentDeadlineNs,
                              void (*releaseQueue)(void*),
-                             void* queueSyncData) = 0;
+                             void* queueSyncData, const void* frameScene = nullptr) = 0;
 
     // venus-only device 释放 (无 Vk device 时返回 false; virgl 恒 false)。
     virtual bool HasVulkanDevice() = 0;

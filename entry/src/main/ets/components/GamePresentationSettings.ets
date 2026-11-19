@@ -51,12 +51,27 @@ export struct GamePresentationSettings {
       }.width('100%')
       Text('图像插帧 · 免费').fontSize(14).fontWeight(FontWeight.Medium)
         .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary')).width('100%')
-      Row({ space: 8 }) {
-        GameActionButton({ label: '关闭', selected: this.value.frameGeneration !== 'x2', controlId: 'game-framegen-off', darkPanel: this.inGame,
-          onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'off') })
-        GameActionButton({ label: 'Win-FG 2×', selected: this.value.frameGeneration === 'x2', controlId: 'game-framegen-x2', darkPanel: this.inGame,
-          onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'x2') })
-      }.width('100%')
+      if (!this.inGame || this.value.frameGeneration !== 'harmonyGpu') {
+        Flex({ wrap: FlexWrap.Wrap }) {
+          GameActionButton({ label: '关闭', selected: this.value.frameGeneration === 'off', controlId: 'game-framegen-off', darkPanel: this.inGame,
+            onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'off') })
+            .margin({ right: 8, bottom: 8 })
+          GameActionButton({ label: 'Win-FG 2×', selected: this.value.frameGeneration === 'x2', controlId: 'game-framegen-x2', darkPanel: this.inGame,
+            onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'x2') })
+            .margin({ right: 8, bottom: 8 })
+          if (!this.inGame) {
+            GameActionButton({ label: '鸿蒙 GPU 超帧（试验）', selected: this.value.frameGeneration === 'harmonyGpu',
+              controlId: 'game-framegen-harmony',
+              onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'harmonyGpu') })
+              .margin({ bottom: 8 })
+          }
+        }.width('100%')
+      }
+      if (this.value.frameGeneration === 'harmonyGpu') {
+        Text(this.inGame ? '已选择鸿蒙 GPU 超帧，切换方式需重新启动游戏。' :
+          '试验支持能提供深度和相机数据的 DXVK9 固定管线程序，下次启动生效。')
+          .fontSize(12).fontColor(this.inGame ? '#9AA9BE' : skinColor('text_secondary')).width('100%')
+      }
       if (this.inGame && this.value.frameGeneration === 'x2') {
         Column({ space: 4 }) {
           Text(this.fgStatus).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-status')

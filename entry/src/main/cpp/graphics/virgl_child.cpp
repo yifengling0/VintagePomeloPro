@@ -410,7 +410,7 @@ int OnVtestVulkanPresent(uint32_t contextId,
                          uint64_t* nextPresentDeadlineNs,
                          WinehuaVtestReleaseQueueCallback releaseQueue,
                          void* queueSyncData,
-                         void*)
+                         void* frameScene)
 {
     static std::atomic<uint64_t> callCount{0};
     static std::atomic<uint64_t> successCount{0};
@@ -418,11 +418,11 @@ int OnVtestVulkanPresent(uint32_t contextId,
     static std::atomic<uint64_t> failureCount{0};
     const uint64_t call = callCount.fetch_add(1, std::memory_order_relaxed) + 1;
     if (nextPresentDeadlineNs) *nextPresentDeadlineNs = 0;
-    if (presentFlags) return -1;
+    if (presentFlags & ~1u) return -1;
     const int result = winehua::PresentVenusSurface(
         contextId, instance, physicalDevice, device, queue, image,
         queueFamily, width, height, format, layout, clientPid, surfaceId,
-        serial, nextPresentDeadlineNs, releaseQueue, queueSyncData);
+        serial, nextPresentDeadlineNs, releaseQueue, queueSyncData, presentFlags ? frameScene : nullptr);
     uint64_t failures = failureCount.load(std::memory_order_relaxed);
     if (result == 0) {
         successCount.fetch_add(1, std::memory_order_relaxed);

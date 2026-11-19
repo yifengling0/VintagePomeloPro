@@ -1,0 +1,187 @@
+diff --git a/src/d3d9/d3d9_device.h b/src/d3d9/d3d9_device.h
+--- a/src/d3d9/d3d9_device.h
++++ b/src/d3d9/d3d9_device.h
+@@ -862,6 +862,17 @@
+ 
+     void PrepareDraw(D3DPRIMITIVETYPE PrimitiveType);
+ 
++    struct FrameGenerationScene {
++      Rc<DxvkImage> color;
++      Rc<DxvkImage> depth;
++      Matrix4 view;
++      Matrix4 projection;
++      bool ambiguous = false;
++    };
++
++    void CaptureFrameGenerationScene();
++    void TraceFrameGenerationScene(D3D9Surface* backBuffer, uint64_t serial);
++
+     template <DxsoProgramType ShaderStage>
+     void BindShader(
+       const D3D9CommonShader*                 pShaderModule,
+@@ -1276,6 +1287,9 @@
+     std::atomic<int32_t>            m_samplerCount    = { 0 };
+ 
+     Direct3DState9                  m_state;
++    FrameGenerationScene            m_frameGenerationScene;
++    const bool                      m_traceFrameScene =
++      env::getEnvVar("WINEHUA_DXVK9_FRAME_SCENE_TRACE") == "1";
+ 
+   };
+ 
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -27,6 +27,7 @@
+ 
+ #include <algorithm>
+ #include <cfloat>
++#include <cmath>
+ #ifdef MSC_VER
+ #pragma fenv_access (on)
+ #endif
+@@ -1447,6 +1448,16 @@
+       return D3D_OK;
+ 
+     D3D9DeviceLock lock = LockDevice();
++
++    if (m_frameGenerationScene.color != nullptr) {
++      auto* target = m_state.renderTargets[0].ptr();
++      auto* depth = m_state.depthStencil.ptr();
++      if (((Flags & D3DCLEAR_TARGET) && target &&
++           target->GetCommonTexture()->GetImage() == m_frameGenerationScene.color) ||
++          ((Flags & D3DCLEAR_ZBUFFER) && depth &&
++           depth->GetCommonTexture()->GetImage() == m_frameGenerationScene.depth))
++        m_frameGenerationScene.ambiguous = true;
++    }
+ 
+     const auto& vp = m_state.viewport;
+     const auto& sc = m_state.scissorRect;
+@@ -6207,7 +6218,94 @@
+   }
+ 
+ 
++  void D3D9DeviceEx::CaptureFrameGenerationScene() {
++    auto& scene = m_frameGenerationScene;
++    auto* target = m_state.renderTargets[0].ptr();
++    auto* depth = m_state.depthStencil.ptr();
++    if (!target || !depth || !m_state.renderStates[D3DRS_ZENABLE] ||
++        !m_state.renderStates[D3DRS_ZWRITEENABLE])
++      return;
++
++    const auto& depthImage = depth->GetCommonTexture()->GetImage();
++    if (m_implicitSwapchain == nullptr || target != m_implicitSwapchain->GetBackBuffer(0)) {
++      if (scene.depth == depthImage)
++        scene.ambiguous = true;
++      return;
++    }
++
++    const auto& viewport = m_state.viewport;
++    const auto extent = target->GetSurfaceExtent();
++    const auto depthExtent = depth->GetSurfaceExtent();
++    if (m_state.vertexDecl == nullptr || m_state.vertexDecl->TestFlag(D3D9VertexDeclFlag::HasPositionT) ||
++        UseProgrammableVS() || viewport.X || viewport.Y || viewport.Width != extent.width ||
++        viewport.Height != extent.height || viewport.MinZ != 0.0f || viewport.MaxZ != 1.0f ||
++        extent.width != depthExtent.width || extent.height != depthExtent.height ||
++        depth->GetMipLevel() || depthImage->info().sampleCount != VK_SAMPLE_COUNT_1_BIT) {
++      scene.ambiguous = true;
++      return;
++    }
++
++    const auto& color = target->GetCommonTexture()->GetImage();
++    const auto& view = m_state.transforms[GetTransformIndex(D3DTS_VIEW)];
++    const auto& projection = m_state.transforms[GetTransformIndex(D3DTS_PROJECTION)];
++
++    if (scene.color == nullptr) {
++      scene.color = color;
++      scene.depth = depthImage;
++      scene.view = view;
++      scene.projection = projection;
++    } else if (scene.color != color || scene.depth != depthImage ||
++               scene.view != view || scene.projection != projection) {
++      scene.ambiguous = true;
++    }
++  }
++
++
++  void D3D9DeviceEx::TraceFrameGenerationScene(D3D9Surface* backBuffer, uint64_t serial) {
++    auto scene = std::exchange(m_frameGenerationScene, {});
++    // Keep the trace bounded even on workloads which continue drawing indefinitely.
++    if (serial > 24)
++      return;
++
++    if (scene.ambiguous || scene.color == nullptr || !backBuffer ||
++        scene.color != backBuffer->GetCommonTexture()->GetImage()) {
++      Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=",
++        scene.ambiguous ? "ambiguous" : "unavailable"));
++      return;
++    }
++
++    const auto viewProjection = scene.projection * scene.view;
++    const auto determinantValue = determinant(viewProjection);
++    if (!std::isfinite(determinantValue) || determinantValue == 0.0f) {
++      Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=singular-camera"));
++      return;
++    }
++
++    const auto inverseViewProjection = inverse(viewProjection);
++    for (size_t col = 0; col < 4; col++) {
++      for (size_t row = 0; row < 4; row++) {
++        if (!std::isfinite(viewProjection[col][row]) ||
++            !std::isfinite(inverseViewProjection[col][row])) {
++          Logger::info(str::format("VPP_FG_D3D9 serial=", serial, " scene=non-finite-camera"));
++          return;
++        }
++      }
++    }
++
++    const auto& info = scene.depth->info();
++    Logger::info(str::format("VPP_FG_D3D9 serial=", serial,
++      " scene=fixed-function color=", scene.color->handle(),
++      " depth=", scene.depth->handle(), " depthSize=", info.extent.width, "x", info.extent.height,
++      " depthFormat=", static_cast<uint32_t>(info.format),
++      " sampleable=", bool(info.usage & VK_IMAGE_USAGE_SAMPLED_BIT),
++      " viewProj=", viewProjection, " invViewProj=", inverseViewProjection));
++  }
++
++
+   void D3D9DeviceEx::PrepareDraw(D3DPRIMITIVETYPE PrimitiveType) {
++    if (unlikely(m_traceFrameScene))
++      CaptureFrameGenerationScene();
++
+     if (unlikely(m_activeHazardsRT != 0)) {
+       EmitCs([](DxvkContext* ctx) {
+         ctx->emitRenderTargetReadbackBarrier();
+@@ -7217,6 +7315,7 @@
+ 
+ 
+   HRESULT D3D9DeviceEx::ResetState(D3DPRESENT_PARAMETERS* pPresentationParameters) {
++    m_frameGenerationScene = {};
+     if (!pPresentationParameters->EnableAutoDepthStencil)
+       SetDepthStencilSurface(nullptr);
+ 
+diff --git a/src/d3d9/d3d9_swapchain.cpp b/src/d3d9/d3d9_swapchain.cpp
+--- a/src/d3d9/d3d9_swapchain.cpp
++++ b/src/d3d9/d3d9_swapchain.cpp
+@@ -251,6 +251,10 @@
+     const RGNDATA* pDirtyRegion,
+           DWORD    dwFlags) {
+     D3D9DeviceLock lock = m_parent->LockDevice();
++
++    if (unlikely(m_parent->m_traceFrameScene) && this == m_parent->m_implicitSwapchain.ptr())
++      m_parent->TraceFrameGenerationScene(
++        m_backBuffers.empty() ? nullptr : m_backBuffers.front().ptr(), ++m_frameSceneSerial);
+ 
+     uint32_t presentInterval = m_presentParams.PresentationInterval;
+ 
+diff --git a/src/d3d9/d3d9_swapchain.h b/src/d3d9/d3d9_swapchain.h
+--- a/src/d3d9/d3d9_swapchain.h
++++ b/src/d3d9/d3d9_swapchain.h
+@@ -104,6 +104,7 @@
+     Rc<hud::Hud>              m_hud;
+ 
+     std::vector<Com<D3D9Surface, false>> m_backBuffers;
++    uint64_t m_frameSceneSerial = 0;
+     
+     RECT                      m_srcRect;
+     RECT                      m_dstRect;
