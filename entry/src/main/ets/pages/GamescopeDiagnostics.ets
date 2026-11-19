@@ -84,6 +84,7 @@ struct GamescopeDiagnostics {
 
   private formatFrameGenerationMode(mode: HarmonyFrameGenerationModeCapability): string {
     if (mode.stage === 'candidate-available') return '设备支持';
+    if (mode.stage === 'runtime-check-required') return '可运行场景检查';
     if (mode.stage === 'device-unsupported') return '设备未报告支持';
     if (mode.stage === 'vulkan-entry-point-unavailable') return '缺少入口 · ' + mode.detail;
     if (mode.stage === 'support-query-unavailable') return '系统缺少能力查询接口';
@@ -99,6 +100,10 @@ struct GamescopeDiagnostics {
     if (this.surface.harmonyRun !== '') testNapi.stopHostVulkanProbe();
     try { hiAppEvent.removeWatcher(this.faultWatcher); } catch (_) {}
     testNapi.stopGamescopeSession();
+  }
+
+  onPageHide(): void {
+    if (this.harmonyRunning) testNapi.stopHostVulkanProbe();
   }
 
   private startHarmonyGpu(): void {
@@ -189,17 +194,23 @@ struct GamescopeDiagnostics {
     Column({ space: 12 }) {
       Row({ space: 12 }) {
         Button('返回').onClick(() => router.back())
-        Text('Gamescope 呈现检查').fontSize(22).fontColor('#FFFFFF').layoutWeight(1)
+        Text('Gamescope 呈现检查').fontSize(20).fontColor('#FFFFFF').layoutWeight(1)
+      }.width('100%')
+      Flex({ wrap: FlexWrap.Wrap }) {
         Button('切换尺寸').id('gamescope-resize').enabled(this.active)
+          .margin({ right: 8, bottom: 6 })
           .onClick(() => { this.outputPercent = this.outputPercent === 100 ? 75 : this.outputPercent === 75 ? 50 : 100; })
         Button('显示测试图').id('gamescope-pixel-probe').enabled(this.active && this.displayReady)
+          .margin({ right: 8, bottom: 6 })
           .onClick(() => {
             const result = testNapi.startGamescopeDiagnosticClient();
             if (result !== 0) this.message = '测试图启动失败: ' + result.toString();
           })
         Button('启动检查').id('gamescope-start').enabled(!this.busy && !this.active && !this.harmonyRunning)
+          .margin({ right: 8, bottom: 6 })
           .onClick(() => { void this.start(); })
         Button('正常停止').id('gamescope-stop').enabled(this.active)
+          .margin({ bottom: 6 })
           .onClick(() => { testNapi.stopGamescopeSession(); })
       }.width('100%')
       Text(this.message).id('gamescope-state').fontColor('#FFFFFF').fontSize(14).width('100%')

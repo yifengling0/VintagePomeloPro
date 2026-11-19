@@ -76,10 +76,16 @@ public:
                 auto inverse = view;
                 inverse.data[12] = camera;
                 error_ = generator_->Record(command, view, inverse, generated_);
+                ++submittedSources_;
                 if (error_ == FG_SUCCESS) {
                     generated_ = true;
-                    realPending_ = true;
-                    result = Frame::Generated;
+                    // The Vulkan basic mode needs three input frames. Keep
+                    // startup output out of the presentation count even if
+                    // the device returns success while priming its history.
+                    if (submittedSources_ >= 3) {
+                        realPending_ = true;
+                        result = Frame::Generated;
+                    }
                 } else if (error_ != FG_COLLECTING_PREVIOUS_FRAMES) {
                     return Frame::Failed;
                 }
@@ -261,6 +267,7 @@ private:
     VkFramebuffer framebuffer_ = VK_NULL_HANDLE;
     std::unique_ptr<HarmonyGpuFrameGeneration> generator_;
     uint32_t sourceFrame_ = 0;
+    uint32_t submittedSources_ = 0;
     int error_ = FG_SUCCESS;
     bool generated_ = false;
     bool realPending_ = false;

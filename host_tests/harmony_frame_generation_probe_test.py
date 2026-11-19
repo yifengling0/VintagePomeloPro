@@ -67,9 +67,14 @@ int main(int argc, char** argv) {
         self.assertEqual(self.query(self.directory/'missing.so'),
                          ['0 0', '0 unknown library-unavailable', '0 unknown library-unavailable'])
 
-    def test_old_system_without_query_is_unknown(self):
+    def test_old_system_can_try_gpu_at_runtime_with_complete_entry_points(self):
         self.assertEqual(self.query(self.library('old')),
-                         ['1 0', '0 unknown support-query-unavailable', '0 unknown support-query-unavailable'])
+                         ['1 0', '1 unknown runtime-check-required', '0 unknown support-query-unavailable'])
+
+    def test_old_system_cannot_try_gpu_without_dispatch(self):
+        self.assertEqual(self.query(self.library('old_incomplete', omit='Dispatch')),
+                         ['1 0', '0 unknown vulkan-entry-point-unavailable', 'HMS_FG_Dispatch_VK',
+                          '0 unknown support-query-unavailable'])
 
     def test_device_negative_is_distinct_from_loader_failure(self):
         self.assertEqual(self.query(self.library('unsupported', False, False)),

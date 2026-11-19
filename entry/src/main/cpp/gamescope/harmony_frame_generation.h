@@ -19,7 +19,7 @@ struct HarmonyFrameGenerationCapability {
     HarmonyFrameGenerationModeCapability aiVulkan;
 };
 
-// Query in the application's linker namespace, off the UI/render threads.
+// Query in the application's linker namespace, off the UI thread.
 // No hard dependency on SDK 26: existing API 23 systems must still load VPP.
 // A positive query qualifies the candidate only, never its output or FPS.
 inline HarmonyFrameGenerationCapability ProbeHarmonyFrameGeneration(
@@ -44,13 +44,7 @@ inline HarmonyFrameGenerationCapability ProbeHarmonyFrameGeneration(
     constexpr int InterpolationAiVulkan = 4;
     using Query = bool (*)(int);
     const auto query = reinterpret_cast<Query>(dlsym(library, "HMS_FG_IsFrameGenerationSupported"));
-    if (!query) {
-        result.gpuVulkan.stage = "support-query-unavailable";
-        result.gpuVulkan.detail = "Capability query requires a system exposing the SDK 26 API";
-        result.aiVulkan = result.gpuVulkan;
-        return result;
-    }
-    result.supportQueryAvailable = true;
+    result.supportQueryAvailable = query != nullptr;
     const char* commonEntryPoints[] = {
         "HMS_FG_CreateContext_VK", "HMS_FG_DestroyContext_VK",
         "HMS_FG_SetAlgorithmMode_VK", "HMS_FG_SetResolution_VK",
@@ -60,12 +54,14 @@ inline HarmonyFrameGenerationCapability ProbeHarmonyFrameGeneration(
     };
     auto probeMode = [&](int feature, std::initializer_list<const char*> additionalEntryPoints) {
         HarmonyFrameGenerationModeCapability mode;
-        const bool supported = query(feature);
-        mode.deviceSupport = supported ? "supported" : "unsupported";
-        if (!supported) {
-            mode.stage = "device-unsupported";
-            mode.detail = "System capability query returned false";
-            return mode;
+        if (query) {
+            if (!query(feature)) {
+                mode.deviceSupport = "unsupported";
+                mode.stage = "device-unsupported";
+                mode.detail = "System capability query returned false";
+                return mode;
+            }
+            mode.deviceSupport = "supported";
         }
         mode.stage = "vulkan-entry-point-unavailable";
         for (const char* symbol : commonEntryPoints) {
@@ -81,13 +77,21 @@ inline HarmonyFrameGenerationCapability ProbeHarmonyFrameGeneration(
             }
         }
         mode.vulkanEntryPointsAvailable = true;
-        mode.stage = "candidate-available";
-        mode.detail = "Device query and Vulkan entry points verified";
+        mode.stage = query ? "candidate-available" : "runtime-check-required";
+        mode.detail = query ? "Device query and Vulkan entry points verified" :
+            "GPU Vulkan entry points verified; use a test scene to check device support";
         return mode;
     };
     result.gpuVulkan = probeMode(InterpolationGpuVulkan, {});
     // AI interpolation requires system presentation. GPU interpolation can be game-presented.
-    result.aiVulkan = probeMode(InterpolationAiVulkan, {"HMS_FG_SetIntegrationMode_VK"});
+    if (query) {
+        result.aiVulkan = probeMode(InterpolationAiVulkan, {"HMS_FG_SetIntegrationMode_VK"});
+    } else {
+        // The original GPU APIs are available on some systems before the SDK
+        // 26 capability query. AI uses a distinct capability and present path.
+        result.aiVulkan.stage = "support-query-unavailable";
+        result.aiVulkan.detail = "AI capability query requires a system exposing the SDK 26 API";
+    }
     return result;
 }
 }
