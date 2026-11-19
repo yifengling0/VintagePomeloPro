@@ -165,6 +165,17 @@ function fixture() {
 
   const floatApp = {id:'cpu-test',launchKind:models.LaunchKind.WINE_EXE,
     launchTarget:{executable:'C:/game.exe',arguments:[],workingDirectory:''}};
+  for (const current of [[], ['-video_app','direct3d9','-video_multisample','0','-video_vsync','0']]) {
+    const f=fixture(); f.setState(models.EngineState.READY);
+    f.engine.getPresentationMode=()=>models.WinePresentationMode.MANAGED_WINDOWS;
+    f.appSettings.arguments=current;
+    const app={...floatApp,source:models.AppSource.DOWNLOAD,
+      launchTarget:{...floatApp.launchTarget,arguments:['-video_app','direct3d11']}};
+    await f.service.launchReady(app,f.globalSettings,models.DisplayMode.DESKTOP,
+      models.WinePresentationMode.MANAGED_WINDOWS,'/games');
+    assert.deepEqual(Array.from(f.launches[0][1]),current,
+      'Latest local settings replace stale catalog arguments, even when cleared');
+  }
   const floatLaunchOff = fixture();
   floatLaunchOff.setState(models.EngineState.READY);
   floatLaunchOff.engine.getPresentationMode = () => models.WinePresentationMode.MANAGED_WINDOWS;

@@ -439,14 +439,9 @@ export function formatLaunchArgumentText(args: string[]): string {
 }
 
 export function mergeLaunchArguments(base: string[], extras: string[]): string[] {
-  const result = base.slice();
-  for (let index = 0; index < extras.length; index++) {
-    const extra = extras[index];
-    if (!result.some((arg: string) => arg.toLowerCase() === extra.toLowerCase())) {
-      result.push(extra);
-    }
-  }
-  return result;
+  // Argument values and positional arguments may repeat, differ only by case,
+  // or be empty. Only a parser for a known option can safely remove tokens.
+  return base.concat(extras);
 }
 
 function withoutGodotVideoDriver(args: string[]): string[] {
@@ -470,14 +465,30 @@ function withoutGodotVideoDriver(args: string[]): string[] {
   return result;
 }
 
-export function resolveGraphicsLaunchArguments(presetId: string, base: string[], extras: string[]): string[] {
+export function resolveGraphicsLaunchArguments(presetId: string, base: string[], extras: string[],
+  baseIsCustomSnapshot: boolean = false): string[] {
+  // Download cards cache settings.arguments in launchTarget. The current
+  // settings replace that snapshot, including an explicitly cleared list.
+  const args = baseIsCustomSnapshot ? extras.slice() : mergeLaunchArguments(base, extras);
   if (normalizeGraphicsLaunchPreset(presetId) === GRAPHICS_LAUNCH_PRESET_GODOT3_GLES2) {
     // Keep the option/value pair together. Token-level de-duplication can leave
     // a previous GLES3 value behind or eat a GLES2 value belonging to another option.
-    return graphicsLaunchPresetArgs(presetId).concat(mergeLaunchArguments(
-      withoutGodotVideoDriver(base), withoutGodotVideoDriver(extras)));
+    return graphicsLaunchPresetArgs(presetId).concat(withoutGodotVideoDriver(args));
   }
-  return mergeLaunchArguments(graphicsLaunchPresetArgs(presetId), mergeLaunchArguments(base, extras));
+  const flags = graphicsLaunchPresetArgs(presetId);
+  const custom: string[] = [];
+  for (let index = 0; index < args.length; index++) {
+    if (args[index] === '--') {
+      custom.push(...args.slice(index));
+      break;
+    }
+    // These presets contain only known standalone flags. Never deduplicate
+    // user values or options belonging to the application after '--'.
+    if (!flags.some((flag: string): boolean => flag.toLowerCase() === args[index].toLowerCase())) {
+      custom.push(args[index]);
+    }
+  }
+  return flags.concat(custom);
 }
 
 export interface VirtualMouseConfig {

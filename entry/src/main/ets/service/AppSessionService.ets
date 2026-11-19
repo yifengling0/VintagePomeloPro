@@ -9,6 +9,7 @@ import {
   resolveAppWineTranslationEngine,
   resolveWineCpuEnvironment,
   AppDescriptor,
+  AppSource,
   DisplayMode,
   EngineState,
   GlobalSettings,
@@ -381,10 +382,10 @@ export class AppSessionService {
     hilog.info(DOMAIN, '[SESS]', 'launch: app=%{public}s preset=%{public}s env=%{public}s',
       app.id, presetId, JSON.stringify(envOverrides));
     // 图形预设旗标不写进 settings.arguments，避免和设定页自定义框互相污染。
-    // settings.arguments 是自定义参数的权威来源（目录扫描写入 launchTarget，
-    // 但改设定后可能尚未 rescan）；再与 launchTarget 去重合并。
+    // 本地卡片的 launchTarget.arguments 是扫描时的旧设置快照，必须被最新设置
+    // 整体替换（包括清空）。内置工具的固定参数仍追加用户参数，不能逐词去重。
     let launchArguments = resolveGraphicsLaunchArguments(appSettings.graphicsLaunchPreset,
-      app.launchTarget.arguments, appSettings.arguments);
+      app.launchTarget.arguments, appSettings.arguments, app.source === AppSource.DOWNLOAD);
     hilog.info(DOMAIN, '[SESS]', 'launch: argv=%{public}s gfx=%{public}s',
       JSON.stringify(launchArguments), appSettings.graphicsLaunchPreset);
     // Unity 兼容档：自动追加 -force-gfx-direct（跳过 GDI 间接渲染），
