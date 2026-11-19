@@ -21,7 +21,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     methods = out/'gamescope_output_methods.h'
     methods.write_text(function(embedded, 'bool CVulkanTexture::BInitOhosStorageOutput(')+'\n'+
-        function(backend, 'bool COhosBackend::recreateOutput()')+'\n')
+        function(backend, 'bool COhosBackend::recreateOutput()')+'\n'+
+        function(backend, 'void COhosBackend::RecordShmUpload(')+'\n')
     (out/'gamescope_output_cleanup.h').write_text(function(backend, 'void destroyOutput(Output& output)')+'\n')
     binary = out/'gamescope_output_test'
     subprocess.run(['g++', '-std=c++20', '-Wall', '-Wextra', '-Werror',
@@ -32,7 +33,7 @@ def main():
         raise RuntimeError((result.stdout+result.stderr)[-6000:])
     print(result.stdout.strip())
     (out/'gamescope-output.json').write_text(json.dumps(dict(
-        scope='host actual output creation/storage-view methods and transport command recording; no WSI/device claim',
+        scope='host actual output creation/storage-view methods and output/SHM command recording; no WSI/device claim',
         methodsSha256=hashlib.sha256(methods.read_bytes()).hexdigest(),
         result=result.stdout.strip()), indent=2)+'\n')
 

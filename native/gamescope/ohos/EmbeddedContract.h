@@ -3,13 +3,15 @@
 #include "Embedded.h"
 #include <cstring>
 
+constexpr uint32_t VppGamescopeMaxLayers = 64;
+
 inline bool VppGamescopeFinite(float value) {
     // Core uses fast-math; classify bits so NaN/Inf are still rejected.
     uint32_t bits; std::memcpy(&bits,&value,sizeof(bits));
     return (bits & 0x7f800000u)!=0x7f800000u;
 }
 inline bool VppGamescopeValidFrame(const VppGamescopeFrame& frame) {
-    if (frame.size!=sizeof(frame) || !frame.layers || !frame.count || frame.count>64 ||
+    if (frame.size!=sizeof(frame) || !frame.layers || !frame.count || frame.count>VppGamescopeMaxLayers ||
         !frame.width || !frame.height || frame.width>8192 || frame.height>8192 || frame.filter>3 || frame.sharpness>20 ||
         frame.frameGeneration>1 || frame.historyReset>1 ||
         (frame.displayPeriodNs && (frame.displayPeriodNs<1000000 || frame.displayPeriodNs>1000000000))) return false;

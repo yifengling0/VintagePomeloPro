@@ -30,6 +30,7 @@ struct MockVulkan {
     std::set<VkSemaphore> semaphores;
     std::vector<VkImageMemoryBarrier> barriers;
     std::vector<VkPipelineStageFlags> srcStages,dstStages;
+    std::vector<VkBufferImageCopy> uploads;
     VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice,VkSurfaceKHR,VkSurfaceCapabilitiesKHR* caps) {
         caps->supportedUsageFlags=supported; caps->supportedCompositeAlpha=VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         caps->currentExtent={64,48}; caps->minImageCount=3; caps->maxImageCount=8;
@@ -85,6 +86,12 @@ struct MockVulkan {
         assert(count==1 && copy->extent.width==64 && copy->extent.height==48 && copy->extent.depth==1);
         ++copies;
     }
+    void CmdCopyBufferToImage(VkCommandBuffer, VkBuffer buffer, VkImage image, VkImageLayout layout,
+                              uint32_t count, const VkBufferImageCopy* region) {
+        assert(buffer && image && layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && count == 1);
+        assert(barriers.back().image == image && barriers.back().newLayout == layout);
+        uploads.push_back(*region);
+    }
 };
 struct Device {
     MockVulkan vk;
@@ -102,6 +109,9 @@ public:
     VkFormat m_format=VK_FORMAT_UNDEFINED;
     bool m_bOutputImage=false,m_bInitialized=false;
     bool BInitOhosStorageOutput(VkImage,uint32_t,uint32_t);
+    VkImage vkImage() const { return m_vkImage; }
+    uint32_t width() const { return m_width; }
+    uint32_t height() const { return m_height; }
     bool BInit(uint32_t,uint32_t,uint32_t,uint32_t,createFlags flags) {
         assert(flags.bStorage && flags.bSampled && flags.bTransferSrc); ++g_device.vk.localTargets; return true;
     }
@@ -126,6 +136,7 @@ public:
     bool error(const char*,VkResult) { m_failed=true; return false; }
 #include "gamescope_output_cleanup.h"
     bool recreateOutput();
+    static void RecordShmUpload(VkCommandBuffer, VkBuffer, size_t, CVulkanTexture*, bool);
     ~COhosBackend() { destroyOutput(m_output); }
 };
 #include "gamescope_output_methods.h"
@@ -195,5 +206,28 @@ int main() {
     assert(copied[2].newLayout==VK_IMAGE_LAYOUT_GENERAL && copied[3].newLayout==VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     for (const auto& b:copied) assert(b.srcQueueFamilyIndex==VK_QUEUE_FAMILY_IGNORED && b.dstQueueFamilyIndex==VK_QUEUE_FAMILY_IGNORED);
     clean();
-    std::puts("Gamescope actual output: storage, copy, resize, three fallback failures, terminal failure, no-capability, borrowed views and output barriers: PASS");
+    CVulkanTexture shm;
+    shm.m_vkImage = target;
+    shm.m_width = 64;
+    shm.m_height = 48;
+    const auto buffer = handle<VkBuffer>(3);
+    COhosBackend::RecordShmUpload(VK_NULL_HANDLE, buffer, 0, &shm, false);
+    COhosBackend::RecordShmUpload(VK_NULL_HANDLE, buffer, 64 * 48 * 4, &shm, true);
+    const auto& vk = g_device.vk;
+    assert(vk.barriers.size() == 4 && vk.uploads.size() == 2);
+    assert(vk.barriers[0].oldLayout == VK_IMAGE_LAYOUT_UNDEFINED);
+    assert(vk.barriers[2].oldLayout == VK_IMAGE_LAYOUT_GENERAL);
+    assert(vk.barriers[2].srcAccessMask & VK_ACCESS_SHADER_READ_BIT);
+    assert(vk.srcStages[2] & VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    for (unsigned copy = 0; copy < vk.uploads.size(); ++copy) {
+        const auto& region = vk.uploads[copy];
+        const auto& ready = vk.barriers[2 * copy + 1];
+        assert(region.bufferOffset == copy * 64 * 48 * 4 && region.bufferRowLength == 0);
+        assert(region.imageExtent.width == 64 && region.imageExtent.height == 48 && region.imageExtent.depth == 1);
+        assert(ready.newLayout == VK_IMAGE_LAYOUT_GENERAL && ready.srcAccessMask == VK_ACCESS_TRANSFER_WRITE_BIT);
+        assert(ready.dstAccessMask == VK_ACCESS_SHADER_READ_BIT);
+        assert(vk.dstStages[2 * copy + 1] == VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    }
+    clean();
+    std::puts("Gamescope actual output: storage, copy, resize, fallbacks, borrowed views and SHM upload barriers: PASS");
 }

@@ -566,7 +566,7 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "16db883e3a44e3c9ecc48277407479858a7b78e01b06607cf413a947e404d77c"
+      "sha256": "505f72de5d985bed4e1591fadf0ca8c642963d11eae06f235d2c7ae0ede1ba6b"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
@@ -581,7 +581,7 @@
     {
       "source": "native/gamescope/ohos/EmbeddedContract.h",
       "destination": "src/EmbeddedContract.h",
-      "sha256": "022d0fadedce6c7ebac4c410f1962936daa2d55ca102d0796a34a3a21b0ead93"
+      "sha256": "820a6c2104f7ec084ca2790f5f17bc8b9fe9179e46fb79303de1a5701e15ac9a"
     },
     {
       "source": "native/gamescope/ohos/OutputTransport.h",
