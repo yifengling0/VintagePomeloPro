@@ -126,12 +126,12 @@ struct GamescopeDiagnostics {
     if (this.leaving) return;
     const status = testNapi.getHarmonyGpuProbeResult();
     if (status.runId !== this.surface.harmonyRun) return;
-    if (status.stage === 'starting' || status.stage === 'running') {
-      this.harmonyTimer = setTimeout(() => this.pollHarmonyGpu(), 250);
-      return;
+    this.harmonyRunning = status.active;
+    this.harmonyTimer = status.active ? setTimeout(() => this.pollHarmonyGpu(), 250) : -1;
+    if (!status.active) {
+      this.surface.harmonyRun = '';
     }
-    this.harmonyTimer = -1;
-    this.harmonyRunning = false;
+    if (status.stage === 'starting' || status.stage === 'running') return;
     if (status.stage === 'passed') {
       this.harmonyResult = '送显成功 · 关闭时真实 ' + status.baselineFrames +
         ' 帧 · 开启后真实 ' + status.realFrames + ' 帧 · 生成 ' + status.generatedFrames + ' 帧';

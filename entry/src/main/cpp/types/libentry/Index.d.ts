@@ -374,6 +374,7 @@ export interface HarmonyGpuProbeResult {
   realFrames: number;
   generatedFrames: number;
   sdkError: number;
+  active: boolean;
 }
 export const getHarmonyGpuProbeResult: () => HarmonyGpuProbeResult;
 export const stopHostVulkanProbe: () => boolean;

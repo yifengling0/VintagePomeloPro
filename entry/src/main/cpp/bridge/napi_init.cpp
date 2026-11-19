@@ -1578,6 +1578,8 @@ static napi_value GetHarmonyGpuProbeResultNapi(napi_env env, napi_callback_info)
     }
     napi_create_int32(env, state.sdkError, &value);
     napi_set_named_property(env, result, "sdkError", value);
+    napi_get_boolean(env, state.active, &value);
+    napi_set_named_property(env, result, "active", value);
     return result;
 }
 

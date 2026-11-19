@@ -365,7 +365,7 @@ private:
     {
         std::lock_guard<std::mutex> lock(gHarmonyMutex);
         gHarmonyResult = {runId_, stage, detail, realFrames_, generatedFrames_, baselineFrames_,
-                          harmonyScene_ ? harmonyScene_->Error() : 0};
+                          harmonyScene_ ? harmonyScene_->Error() : 0, true};
         OH_LOG_INFO(LOG_APP, "HarmonyGPU stage=%{public}s baseline=%{public}u real=%{public}u "
                     "generated=%{public}u sdk=%{public}d detail=%{public}s",
                     stage, baselineFrames_, realFrames_, generatedFrames_, gHarmonyResult.sdkError, detail);
@@ -1052,6 +1052,7 @@ bool StartHostVulkanProbe(uint64_t surfaceId, const std::string& runId, bool har
     if (harmonyGpu) {
         std::lock_guard<std::mutex> lock(gHarmonyMutex);
         gHarmonyResult = {runId, "starting", ""};
+        gHarmonyResult.active = true;
     }
     try {
         std::thread([window, runId, harmonyGpu]() {
@@ -1059,10 +1060,20 @@ bool StartHostVulkanProbe(uint64_t surfaceId, const std::string& runId, bool har
                 VulkanProbe probe(window, runId, harmonyGpu);
                 probe.Run();
             }
-            gRunning.store(false);
+            if (harmonyGpu) {
+                std::lock_guard<std::mutex> lock(gHarmonyMutex);
+                gHarmonyResult.active = false;
+                gRunning.store(false);
+            } else {
+                gRunning.store(false);
+            }
         }).detach();
     } catch (...) {
         OH_NativeWindow_DestroyNativeWindow(window);
+        if (harmonyGpu) {
+            std::lock_guard<std::mutex> lock(gHarmonyMutex);
+            gHarmonyResult.active = false;
+        }
         gRunning.store(false);
         return false;
     }

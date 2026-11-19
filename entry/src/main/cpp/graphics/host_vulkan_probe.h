@@ -13,6 +13,7 @@ struct HarmonyGpuProbeResult {
     uint32_t generatedFrames = 0;
     uint32_t baselineFrames = 0;
     int32_t sdkError = 0;
+    bool active = false;
 };
 HarmonyGpuProbeResult GetHarmonyGpuProbeResult();
 /** 轻量查询 host Vulkan 物理设备名称 (GPU 型号, 如 "Mali-G920")。无 Vulkan
