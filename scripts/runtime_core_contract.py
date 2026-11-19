@@ -11,6 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK = ROOT / 'docs/graphics/runtime-core.lock.json'
 
 
+def packaged_gstreamer_files(inventory_sha256):
+    record = json.loads(LOCK.read_text()).get('packagedNativeGStreamer', {})
+    return record.get('files') if record.get('loaderInventorySha256') == inventory_sha256 else None
+
+
 def validate_core(read, section='libraries', candidate=None):
     lock = json.loads(LOCK.read_text())
     if lock.get('schemaVersion') != 1 or not lock.get(section):

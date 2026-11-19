@@ -15,7 +15,7 @@ from runtime_library_guard import RuntimeLibraryError, validate_library, validat
 from dxvk_runtime_contract import validate_modern_runtime
 from wined3d_runtime_contract import validate_runtime as validate_wined3d_runtime
 from package_texture_compat_runtime import validate as validate_texture_runtime
-from runtime_core_contract import validate_core
+from runtime_core_contract import packaged_gstreamer_files, validate_core
 from stamp_wine_builtin_identity import validate_archive as validate_builtin_identity
 from wine_gecko import validate_payload as validate_gecko_payload
 
@@ -462,16 +462,23 @@ def validate_gstreamer(payload: Archive, wine_arch: str, hap: Archive | None = N
     packaged = {name.rsplit("/", 1)[-1] for name in source.names
                 if name.startswith(directory + "/") and name.rsplit("/", 1)[-1] in PLUGINS}
     require_equal(packaged, set(PLUGINS), "packaged GStreamer plugin inventory")
+    actual_files = {}
     for name in PLUGINS:
         path = f"{directory}/{name}"
         data = source.read(path)
-        require_equal(hashlib.sha256(data).hexdigest(), files[name], f"GStreamer plugin checksum {path}")
+        actual_files[name] = hashlib.sha256(data).hexdigest()
         try:
             check_elf(data, wine_arch, path)
         except ValueError as error:
             raise ValidationError(str(error)) from error
         if any("/" in dependency for dependency in elf_needed(path, data)):
             raise ValidationError(f"GStreamer plugin has an absolute DT_NEEDED: {path}")
+    # A preserved release can pair the loader's build inventory with a
+    # separately reviewed set of final packaged bytes. Require the whole set.
+    release_files = None if box64 else packaged_gstreamer_files(gst["inventorySha256"])
+    if actual_files != files and actual_files != release_files:
+        name = next(name for name in PLUGINS if actual_files[name] != files[name])
+        require_equal(actual_files[name], files[name], f"GStreamer plugin checksum {directory}/{name}")
     if not box64:
         # A rawfile copy cannot satisfy a native plugin's DT_NEEDED dependency.
         pending = list(PLUGINS)
