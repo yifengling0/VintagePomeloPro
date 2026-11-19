@@ -1,4 +1,4 @@
-import testNapi, { GamescopeSessionStatus } from 'libentry.so';
+import testNapi, { GamescopeSessionStatus, HarmonyFrameGenerationModeCapability } from 'libentry.so';
 import { router } from '@kit.ArkUI';
 import { GamescopeRuntimeService } from '../service/GamescopeRuntimeService';
 import { hilog } from '../service/LogService';
@@ -39,7 +39,7 @@ struct GamescopeDiagnostics {
   private lastStage: string = '';
   private leaving: boolean = false;
   @State private outputPercent: number = 100;
-  @State private frameGenerationMessage: string = 'AI 超帧能力尚未查询';
+  @State private frameGenerationMessage: string = '鸿蒙超帧能力尚未查询';
 
   private faultWatcher: hiAppEvent.Watcher = {
     name: 'vpp_gamescope_diagnostics',
@@ -65,13 +65,22 @@ struct GamescopeDiagnostics {
     try {
       const capability = await testNapi.probeHarmonyFrameGeneration();
       if (this.leaving) return;
-      this.frameGenerationMessage = '鸿蒙 AI 超帧：' + capability.deviceSupport + ' · ' + capability.stage;
+      this.frameGenerationMessage = '鸿蒙 GPU 超帧 · ' + this.formatFrameGenerationMode(capability.gpuVulkan) +
+        '\n鸿蒙 AI 超帧 · ' + this.formatFrameGenerationMode(capability.aiVulkan);
       hilog.info(0, 'GamescopeFG', 'capability=%{public}s', JSON.stringify(capability));
       const context = getContext(this) as common.UIAbilityContext;
       ConfigurationFiles.json(context.filesDir + '/gamescope-frame-generation-capability.json', JSON.stringify(capability));
     } catch (_) {
-      if (!this.leaving) this.frameGenerationMessage = 'AI 超帧能力查询失败，游戏仍使用原呈现方式';
+      if (!this.leaving) this.frameGenerationMessage = '鸿蒙超帧能力查询失败';
     }
+  }
+
+  private formatFrameGenerationMode(mode: HarmonyFrameGenerationModeCapability): string {
+    if (mode.stage === 'candidate-available') return '设备支持 · 待验证送显';
+    if (mode.stage === 'device-unsupported') return '设备未报告支持';
+    if (mode.stage === 'vulkan-entry-point-unavailable') return '缺少入口 · ' + mode.detail;
+    if (mode.stage === 'support-query-unavailable') return '系统缺少能力查询接口';
+    return '系统超帧库不可用';
   }
 
   aboutToDisappear(): void {

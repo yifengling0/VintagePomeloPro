@@ -34,15 +34,22 @@ void CompleteFrameGenerationProbe(napi_env env, napi_status status, void* contex
         napi_create_object(env, &object);
         for (auto entry : {std::pair{"libraryLoaded", c.libraryLoaded},
                            {"supportQueryAvailable", c.supportQueryAvailable},
-                           {"vulkanEntryPointsAvailable", c.vulkanEntryPointsAvailable},
                            {"renderQualified", false}}) {
             napi_get_boolean(env, entry.second, &value);
             napi_set_named_property(env, object, entry.first, value);
         }
-        for (auto entry : {std::pair{"deviceSupport", c.deviceSupport},
-                           {"stage", c.stage}, {"detail", c.detail}}) {
-            napi_create_string_utf8(env, entry.second.c_str(), NAPI_AUTO_LENGTH, &value);
-            napi_set_named_property(env, object, entry.first, value);
+        for (auto entry : {std::pair{"gpuVulkan", &c.gpuVulkan}, {"aiVulkan", &c.aiVulkan}}) {
+            const auto& mode = *entry.second;
+            napi_value modeObject;
+            napi_create_object(env, &modeObject);
+            napi_get_boolean(env, mode.vulkanEntryPointsAvailable, &value);
+            napi_set_named_property(env, modeObject, "vulkanEntryPointsAvailable", value);
+            for (auto property : {std::pair{"deviceSupport", mode.deviceSupport},
+                                  {"stage", mode.stage}, {"detail", mode.detail}}) {
+                napi_create_string_utf8(env, property.second.c_str(), NAPI_AUTO_LENGTH, &value);
+                napi_set_named_property(env, modeObject, property.first, value);
+            }
+            napi_set_named_property(env, object, entry.first, modeObject);
         }
         napi_resolve_deferred(env, probe->promise, object);
     }

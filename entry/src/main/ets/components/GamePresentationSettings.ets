@@ -54,7 +54,7 @@ export struct GamePresentationSettings {
       Row({ space: 8 }) {
         GameActionButton({ label: '关闭', selected: this.value.frameGeneration !== 'x2', controlId: 'game-framegen-off', darkPanel: this.inGame,
           onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'off') })
-        GameActionButton({ label: '2× 插帧', selected: this.value.frameGeneration === 'x2', controlId: 'game-framegen-x2', darkPanel: this.inGame,
+        GameActionButton({ label: 'Win-FG 2×', selected: this.value.frameGeneration === 'x2', controlId: 'game-framegen-x2', darkPanel: this.inGame,
           onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'x2') })
       }.width('100%')
       if (this.inGame && this.value.frameGeneration === 'x2') {
