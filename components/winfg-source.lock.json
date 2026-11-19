@@ -132,6 +132,10 @@
     {
       "path": "patches/winfg/0004-use-zero-predictor-at-coarsest-level.patch",
       "sha256": "05efd0cc0c11c945d0a5fa28255f69668839f9950a4709c23eaad368a5eef0f0"
+    },
+    {
+      "path": "patches/winfg/0005-preserve-real-pixels-for-unreliable-motion.patch",
+      "sha256": "ecd8cd5912ebf3eca8d554a7ee24e8581e89771ab54546fc71b966df6fd8d0c7"
     }
   ],
   "adapted": [
@@ -150,6 +154,10 @@
     {
       "path": "vk_dispatch.hpp",
       "sha256": "e2df3bdb7ef5c4ff268f46b9a5de5440a44b7bc3d8e56e75ec85f1b2f0ce0365"
+    },
+    {
+      "path": "shaders/wfg_synth.comp",
+      "sha256": "2cd52812e9fbf4185265eb060b7283f51e66b60e3ffb25e990e760ca73071e18"
     }
   ],
   "additionalFiles": [

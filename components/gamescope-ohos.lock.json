@@ -566,12 +566,12 @@
     {
       "source": "native/gamescope/ohos/OhosBackend.cpp",
       "destination": "src/Backends/OhosBackend.cpp",
-      "sha256": "59f37e3f7fbeac392b109eb0ac7f9231fb637ccaf731e8bd048d2fbfb5ea46c5"
+      "sha256": "16db883e3a44e3c9ecc48277407479858a7b78e01b06607cf413a947e404d77c"
     },
     {
       "source": "native/gamescope/ohos/Embedded.h",
       "destination": "src/Embedded.h",
-      "sha256": "e0f93239041f856004a74dc7d8f4eb8240e91b496e5a72e4ebe6d023056dc4ae"
+      "sha256": "f4f1212d05e97ecfb1e977330f87c450681fb4ab91b61796805534f1e6f734b2"
     },
     {
       "source": "native/gamescope/ohos/Embedded.cpp",
@@ -596,7 +596,7 @@
     {
       "source": "native/gamescope/ohos/FrameGenerationSchedule.h",
       "destination": "src/FrameGenerationSchedule.h",
-      "sha256": "48959adb64373aa1e9f48d6a580a0f019fc66c6c2facadb587ed71983dc5c6fd"
+      "sha256": "40b10b2af9053a87eb7753d157111009e665c26c060811fb680508745404f4b9"
     }
   ],
   "options": [
@@ -617,7 +617,7 @@
   "abiBoundary": "OHOS ARM64 native only; GNU libraries and executables are reference inputs, never payloads",
   "winfg": {
     "sourceLock": "components/winfg-source.lock.json",
-    "sourceLockSha256": "e8448664ff9e16975264ef5275141896a6ac263431605904e3812fad8f38c849",
+    "sourceLockSha256": "46ccbe7ca22bcdd440f5aa167a3e115866086cddafdb768585b98bcbdad84f28",
     "builderSha256": "838a8bdf101273e7186dbec6c0b02cf663063bc7509bc9e90a617c36fc2ff11e",
     "files": [
       "src/winfg/framegen.cpp",

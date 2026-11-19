@@ -3,6 +3,35 @@
 #include "Embedded.h"
 #include <algorithm>
 
+// A transient loading spike must not disable FG for the remaining session.
+// Retry one generation after a bounded cooldown (1, 2, then at most 4 s).
+// Sustained overload keeps presenting real frames and does not retry each tick.
+class VppFrameGenerationBudget {
+public:
+    void Reset() { *this=VppFrameGenerationBudget{}; }
+    bool CoolingDown() const { return retryNs_!=0; }
+    bool Allow(uint64_t now) {
+        if (!retryNs_) return true;
+        if (now<failedNs_) { Reset(); return true; }
+        if (now<retryNs_) return false;
+        retryNs_=0;
+        failures_=2; // A failed probe immediately starts the next cooldown.
+        return true;
+    }
+    void Completed(uint64_t now,uint64_t gpuNs,uint64_t budgetNs) {
+        if (!budgetNs || gpuNs<=budgetNs) { Reset(); return; }
+        if (++failures_>=3) Suspend(now);
+    }
+    void Suspend(uint64_t now) {
+        failures_=3; failedNs_=now;
+        retryNs_=now+(1000000000ull<<backoff_);
+        backoff_=std::min(backoff_+1,2u);
+    }
+private:
+    uint64_t retryNs_=0,failedNs_=0;
+    uint32_t failures_=0,backoff_=0;
+};
+
 // Source serials belong to accepted GPU buffers, never repaint requests.
 // One pending real frame is the entire display queue owned by FG.
 class VppFrameGenerationSchedule {

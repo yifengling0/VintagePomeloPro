@@ -30,6 +30,37 @@ int main() {
     }
     using namespace winehua::game;
     {
+        VppFrameGenerationBudget budget;
+        constexpr uint64_t start=1000000000, gpu=12000000, limit=6000000;
+        budget.Completed(start,gpu,limit);
+        budget.Completed(start+1,gpu,limit);
+        assert(budget.Allow(start+2));
+        budget.Completed(start+2,gpu,limit);
+        assert(!budget.Allow(start+999999999));
+        assert(budget.Allow(start+1000000002));
+        // A failed probe backs off. Ordinary display ticks never renew it.
+        budget.Completed(start+1000000002,gpu,limit);
+        assert(!budget.Allow(start+3000000001));
+        assert(budget.Allow(start+3000000002));
+        budget.Completed(start+3000000002,gpu,limit);
+        assert(!budget.Allow(start+7000000001));
+        assert(budget.Allow(start+7000000002));
+        // A later light scene recovers without a toggle or session rebuild.
+        budget.Completed(start+7000000002,4000000,limit);
+        assert(budget.Allow(start+7000000003) && !budget.CoolingDown());
+        budget.Suspend(start);
+        assert(budget.Allow(start-1)); // monotonic clock/session reset
+        budget.Suspend(start);
+        budget.Reset();
+        assert(budget.Allow(start) && !budget.CoolingDown());
+        // Sustained overload is bounded to occasional probes, not 60/s.
+        unsigned attempts=0;
+        for(uint64_t now=start;now<start+20000000000ull;now+=16666667) {
+            if (budget.Allow(now)) { ++attempts; budget.Completed(now,gpu,limit); }
+        }
+        assert(attempts<12 && attempts>3);
+    }
+    {
         VppFrameGenerationSchedule schedule;
         constexpr uint64_t display=8333333, source=33333332;
         for (uint64_t frame=1;frame<=4;++frame) schedule.Observe(1,frame,frame*source,display);

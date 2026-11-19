@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 #include <cstdint>
+#include <algorithm>
 
 // Versioned, synchronous command-recording ABI. Pixels are borrowed for the
 // call; NativeBuffers are retained by core imports. Fence FDs are borrowed.
@@ -30,6 +31,22 @@ struct VppGamescopeFrame {
     uint32_t completedGenerated = 0;
     uint64_t nextTickNs = 0, frameGenerationGpuNs = 0;
 };
+
+// Decorations/desktop SHM can precede the game in z order. Select the largest
+// visible opaque GPU client without reordering composition or interpolating UI.
+// Both the renderer's counters and the core must identify the same source.
+inline uint32_t VppGamescopeFrameGenerationLayer(const VppGamescopeFrame& frame) {
+    uint32_t chosen=frame.count;
+    double largest=0;
+    for (uint32_t i=0;frame.layers && i<frame.count;++i) {
+        const auto& layer=frame.layers[i];
+        if (!layer.native || !layer.opaque || !layer.upscale || !layer.width || !layer.height) continue;
+        const double w=std::min(double(frame.width),double(layer.x)+layer.w)-std::max(0.0,double(layer.x));
+        const double h=std::min(double(frame.height),double(layer.y)+layer.h)-std::max(0.0,double(layer.y));
+        if (w>0 && h>0 && w*h>=largest) { largest=w*h; chosen=i; }
+    }
+    return chosen;
+}
 enum VppFrameGenerationState : uint32_t {
     VPP_FG_OFF, VPP_FG_WARMING, VPP_FG_RUNNING, VPP_FG_DISPLAY_RATE,
     VPP_FG_UNSUPPORTED, VPP_FG_GPU_BUSY, VPP_FG_FAILED, VPP_FG_NO_GPU_GAME,

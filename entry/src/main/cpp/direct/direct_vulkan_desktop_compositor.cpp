@@ -638,6 +638,7 @@ private:
         frame.frameGeneration=fgEnabled; frame.nowNs=nowNs;
         frame.displayPeriodNs=cadence_.HasFreshTick(nowNs)?cadence_.PeriodNs():0;
         frame.historyReset=gamescopeResetHistory_;
+        const auto fgLayerIndex=VppGamescopeFrameGenerationLayer(frame);
         const int result=gamescopePresent_(&frame);
         // Even a present error may follow successful GPU submission. Always
         // adopt its completion before returning a sampled buffer to producer.
@@ -663,9 +664,9 @@ private:
         for (size_t i=0;i<buffers.size();++i) if (auto* buffer=buffers[i]) {
             const bool accepted=buffer->accepted.Presented(true,true);
             gameFrame|=accepted;
-            // FG operates on the opaque base client only. A popup or another
+            // FG operates on the selected opaque GPU client. A popup or another
             // window submitting a buffer must not inflate the source FPS.
-            if (i==0 && inputs[i].native && inputs[i].opaque) sourceFrame=accepted;
+            if (i==fgLayerIndex) sourceFrame=accepted;
         }
         ++presentationSerial_; ++presents_; desktopPresents.fetch_add(1,std::memory_order_relaxed);
         if (gameFrame) { desktopGamePresents.fetch_add(1,std::memory_order_relaxed); rootRate_.Record(); }
@@ -674,21 +675,24 @@ private:
         if (frame.completedGenerated) { gamescopeGeneratedRate_.Record(); ++gamescopeGeneratedFrames_; }
         // Source acceptance occurs even when this output is interpolated. A
         // held real image counts only when it is actually submitted later.
-        if (!frame.generated && buffers[0] && inputs[0].opaque &&
-                buffers[0]->frameSerial!=gamescopeLastRealSerial_) {
-            gamescopeLastRealSerial_=buffers[0]->frameSerial;
+        if (!frame.generated && fgLayerIndex<buffers.size() && buffers[fgLayerIndex] &&
+                (inputs[fgLayerIndex].key!=gamescopeLastRealKey_ ||
+                 buffers[fgLayerIndex]->frameSerial!=gamescopeLastRealSerial_)) {
+            gamescopeLastRealKey_=inputs[fgLayerIndex].key;
+            gamescopeLastRealSerial_=buffers[fgLayerIndex]->frameSerial;
             gamescopePresentedRate_.Record();
             ++gamescopePresentedFrames_;
         }
         if (frame.completedGenerated) { gamescopePresentedRate_.Record(); ++gamescopePresentedFrames_; }
         if ((winehua::FrameLoopDiagnosticState() & 1) && fgNow-gamescopeDiagnosticUs_>=1000000) {
             gamescopeDiagnosticUs_=fgNow;
-            OH_LOG_INFO(LOG_APP,"[GAMESCOPE-FG] us=%{public}llu real=%{public}llu gen=%{public}llu present=%{public}llu state=%{public}u gpuNs=%{public}llu displayNs=%{public}llu source=%{public}ux%{public}u output=%{public}ux%{public}u policy=%{public}u",
+            OH_LOG_INFO(LOG_APP,"[GAMESCOPE-FG] us=%{public}llu real=%{public}llu gen=%{public}llu present=%{public}llu state=%{public}u gpuNs=%{public}llu displayNs=%{public}llu source=%{public}ux%{public}u output=%{public}ux%{public}u policy=%{public}u fgLayer=%{public}u layers=%{public}u gpuLayers=%{public}u",
                 (unsigned long long)fgNow,(unsigned long long)gamescopeRealFrames_,
                 (unsigned long long)gamescopeGeneratedFrames_,(unsigned long long)gamescopePresentedFrames_,
                 frame.frameGenerationState,(unsigned long long)frame.frameGenerationGpuNs,
-                (unsigned long long)frame.displayPeriodNs,inputs[0].width,inputs[0].height,
-                frame.width,frame.height,policy);
+                (unsigned long long)frame.displayPeriodNs,fgLayerIndex<inputs.size()?inputs[fgLayerIndex].width:0,
+                fgLayerIndex<inputs.size()?inputs[fgLayerIndex].height:0,
+                frame.width,frame.height,policy,fgLayerIndex,frame.count,frame.gpuLayers);
         }
         if (presents_==1 || presents_%300==0 || frame.gpuLayers!=lastGameGpuLayers_ || frame.fsrPasses!=lastGameFsrPasses_) OH_LOG_INFO(LOG_APP,
             "[GAMESCOPE] presents=%{public}llu native=%{public}u filter=%{public}u fsrPasses=%{public}u cpuGameCopies=0",
@@ -1133,7 +1137,7 @@ private:
     int (*gamescopePresent_)(VppGamescopeFrame*) = nullptr;
     int gamescopeWidth_=0, gamescopeHeight_=0;
     winehua::game::AppliedPolicy gamescopePolicy_;
-    uint64_t gamescopeSourceSerial_=0, gamescopeLastTick_=0, gamescopeNextTickNs_=0, gamescopeLastRealSerial_=0;
+    uint64_t gamescopeSourceSerial_=0, gamescopeLastTick_=0, gamescopeNextTickNs_=0, gamescopeLastRealSerial_=0, gamescopeLastRealKey_=0;
     bool gamescopeResetHistory_=true;
     DirectFrameRate gamescopeRealRate_,gamescopeGeneratedRate_,gamescopePresentedRate_;
     uint64_t gamescopeRealFrames_=0,gamescopeGeneratedFrames_=0,gamescopePresentedFrames_=0,gamescopeDiagnosticUs_=0;

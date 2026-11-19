@@ -1,0 +1,60 @@
+--- a/shaders/wfg_synth.comp
++++ b/shaders/wfg_synth.comp
+@@ -141,45 +141,19 @@
+     vec3 warped = (Wsum > 1e-8) ? (W0 * C0 + W1 * C1) / Wsum
+                                 : mix(C0, C1, alpha);
+ 
+-    // ── Disocclusion fallback ────────────────────────────────────────────────
+-    // When neither candidate is trustworthy (newly revealed content that no flow
+-    // explains), degrade to a straight cross-fade of the untouched frames rather
+-    // than smear along a wrong vector. This is the ghosting fix.
+-    vec3 crossfade = mix(texture(uPrev, uv).rgb, texture(uCurr, uv).rgb, alpha);
+-    // Photometric gate: if even the better of the two warps disagrees badly with
+-    // the source pair (the flow is wrong here), distrust it and cross-fade. This is
+-    // what stops the "melting" — model 3 writes confidence=1 so it had no gate at
+-    // all; the warp residual now provides one for BOTH models.
+-    // Cross-fade wherever the warp disagrees with the source pair. The flow field is
+-    // noisy (small SAD blocks, upsampled from 1/4 res), so an over-loose gate lets
+-    // wrong vectors warp -> the whole frame melts into an oil-painting smear (proven
+-    // on device at flowScale>=1.0 + a loose gate). Keep this tight: warp only where
+-    // the residual is genuinely small, cross-fade everything else. Blur-on-uncertainty
+-    // is the safe failure; melt is not.
+-    float photoErr   = min(eA, eB);
+-    float photoTrust = 1.0 - smoothstep(0.04, 0.18, photoErr);
++    // Unreliable optical flow is not a license to blend two unaligned
++    // endpoints. That produces two roof/character/HUD contours in motion.
++    // Keep current real pixels where a warp cannot be trusted; interpolate
++    // only the locally verified candidates. This trades local smoothness for
++    // a crisp fallback, without changing the color path or reading back pixels.
++    vec3 currC = texture(uCurr, uv).rgb;
++    float photoTrust = 1.0 - smoothstep(0.04, 0.18, min(eA, eB));
+     float trust = clamp(consist, 0.0, 1.0) * photoTrust;
+-    trust *= smoothstep(0.0, epsilon, Wsum);      // both-unreliable -> 0
+-
+-    // ── Content-diff double-exposure fallback ─────────────────────────────────
+-    // Video-analysis 2026-08-17 (Kratos hand-gesture melts at t=50/60/80):
+-    // when the flow gate rejects a pixel AND prev+curr LOOK VERY DIFFERENT at
+-    // that pixel (large object motion beyond flow reach — a hand that swept
+-    // across 100+ px between two real frames at 24 fps), the crossfade above
+-    // averages two totally different scenes = classic "two-hand double
+-    // exposure" ghost. Snap to real curr in that case: lose the FG smoothness
+-    // on those specific pixels for that frame, but no visible ghost. The rest
+-    // of the frame keeps its interpolation. Soft switch so we don't create
+-    // hard seams around moving edges.
+-    vec3 prevC = texture(uPrev, uv).rgb;
+-    vec3 currC = texture(uCurr, uv).rgb;
+-    float contentDiff = length(currC - prevC);      // 0 = identical, ~1.7 = max diff
+-    float untrusted   = 1.0 - smoothstep(0.10, 0.25, trust);   // 1 when trust < ~0.15
+-    float bigDiff     = smoothstep(0.20, 0.40, contentDiff);    // 1 when diff > ~0.30
+-    float snapToCurr  = untrusted * bigDiff;
+-    crossfade = mix(crossfade, currC, snapToCurr);
+-
+-    vec3 outc = mix(crossfade, warped, trust);
++    trust *= smoothstep(0.0, epsilon, Wsum);
++    bool inside = all(greaterThanEqual(pA, vec2(0.0))) && all(lessThanEqual(pA, vec2(1.0)))
++               && all(greaterThanEqual(pB, vec2(0.0))) && all(lessThanEqual(pB, vec2(1.0)));
++    if (!inside || m01 > kMaxFlow || m10 > kMaxFlow) trust = 0.0;
++    vec3 outc = mix(currC, warped, smoothstep(0.35, 0.75, trust));
+ 
+     // DEBUG flow visualiser (flowScale>5 sentinel): replace the generated frame with
+     // the raw solved flow so we can SEE its quality on device. black = static,

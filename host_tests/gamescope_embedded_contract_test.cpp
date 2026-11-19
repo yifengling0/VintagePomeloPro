@@ -3,6 +3,24 @@
 #include <limits>
 
 int main() {
+    {
+        VppGamescopeLayer scene[4];
+        const uint32_t pixel=0xffffffff;
+        scene[0].pixels=&pixel; scene[0].w=1920; scene[0].h=1200;
+        scene[1].native=reinterpret_cast<void*>(1); scene[1].upscale=1;
+        scene[1].width=800; scene[1].height=600; scene[1].w=1600; scene[1].h=1200;
+        scene[2]=scene[1]; scene[2].w=320; scene[2].h=200;
+        scene[3]=scene[0]; // SHM menu above the client must remain an overlay.
+        VppGamescopeFrame frame; frame.width=1920; frame.height=1200;
+        frame.layers=scene; frame.count=4;
+        assert(VppGamescopeFrameGenerationLayer(frame)==1);
+        scene[1].x=-1700; // wholly off-screen client cannot steal interpolation.
+        assert(VppGamescopeFrameGenerationLayer(frame)==2);
+        scene[2].opaque=0; // genuinely transparent GPU content stays unchanged.
+        assert(VppGamescopeFrameGenerationLayer(frame)==4);
+        scene[1].x=0; scene[1].upscale=0;
+        assert(VppGamescopeFrameGenerationLayer(frame)==4);
+    }
     VppGamescopeLayer layers[2];
     layers[0].native=reinterpret_cast<void*>(1);
     layers[0].width=800; layers[0].height=600; layers[0].w=1600; layers[0].h=1200;

@@ -273,7 +273,7 @@ private:
     uint64_t m_fgIdentity=0;
     bool m_fgTried=false, m_fgReady=false, m_fgEnabled=false;
     bool m_fgCountPending=false;
-    uint32_t m_fgBudgetFailures=0;
+    VppFrameGenerationBudget m_fgBudget;
     uint64_t m_fgCompleted=0;
     std::array<uint64_t,2> m_historyNs{};
 };
@@ -495,7 +495,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
         m_fgEnabled=bool(input.frameGeneration);
         m_framegen.Destroy(); m_fgSchedule.Reset(); m_history={}; m_fgIdentity=0;
         m_fgTried=m_fgReady=false;
-        m_fgBudgetFailures=0;
+        m_fgBudget.Reset();
         m_fgCompleted=0;
         m_fgCountPending=false;
     }
@@ -509,7 +509,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             m_fgCountPending=false;
             if (m_framegen.SceneCut()) { m_fgSchedule.Reset(); m_fgIdentity=0; }
             const auto budget=m_fgSchedule.GpuBudgetNs(input.displayPeriodNs);
-            m_fgBudgetFailures=budget && input.frameGenerationGpuNs>budget?m_fgBudgetFailures+1:0;
+            m_fgBudget.Completed(input.nowNs,input.frameGenerationGpuNs,budget);
         }
         return idle;
     };
@@ -576,9 +576,14 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
     // once, blend in linear light, and explicitly encode the final SDR output.
     info.applyOutputColorMgmt=true;
     info.outputEncodingEOTF=EOTF_Gamma22;
+    const auto fgLayerIndex=VppGamescopeFrameGenerationLayer(input);
+    if (m_fgEnabled && fgLayerIndex==input.count) {
+        m_fgSchedule.Reset(); m_fgIdentity=0;
+        input.frameGenerationState=VPP_FG_NO_GPU_GAME;
+    }
     for (uint32_t i=0;i<input.count;++i) {
         const auto& src=input.layers[i]; auto texture=textures[i];
-        bool fgLayer=m_fgEnabled && i==0 && src.native && src.opaque;
+        bool fgLayer=m_fgEnabled && i==fgLayerIndex;
         bool fresh=false;
         if (fgLayer) {
             // Geometry/renderer changes are history boundaries. Exclude the
@@ -596,7 +601,14 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
                 // by normalization/composition from the previous geometry.
                 g_device.vk.QueueWaitIdle(g_device.queue()); g_device.waitIdle();
                 m_fgSchedule.Reset(); m_history={}; m_historyNs={}; m_historyIndex=0; m_fgIdentity=identity;
-                m_fgBudgetFailures=0;
+                m_fgBudget.Reset();
+            }
+            const bool cooling=m_fgBudget.CoolingDown();
+            const bool budgetAllows=m_fgBudget.Allow(input.nowNs);
+            if (cooling && budgetAllows) {
+                // No interpolation across the cooldown gap. Re-warm with
+                // new endpoints without reallocating or draining the queue.
+                m_fgSchedule.Reset(); m_historyNs={};
             }
             fresh=m_fgSchedule.Observe(identity,src.serial,input.nowNs,input.displayPeriodNs);
             input.frameGenerationState=m_fgSchedule.Reason(input.displayPeriodNs);
@@ -606,12 +618,9 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             if (!input.displayPeriodNs || (input.frameGenerationState==VPP_FG_DISPLAY_RATE &&
                     !m_fgSchedule.CanGenerate() && !m_fgSchedule.Pending())) fgLayer=false;
             if (m_fgTried && !m_fgReady) { fgLayer=false; input.frameGenerationState=VPP_FG_UNSUPPORTED; }
-            if (m_fgBudgetFailures>=3 || std::abs(src.u1*src.v2)*double(src.width)*src.height>1920u*1080u) {
+            if (!budgetAllows || std::abs(src.u1*src.v2)*double(src.width)*src.height>1920u*1080u) {
                 fgLayer=false; input.frameGenerationState=VPP_FG_BUDGET;
             }
-        } else if (m_fgEnabled && i==0) {
-            m_fgSchedule.Reset(); m_fgIdentity=0;
-            input.frameGenerationState=VPP_FG_NO_GPU_GAME;
         }
         // Normalize GLES row direction and client cropping on GPU at source
         // resolution. FSR then receives upright client pixels, never borders.
@@ -630,7 +639,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             };
             if (!allocate()) {
                 if (!fgLayer) return false;
-                fgLayer=false; m_fgBudgetFailures=3; input.frameGenerationState=VPP_FG_BUDGET;
+                fgLayer=false; m_fgBudget.Suspend(input.nowNs); input.frameGenerationState=VPP_FG_BUDGET;
                 upright=crop?&slot.upright[i]:nullptr;
                 if (upright && !allocate()) return false;
             }
@@ -667,9 +676,9 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
             // it before recording another generation or replacing its token.
             else if (!collectCompleted()) input.frameGenerationState=VPP_FG_GPU_BUSY;
             else if (!m_fgSchedule.CanGenerate()) input.frameGenerationState=VPP_FG_WARMING;
-            else if (m_fgBudgetFailures>=3) input.frameGenerationState=VPP_FG_BUDGET;
+            else if (!m_fgBudget.Allow(input.nowNs)) input.frameGenerationState=VPP_FG_BUDGET;
             else if (!m_framegen.Resize({texture->width(),texture->height()})) {
-                input.frameGenerationState=VPP_FG_FAILED; m_fgBudgetFailures=3;
+                input.frameGenerationState=VPP_FG_FAILED; m_fgBudget.Suspend(input.nowNs);
             }
             else {
                 auto& generated=slot.generated;
@@ -682,7 +691,7 @@ bool COhosBackend::PrepareEmbedded(Frame& slot, FrameInfo_t& info) {
                 if (generated && m_framegen.Generate(previous,texture.get(),generated.get())) {
                     texture=generated.get(); input.generated=1; input.frameGenerationState=VPP_FG_RUNNING;
                     m_fgSchedule.Generated(input.nowNs,input.displayPeriodNs);
-                } else { input.frameGenerationState=VPP_FG_FAILED; m_fgBudgetFailures=3; }
+                } else { input.frameGenerationState=VPP_FG_FAILED; m_fgBudget.Suspend(input.nowNs); }
             }
         }
         if (fgLayer) {

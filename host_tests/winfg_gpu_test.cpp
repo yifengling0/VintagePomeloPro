@@ -89,11 +89,13 @@ int main() {
         VppWinfgEngine engine;
         assert(engine.Init(instance,vkGetInstanceProcAddr,physical,device,family,queue));
         assert(engine.Resize({w,h}));
-        for(int mode=0;mode<3;++mode) {
+        for(int mode=0;mode<4;++mode) {
+            const unsigned shift=mode==3?24:8;
+            const int background=mode==3?96:24;
             for(unsigned frame=0;frame<2;++frame) for(unsigned y=0;y<h;++y) for(unsigned x=0;x<w;++x) {
                 auto* p=pixels+frame*bytes+(y*w+x)*4;
-                const bool block=x>=32+frame*8 && x<64+frame*8 && y>=24 && y<72;
-                p[0]=mode?block?uint8_t(130+((x-frame*8)*13+y*7)%100):24:128;
+                const bool block=x>=32+frame*shift && x<64+frame*shift && y>=24 && y<72;
+                p[0]=mode?block?mode==3?uint8_t(120+((x-frame*shift)*13+y*7)%16):uint8_t(130+((x-frame*shift)*13+y*7)%100):background:128;
                 p[1]=mode?p[0]:96; p[2]=mode?p[0]:64; p[3]=255;
                 if (mode==2) p[0]=p[1]=p[2]=frame?240:32;
             }
@@ -129,14 +131,31 @@ int main() {
             } else {
                 assert(!engine.SceneCut());
                 double total=0,weighted=0;
-                for(unsigned y=24;y<72;++y) for(unsigned x=20;x<90;++x) { const double v=std::max(0,int(output[(y*w+x)*4])-24); total+=v; weighted+=x*v; }
+                for(unsigned y=24;y<72;++y) for(unsigned x=20;x<100;++x) { const double v=std::max(0,int(output[(y*w+x)*4])-background); total+=v; weighted+=x*v; }
                 const double centroid=weighted/total;
-                printf("motion midpoint centroid=%.3f expected=51.5\n",centroid);
-                assert(std::abs(centroid-51.5)<2.0);
+                printf("motion mode=%d centroid=%.3f midpoint=%.1f current-endpoint=%.1f\n",mode,centroid,47.5+shift/2,47.5+shift);
+                if (mode==1) assert(std::abs(centroid-51.5)<2.0);
                 // The generated image must differ from BOTH endpoints.
                 unsigned difference[2]{};
                 for(unsigned i=0;i<bytes;i+=4) for(unsigned j=0;j<2;++j) difference[j]+=std::abs(int(output[i])-pixels[j*bytes+i]);
-                assert(difference[0]>10000 && difference[1]>10000);
+                if (mode==1) assert(difference[0]>10000 && difference[1]>10000);
+                double error=0,blendError=0;
+                unsigned leftGhost=0;
+                for(unsigned y=24;y<72;++y) for(unsigned x=20;x<90;++x) {
+                    const bool middle=x>=32+shift/2 && x<64+shift/2;
+                    const int expected=middle?mode==3?120+((x-shift/2)*13+y*7)%16:130+((x-shift/2)*13+y*7)%100:background;
+                    const auto at=(y*w+x)*4;
+                    error+=std::abs(int(output[at])-expected);
+                    blendError+=std::abs((int(pixels[at])+pixels[bytes+at])/2-expected);
+                    if (x>=32 && x<32+shift/2 && output[at]>background+8) ++leftGhost;
+                }
+                printf("motion quality error=%.0f crossfade=%.0f old-edge-ghosts=%u\n",error,blendError,leftGhost);
+                // Normal motion must improve on endpoint blending and still
+                // reach the intermediate location, never just repeat curr.
+                if (mode==1) assert(error<blendError*0.6 && leftGhost==0);
+                // Fast, low-contrast motion exceeds the flow clamp. Prefer
+                // the crisp real endpoint over a second old object contour.
+                if (mode==3) assert(leftGhost==0);
             }
         }
         engine.Destroy();
