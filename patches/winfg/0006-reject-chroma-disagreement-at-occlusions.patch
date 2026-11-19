@@ -1,0 +1,16 @@
+--- a/shaders/wfg_synth.comp
++++ b/shaders/wfg_synth.comp
+@@ -156,6 +156,13 @@
+     bool inside = all(greaterThanEqual(pA, vec2(0.0))) && all(lessThanEqual(pA, vec2(1.0)))
+                && all(greaterThanEqual(pB, vec2(0.0))) && all(lessThanEqual(pB, vec2(1.0)));
+     if (!inside || m01 > kMaxFlow || m10 > kMaxFlow) trust = 0.0;
++    // Luma-only matching accepts different hues of equal brightness. At
++    // occlusions those candidates can produce a third color absent from both
++    // surfaces. Fade out interpolation when the warped chroma disagrees.
++    vec3 delta = C0 - C1;
++    vec3 chroma = abs(delta - vec3(luma(delta)));
++    float chromaError = max(chroma.r, max(chroma.g, chroma.b));
++    trust *= 1.0 - smoothstep(0.04, 0.12, chromaError);
+     vec3 outc = mix(currC, warped, smoothstep(0.35, 0.75, trust));
+ 
+     // DEBUG flow visualiser (flowScale>5 sentinel): replace the generated frame with

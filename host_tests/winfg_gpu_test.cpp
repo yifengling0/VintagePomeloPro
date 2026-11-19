@@ -89,7 +89,7 @@ int main() {
         VppWinfgEngine engine;
         assert(engine.Init(instance,vkGetInstanceProcAddr,physical,device,family,queue));
         assert(engine.Resize({w,h}));
-        for(int mode=0;mode<4;++mode) {
+        for(int mode=0;mode<5;++mode) {
             const unsigned shift=mode==3?24:8;
             const int background=mode==3?96:24;
             for(unsigned frame=0;frame<2;++frame) for(unsigned y=0;y<h;++y) for(unsigned x=0;x<w;++x) {
@@ -98,6 +98,14 @@ int main() {
                 p[0]=mode?block?mode==3?uint8_t(120+((x-frame*shift)*13+y*7)%16):uint8_t(130+((x-frame*shift)*13+y*7)%100):background:128;
                 p[1]=mode?p[0]:96; p[2]=mode?p[0]:64; p[3]=255;
                 if (mode==2) p[0]=p[1]=p[2]=frame?240:32;
+                if (mode==4) {
+                    // Same luminance at each pixel, but a local red/green
+                    // occlusion changes which surface is visible.
+                    const bool occluded=x>=32 && x<64 && y>=24 && y<72;
+                    p[0]=occluded?(frame?0:215):24;
+                    p[1]=occluded?(frame?64:0):24;
+                    p[2]=occluded?0:24;
+                }
             }
             start();
             for(unsigned frame=0;frame<2;++frame) {
@@ -128,6 +136,15 @@ int main() {
             } else if (mode==2) {
                 assert(engine.SceneCut());
                 for(unsigned i=0;i<bytes;i+=4) assert(output[i]==240 && output[i+1]==240 && output[i+2]==240 && output[i+3]==255);
+            } else if (mode==4) {
+                assert(!engine.SceneCut());
+                const auto center=(48*w+48)*4;
+                printf("Chroma occlusion center RGB %u,%u,%u (expected 0,64,0)\n",
+                        output[center],output[center+1],output[center+2]);
+                for(unsigned y=32;y<64;++y) for(unsigned x=40;x<56;++x) {
+                    const auto i=(y*w+x)*4;
+                    assert(output[i]<=1 && std::abs(int(output[i+1])-64)<=1 && output[i+2]<=1 && output[i+3]==255);
+                }
             } else {
                 assert(!engine.SceneCut());
                 double total=0,weighted=0;

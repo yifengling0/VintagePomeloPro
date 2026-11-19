@@ -136,6 +136,10 @@
     {
       "path": "patches/winfg/0005-preserve-real-pixels-for-unreliable-motion.patch",
       "sha256": "ecd8cd5912ebf3eca8d554a7ee24e8581e89771ab54546fc71b966df6fd8d0c7"
+    },
+    {
+      "path": "patches/winfg/0006-reject-chroma-disagreement-at-occlusions.patch",
+      "sha256": "4aee8e1fbe3350ca6405cf3d3b8c91c8d8e81dc55c5692979cd237ba6eccacbb"
     }
   ],
   "adapted": [
@@ -157,7 +161,7 @@
     },
     {
       "path": "shaders/wfg_synth.comp",
-      "sha256": "2cd52812e9fbf4185265eb060b7283f51e66b60e3ffb25e990e760ca73071e18"
+      "sha256": "49444123d2d31bcf6d3decba414bd3b6b6ab0a685ded49d49924513776179e7b"
     }
   ],
   "additionalFiles": [

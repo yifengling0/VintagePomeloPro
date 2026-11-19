@@ -617,7 +617,7 @@
   "abiBoundary": "OHOS ARM64 native only; GNU libraries and executables are reference inputs, never payloads",
   "winfg": {
     "sourceLock": "components/winfg-source.lock.json",
-    "sourceLockSha256": "46ccbe7ca22bcdd440f5aa167a3e115866086cddafdb768585b98bcbdad84f28",
+    "sourceLockSha256": "9c91e59c025c090e86c0ebf872ea55e5aeb227f6341785f9b472cb8275ddbdbe",
     "builderSha256": "838a8bdf101273e7186dbec6c0b02cf663063bc7509bc9e90a617c36fc2ff11e",
     "files": [
       "src/winfg/framegen.cpp",
