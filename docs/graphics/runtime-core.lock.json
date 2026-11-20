@@ -120,7 +120,7 @@
     "libs/arm64-v8a/winspool.so": "0bec11b7814ed803ba035056b8f29b71c69e36a8ce31808e04191c0cc0bd2a16",
     "libs/arm64-v8a/libgstrtp-1.0.so.0": "dd98170bbc33635c65ba6a289c623a5004991ec4e44ef7284b1b77e23e06dc4d",
     "libs/arm64-v8a/libwinehua_vtest_server.so": "4f1195f5cbbfbdf0a230d453c31050186ceacc47045e91dd53c7055f3ea095b4",
-    "libs/arm64-v8a/ntdll.so": "5b0a2c3266edaf244176e368cea557aebe551ad01e70346bebcda10f9fdd85d2"
+    "libs/arm64-v8a/ntdll.so": "2d362ae1028c4c1b84c11555ec2a4280723989a0f562363d03d53905f411783a"
   },
   "payload": {
     "vkd3d/limited-500k/x64/d3d12.dll": "3a1e7447ffdd92acd21492a6773327072116995a1c931367398ed95699360b72",
@@ -1585,5 +1585,14 @@
       }
     },
     "baseHapSha256": "9340501113feeb552697b0023c74a6ec5ee4f738c0537d9d892fc80c61064af5"
+  },
+  "childWorkingDirectory": {
+    "patch": {
+      "path": "scripts/patches/wine-upstream/0090-ntdll-child-working-directory.patch",
+      "commit": "03599dac79e61834514c651d87f8be5f72d304da",
+      "subject": "ntdll: forward the CreateProcess working directory to OHOS children",
+      "sha256": "9b34a2770db6bd7f8174794db45ca88aa726bf2700e9da0f10bb03842184461f"
+    },
+    "previousLibrarySha256": "5b0a2c3266edaf244176e368cea557aebe551ad01e70346bebcda10f9fdd85d2"
   }
 }

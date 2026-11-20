@@ -23,6 +23,7 @@
 #include <hilog/log.h>
 #include <unistd.h>
 #include <errno.h>
+#include <atomic>
 #include <signal.h>
 #include <cstdio>
 #include <cstring>
@@ -1349,11 +1350,12 @@ static void OhosDumpRegs(ucontext_t* uc)
 }
 
 // 运行时开关: 注册时 entryParams 的 env 还没应用, 所以 handler 里再看这个标志。
-static volatile int g_early_fault_enabled = 1;
+static volatile sig_atomic_t g_early_fault_enabled = 1;
+static volatile sig_atomic_t g_early_fault_full_alignment = 0;
 
 int OhosEarlyFault(int sig, siginfo_t* info, void* uctx) {
     static int logged = 0;
-    static volatile int in_handler = 0;
+    static std::atomic_flag active = ATOMIC_FLAG_INIT;
     ucontext_t* uc = static_cast<ucontext_t*>(uctx);
     uintptr_t pc = 0, lr = 0, sp = 0;
 #if defined(__aarch64__)
@@ -1365,39 +1367,37 @@ int OhosEarlyFault(int sig, siginfo_t* info, void* uctx) {
 #endif
     if (!g_early_fault_enabled) return 0;
 
-    /* 真嵌套: handler 自己又 fault (Wine 会 abort_thread, 必须能分辨) */
-    if (in_handler)
-    {
-        if (logged <= 8)
-        {
-            char out[224];
-            int m = snprintf(out, sizeof(out),
-                             "[early-fault] nested#%d sig=%d code=%d addr=%p pc=%p lr=%p sp=%p\n",
-                             logged, sig, info ? info->si_code : 0,
-                             info ? info->si_addr : nullptr, (void*)pc, (void*)lr, (void*)sp);
-            if (m > 0) write(2, out, (size_t)m);
+    // A nested or concurrent fault must still reach Wine. Never wait inside
+    // a signal callback or let two handlers modify the same diagnostic slots.
+    if (active.test_and_set(std::memory_order_acquire)) return 0;
+    struct ReleaseDiagnostic {
+        std::atomic_flag& flag;
+        int savedErrno;
+        ~ReleaseDiagnostic() {
+            errno = savedErrno;
+            flag.clear(std::memory_order_release);
         }
-        return 0;
-    }
+    } release{active, errno};
     /* 去重而不是"前 4 颗都打" (2026-09-18 观测轮实测):
      * arm64ec 路径下**每个 x64 进程启动阶段都会先吃 4 颗形态完全相同的
      * sig=7(SIGBUS) 探针 fault** (FEX/SMC/SEH, 见 [SMC] result=wine_seh),
      * 旧的"前 4 颗"名额被它们吃光 —— 后面真正的崩溃 (CEF renderer 的
      * SIGSEGV, 实测每 7~8 秒死一次) 反而一条现场都没有, 直接漏掉根因。
      * SIGBUS 探针不能占用后来 SIGSEGV 的诊断名额。 */
-    static int seenSig[16];
-    static uintptr_t seenPc[16];
-    static int seenCount[2];
-    const int group = sig == SIGSEGV ? 1 : 0;
-    const int first = group * 8;
+    constexpr int faultsPerGroup = 8;
+    static int seenSig[3 * faultsPerGroup];
+    static uintptr_t seenPc[3 * faultsPerGroup];
+    static int seenCount[3];
+    const bool alignment = sig == SIGBUS && info && info->si_code == BUS_ADRALN;
+    const int group = alignment ? 2 : (sig == SIGSEGV ? 1 : 0);
+    const int first = group * faultsPerGroup;
     for (int i = first; i < first + seenCount[group]; i++)
         if (seenSig[i] == sig && seenPc[i] == pc) return 0;
-    if (seenCount[group] >= 8) return 0;
+    if (seenCount[group] >= faultsPerGroup) return 0;
     const int index = first + seenCount[group]++;
     seenSig[index] = sig;
     seenPc[index] = pc;
     logged = index + 1;
-    in_handler = 1;
 
     char buf[256];
     int n = snprintf(buf, sizeof(buf),
@@ -1405,6 +1405,10 @@ int OhosEarlyFault(int sig, siginfo_t* info, void* uctx) {
                      logged, getpid(), (long)syscall(SYS_gettid), sig, info ? info->si_code : 0,
                      info ? info->si_addr : nullptr, (void*)pc, (void*)lr, (void*)sp);
     if (n > 0) write(2, buf, (size_t)n);
+
+    // FEX can routinely recover alignment traps after this callback. Leave
+    // them to Wine/FEX before walking mappings or touching loader state.
+    if (alignment && !g_early_fault_full_alignment) return 0;
 
     static char maps[512 * 1024];
     size_t mapsBytes = OhosReadFullMaps(maps, sizeof(maps));
@@ -1500,7 +1504,6 @@ int OhosEarlyFault(int sig, siginfo_t* info, void* uctx) {
         for (int i = 0; i < hold; i++) sleep(1);
     }
     write(2, "[early-fault] logger-exit\n", 26);
-    in_handler = 0;
     return 0;
 }
 
@@ -1847,6 +1850,8 @@ extern "C" void Main(NativeChildProcess_Args args)
     {
         const char* ef = getenv("WINEHUA_EARLY_FAULT");
         const char* quiet = getenv("WINEHUA_DIAG_QUIET");
+        const char* freeze = getenv("WINEHUA_FAULT_FREEZE");
+        g_early_fault_full_alignment = (ef && ef[0] == '1') || (freeze && freeze[0] == '1');
         g_early_fault_enabled = (ef && ef[0] == '0') ||
                                 (quiet && quiet[0] == '1' && !(ef && ef[0] == '1')) ? 0 : 1;
         OH_LOG_INFO(LOG_APP, "[WineChild] early fault logger=%{public}s",
@@ -1944,11 +1949,11 @@ extern "C" void Main(NativeChildProcess_Args args)
     {
         std::string launchCwd;
         const char *requestedCwd = getenv("WINEHUA_WORKING_DIRECTORY");
-        bool hasCwd = requestedCwd && requestedCwd[0]
-            ? wine_directory_to_native(requestedCwd, homeDir, &launchCwd)
-            : derive_launch_cwd(argc, argv, homeDir, &launchCwd);
-        if (hasCwd && chdir(launchCwd.c_str()) == 0)
-            OH_LOG_INFO(LOG_APP, "[WineChild] cwd=%{public}s", launchCwd.c_str());
+        bool applied = requestedCwd && requestedCwd[0] &&
+            wine_directory_to_native(requestedCwd, homeDir, &launchCwd) && chdir(launchCwd.c_str()) == 0;
+        if (!applied && derive_launch_cwd(argc, argv, homeDir, &launchCwd))
+            applied = chdir(launchCwd.c_str()) == 0;
+        if (applied) OH_LOG_INFO(LOG_APP, "[WineChild] cwd=%{public}s", launchCwd.c_str());
     }
 
     start_stderr_capture(args.entryParams ? strlen(args.entryParams) : size_t{0}, argc, "wine");

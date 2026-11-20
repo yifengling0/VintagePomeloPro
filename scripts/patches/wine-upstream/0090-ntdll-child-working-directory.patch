@@ -1,0 +1,107 @@
+From 03599dac79e61834514c651d87f8be5f72d304da Mon Sep 17 00:00:00 2001
+From: VPP Runtime Maintainers <runtime@vintagepomelo.invalid>
+Date: Fri, 20 Nov 2026 21:19:00 +0800
+Subject: [PATCH] ntdll: forward the CreateProcess working directory to OHOS
+ children
+
+---
+ dlls/ntdll/unix/ohos_broker.c | 20 ++++++++++++++++++--
+ dlls/ntdll/unix/ohos_broker.h |  2 +-
+ dlls/ntdll/unix/process.c     |  2 +-
+ 3 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/dlls/ntdll/unix/ohos_broker.c b/dlls/ntdll/unix/ohos_broker.c
+index c7f2cdedf447147090f8175e77383dc3f90448ac..f9eaf649e9b92efeca5eefb0b226c7123161755d 100644
+--- a/dlls/ntdll/unix/ohos_broker.c
++++ b/dlls/ntdll/unix/ohos_broker.c
+@@ -26,6 +26,7 @@
+ 
+ #include <dirent.h>
+ #include <errno.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -133,7 +134,8 @@ static const char *resolve_bindir(void)
+  * Blacklist: per-process fd/handle vars that the child gets via fdList. */
+ static int env_forwardable(const char *env)
+ {
+-    return !vp_is_process_env(env);
++    return !vp_is_process_env(env) &&
++        strncmp(env, "WINEHUA_WORKING_DIRECTORY=", sizeof("WINEHUA_WORKING_DIRECTORY=") - 1);
+ }
+ 
+ 
+@@ -150,7 +152,7 @@ int ohos_broker_spawn_wineserver(int *child_pid)
+     return broker_spawn_spec(&spec, NULL, child_pid);
+ }
+ 
+-int ohos_broker_spawn_child(char **argv, int socketfd, const char *winedebug, int *child_pid)
++int ohos_broker_spawn_child(char **argv, int socketfd, int cwd_fd, const char *winedebug, int *child_pid)
+ {
+     extern char **environ;
+     const char *fd_names[] = {"wineserver_sock"};
+@@ -158,9 +160,21 @@ int ohos_broker_spawn_child(char **argv, int socketfd, const char *winedebug, in
+     vp_spawn_spec spec = {0};
+     uint32_t argc = 0, envc = 0, i, offset = getenv("USE_LIBBOX64") ? 0 : 1;
+     int result;
++    /* Wine has already opened the directory specified by CreateProcess.
++     * Send its native path through the existing launch-directory field. */
++    char cwd_env[sizeof("WINEHUA_WORKING_DIRECTORY=") + PATH_MAX] = "WINEHUA_WORKING_DIRECTORY=";
++    char *cwd = cwd_env + sizeof("WINEHUA_WORKING_DIRECTORY=") - 1;
+     char *debug_override = NULL;
+     const char *parent_debug = getenv("WINEDEBUG");
+     if (!argv || socketfd < 0) return vp_bad(EINVAL);
++    if (cwd_fd >= 0) {
++        char link[48];
++        ssize_t len;
++        snprintf(link, sizeof(link), "/proc/self/fd/%d", cwd_fd);
++        len = readlink(link, cwd, PATH_MAX);
++        if (len > 0 && len < PATH_MAX && cwd[0] == '/') cwd[len] = 0;
++        else cwd[0] = 0;
++    }
+     while (argv[argc]) { if (++argc > VP_ITEMS_CAP - offset) return vp_bad(E2BIG); }
+     /* A Windows launcher can change WINEDEBUG in its child environment without
+      * changing Unix environ. The fork/exec path already honors this parameter.
+@@ -171,6 +185,7 @@ int ohos_broker_spawn_child(char **argv, int socketfd, const char *winedebug, in
+         if (asprintf(&debug_override, "WINEHUA_WINEDEBUG=%s", winedebug[10] ? winedebug + 10 : "-all") < 0)
+             return vp_bad(ENOMEM);
+     }
++    if (*cwd) envc++;
+     if (environ) for (i = 0; environ[i]; ++i)
+         if (env_forwardable(environ[i]) &&
+             !(debug_override && !strncmp(environ[i], "WINEHUA_WINEDEBUG=", 18)) &&
+@@ -182,6 +197,7 @@ int ohos_broker_spawn_child(char **argv, int socketfd, const char *winedebug, in
+     if (offset) args[0] = "wine";
+     for (i = 0; i < argc; ++i) args[i + offset] = argv[i];
+     envc = 0;
++    if (*cwd) env[envc++] = cwd_env;
+     if (environ) for (i = 0; environ[i]; ++i)
+         if (env_forwardable(environ[i]) &&
+             !(debug_override && !strncmp(environ[i], "WINEHUA_WINEDEBUG=", 18))) env[envc++] = environ[i];
+diff --git a/dlls/ntdll/unix/ohos_broker.h b/dlls/ntdll/unix/ohos_broker.h
+index 4066626a9ed34c26a38668f85344d0bcb06f9bc3..8354d481ffee19d38701887c493dc12cde1b6e22 100644
+--- a/dlls/ntdll/unix/ohos_broker.h
++++ b/dlls/ntdll/unix/ohos_broker.h
+@@ -50,7 +50,7 @@ int ohos_broker_spawn_wineserver( int *child_pid );
+  * Sends argv + environ as separate arrays (process-local fd variables filtered),
+  * and passes socketfd as "wineserver_sock" via SCM_RIGHTS.
+  * Returns 0 on success (sets *child_pid), -1 on failure. */
+-int ohos_broker_spawn_child( char **argv, int socketfd, const char *winedebug, int *child_pid );
++int ohos_broker_spawn_child( char **argv, int socketfd, int cwd_fd, const char *winedebug, int *child_pid );
+ 
+ /* Scan for wineserver socket in WINEPREFIX/.wineserver/<host>/socket.
+  * poll_sec: 0=single check; >0=poll N seconds (200ms intervals)
+diff --git a/dlls/ntdll/unix/process.c b/dlls/ntdll/unix/process.c
+index cdc2e6c5a5d74bd887164c37d7cdd55b1bd5f7a3..c3ad6aed8e635d5abf89b92532dd04e97c1c5894 100644
+--- a/dlls/ntdll/unix/process.c
++++ b/dlls/ntdll/unix/process.c
+@@ -536,7 +536,7 @@ static NTSTATUS spawn_process( const RTL_USER_PROCESS_PARAMETERS *params, int so
+         argv = build_broker_argv( params );
+         {
+             int child_pid = -1;
+-            if (ohos_broker_spawn_child( argv, socketfd, winedebug, &child_pid ) == 0)
++            if (ohos_broker_spawn_child( argv, socketfd, unixdir, winedebug, &child_pid ) == 0)
+                 pid = child_pid;
+             else
+                 status = STATUS_UNSUCCESSFUL;

@@ -57,6 +57,7 @@ void UpsertEnvLine(std::vector<std::string>& env, const std::string& line) {
     env.push_back(line);
 }
 void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) {}
+void AppendWineDpiEnv(std::vector<std::string>& env) { UpsertEnvLine(env, "WINEHUA_LOGPIXELS=192"); }
 using winehua::spawn::Request;
 using winehua::spawn::EncodeEntry;
 using winehua::spawn::DecodeEntry;
@@ -105,7 +106,7 @@ std::vector<NamedFd> g_fds;
 int OnSurfaceRequest(uint32_t, const OHIPCParcel*, OHIPCParcel*) { return -1; }
 '''
 TEST = r'''
-extern "C" int ohos_broker_spawn_child(char**, int, const char*, int*);
+extern "C" int ohos_broker_spawn_child(char**, int, int, const char*, int*);
 extern "C" int ohos_broker_spawn_wineserver(int*);
 
 static int NativeLaunch(NativeChildProcess_Args args, int32_t* pid, int kind) {
@@ -330,19 +331,32 @@ static void WineClient() {
     setenv("PROCESSBROKER",path.c_str(),1); setenv("WINEBINDIR","/wine|bin\n中文",1);
     setenv("BROKER_SENTINEL","value|with\nseparator",1); setenv("WINESERVERSOCKET","do-not-forward",1);
     setenv("WINE_OHOS_AUDIO_BOOTSTRAP_FD","do-not-forward",1);
+    const char *parentCwd = "/Steam";
+    setenv("WINEHUA_WORKING_DIRECTORY", parentCwd, 1);
+    char gameDir[] = "/tmp/World of Warships-XXXXXX";
+    assert(mkdtemp(gameDir));
+    const int gameFd = open(gameDir, O_RDONLY | O_DIRECTORY);
+    assert(gameFd >= 0);
     for (int box=0; box<2; ++box) {
         if (box) setenv("USE_LIBBOX64","1",1); else unsetenv("USE_LIBBOX64");
         std::thread server([&] { int fd=accept(listener,nullptr,nullptr); assert(fd>=0); BrokerJob job(fd); assert(ReceiveJob(job)); LaunchJob(job); });
         auto r=Basic(); r.argv.resize(256, ""); r.argv[100]=std::string(64*1024,'x');
         auto args=winehua::spawn::Pointers(r.argv); args.push_back(nullptr);
         int socketFd=open("/dev/null",O_RDONLY), pid=-1;
-        assert(!ohos_broker_spawn_child(const_cast<char**>(args.data()),socketFd,nullptr,&pid)); assert(pid==123);
+        assert(!ohos_broker_spawn_child(const_cast<char**>(args.data()),socketFd,box ? -1 : gameFd,nullptr,&pid)); assert(pid==123);
         server.join(); close(socketFd);
+        std::vector<std::string> dirs;
+        for (const auto &line : delivered.env)
+            if (line.rfind("WINEHUA_WORKING_DIRECTORY=",0)==0) dirs.push_back(line);
+        if (box) assert(dirs.empty());
+        else assert(dirs == std::vector<std::string>{std::string("WINEHUA_WORKING_DIRECTORY=") + gameDir});
+        assert(!strcmp(getenv("WINEHUA_WORKING_DIRECTORY"), parentCwd));
         auto expected=r.argv; if (!box) expected.insert(expected.begin(),"wine");
         assert(delivered.argv==expected && delivered.bin=="/wine|bin\n中文");
         assert(std::find(delivered.env.begin(),delivered.env.end(),"BROKER_SENTINEL=value|with\nseparator")!=delivered.env.end());
         for (const auto& env : delivered.env) assert(env.rfind("WINESERVERSOCKET=",0)!=0 && env.rfind("WINE_OHOS_AUDIO_BOOTSTRAP_FD=",0)!=0);
     }
+    close(gameFd); assert(!rmdir(gameDir)); unsetenv("WINEHUA_WORKING_DIRECTORY");
     // A BAT changes the Windows child environment, while Unix environ still
     // holds the session default. Exercise the real C sender and Broker framing.
     setenv("WINEDEBUG","-all",1);
@@ -351,7 +365,7 @@ static void WineClient() {
         std::thread debugServer([&] { int fd=accept(listener,nullptr,nullptr); BrokerJob job(fd); assert(ReceiveJob(job)); LaunchJob(job); });
         char *args[] = {const_cast<char*>("war3.exe"),nullptr};
         int fd=open("/dev/null",O_RDONLY), child=-1;
-        assert(!ohos_broker_spawn_child(args,fd,debug,&child) && child==123);
+        assert(!ohos_broker_spawn_child(args,fd,-1,debug,&child) && child==123);
         debugServer.join(); close(fd);
         std::vector<std::string> overrides;
         for (const auto &line : delivered.env) if (line.rfind("WINEHUA_WINEDEBUG=",0)==0) overrides.push_back(line);
@@ -362,7 +376,7 @@ static void WineClient() {
     }
     char *invalidArgs[] = {const_cast<char*>("war3.exe"),nullptr};
     int invalidFd=open("/dev/null",O_RDONLY), invalidPid=-1;
-    assert(ohos_broker_spawn_child(invalidArgs,invalidFd,"X",&invalidPid)==-1 && errno==EINVAL);
+    assert(ohos_broker_spawn_child(invalidArgs,invalidFd,-1,"X",&invalidPid)==-1 && errno==EINVAL);
     close(invalidFd);
     unsetenv("WINEHUA_WINEDEBUG"); unsetenv("WINEDEBUG");
     std::thread server([&] { int fd=accept(listener,nullptr,nullptr); BrokerJob job(fd); assert(ReceiveJob(job)); LaunchJob(job); });
@@ -395,6 +409,7 @@ def main():
             'wine/wine_constants.h': '#pragma once\n#undef WINE_BROKER_SOCKET\n#define WINE_BROKER_SOCKET "/tmp/vp-unused-broker"\n',
             'audio/audio_broker.h': 'namespace winehua { class AudioBroker { public: static AudioBroker& GetInstance() { static AudioBroker a; return a; } int CreateBootstrapHandle() { return OpenAudio(); } }; }\n',
             'broker.h': '', 'wine_process.h': '', 'wine_child_ipc_launcher.h': '',
+            'bridge/system_open.h': 'inline bool DispatchSystemOpen(const std::string&) { return false; }\n',
             'phone_adapter/phone_adapter.h': '', 'phone_adapter/phone_process.h': '', 'cef_utility_probe.h': '',
             'config.h': '#define _GNU_SOURCE 1\n',
             'wine/debug.h': '#define WINE_DEFAULT_DEBUG_CHANNEL(x)\n#define WARN(...) ((void)0)\n',
@@ -414,7 +429,14 @@ def main():
         (wine / process_relative).write_bytes(subprocess.check_output(['git', 'show', 'HEAD:' + process_relative], cwd=options.wine_src))
         subprocess.run(['patch', '-s', '-p1', '-i', str(ROOT / 'patches/wine/0020-broker-v2-startup-contract.patch')], cwd=wine, check=True)
         subprocess.run(['patch', '-s', '-p1', '-i', str(ROOT / 'patches/wine/0028-ohos-child-winedebug-environment.patch')], cwd=wine, check=True)
-        assert (path.parent / 'ohos_spawn_protocol.h').read_bytes() == (ROOT / 'entry/src/main/cpp/proc/spawn_protocol.h').read_bytes()
+        subprocess.run(['patch', '-s', '-p1', '-i', str(ROOT / 'scripts/patches/wine-upstream/0090-ntdll-child-working-directory.patch')], cwd=wine, check=True)
+        # The host peeks at the first four bytes to multiplex OPEN and SPAWN.
+        # Check the shared sender and reply codec; exercise both receivers below.
+        def shared_codec(header):
+            text = header.read_text()
+            return (text[:text.index('static inline int vp_recv_request')],
+                    text[text.index('static inline int vp_recv_reply'):])
+        assert shared_codec(path.parent / 'ohos_spawn_protocol.h') == shared_codec(ROOT / 'entry/src/main/cpp/proc/spawn_protocol.h')
         flags = ['-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-no-pie']
         obj = folder / 'wine.o'
         subprocess.run(['cc', '-std=gnu11', *flags, '-Wno-unused-variable', '-I' + str(folder), '-c', str(path), '-o', str(obj)], check=True)

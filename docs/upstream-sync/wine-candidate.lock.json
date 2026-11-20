@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "14fa84cd3a58819fd99e8935cf106d4958bd9b44",
-  "adaptedTree": "1374a710944810ce32a7e5b8845dac726a02278e",
+  "adaptedCommit": "03599dac79e61834514c651d87f8be5f72d304da",
+  "adaptedTree": "4c7e692a7525531bb23ca6dc10b6f0c313e07700",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -556,11 +556,17 @@
       "sha256": "fcadbdbe247161e457d76fc2faf48e8d9597a1f0205087a850544309a0f0b426",
       "commit": "14fa84cd3a58819fd99e8935cf106d4958bd9b44",
       "subject": "wmp: play embedded video for legacy IWMPPlayer2 clients"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0090-ntdll-child-working-directory.patch",
+      "commit": "03599dac79e61834514c651d87f8be5f72d304da",
+      "subject": "ntdll: forward the CreateProcess working directory to OHOS children",
+      "sha256": "9b34a2770db6bd7f8174794db45ca88aa726bf2700e9da0f10bb03842184461f"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "e76dbf4fd4c8d23c639fb4d169760aeb85b3af5ebca7fb3d16c8988507f86f16"
+    "sha256": "00cdbd3ea1cac6f69b50f50fb47650e5ee999c903cdf7bac0dd6e4b9c8031bed"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",

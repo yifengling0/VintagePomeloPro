@@ -625,8 +625,10 @@ bool EnsureChildReaper() {
 // 退出时回调本函数 (pid + signal)。这是退出检测的权威信号 — ProcMon 轮询
 // 的 /proc 判活在沙箱里对 NCP 不可靠 (可能全部误判), 只保留 zombie 感知。
 static void OnNcpChildExit(int32_t pid, int32_t signal) {
-    OH_LOG_ERROR(LOG_APP, "[ProcReg] NCP child pid=%{public}d terminated signal/reason=%{public}d(0x%{public}x) name=%{public}s",
-                 pid, signal, (unsigned int)signal, strsignal(signal));
+    // The callback can report the same numeric reason for a guest exit and
+    // a signal. Keep the raw value and distinguish actual waitpid evidence.
+    OH_LOG_INFO(LOG_APP, "[ProcReg] NCP child pid=%{public}d exited rawReason=%{public}d(0x%{public}x)",
+                pid, signal, static_cast<unsigned int>(signal));
     HandleProcessDeath((pid_t)pid, signal, "ncp-exit");
 }
 

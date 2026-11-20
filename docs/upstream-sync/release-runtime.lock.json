@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
   "selection": "branch-release-upstream-pair",
-  "selectedForVersion": "2.0.6",
+  "selectedForVersion": "2.0.7",
   "components": "Full adapted Proton Wine core and FEX; independent DXVK/VKD3D/media pins retained",
   "qualification": {
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
     "recordSha256": "5043c7386a7170e6553ac8c9e94f5f09ab0f51dda0d732c45951696b07ad52f4",
     "testedPackageSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
-    "scope": "Historical Mini evidence. The 2.0.6 release runtime reuses the audited RC graphics and FEX; the WMP update is host-validated and awaits integrated device retest."
+    "scope": "Historical Mini evidence. The 2.0.6 release runtime reuses the audited RC graphics and FEX; the WMP update is host-validated and awaits integrated device retest. The 2.0.7 child working directory change has host broker coverage. World of Warships device retest pending."
   },
   "wine": {
     "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
-    "lockSha256": "239f5b32c63ca3977c81aea156f85ce8b95246e87835a894c1c9320c88c1a55f",
-    "adaptedCommit": "14fa84cd3a58819fd99e8935cf106d4958bd9b44",
+    "lockSha256": "f817b0538b94e23365d41708e052d0208515c6c550d71c98d13e5d361608794a",
+    "adaptedCommit": "03599dac79e61834514c651d87f8be5f72d304da",
     "upstreamCommit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"
   },
   "fex": {
@@ -86,8 +86,8 @@
       "sha256": "f7be336ea442658b0529bb1d27df52257a72054d8f06e2fe7365d0d1bf16378f"
     },
     "libs/arm64-v8a/ntdll.so": {
-      "bytes": 725392,
-      "sha256": "5b0a2c3266edaf244176e368cea557aebe551ad01e70346bebcda10f9fdd85d2"
+      "bytes": 729920,
+      "sha256": "2d362ae1028c4c1b84c11555ec2a4280723989a0f562363d03d53905f411783a"
     },
     "libs/arm64-v8a/odbc32.so": {
       "bytes": 63728,
@@ -162,16 +162,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 448453865,
-      "sha256": "0bee3569629fd2b683a93e88f792daa3d5643390e286fd9dcf2ff31e3f27d930"
+      "bytes": 448399730,
+      "sha256": "1e298dbf57fb2e4ca877ebe58b37ce7cc0f693f6ecf5ff9e28688109c37eb36f"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 24681,
-      "sha256": "aca5defd191cbb421368f9a9c7c6d59bb8be22124c9c0d20552376e732b160bf"
+      "bytes": 25212,
+      "sha256": "a76dfaedd58237fb63a914868d5b060237bc32663b734d01d78d2636288e88d6"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 412,
-      "sha256": "385a4b083d12150c0219bb9b3b9f6d539e4849ddb90ba076fc66cd2bbdf5bfb4"
+      "sha256": "f561d3b3f16b1d1aa6d58b0be22aca77f5f835cea77b93d53617fbac64c40111"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1007328,
