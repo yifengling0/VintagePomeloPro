@@ -491,5 +491,40 @@ function fixture() {
     await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
     assert.equal(f.starts.length, 0);
   }
+  {
+    const game = { id: 'steam-default-123', available: true, steam: { appId: '123', state: 'installed' },
+      launchTarget: { kind: models.LaunchKind.WINE_EXE, executable: 'C:/Steam/game.exe',
+        arguments: [], workingDirectory: 'C:/Steam' } };
+    for (const scenario of ['unchanged', 'during-prepare', 'after-timeout']) {
+      const f = fixture();
+      f.setState(models.EngineState.READY);
+      f.steamCards.push(game);
+      f.service.resolveMode = () => models.DisplayMode.DESKTOP;
+      f.service.resolvePresentationMode = () => models.WinePresentationMode.DESKTOP;
+      f.service.waitForDesktopRootRegistered = async () => ({ sessionId: 'desktop', toplevelId: 7 });
+      const tasks = taskExports.HostWindowTasks.getInstance();
+      tasks.markLauncherForeground();
+      if (scenario === 'during-prepare') {
+        f.steam.prepareLaunch = async () => { tasks.markLauncherForeground(); };
+      }
+      let raised = 0;
+      f.service.resume = async () => { ++raised; };
+      const request = await f.service.launch(game, f.globalSettings, '/games');
+      assert.equal(raised, 0, 'The desktop root must not be raised to wait for Steam');
+      assert.equal(f.service.isSteamGameStarting(game.id, request.sessionId), true);
+      if (scenario === 'after-timeout') {
+        request.startedAt -= 61000;
+        tasks.markLauncherForeground();
+        assert.equal(f.service.isSteamGameStarting(game.id, request.sessionId), false);
+        assert.equal(f.service.getRunningSnapshot().startingSteamIds.length, 0);
+      }
+      f.processes.push({ pid: 80, sessionId: 'game-80', path: game.launchTarget.executable, state: 'running' });
+      f.service.getRunningSnapshot();
+      f.service.associateToplevel('game-80', 80, 100);
+      assert.equal(raised, scenario === 'unchanged' ? 1 : 0, scenario + ': later navigation wins');
+      assert.equal(f.service.findByAppId(game.id).steamLaunchNavigation, request.steamLaunchNavigation);
+      assert.equal(f.service.isSteamGameStarting(game.id, request.sessionId), false);
+    }
+  }
   console.log('Steam real-window readiness, bootstrap handoff, warm navigation, bounded timeout and error propagation: PASS');
 })().catch(error => { console.error(error); process.exitCode = 1; });
