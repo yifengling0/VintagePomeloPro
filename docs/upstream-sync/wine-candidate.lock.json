@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "f8568e46e4dfc54156f4b96bbbb261e44ad9969d",
-  "adaptedTree": "0702513e2be021e85f108d741c935b250ea3c3f1",
+  "adaptedCommit": "14fa84cd3a58819fd99e8935cf106d4958bd9b44",
+  "adaptedTree": "1374a710944810ce32a7e5b8845dac726a02278e",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -550,11 +550,17 @@
       "sha256": "9f038672b734c06f6866ab26d1d58f824e8c666500d93658a38ad53aefa1c495",
       "commit": "f8568e46e4dfc54156f4b96bbbb261e44ad9969d",
       "subject": "wined3d: forward GLES scene depth and camera to HarmonyOS frame generation"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0089-wmp-embed-legacy-player-video.patch",
+      "sha256": "fcadbdbe247161e457d76fc2faf48e8d9597a1f0205087a850544309a0f0b426",
+      "commit": "14fa84cd3a58819fd99e8935cf106d4958bd9b44",
+      "subject": "wmp: play embedded video for legacy IWMPPlayer2 clients"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "abe86f53608477cd160fb3c78aedf41c318d915b78f79ea31603289bb011d1a3"
+    "sha256": "e76dbf4fd4c8d23c639fb4d169760aeb85b3af5ebca7fb3d16c8988507f86f16"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",

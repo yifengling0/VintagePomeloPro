@@ -221,7 +221,7 @@
     "bin/aarch64-windows/dpvoice.dll": "baa0ef0760d340b1a3f101ff5e3ce91d1f5f6fe04139f4afc86d6f9fcabbc3e7",
     "bin/aarch64-windows/msvcp60.dll": "5b0c62cf97f7da69bb547f510b92b8e17c2ae59b96306ff69842783cbb58f36d",
     "bin/aarch64-windows/vcomp110.dll": "20b81b3d6eb362dd4a51aa56473edc0925a907732ac4c5f87a215d6bda622fb8",
-    "bin/aarch64-windows/wmp.dll": "4b18c17ce3da09a0d9bc5e70df2b9aa75faad0b1af32fcbaa25ecef0e3a51a4f",
+    "bin/aarch64-windows/wmp.dll": "c1cb5421ea575b201cea52a412da0a6034a77018f72328fade836b514baa9ccb",
     "bin/aarch64-windows/winewayland.drv": "bb7add7123bacf939212ab4d1020d565f695242c52f34c22d72e1aa8479fb39d",
     "bin/aarch64-windows/d3dcompiler_39.dll": "d991f2ba7ac7314dd00bbfe69fdcdad78e3fbc8be4ad5578e732778f97f5792b",
     "bin/aarch64-windows/windows.security.credentials.ui.userconsentverifier.dll": "b52c1c0f91a100e26d8d826bded3706cdb6e532ac7fb9adc21c6a1190272ec62",
@@ -869,7 +869,7 @@
     "bin/i386-windows/sdbinst.exe": "68952dcf3e9e0a651eaa8da769891fa5c87563f125d772b0c00ff2d89221d408",
     "bin/i386-windows/vcomp110.dll": "896c6e58c66d0f46180ec25ac353c10ded4f2956628ad2f7e79fcc58ee3b5471",
     "bin/i386-windows/xcopy.exe": "b75a060d79211084aeb929e541a9408024f07c8cbb50945c53f4d0ed1af2b380",
-    "bin/i386-windows/wmp.dll": "8f22f38f9265bc607021a6c53ab62f13d81b098ac6130d2c0f2f16dd4a50e8e3",
+    "bin/i386-windows/wmp.dll": "c41fd3f5909d597f8599fece183096521c22b776c059bf26a503971b6abc4c04",
     "bin/i386-windows/winewayland.drv": "c3f383ff11be065f02d7f218db32fd0098aacd8563177944b49a19c645c2387c",
     "bin/i386-windows/d3dcompiler_39.dll": "5f411bfe20899e20997488242362fc331c5416ab0d76f0026962537684322b1b",
     "bin/i386-windows/windows.security.credentials.ui.userconsentverifier.dll": "f6816e1eaa8083ac31de132b941a010fe0918cebdb8a76f215a2531a0bc30e81",
@@ -1566,5 +1566,24 @@
       "libgstxingmux.so": "fe102c053d787f112e88cd1a38507904c7d0652e0f27a3211db3d01e9e91483b",
       "libgsty4menc.so": "ba759cee2b3e5b5b76a273252f4fbe1a19ce80137bc25a17094073be7aa2a20c"
     }
+  },
+  "wmpOverlay": {
+    "patch": {
+      "path": "scripts/patches/wine-upstream/0089-wmp-embed-legacy-player-video.patch",
+      "sha256": "fcadbdbe247161e457d76fc2faf48e8d9597a1f0205087a850544309a0f0b426",
+      "commit": "14fa84cd3a58819fd99e8935cf106d4958bd9b44",
+      "subject": "wmp: play embedded video for legacy IWMPPlayer2 clients"
+    },
+    "modules": {
+      "bin/i386-windows/wmp.dll": {
+        "bytes": 237568,
+        "sha256": "c41fd3f5909d597f8599fece183096521c22b776c059bf26a503971b6abc4c04"
+      },
+      "bin/aarch64-windows/wmp.dll": {
+        "bytes": 851968,
+        "sha256": "c1cb5421ea575b201cea52a412da0a6034a77018f72328fade836b514baa9ccb"
+      }
+    },
+    "baseHapSha256": "9340501113feeb552697b0023c74a6ec5ee4f738c0537d9d892fc80c61064af5"
   }
 }
