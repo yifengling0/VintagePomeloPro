@@ -80,6 +80,7 @@ interface PendingLaunchRequest {
 export interface RunningAppSnapshot {
   appIds: Set<string>;
   paths: Set<string>;
+  startingSteamIds: string[];
 }
 
 export class AppSessionService {
@@ -447,7 +448,10 @@ export class AppSessionService {
       // spawned by an already running Steam and have a different process tree.
       session.state = SessionState.STARTING;
       session.pid = 0;
-      if (app.steam.state === 'installed') this.pendingSteamGames.set(app.id, session);
+      if (app.steam.state === 'installed') {
+        session.steamLaunchNavigation = HostWindowTasks.getInstance().navigationSerial();
+        this.pendingSteamGames.set(app.id, session);
+      }
       return session;
     }
     if (result.reused) {
@@ -481,15 +485,17 @@ export class AppSessionService {
     const steam = SteamLocalService.getInstance();
     if (steam.hasForeignClient(processes)) return '';
     const clients = steam.processesFor(app, processes);
+    if (clients.length === 0) return '';
     const session = Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
-      item.appId === app.id && item.toplevelId > 0 && clients.some((client: NativeProcessInfo): boolean =>
+      item.appId === app.id && clients.some((client: NativeProcessInfo): boolean =>
         client.pid === item.pid && (!client.sessionId || client.sessionId === item.sessionId)));
-    if (!session) return '';
 
     const owners = steam.processesFor(app, processes, true);
-    const window = HostWindowTasks.getInstance().snapshot().find((task): boolean =>
-      task.toplevelId === session.toplevelId && owners.some((owner: NativeProcessInfo): boolean =>
+    const windows = HostWindowTasks.getInstance().snapshot().filter((task): boolean =>
+      task.toplevelId > 0 && owners.some((owner: NativeProcessInfo): boolean =>
         task.clientPid === owner.pid && (!task.sessionId || !owner.sessionId || task.sessionId === owner.sessionId)));
+    const window = windows.find((task): boolean => task.toplevelId === session?.toplevelId) ??
+      windows.find((task): boolean => !task.minimized) ?? windows[0];
     return window?.key ?? '';
   }
 
@@ -849,6 +855,11 @@ export class AppSessionService {
     return this.getRunningSnapshot().appIds;
   }
 
+  isSteamGameStarting(appId: string, requestId: string): boolean {
+    this.reconcile();
+    return this.pendingSteamGames.get(appId)?.sessionId === requestId;
+  }
+
   // Reconcile and resolve both views from the same fresh process list. No TTL
   // cache: exits and desktop-root lifecycle changes are visible on every call.
   getRunningSnapshot(): RunningAppSnapshot {
@@ -867,7 +878,7 @@ export class AppSessionService {
         paths.add(normalizeLaunchPath(process.path));
       }
     });
-    return { appIds, paths };
+    return { appIds, paths, startingSteamIds: Array.from(this.pendingSteamGames.keys()) };
   }
 
   findByAppId(appId: string): RuntimeSession | null {
@@ -910,6 +921,9 @@ export class AppSessionService {
       if (matched.pid <= 0 && clientPid > 0) matched.pid = clientPid;
       if (sessionId === DESKTOP_SESSION_ID || matched.toplevelId === 0) matched.toplevelId = toplevelId;
       matched.state = SessionState.RUNNING;
+      if (matched.steamLaunchNavigation !== undefined && wasUnmapped && matched.toplevelId > 0) {
+        this.onSteamGameWindow(matched);
+      }
       if (sessionId === DESKTOP_SESSION_ID && matched.toplevelId > 0) {
         this.settleDesktopRootWaiters(matched);
       }
@@ -942,6 +956,8 @@ export class AppSessionService {
   private promoteDesktopSession(session: RuntimeSession): void {
     if (session.automaticForeground === false || session.presentationMode !== WinePresentationMode.DESKTOP ||
       !WineEngineService.getInstance().isReady() || session.toplevelId <= 0) return;
+    if (session.steamLaunchNavigation !== undefined &&
+        HostWindowTasks.getInstance().navigationSerial() !== session.steamLaunchNavigation) return;
     hilog.info(DOMAIN, '[SESS]', 'auto-promote session=%{public}s tl=%{public}d',
       session.sessionId, session.toplevelId);
     if (session.appId !== DESKTOP_APP_ID &&
@@ -1006,7 +1022,8 @@ export class AppSessionService {
     if (tasks.isLauncherForeground() || tasks.hasForegroundTask()) return;
     const card = SteamLocalService.getInstance().getCards().find((item: AppDescriptor): boolean => item.id === session.appId);
     const steamGame = !!card?.steam?.appId || session.appId.startsWith('steam-default-');
-    const client = steamGame ? Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+    const client = steamGame && session.steamLaunchNavigation === undefined ?
+      Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
       item.appId === STEAM_CLIENT_ID && item.state === SessionState.RUNNING) : undefined;
     if (client) {
       // Reuse the current Windows Steam session; do not relaunch its client.
@@ -1160,6 +1177,8 @@ export class AppSessionService {
     setTimeout((): void => {
       const session = this.sessions.get(sessionId);
       if (!session || session.toplevelId !== tl) return;
+      if (session.steamLaunchNavigation !== undefined &&
+          HostWindowTasks.getInstance().navigationSerial() !== session.steamLaunchNavigation) return;
       const windows = WineWindowManager.getInstance();
       const rootId = windows.getDesktopRootId();
       if (rootId <= 0 || windows.usesEmbeddedDesktopHost() || windows.isDesktopAbilityForeground(rootId)) return;
@@ -1199,19 +1218,31 @@ export class AppSessionService {
 
   private reconcile(processes: NativeProcessInfo[] = this.getNativeProcesses()): void {
     const steam = SteamLocalService.getInstance();
+    const now = Date.now();
+    this.pendingSteamGames.forEach((request: RuntimeSession, appId: string): void => {
+      if (now - request.startedAt >= 60000) this.pendingSteamGames.delete(appId);
+    });
     steam.getCards().forEach((card: AppDescriptor): void => {
       steam.processesFor(card, processes).forEach((process: NativeProcessInfo): void => {
         const id = process.sessionId || 'steam-process-' + process.pid;
         if (this.sessions.has(id) || Array.from(this.sessions.values()).some((item: RuntimeSession): boolean => item.pid === process.pid)) return;
+        const request = this.pendingSteamGames.get(card.id);
+        const sibling = request || !card.steam?.appId ? undefined : Array.from(this.sessions.values()).find((item: RuntimeSession): boolean =>
+          item.appId === card.id && item.steamLaunchNavigation !== undefined &&
+          processes.some((peer: NativeProcessInfo): boolean => peer.pid === item.pid && peer.state === 'running' &&
+            (!peer.sessionId || peer.sessionId === item.sessionId)));
         const session: RuntimeSession = { sessionId: id, appId: card.id, executable: process.path,
           pid: process.pid, displayMode: DisplayMode.DESKTOP,
           presentationMode: WineEngineService.getInstance().getPresentationMode() ?? WinePresentationMode.DESKTOP,
           state: SessionState.RUNNING, toplevelId: 0, startedAt: Date.now(),
-          automaticForeground: !!card.steam?.appId };
+          automaticForeground: !!card.steam?.appId,
+          steamLaunchNavigation: request?.steamLaunchNavigation ?? sibling?.steamLaunchNavigation };
         this.sessions.set(id, session);
         this.resolvePendingToplevel(session);
-        if (session.toplevelId > 0) this.promoteDesktopSession(session);
-        this.pendingSteamGames.delete(card.id);
+        if (session.toplevelId > 0) {
+          if (session.steamLaunchNavigation !== undefined) this.onSteamGameWindow(session);
+          this.promoteDesktopSession(session);
+        }
         if (card.steam?.appId) void AppSettingsStore.getInstance().recordRecentLaunch(card.id);
       });
     });
@@ -1246,5 +1277,13 @@ export class AppSessionService {
         id, stale ? stale.pid : -1, stale ? stale.state : 'gone');
       this.sessions.delete(id);
     });
+  }
+
+  private onSteamGameWindow(session: RuntimeSession): void {
+    const request = this.pendingSteamGames.get(session.appId);
+    if (!request) return;
+    this.pendingSteamGames.delete(session.appId);
+    hilog.info(DOMAIN, '[SESS]', 'Steam game window app=%{public}s after dispatch ms=%{public}d',
+      session.appId, Date.now() - request.startedAt);
   }
 }

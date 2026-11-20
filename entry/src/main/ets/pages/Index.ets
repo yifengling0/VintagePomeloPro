@@ -211,6 +211,7 @@ struct Index {
   @State private scanning: boolean = false;
   @State private refreshing: boolean = false;
   @State private runningAppIds: Set<string> = new Set<string>();
+  @State private startingSteamIds: string[] = [];
   @State private phoneNavIndex: number = PHONE_NAV_BUILTIN;
   @State private consoleNavIndex: number = 4;
   @State private viewportWidth: number = 0;
@@ -954,6 +955,10 @@ struct Index {
   private refreshRunningState(): void {
     const sessionService = AppSessionService.getInstance();
     const snapshot = sessionService.getRunningSnapshot();
+    if (this.startingSteamIds.length !== snapshot.startingSteamIds.length ||
+      this.startingSteamIds.some((id: string, index: number): boolean => id !== snapshot.startingSteamIds[index])) {
+      this.startingSteamIds = snapshot.startingSteamIds;
+    }
     const running = resolveRunningAppIds(this.apps, snapshot.appIds, snapshot.paths);
     const now = Date.now();
     running.forEach((id: string): void => {
@@ -1331,11 +1336,11 @@ struct Index {
       }
       if (app.steam && session?.state === SessionState.STARTING) {
         promptAction.showToast({ message: app.available ? '正在通过 Steam 启动游戏' : '请在 Steam 中完成安装' });
+        const requestId = session.sessionId;
         if (app.available) setTimeout((): void => {
-          if (!this.consolePageVisible || AppSessionService.getInstance().getRunningAppIds().has(app.id)) return;
-          promptAction.showDialog({ title: app.title, message: '游戏尚未进入运行状态，可打开 Steam 查看登录、更新或许可提示。',
-            buttons: [{ text: '稍后', color: '#777777' }, { text: '打开 Steam', color: '#5569D8' }] })
-            .then((answer): void => { if (answer.index === 1) void this.openSteamClient(); });
+          if (!this.consolePageVisible || !HostWindowTasks.getInstance().isLauncherForeground() ||
+            !AppSessionService.getInstance().isSteamGameStarting(app.id, requestId)) return;
+          promptAction.showToast({ message: '游戏仍在等待启动，可打开 Steam 查看登录或更新提示', duration: 5000 });
         }, 45000);
       }
       if (!session && (app.launchTarget.kind === LaunchKind.WINE_EXE ||
@@ -3272,6 +3277,7 @@ struct Index {
         active: !this.gameBrowsing && this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() && this.consolePageVisible,
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
+        startingSteamIds: this.startingSteamIds,
         onRefresh: (): Promise<void> => this.rescan(),
         onClassic: (): void => { void this.setLauncherSkin(UiSkin.CLASSIC); },
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
@@ -3292,6 +3298,7 @@ struct Index {
         active: this.gameBrowsing && this.libraryChromeVisible() && this.consolePageVisible,
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),
+        startingSteamIds: this.startingSteamIds,
         onRefresh: (): Promise<void> => this.rescan(),
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/SteamComponents'),

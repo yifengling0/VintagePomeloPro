@@ -350,6 +350,12 @@ function fixture() {
     f.service.checkGameReturn();
     assert.equal(resumed, client, 'Steam-dispatched game returns to its existing client');
     assert.equal(returns, 1);
+    resumed = null;
+    tasks.markDesktopForeground();
+    f.service.presentGameSession({ ...session, appId: 'steam-default-123', steamLaunchNavigation: tasks.navigationSerial() });
+    f.service.checkGameReturn();
+    assert.equal(resumed, null, 'A game launched from the old Pomelo library does not raise Steam on exit');
+    assert.equal(returns, 2);
   }
   console.log('AppSession startup/root, stop acceptance, process reconciliation and Game exit return: PASS');
   const steamApp = { id: 'steam-client-default', steam: { state: 'client' },

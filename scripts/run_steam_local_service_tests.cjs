@@ -101,9 +101,11 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  {pid:11,path:'Z:\\Steam\\bin\\cef\\cef.win7\\steamwebhelper.exe',state:'running'},
  {pid:12,path:'C:\\OtherSteam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe',state:'running'},
  {pid:13,path:'Z:\\Steam\\steamapps\\common\\game\\steamwebhelper.exe',state:'running'},
- {pid:14,path:'Z:\\Steam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe',state:'stopped'}];
+ {pid:14,path:'Z:\\Steam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe',state:'stopped'},
+ {pid:15,path:'Z:\\Steam\\bin\\cef\\cef.win64\\steamwebhelper.exe',state:'running'},
+ {pid:16,path:'Z:\\Steam-other\\bin\\cef\\cef.win64\\steamwebhelper.exe',state:'running'}];
  assert.deepEqual(Array.from(local.processesFor(local.clientCard(),uiProcesses),p=>p.pid),[1]);
- assert.deepEqual(Array.from(local.processesFor(local.clientCard(),uiProcesses,true),p=>p.pid),[1,10,11]);
+ assert.deepEqual(Array.from(local.processesFor(local.clientCard(),uiProcesses,true),p=>p.pid),[1,10,11,15]);
  assert.deepEqual(Array.from(local.processesFor(game,uiProcesses,true),p=>p.pid),[2]);
  assert.equal(local.hasRunningProcesses(),true);assert.equal(local.hasForeignClient(),false);
  processes.push({pid:4,path:'C:\\OldSteam\\steam.exe',state:'running'});assert.equal(local.hasForeignClient(),true);processes.pop();

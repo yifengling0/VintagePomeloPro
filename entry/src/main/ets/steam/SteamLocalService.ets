@@ -497,15 +497,15 @@ export class SteamLocalService {
   processesFor(app: AppDescriptor, processes: NativeProcessInfo[], includeClientUi: boolean = false): NativeProcessInfo[] {
     const c = wineDriveCForContainer('default');
     const dir = steamWindowsPath(app.directory, this.root, c).toLowerCase().replace(/\/+$/, '') + '/';
-    const exe = steamWindowsPath(this.getClientDirectory() + '/steam.exe', this.root, c).toLowerCase();
+    const clientDir = steamWindowsPath(this.getClientDirectory(), this.root, c).toLowerCase() + '/';
+    const exe = clientDir + 'steam.exe';
     return processes.filter((process: NativeProcessInfo): boolean => {
       if (process.state !== 'running') return false;
       const path = steamWindowsPath(process.path, this.root, c).toLowerCase();
       return app.steam?.appId ? path.startsWith(dir) && !/(?:^|\/)(?:_commonredist|redist|redistributables|installer)(?:\/|$)/.test(path) &&
         !/(?:^|\/)(?:crashreporter|crashpad_handler|unitycrashhandler(?:32|64)?|unins\d*|uninstall|vcredist[^/]*|dxsetup)\.exe$/.test(path) :
-        path === exe || (includeClientUi &&
-          (path === exe.slice(0, -'steam.exe'.length) + 'bin/cef/cef.win7x64/steamwebhelper.exe' ||
-           path === exe.slice(0, -'steam.exe'.length) + 'bin/cef/cef.win7/steamwebhelper.exe'));
+        path === exe || (includeClientUi && path.startsWith(clientDir) &&
+          /^bin\/cef\/cef\.win(?:7(?:x64)?|64)\/steamwebhelper\.exe$/.test(path.slice(clientDir.length)));
     });
   }
   hasRunningProcesses(processes: NativeProcessInfo[] = testNapi.getProcessList() as NativeProcessInfo[]): boolean {

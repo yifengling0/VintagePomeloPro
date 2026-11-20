@@ -23,6 +23,7 @@ export struct DeckHome {
   @Prop @Watch('visibilityChanged') active: boolean = false;
   @Prop localGames: AppDescriptor[] = [];
   @Prop @Watch('refresh') windowsSteamGames: AppDescriptor[] = [];
+  @Prop startingSteamIds: string[] = [];
   onRefresh: () => Promise<void> = async (): Promise<void> => {};
   onClassic: () => void = (): void => {};
   onSettings: () => void = (): void => {};
@@ -349,7 +350,7 @@ export struct DeckHome {
     else if (id === 'deck-nav-more') this.openSheet('more');
     else if (id === 'deck-sheet-close') this.closeSheet();
     else if (id === 'deck-steam-downloads') void this.open('downloads');
-    else if (id === 'deck-running-steam') void this.open('library', true);
+    else if (id === 'deck-running-steam') void this.open('library');
     else if (id === 'deck-account') void this.open('account');
     else if (id === 'deck-big-picture') void this.open('bigPicture');
     else if (id === 'deck-desktop') void this.open('desktop');
@@ -413,12 +414,12 @@ export struct DeckHome {
   private async openGame(game: DeckSteamGame): Promise<void> {
     await this.openLocal(game.windowsCard);
   }
-  private async open(action: SteamClientAction, restoreWindow: boolean = false): Promise<void> {
+  private async open(action: SteamClientAction): Promise<void> {
     if (this.busy) return;
     const service = SteamClientService.getInstance();
     if (!service.installed()) { this.manageComponents(); return; }
     await this.beginLaunch('Steam', '', '正在打开 Windows Steam…', undefined,
-      async (): Promise<void> => { await service.open(action, restoreWindow); });
+      async (): Promise<void> => { await service.open(action); });
   }
   @Builder
   private RailItem(label: string, icon: Resource, id: string, selected: boolean, callback: () => void) {
@@ -665,7 +666,8 @@ export struct DeckHome {
                     .onFocus((): void => { this.selected = game.key; this.focus = 'deck-game-' + game.key; })
                     .onClick((): void => { void this.openGame(game); }).id(this.scopeId('deck-game-' + game.key))
                   Text(game.name).fontSize(13).fontColor('#F2F4F7').maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).width('100%')
-                  Text('已安装').fontSize(11).fontColor('#69727F').width('100%')
+                  Text(this.startingSteamIds.includes(game.windowsCard.id) ? '等待游戏窗口…' : '已安装')
+                    .fontSize(11).fontColor('#69727F').width('100%')
                 }.width('100%').height('100%')
               }.height(this.coverHeight() + 54)
             }, (game: DeckSteamGame): string => game.key)
@@ -749,7 +751,7 @@ export struct DeckHome {
           }
         }, (task: HostWindowTask): string => task.key)
         if (this.steamRunning) Button('显示 Steam').height(46).fontColor('#03111F').backgroundColor('#1A9FFF')
-          .onClick((): void => { void this.open('library', true); }).id(this.scopeId('deck-running-steam'))
+          .onClick((): void => { void this.open('library'); }).id(this.scopeId('deck-running-steam'))
       }.padding(this.inset()).width('100%').alignItems(HorizontalAlign.Start)
     }.width('100%').height('100%').align(Alignment.TopStart).id(this.scopeId('deck-running-page'))
   }

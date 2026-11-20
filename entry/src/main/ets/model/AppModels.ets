@@ -682,6 +682,7 @@ export interface RuntimeSession {
   startedAt: number;
   // Session owners decide when to reveal their window.
   automaticForeground?: boolean;
+  steamLaunchNavigation?: number;
 }
 
 /** ArkTS 覆盖层所使用的 Wine 会话视图，不等同于 Wine/NCP 子进程。 */
