@@ -69,7 +69,7 @@ struct Presenter {
 VENUS_END = r'''
 };
 static int present(Presenter& p,uint32_t pid) {
-    return p.PresentVenus(1,1,1,1,1,1,0,100,100,0,0,pid,37,1,nullptr,nullptr,nullptr);
+    return p.PresentVenus(1,1,1,1,1,1,0,100,100,0,0,pid,37,1,nullptr,nullptr,nullptr,nullptr);
 }
 int main() {
     Presenter p;
