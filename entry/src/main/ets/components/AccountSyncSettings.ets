@@ -672,7 +672,7 @@ export struct AccountSyncSettings {
             if (this.huaweiSignedIn) {
               Row({ space: 4 }) {
                 if (this.vipActive) {
-                  Image($r('app.media.vip_crown')).width(12).height(12).fillColor('#996B24')
+                  Image($rawfile('ui/vip_crown.svg')).width(12).height(12).fillColor('#996B24')
                 }
                 Text(this.vipActive ? 'VIP 会员' : '普通账号').fontSize(11).fontWeight(FontWeight.Medium)
                   .fontColor(this.vipActive ? '#996B24' : skinColor('text_secondary'))

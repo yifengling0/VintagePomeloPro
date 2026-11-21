@@ -12,7 +12,7 @@ export struct LauncherSupportActions {
     Button({ type: ButtonType.Normal }) {
       Row({ space: 12 }) {
         Stack({ alignContent: Alignment.Center }) {
-          if (membership) Image($r('app.media.vip_crown')).width(19).height(19).fillColor(skinColor('accent'))
+          if (membership) Image($rawfile('ui/vip_crown.svg')).width(19).height(19).fillColor(skinColor('accent'))
           else SymbolGlyph($r('sys.symbol.heart')).fontSize(19).fontColor([skinColor('text_secondary')])
         }.width(20).height(24)
         if (!this.collapsed) Text(label).fontSize(14).fontColor(skinColor('text_primary')).maxLines(1)

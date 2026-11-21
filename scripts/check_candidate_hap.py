@@ -56,6 +56,7 @@ def verify_ui_payload(candidate: ZipFile, compiled: ZipFile) -> None:
     def ui_names(archive: ZipFile) -> set[str]:
         names = [entry.filename for entry in archive.infolist()
                  if not entry.is_dir() and (entry.filename in required or
+                     entry.filename.startswith("resources/rawfile/ui/") or
                      (entry.filename.startswith("resources/") and
                       not entry.filename.startswith("resources/rawfile/")))]
         if len(names) != len(set(names)):
@@ -183,14 +184,23 @@ def main() -> None:
     parser.add_argument("--root", type=Path, default=root, help="Proton-OHOS worktree root")
     parser.add_argument("--compiled-ui-hap", type=Path,
                         help="HAP from the same UI compilation; validate ABC, index, module and UI assets")
+    parser.add_argument("--ui-only", action="store_true",
+                        help="validate compiled UI without requiring a native Wine build")
     parser.add_argument("--native-arch", default="arm64-v8a", help="HAP native ABI")
     parser.add_argument("--wine-build", type=Path,
                         help="Wine build directory (default: <root>/build/wine-ohos-aarch64)")
     args = parser.parse_args()
+    if args.ui_only and args.compiled_ui_hap is None:
+        parser.error("--ui-only requires --compiled-ui-hap")
     if args.wine_build is None:
         args.wine_build = args.root / "build" / "wine-ohos-aarch64"
 
     try:
+        if args.ui_only:
+            with ZipFile(args.hap) as candidate, ZipFile(args.compiled_ui_hap) as compiled:
+                verify_ui_payload(candidate, compiled)
+            print("candidate HAP UI payload PASS")
+            return
         verify(args)
     except (OSError, ValueError, ValidationError) as exc:
         raise SystemExit(f"candidate HAP verification failed: {exc}") from exc

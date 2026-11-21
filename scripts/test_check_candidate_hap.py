@@ -46,6 +46,7 @@ class CandidateHapUiTest(unittest.TestCase):
             "module.json": b'{"startWindowIconId":16777255}',
             "resources/base/media/window.svg": b"window image",
             "resources/base/media/gear.svg": b"gear image",
+            "resources/rawfile/ui/vip_crown.svg": b"crown image",
             "resources/rawfile/wine-data.zip": b"current runtime",
         }
 
@@ -77,6 +78,11 @@ class CandidateHapUiTest(unittest.TestCase):
             self.check({**self.compiled, name: b"wrong image"})
         with self.assertRaisesRegex(ValidationError, "inventory mismatch"):
             self.check({key: value for key, value in self.compiled.items() if key != name})
+
+    def test_wrong_membership_icon_fails(self) -> None:
+        name = "resources/rawfile/ui/vip_crown.svg"
+        with self.assertRaisesRegex(ValidationError, "vip_crown.svg"):
+            self.check({**self.compiled, name: b"mouse arrow image"})
 
 
 if __name__ == "__main__":

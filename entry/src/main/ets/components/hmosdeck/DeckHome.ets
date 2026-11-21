@@ -426,7 +426,7 @@ export struct DeckHome {
     Button({ type: ButtonType.Normal }) {
       Column({ space: 5 }) {
         Stack({ alignContent: Alignment.Center }) {
-          if (id === 'deck-membership') Image($r('app.media.vip_crown')).width(23).height(23).fillColor(this.hot(id) ? '#F2F4F7' : '#CDB582')
+          if (id === 'deck-membership') Image($rawfile('ui/vip_crown.svg')).width(23).height(23).fillColor(this.hot(id) ? '#F2F4F7' : '#CDB582')
           else SymbolGlyph(icon).fontSize(23).fontColor([this.railSelected(id) ? '#1A9FFF' : this.hot(id) ? '#F2F4F7' : '#9AA3AF'])
         }.width(28).height(28)
         if (this.portrait() || this.heightVp >= 460) Text(label).fontSize(10).fontWeight(FontWeight.Medium).fontColor(this.railSelected(id) ? '#C9E6FF' : '#9AA3AF')

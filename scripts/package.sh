@@ -356,6 +356,7 @@ with open('$module_json', 'w') as f:
 
     cd "$WINEHUA"
     python3 sign.py "$unsigned_hap" "$signed_hap"
+    python3 "$SCRIPT_DIR/check_candidate_hap.py" --ui-only --compiled-ui-hap "$unsigned_hap" --hap "$signed_hap"
     python3 "$SCRIPT_DIR/check_runtime_components.py" --hap "$signed_hap" "${candidate_args[@]}"
 
     ls -lh "$signed_hap"
