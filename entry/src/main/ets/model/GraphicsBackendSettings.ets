@@ -1,14 +1,16 @@
 /** Persist intent, resolve inheritance only when launching a game. */
 export const GRAPHICS_BACKEND_DEFAULT = 'default';
 export const GRAPHICS_BACKEND_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl', 'dxvk9', 'zink'];
-export const APP_GRAPHICS_BACKEND_IDS: string[] = [GRAPHICS_BACKEND_DEFAULT].concat(GRAPHICS_BACKEND_IDS);
+export const APP_OPENGL_SOFTPIPE = 'opengl_softpipe';
+export const APP_GRAPHICS_BACKEND_IDS: string[] =
+  [GRAPHICS_BACKEND_DEFAULT].concat(GRAPHICS_BACKEND_IDS, [APP_OPENGL_SOFTPIPE]);
 
 export function normalizeGraphicsBackend(value: string): string {
   return GRAPHICS_BACKEND_IDS.includes(value) ? value : 'dxvk_1_10';
 }
 
 export function normalizeAppGraphicsBackend(value: string): string {
-  return GRAPHICS_BACKEND_IDS.includes(value) ? value : GRAPHICS_BACKEND_DEFAULT;
+  return APP_GRAPHICS_BACKEND_IDS.includes(value) ? value : GRAPHICS_BACKEND_DEFAULT;
 }
 
 export function resolveGraphicsBackend(system: string, game: string): string {
@@ -19,6 +21,7 @@ export function resolveGraphicsBackend(system: string, game: string): string {
 export function graphicsBackendLabel(value: string): string {
   switch (value) {
     case 'virgl': return 'VirGL / GLES';
+    case APP_OPENGL_SOFTPIPE: return 'OpenGL 软件渲染（实验）';
     case 'dxvk9': return 'DXVK9（32位实验）';
     case 'zink': return 'Zink（实验）';
     case 'dxvk_1_10': return 'DXVK 1.10';
@@ -30,4 +33,14 @@ export function graphicsBackendLabel(value: string): string {
 /** Explicitly reset for every launch, including a game inheriting another renderer. */
 export function resolveZinkPresentationEnvironment(backend: string): string[] {
   return ['WINEHUA_ZINK_PRESENT=' + (backend === 'wined3d_zink' ? '1' : '0')];
+}
+
+export function resolveAppOpenGLEnvironment(backend: string): string[] {
+  if (backend !== APP_OPENGL_SOFTPIPE) return [];
+  return [
+    'GALLIUM_DRIVER=softpipe',
+    'LIBGL_ALWAYS_SOFTWARE=1',
+    'MESA_LOADER_DRIVER_OVERRIDE=swrast',
+    'WINEHUA_FRAME_ZERO_COPY=0'
+  ];
 }
