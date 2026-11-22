@@ -162,16 +162,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 454467220,
-      "sha256": "181c9e4b6c29fcc741d21ab78b2cd9d0a4c792b3b4c0f520da46175430cc2456"
+      "bytes": 454327852,
+      "sha256": "ca3a23bedbd27393739e953426d1321fd4fcdb7ed13ee0143f7752678433dac9"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 27598,
-      "sha256": "543d37ef6401989461593757aaac19f11547a070821f48f8579b6d040bc6bb29"
+      "bytes": 28594,
+      "sha256": "dd0dff4b432f8e667d680e3f0d5ddd5502a2ef004520a20f1814c4cd823b6d17"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 412,
-      "sha256": "493fdb951f0b0fcdc939d3905f016e7d02f1b4c8e38e354706ba12c55ac8ee1e"
+      "sha256": "c68c2bd0075acfd757d1acd9226620f7da7a6e6b723d544f21301d233af36ad5"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1007328,
@@ -194,8 +194,8 @@
       "sha256": "f3d958c0d056230cede030c63690d46888784ddd12a65f9eefcab285304c55a0"
     },
     "libs/arm64-v8a/libEGL.so.1": {
-      "bytes": 465384,
-      "sha256": "f513bb269d630243a17dcf7603acdf3e34dbe101e3e9fa383ba30b5cf73f6f4a"
+      "bytes": 465400,
+      "sha256": "28892e8e4d7c4b408790d0df924be06fb02055db385951537888f0a10b1e1e68"
     },
     "libs/arm64-v8a/libGLESv1_CM.so": {
       "bytes": 37424,
@@ -210,41 +210,46 @@
       "sha256": "f3d958c0d056230cede030c63690d46888784ddd12a65f9eefcab285304c55a0"
     },
     "libs/arm64-v8a/libgallium-25.0.1.so": {
-      "bytes": 16725744,
-      "sha256": "cbbcdeb4409d207283745c01bd3c243c2fb3308f2ead057e4527a4262acacd29"
+      "bytes": 16740104,
+      "sha256": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f"
     },
     "libs/arm64-v8a/libGLESv1_CM.so.1": {
       "bytes": 37424,
       "sha256": "add0ae579346da296e4c1a1fb25252060022c4712d7333b94f656f13a738d0c4"
     },
     "libs/arm64-v8a/libEGL.so": {
-      "bytes": 465384,
-      "sha256": "f513bb269d630243a17dcf7603acdf3e34dbe101e3e9fa383ba30b5cf73f6f4a"
+      "bytes": 465400,
+      "sha256": "28892e8e4d7c4b408790d0df924be06fb02055db385951537888f0a10b1e1e68"
     },
     "libs/arm64-v8a/virtio_gpu_dri.so": {
-      "bytes": 16725744,
-      "sha256": "cbbcdeb4409d207283745c01bd3c243c2fb3308f2ead057e4527a4262acacd29"
+      "bytes": 16740104,
+      "sha256": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f"
     },
     "libs/arm64-v8a/swrast_dri.so": {
-      "bytes": 16725744,
-      "sha256": "cbbcdeb4409d207283745c01bd3c243c2fb3308f2ead057e4527a4262acacd29"
+      "bytes": 16740104,
+      "sha256": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f"
     },
     "libs/arm64-v8a/kms_swrast_dri.so": {
-      "bytes": 16725744,
-      "sha256": "cbbcdeb4409d207283745c01bd3c243c2fb3308f2ead057e4527a4262acacd29"
+      "bytes": 16740104,
+      "sha256": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f"
     },
     "libs/arm64-v8a/zink_dri.so": {
-      "bytes": 16725744,
-      "sha256": "cbbcdeb4409d207283745c01bd3c243c2fb3308f2ead057e4527a4262acacd29"
+      "bytes": 16740104,
+      "sha256": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f"
+    },
+    "resources/rawfile/gpu-bc-upload.flag": {
+      "bytes": 1,
+      "sha256": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
     }
   },
   "graphics": {
     "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
-    "sourceLockSha256": "89ebfc856ea467943d6560d965aba357d3ed6f29e9a0fde79f40862bd7f2f3d8",
+    "sourceLockSha256": "13d4972960753e567521bceaecba984034f486df514faf5c07dfd6b1f7178f8c",
     "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
-    "textureLockSha256": "a8998ee71599f16b3c985f99d6bb89a00f78ef3d20ae193e35f65d260c737546",
+    "textureLockSha256": "694279d079c22b6051e6b0e39c94fe862c75af876543d63910b8a4550a8877f3",
     "qualification": "host-validated-mini-components-tested-integrated-package-pending",
-    "report": "docs/upstream-sync/release-2.0.4.zh-CN.md"
+    "report": "docs/upstream-sync/release-2.0.4.zh-CN.md",
+    "gpuBcUpload": true
   },
   "controller": {
     "patchFile": "patches/wine/0083-winebus-multiple-gamepads.patch",
