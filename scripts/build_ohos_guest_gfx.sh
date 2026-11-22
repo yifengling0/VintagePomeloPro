@@ -56,7 +56,8 @@ What it does:
 Notes:
   - Builds the guest Mesa receiver for the active WINE_ARCH (aarch64-linux-ohos
     for arm64 native wine, x86_64-linux-ohos for the x86_64 target).
-  - The resulting bundle is intended for Step 1 VirGL/vtest smoke:
+  - The ARM64 receiver includes both VirGL and Zink. The default route
+    still uses VirGL/vtest:
       MESA_LOADER_DRIVER_OVERRIDE=swrast
       GALLIUM_DRIVER=virpipe
   - Preferred source roots are thirdparty/mesa and thirdparty/libdrm.
@@ -703,8 +704,7 @@ case "$MODE" in
         ;;
 esac
 
-# Zink is an opt-in candidate. Do not install it over the production VirGL
-# receiver just because --mode was supplied after environment initialization.
+# Keep the explicit Zink launch profile in its own install directory.
 BUILD_ROOT="${BUILD_ROOT:-$BUILD_DIR/guest_gfx_build/${WINE_ARCH}/$PLATFORM-$MODE}"
 if [ "$MODE" = "zink" ]; then
     INSTALL_ROOT="${INSTALL_ROOT:-$BUILD_DIR/guest_gfx_install/${WINE_ARCH}/$PLATFORM-zink}"
@@ -712,8 +712,8 @@ else
     INSTALL_ROOT="${INSTALL_ROOT:-$BUILD_DIR/guest_gfx_install/${WINE_ARCH}}"
 fi
 GALLIUM_DRIVERS="virgl,softpipe"
-if [ "$MODE" = "zink" ]; then
-    [ "$VULKAN_ONLY" != "1" ] || err "--mode zink is incompatible with Vulkan-only builds"
+[ "$MODE" != "zink" ] || [ "$VULKAN_ONLY" != "1" ] || err "--mode zink is incompatible with Vulkan-only builds"
+if [ "$VULKAN_ONLY" != "1" ] && { [ "$WINE_ARCH" = "aarch64" ] || [ "$MODE" = "zink" ]; }; then
     GALLIUM_DRIVERS="zink,virgl,softpipe"
 fi
 

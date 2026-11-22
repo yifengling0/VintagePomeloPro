@@ -287,7 +287,9 @@ RUNTIME_LIB_DIR="$(find_runtime_lib_dir "$INSTALL_ROOT" || true)"
 # Mesa 25 uses one Gallium library and may not install per-driver aliases.
 # Verify build options AND the installed library hash before creating aliases;
 # a VirGL-only Gallium library cannot become Zink merely by renaming it.
-if [ "$MODE" = "zink" ]; then
+include_zink=0
+if [ "$MODE" = "zink" ] || [ "$WINE_ARCH" = "aarch64" ]; then
+    include_zink=1
     python3 "$SCRIPT_DIR/guest_gfx_build_identity.py" verify-zink \
         --install-root "$INSTALL_ROOT" --arch "$WINE_ARCH"
 fi
@@ -370,7 +372,7 @@ materialize_bundle_alias "libGLESv2.so" "libGLESv2.so" "libGLESv2_mesa.so"
 materialize_dri_driver_alias "virtio_gpu_dri.so"
 materialize_dri_driver_alias "swrast_dri.so"
 materialize_dri_driver_alias "kms_swrast_dri.so"
-if [ "$MODE" = "zink" ]; then
+if [ "$include_zink" = "1" ]; then
     materialize_dri_driver_alias "zink_dri.so"
     cp "$INSTALL_ROOT/share/winehua/guest-gfx-build.json" "$OUTPUT_ROOT/guest-gfx-build.json"
 fi
@@ -392,7 +394,7 @@ append_git_source_info "libdrm" "$LIBDRM_SOURCE_ROOT"
 [ -f "$OUTPUT_ROOT/winehua-guest-gfx.env" ] || err "failed to generate guest_gfx env file"
 [ -d "$OUTPUT_ROOT/lib" ] || err "guest_gfx bundle is missing lib/"
 [ -f "$OUTPUT_ROOT/lib/dri/virtio_gpu_dri.so" ] || err "guest_gfx bundle is missing lib/dri/virtio_gpu_dri.so"
-if [ "$MODE" = "zink" ]; then
+if [ "$include_zink" = "1" ]; then
     [ -f "$OUTPUT_ROOT/lib/dri/zink_dri.so" ] || err "guest_gfx bundle is missing lib/dri/zink_dri.so"
 fi
 

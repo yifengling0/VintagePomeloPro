@@ -597,6 +597,10 @@
       {
         "path": "patches/mesa/0028-venus-forward-frame-generation-scene.patch",
         "sha256": "24d75af56c188076f868c126c00371ddd1f1af368f9096901855a2c537189811"
+      },
+      {
+        "path": "patches/mesa/0029-fast-s3tc-block-unpack.patch",
+        "sha256": "15cd525f74d5eca4bf2ae8772d574f9ffa9a1ad01a74d860835355a364e05825"
       }
     ],
     "vkd3d-proton": [
@@ -932,6 +936,7 @@
     "mesa": {
       "src/gallium/drivers/zink/zink_resource.c": "d1d963a9df6e75ed09680f8f64539ccc1527eedff94542f440c295935de4147d",
       "src/gallium/drivers/zink/zink_resource.h": "302c7c60b93064f6d77f1af70db0025ab55c40fbb8753330c35fe5b55eea79ae",
+      "src/util/format/u_format_s3tc.c": "eed7b3716f8994abd7f5c706953ffad5e382f2b4d9320e047adb591634e744b9",
       "src/virtio/vulkan/vpp_frame_scene_vk.h": "a5f47b97838c60acb6bbf7bed1d8baea50bad8338766928b04d55356aa78d0c7",
       "src/virtio/vulkan/vn_renderer.h": "f674f3a90639a065acf67df7d8b56b22875ef39c57de51fd0e08637075a850a4",
       "src/virtio/vulkan/vn_renderer_vtest.c": "26848648b5eec9d5832b3eae14c49f3e9761f641ad8559d2c88a75c80532e431",
@@ -988,6 +993,7 @@
     "patches/mesa/0025-zink-opt-in-gpu-pbuffer-present.patch",
     "patches/mesa/0026-zink-shadow-buffer-map-offset.patch",
     "patches/mesa/0027-zink-isolate-shadow-image-staging.patch",
-    "patches/mesa/0028-venus-forward-frame-generation-scene.patch"
+    "patches/mesa/0028-venus-forward-frame-generation-scene.patch",
+    "patches/mesa/0029-fast-s3tc-block-unpack.patch"
   ]
 }

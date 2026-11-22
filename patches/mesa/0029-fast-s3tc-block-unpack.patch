@@ -1,0 +1,136 @@
+diff --git a/src/util/format/u_format_s3tc.c b/src/util/format/u_format_s3tc.c
+--- a/src/util/format/u_format_s3tc.c
++++ b/src/util/format/u_format_s3tc.c
+@@ -119,6 +119,80 @@
+  * Block decompression.
+  */
+ 
++/* All sixteen texels in a block share the same palette. Keep the unorm
++ * endpoint expansion and integer interpolation identical to the fetch path. */
++static void
++unpack_s3tc_block(uint8_t *dst, unsigned stride, const uint8_t *src,
++                  unsigned w, unsigned h, unsigned kind)
++{
++   const uint8_t *color = src + (kind >= 2 ? 8 : 0);
++   const unsigned first = color[0] | color[1] << 8;
++   const unsigned second = color[2] | color[3] << 8;
++   const bool four = kind >= 2 || first > second;
++   uint8_t palette[4][4] = {
++      {EXP5TO8R(first), EXP6TO8G(first), EXP5TO8B(first), 255},
++      {EXP5TO8R(second), EXP6TO8G(second), EXP5TO8B(second), 255},
++      {0, 0, 0, 255},
++      {0, 0, 0, four || kind == 0 ? 255 : 0},
++   };
++   for (unsigned c = 0; c < 3; ++c) {
++      unsigned a = palette[0][c], b = palette[1][c];
++      palette[2][c] = four ? (2 * a + b) / 3 : (a + b) / 2;
++      palette[3][c] = four ? (a + 2 * b) / 3 : 0;
++   }
++
++   uint8_t alpha[8];
++   if (kind == 3) {
++      const unsigned a = src[0], b = src[1];
++      alpha[0] = a;
++      alpha[1] = b;
++      const unsigned n = a > b ? 7 : 5;
++      for (unsigned k = 2; k <= n; ++k)
++         alpha[k] = ((n + 1 - k) * a + (k - 1) * b) / n;
++      if (a <= b) {
++         alpha[6] = 0;
++         alpha[7] = 255;
++      }
++   }
++   for (unsigned y = 0; y < h; ++y) {
++      unsigned selectors = color[4 + y];
++      unsigned alpha_bits = 0;
++      if (kind == 2) {
++         alpha_bits = src[y * 2] | (src[y * 2 + 1] << 8);
++      } else if (kind == 3) {
++         unsigned offset = 2 + (y * 12) / 8;
++         alpha_bits = (src[offset] | (src[offset + 1] << 8)) >> ((y & 1) * 4);
++      }
++      for (unsigned x = 0; x < w; ++x) {
++         memcpy(dst + x * 4, palette[selectors & 3], 4);
++         selectors >>= 2;
++         if (kind == 2) {
++            dst[x * 4 + 3] = (alpha_bits & 15) * 17;
++            alpha_bits >>= 4;
++         } else if (kind == 3) {
++            dst[x * 4 + 3] = alpha[alpha_bits & 7];
++            alpha_bits >>= 3;
++         }
++      }
++      dst += stride;
++   }
++}
++
++
++static inline void
++unpack_s3tc(uint8_t *dst, unsigned dst_stride, const uint8_t *src,
++            unsigned src_stride, unsigned width, unsigned height, unsigned kind)
++{
++   const unsigned block_bytes = kind >= 2 ? 16 : 8;
++   for (unsigned y = 0; y < height; y += 4) {
++      for (unsigned x = 0; x < width; x += 4)
++         unpack_s3tc_block(dst + (size_t)y * dst_stride + x * 4,
++                           dst_stride, src + (x / 4) * block_bytes,
++                           MIN2(4, width - x), MIN2(4, height - y), kind);
++      src += src_stride;
++   }
++}
++
+ static inline void
+ util_format_dxtn_rgb_unpack_rgba_8unorm(uint8_t *restrict dst_row, unsigned dst_stride,
+                                         const uint8_t *restrict src_row, unsigned src_stride,
+@@ -155,11 +229,7 @@
+                                         const uint8_t *restrict src_row, unsigned src_stride,
+                                         unsigned width, unsigned height)
+ {
+-   util_format_dxtn_rgb_unpack_rgba_8unorm(dst_row, dst_stride,
+-                                           src_row, src_stride,
+-                                           width, height,
+-                                           util_format_dxt1_rgb_fetch,
+-                                           8, false);
++   unpack_s3tc(dst_row, dst_stride, src_row, src_stride, width, height, 0);
+ }
+ 
+ void
+@@ -167,11 +237,7 @@
+                                          const uint8_t *restrict src_row, unsigned src_stride,
+                                          unsigned width, unsigned height)
+ {
+-   util_format_dxtn_rgb_unpack_rgba_8unorm(dst_row, dst_stride,
+-                                           src_row, src_stride,
+-                                           width, height,
+-                                           util_format_dxt1_rgba_fetch,
+-                                           8, false);
++   unpack_s3tc(dst_row, dst_stride, src_row, src_stride, width, height, 1);
+ }
+ 
+ void
+@@ -179,11 +245,7 @@
+                                          const uint8_t *restrict src_row, unsigned src_stride,
+                                          unsigned width, unsigned height)
+ {
+-   util_format_dxtn_rgb_unpack_rgba_8unorm(dst_row, dst_stride,
+-                                           src_row, src_stride,
+-                                           width, height,
+-                                           util_format_dxt3_rgba_fetch,
+-                                           16, false);
++   unpack_s3tc(dst_row, dst_stride, src_row, src_stride, width, height, 2);
+ }
+ 
+ void
+@@ -191,11 +253,7 @@
+                                          const uint8_t *restrict src_row, unsigned src_stride,
+                                          unsigned width, unsigned height)
+ {
+-   util_format_dxtn_rgb_unpack_rgba_8unorm(dst_row, dst_stride,
+-                                           src_row, src_stride,
+-                                           width, height,
+-                                           util_format_dxt5_rgba_fetch,
+-                                           16, false);
++   unpack_s3tc(dst_row, dst_stride, src_row, src_stride, width, height, 3);
+ }
+ 
+ static inline void

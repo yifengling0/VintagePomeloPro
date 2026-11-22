@@ -40,3 +40,9 @@ Gallium SHA-256 `b0f8eb478dd4cbdbfc071a8a8bde530837cd88e0575e4bf1774f53f8549cf9f
 - `zink-r9-heaven-full` 首次普通启动场景正确，但benchmark开始后OCR把Cancel读作CanceI，runner提前停止；不是有效完整跑分。
 
 `rt-comparison-device.py` 的 ready=true只表示采集完成，不能冒认视觉验收。`virgl-gpu-lut-capture` 的替换PS因c223超过该路线限制而失败，不能作同shader对照；正常color-pass两路线对照有效。关闭buffer_storage的实验没有改善，但没有充分证明实际扩展开关生效。
+
+## 2.0.7 的 Mini 回归（2026-11-22）
+
+旧 `ZINK_DEBUG=sync` 验收截图中的角色完整，但原始全帧仍有白地面和屋体缺失。同一运行时只改为 `noreorder` 时，一个窗口样本正常，全屏仍能复现。关闭上传合批的全屏样本也复现。只对 WineD3D Zink 设置 `GALLIUM_THREAD=0` 后，青鸾峰存档 2 的普通窗口和全屏样本均显示完整的地面、屋体与人物。该设置让 Gallium 绕过线程队列并继续在 GPU 上渲染。具体失配的资源和指令仍待定位。
+
+今后 Mesa、WineD3D 或 Zink 启动环境变更时，使用实际装机包核对 Zink 驱动和 Wine 桌面就绪，再从游戏库载入青鸾峰存档 2。覆盖普通窗口和全屏各一次独立启动，检查初始全帧及移动后的画面，逐项检查右侧地面、屋顶、人物和音频。用同一存档的 VirGL 全帧作对照。保留失败画面和后端日志，角色裁图只作细节证据。同步复测 MewGenics 的 VirGL 菜单与 DirectSound。

@@ -467,7 +467,8 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
             "WINEHUA_ZINK_FULL_VERTEX_INPUTS=1",
             "WINEHUA_ZINK_FULL_VARYINGS=1",
             "WINEHUA_ZINK_SLICE_3D_UPLOAD=1",
-            "WINEHUA_ZINK_BATCH_UPLOAD=1",
+            // Keep Zink resource updates and draws on the same Gallium context thread.
+            "GALLIUM_THREAD=0",
             "WINEHUA_ZINK_PRESENT=1",
             "WINEHUA_ZINK_STRIP_NAMES=1",
             "WINEDLLOVERRIDES=ddraw=b;d3d8=b;d3d9=b;d3d10=b;d3d10_1=b;d3d10core=b;d3d11=b;dxgi=b;vulkan-1=b"})
