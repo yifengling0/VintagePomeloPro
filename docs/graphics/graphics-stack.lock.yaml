@@ -813,6 +813,26 @@
       {
         "path": "patches/dxvk/0020-d3d9-preserve-copy-and-windowed-backbuffers.patch",
         "sha256": "13568cd5c4853e71454d007856603e46b85057eaedba09d68b81b6034f11033c"
+      },
+      {
+        "path": "patches/dxvk/0021-d3d9-harmony-frame-scene-capture.patch",
+        "sha256": "28002cc477696cb187f0ef6a168f29fdc21accba76505969715ddd39e35ca805"
+      },
+      {
+        "path": "patches/dxvk/0022-send-d3d9-scene-with-wine-vulkan-present.patch",
+        "sha256": "64630ad7f27f7d60d1bf7c2a3e96b84e2ec7b71ebabc6b52dafcd340c9083995"
+      },
+      {
+        "path": "patches/dxvk/0023-harmony-frame-generation-live-policy.patch",
+        "sha256": "8d7029e622a7a065232e402f531dc1cbd73db713acdbfcbf24e92d6145e13249"
+      },
+      {
+        "path": "patches/dxvk/0024-d3d9-capture-declared-camera-matrices.patch",
+        "sha256": "4966200829b117b506ad77c35d755f76f1bc22ad1c3b62afdc621c9da1cc791d"
+      },
+      {
+        "path": "patches/dxvk/0025-d3d9-harmony-deferred-depth-and-engine-camera.patch",
+        "sha256": "8050539ace270432fcb0f012b74bd3b7d99b3c7e28c7469d7b8c925ecae6528a"
       }
     ]
   },

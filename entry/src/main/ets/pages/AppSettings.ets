@@ -20,6 +20,7 @@ import {
   AppDescriptor,
   AppSettings as StoredAppSettings,
   AppSource,
+  LaunchKind,
   GameBackgroundMode,
   DisplayMode,
   box64PresetLabel,
@@ -34,7 +35,7 @@ import {
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { APP_GRAPHICS_BACKEND_IDS, normalizeAppGraphicsBackend,
-  resolveGraphicsBackend, graphicsBackendLabel } from '../model/GraphicsBackendSettings';
+  resolveGraphicsBackend, graphicsBackendLabel, supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
 import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -738,6 +739,13 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setGpuBcUpload(enabled: boolean): void {
+    const next = cloneAppSettings(this.value);
+    next.gpuBcUpload = enabled;
+    this.value = next;
+    void this.persist();
+  }
+
   private setDisableMfDxgiDeviceManager(enabled: boolean): void {
     if (enabled === this.value.disableMfDxgiDeviceManager) return;
     const next = cloneAppSettings(this.value);
@@ -872,6 +880,16 @@ struct AppSettingsPage {
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Text('保存后下次启动生效。切换后端可能需要重启 Wine，会关闭其他 Windows 程序。')
               .fontSize(11).fontColor('#C47A20').width('100%')
+            if (this.app?.launchTarget.kind === LaunchKind.WINE_EXE && !this.app?.steam &&
+              AppSettingsStore.getInstance().hasGpuBcUpload() && supportsGpuBcUpload(resolveGraphicsBackend(
+                AppSettingsStore.getInstance().getRenderMode(), this.value.graphicsBackend ?? 'default'))) {
+              Row({ space: 12 }) {
+                Text('GPU BC 纹理解码（实验）').fontSize(13).fontColor(skinColor('text_primary')).layoutWeight(1)
+                Toggle({ type: ToggleType.Switch, isOn: this.value.gpuBcUpload === true })
+                  .onChange((enabled: boolean): void => this.setGpuBcUpload(enabled))
+                  .id('app-settings-gpu-bc-upload')
+              }.width('100%')
+            }
             Text('Game 模式').fontSize(14).fontColor(skinColor('text_primary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap }) {
               ForEach(['follow', 'on', 'off'], (mode: GameModeOverride) => {

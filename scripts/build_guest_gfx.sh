@@ -374,6 +374,8 @@ materialize_dri_driver_alias "swrast_dri.so"
 materialize_dri_driver_alias "kms_swrast_dri.so"
 if [ "$include_zink" = "1" ]; then
     materialize_dri_driver_alias "zink_dri.so"
+fi
+if [ -f "$INSTALL_ROOT/share/winehua/guest-gfx-build.json" ]; then
     cp "$INSTALL_ROOT/share/winehua/guest-gfx-build.json" "$OUTPUT_ROOT/guest-gfx-build.json"
 fi
 

@@ -1,0 +1,1358 @@
+diff --git a/src/dxvk/shaders/dxvk_bc_decode.glsl b/src/dxvk/shaders/dxvk_bc_decode.glsl
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_bc_decode.glsl
+@@ -0,0 +1,81 @@
++layout(local_size_x = 8, local_size_y = 8) in;
++layout(set = 0, binding = 0, std430) readonly buffer Blocks { uint words[]; };
++#if BC3
++layout(set = 0, binding = 1, std430) writeonly buffer Pixels { uint pixels[]; };
++#else
++layout(set = 0, binding = 1, std430) writeonly buffer Pixels { uvec4 rows[]; };
++#endif
++layout(push_constant) uniform Params { uint width; uint height; uint mode; };
++
++uvec3 unpack565(uint v) {
++    return uvec3((v >> 11) & 31u, (v >> 5) & 63u, v & 31u);
++}
++
++uint packColor(uvec3 c) {
++    return c.r | (c.g << 8) | (c.b << 16);
++}
++
++void main() {
++    const uint bc3 = BC3;
++    uvec2 block = gl_GlobalInvocationID.xy;
++    uint cols = width / 4u;
++    if (block.x >= cols || block.y >= height / 4u)
++        return;
++    uint src = (block.y * cols + block.x) * (2u + 2u * bc3);
++    uint colorWord = words[src + 2u * bc3];
++    uint colorIndices = words[src + 2u * bc3 + 1u];
++    uint e0 = colorWord & 65535u;
++    uint e1 = colorWord >> 16;
++    uvec3 c0 = unpack565(e0);
++    uvec3 c1 = unpack565(e1);
++    // Match the integer rounding of the vendored bcdec reference.
++    uvec3 first = (c0 * uvec3(527, 259, 527) + uvec3(23, 33, 23)) >> 6;
++    uvec3 second = (c1 * uvec3(527, 259, 527) + uvec3(23, 33, 23)) >> 6;
++    uint p0 = packColor(first) | 0xff000000u;
++    uint p1 = packColor(second) | 0xff000000u;
++    uint p2, p3;
++    if (e0 > e1 || bc3 != 0u) {
++        p2 = packColor((2u * first + second + 1u) / 3u) | 0xff000000u;
++        p3 = packColor((first + 2u * second + 1u) / 3u) | 0xff000000u;
++    } else {
++        p2 = packColor((first + second + 1u) >> 1) | 0xff000000u;
++        p3 = 0u;
++    }
++    uvec4 palette = uvec4(p0, p1, p2, p3);
++    uint alpha0 = 0u, alpha1 = 0u;
++    uint alphaLo = 0u, alphaHi = 0u;
++#if !BC3
++    uvec4 row;
++#endif
++    if (bc3 != 0u) {
++        uint lo = words[src], hi = words[src + 1u];
++        alpha0 = lo & 255u;
++        alpha1 = (lo >> 8) & 255u;
++        alphaLo = (lo >> 16) | (hi << 16);
++        alphaHi = hi >> 16;
++    }
++    for (uint i = 0; i < 16; ++i) {
++        uint value = palette[colorIndices & 3u];
++        colorIndices >>= 2;
++        if (bc3 != 0u) {
++            uint k = alphaLo & 7u;
++            alphaLo = (alphaLo >> 3) | (alphaHi << 29);
++            alphaHi >>= 3;
++            uint a;
++            if (mode == 2u) a = ((words[src + i / 8u] >> (4u * (i & 7u))) & 15u) * 17u;
++            else if (k < 2u) a = k == 0u ? alpha0 : alpha1;
++            else if (alpha0 > alpha1) a = ((8u-k)*alpha0 + (k-1u)*alpha1 + 1u) / 7u;
++            else if (k < 6u) a = ((6u-k)*alpha0 + (k-1u)*alpha1 + 1u) / 5u;
++            else a = k == 6u ? 0u : 255u;
++            value = (value & 0x00ffffffu) | (a << 24);
++        }
++        uvec2 pos = block * 4u + uvec2(i & 3u, i >> 2);
++#if BC3
++        pixels[pos.y * width + pos.x] = value;
++#else
++        row[i & 3u] = value;
++        if ((i & 3u) == 3u)
++            rows[pos.y * cols + block.x] = row;
++#endif
++    }
++}
+diff --git a/src/dxvk/shaders/dxvk_decode_bc1.comp b/src/dxvk/shaders/dxvk_decode_bc1.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_decode_bc1.comp
+@@ -0,0 +1,4 @@
++#version 450
++#extension GL_GOOGLE_include_directive : require
++#define BC3 0
++#include "dxvk_bc_decode.glsl"
+diff --git a/src/dxvk/shaders/dxvk_decode_bc3.comp b/src/dxvk/shaders/dxvk_decode_bc3.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_decode_bc3.comp
+@@ -0,0 +1,4 @@
++#version 450
++#extension GL_GOOGLE_include_directive : require
++#define BC3 1
++#include "dxvk_bc_decode.glsl"
+diff --git a/src/dxvk/dxvk_meta_bc.h b/src/dxvk/dxvk_meta_bc.h
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/dxvk_meta_bc.h
+@@ -0,0 +1,32 @@
++#pragma once
++
++#include <array>
++#include <mutex>
++#include "dxvk_include.h"
++#include "../spirv/spirv_code_buffer.h"
++
++namespace dxvk {
++
++  class DxvkDevice;
++
++  class DxvkMetaBc {
++  public:
++    explicit DxvkMetaBc(const DxvkDevice* device);
++    ~DxvkMetaBc();
++
++    VkDescriptorSetLayout descriptorLayout = VK_NULL_HANDLE;
++    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
++    VkPipeline getBptcPipeline(bool hdr);
++    VkPipeline bc1 = VK_NULL_HANDLE;
++    VkPipeline rgtc = VK_NULL_HANDLE;
++    VkPipeline bc3 = VK_NULL_HANDLE;
++
++  private:
++    std::mutex m_bptcMutex;
++    std::array<VkPipeline, 2> m_bptcPipelines = { };
++    std::array<bool, 2> m_bptcAttempted = { };
++    Rc<vk::DeviceFn> m_vkd;
++    VkPipeline createPipeline(const SpirvCodeBuffer& code) const;
++  };
++
++}
+diff --git a/src/dxvk/dxvk_meta_bc.cpp b/src/dxvk/dxvk_meta_bc.cpp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/dxvk_meta_bc.cpp
+@@ -0,0 +1,83 @@
++#include "dxvk_meta_bc.h"
++#include "dxvk_device.h"
++
++#include <dxvk_decode_bc1.h>
++#include <dxvk_decode_bc3.h>
++#include <dxvk_decode_bc6.h>
++#include <dxvk_decode_bc7.h>
++#include <dxvk_decode_rgtc.h>
++
++namespace dxvk {
++
++  DxvkMetaBc::DxvkMetaBc(const DxvkDevice* device)
++  : m_vkd(device->vkd()) {
++    const VkDescriptorSetLayoutBinding bindings[] = {
++      { 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
++      { 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
++    };
++    VkDescriptorSetLayoutCreateInfo setInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
++    setInfo.bindingCount = 2;
++    setInfo.pBindings = bindings;
++    if (m_vkd->vkCreateDescriptorSetLayout(m_vkd->device(), &setInfo, nullptr, &descriptorLayout) != VK_SUCCESS)
++      return;
++
++    VkPushConstantRange constants = { VK_SHADER_STAGE_COMPUTE_BIT, 0, 3 * sizeof(uint32_t) };
++    VkPipelineLayoutCreateInfo layout = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
++    layout.setLayoutCount = 1;
++    layout.pSetLayouts = &descriptorLayout;
++    layout.pushConstantRangeCount = 1;
++    layout.pPushConstantRanges = &constants;
++    if (m_vkd->vkCreatePipelineLayout(m_vkd->device(), &layout, nullptr, &pipelineLayout) != VK_SUCCESS)
++      return;
++
++    bc1 = createPipeline(dxvk_decode_bc1);
++    bc3 = createPipeline(dxvk_decode_bc3);
++    rgtc = createPipeline(dxvk_decode_rgtc);
++  }
++
++  VkPipeline DxvkMetaBc::getBptcPipeline(bool hdr) {
++    std::lock_guard<std::mutex> lock(m_bptcMutex);
++    const size_t index = hdr ? 1 : 0;
++    if (pipelineLayout && !m_bptcAttempted[index]) {
++      m_bptcAttempted[index] = true;
++      m_bptcPipelines[index] = hdr ? createPipeline(dxvk_decode_bc6) : createPipeline(dxvk_decode_bc7);
++    }
++    return m_bptcPipelines[index];
++  }
++
++  DxvkMetaBc::~DxvkMetaBc() {
++    for (VkPipeline pipeline : m_bptcPipelines)
++      m_vkd->vkDestroyPipeline(m_vkd->device(), pipeline, nullptr);
++    m_vkd->vkDestroyPipeline(m_vkd->device(), rgtc, nullptr);
++    m_vkd->vkDestroyPipeline(m_vkd->device(), bc3, nullptr);
++    m_vkd->vkDestroyPipeline(m_vkd->device(), bc1, nullptr);
++    m_vkd->vkDestroyPipelineLayout(m_vkd->device(), pipelineLayout, nullptr);
++    m_vkd->vkDestroyDescriptorSetLayout(m_vkd->device(), descriptorLayout, nullptr);
++  }
++
++  VkPipeline DxvkMetaBc::createPipeline(const SpirvCodeBuffer& code) const {
++    VkShaderModuleCreateInfo shader = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
++    shader.codeSize = code.size();
++    shader.pCode = code.data();
++    VkShaderModule module = VK_NULL_HANDLE;
++    if (m_vkd->vkCreateShaderModule(m_vkd->device(), &shader, nullptr, &module) != VK_SUCCESS)
++      return VK_NULL_HANDLE;
++
++    VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
++    info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
++    info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
++    info.stage.module = module;
++    info.stage.pName = "main";
++    info.layout = pipelineLayout;
++    info.basePipelineIndex = -1;
++    VkPipeline pipeline = VK_NULL_HANDLE;
++    auto result = m_vkd->vkCreateComputePipelines(m_vkd->device(), VK_NULL_HANDLE, 1, &info, nullptr, &pipeline);
++    m_vkd->vkDestroyShaderModule(m_vkd->device(), module, nullptr);
++    if (result != VK_SUCCESS) {
++      m_vkd->vkDestroyPipeline(m_vkd->device(), pipeline, nullptr);
++      return VK_NULL_HANDLE;
++    }
++    return pipeline;
++  }
++
++}
+diff --git a/src/dxvk/meson.build b/src/dxvk/meson.build
+--- a/src/dxvk/meson.build
++++ b/src/dxvk/meson.build
+@@ -31,6 +31,9 @@
+   'shaders/dxvk_fullscreen_vert.vert',
+   'shaders/dxvk_fullscreen_layer_vert.vert',
+ 
++  'shaders/dxvk_decode_rgtc.comp',
++  'shaders/dxvk_decode_bc6.comp',
++  'shaders/dxvk_decode_bc7.comp',
+   'shaders/dxvk_pack_d24s8.comp',
+   'shaders/dxvk_pack_d32s8.comp',
+ 
+@@ -85,6 +88,7 @@
+   'dxvk_meta_clear.cpp',
+   'dxvk_meta_copy.cpp',
+   'dxvk_meta_mipgen.cpp',
++  'dxvk_meta_bc.cpp',
+   'dxvk_meta_pack.cpp',
+   'dxvk_meta_resolve.cpp',
+   'dxvk_openvr.cpp',
+@@ -118,7 +122,16 @@
+ 
+ thread_dep = dependency('threads')
+ 
+-dxvk_lib = static_library('dxvk', dxvk_src, glsl_generator.process(dxvk_shaders), dxvk_version,
++bc_shaders = []
++foreach name : ['dxvk_decode_bc1', 'dxvk_decode_bc3']
++  bc_shaders += custom_target(name,
++    input : 'shaders/' + name + '.comp',
++    output : name + '.h',
++    depend_files : files('shaders/dxvk_bc_decode.glsl'),
++    command : [glsl_compiler, '-V', '--vn', name, '@INPUT@', '-o', '@OUTPUT@'])
++endforeach
++
++dxvk_lib = static_library('dxvk', dxvk_src, glsl_generator.process(dxvk_shaders), bc_shaders, dxvk_version,
+   link_with           : [ util_lib, spirv_lib ],
+   dependencies        : [ thread_dep, vkcommon_dep ] + dxvk_extradep,
+   include_directories : [ dxvk_include_path ],
+diff --git a/src/dxvk/dxvk_objects.h b/src/dxvk/dxvk_objects.h
+--- a/src/dxvk/dxvk_objects.h
++++ b/src/dxvk/dxvk_objects.h
+@@ -7,6 +7,7 @@
+ #include "dxvk_meta_clear.h"
+ #include "dxvk_meta_copy.h"
+ #include "dxvk_meta_mipgen.h"
++#include "dxvk_meta_bc.h"
+ #include "dxvk_meta_pack.h"
+ #include "dxvk_meta_resolve.h"
+ #include "dxvk_pipemanager.h"
+@@ -72,6 +73,11 @@
+       return m_metaResolve.get(m_device);
+     }
+     
++    DxvkMetaBc& metaBc() {
++      std::call_once(m_bcOnce, [this] { m_metaBc = std::make_unique<DxvkMetaBc>(m_device); });
++      return *m_metaBc;
++    }
++
+     DxvkMetaPackObjects& metaPack() {
+       return m_metaPack.get(m_device);
+     }
+@@ -93,6 +99,8 @@
+     Lazy<DxvkMetaClearObjects>    m_metaClear;
+     Lazy<DxvkMetaCopyObjects>     m_metaCopy;
+     Lazy<DxvkMetaResolveObjects>  m_metaResolve;
++    std::once_flag               m_bcOnce;
++    std::unique_ptr<DxvkMetaBc>   m_metaBc;
+     Lazy<DxvkMetaPackObjects>     m_metaPack;
+ 
+   };
+diff --git a/src/dxvk/dxvk_context.h b/src/dxvk/dxvk_context.h
+--- a/src/dxvk/dxvk_context.h
++++ b/src/dxvk/dxvk_context.h
+@@ -833,6 +833,25 @@
+      * \param [in] pitchPerRow Row pitch of the source data
+      * \param [in] pitchPerLayer Layer pitch of the source data
+      */
++    static bool canUploadBcImage(VkFormat srcFormat, VkFormat dstFormat, VkExtent3D extent);
++
++    bool tryUploadBcImage(
++      const Rc<DxvkImage>&            image,
++            VkImageSubresourceLayers  subresources,
++            VkOffset3D                offset,
++            VkExtent3D                extent,
++            VkFormat                  packedFormat,
++      const void*                     data,
++            VkDeviceSize              pitchPerRow);
++
++    void updateBcCpuImage(
++      const Rc<DxvkImage>&            image,
++            VkImageSubresourceLayers  subresources,
++            VkOffset3D                offset,
++            VkExtent3D                extent,
++      const void*                     data,
++            VkDeviceSize              pitchPerRow);
++
+     void uploadImage(
+       const Rc<DxvkImage>&            image,
+       const VkImageSubresourceLayers& subresources,
+@@ -1185,6 +1204,7 @@
+     DxvkGpuQueryManager     m_queryManager;
+     bool                    m_winehuaSplitOcclusionPass = false;
+     DxvkStagingBuffer       m_staging;
++    Rc<DxvkBuffer>          m_bcUploadScratch;
+     
+     DxvkRenderTargetLayouts m_rtLayouts = { };
+ 
+diff --git a/src/dxvk/dxvk_context.cpp b/src/dxvk/dxvk_context.cpp
+--- a/src/dxvk/dxvk_context.cpp
++++ b/src/dxvk/dxvk_context.cpp
+@@ -1,4 +1,6 @@
+ #include <algorithm>
++#include <atomic>
++#include <cstdlib>
+ #include <cstring>
+ #include <fstream>
+ #include <process.h>
+@@ -3499,6 +3501,193 @@
+     
+     m_cmd->trackResource<DxvkAccess::Read>(stagingSlice.buffer());
+     m_cmd->trackResource<DxvkAccess::Write>(buffer);
++  }
++
++
++  bool DxvkContext::canUploadBcImage(VkFormat srcFormat, VkFormat dstFormat, VkExtent3D extent) {
++    static const bool enabled = env::getEnvVar("WINEHUA_GPU_BC_UPLOAD") == "1";
++    static const uint64_t minPixels = [] {
++      const auto value = env::getEnvVar("WINEHUA_GPU_BC_UPLOAD_MIN_PIXELS");
++      char* end = nullptr;
++      const auto parsed = std::strtoul(value.c_str(), &end, 10);
++      return end != value.c_str() && *end == '\0' && parsed >= 256 * 256 && parsed <= 4096 * 4096
++        ? uint64_t(parsed) : uint64_t(1024 * 1024);
++    }();
++    bool formatMatches = false;
++    switch (srcFormat) {
++      case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
++      case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
++      case VK_FORMAT_BC7_UNORM_BLOCK:
++      case VK_FORMAT_BC7_SRGB_BLOCK:
++      case VK_FORMAT_BC2_UNORM_BLOCK:
++      case VK_FORMAT_BC2_SRGB_BLOCK:
++      case VK_FORMAT_BC3_UNORM_BLOCK:
++      case VK_FORMAT_BC3_SRGB_BLOCK:
++        formatMatches = dstFormat == VK_FORMAT_R8G8B8A8_UNORM || dstFormat == VK_FORMAT_R8G8B8A8_SRGB;
++        break;
++      case VK_FORMAT_BC4_UNORM_BLOCK:
++      case VK_FORMAT_BC4_SNORM_BLOCK:
++        formatMatches = dstFormat == VK_FORMAT_R8_UNORM || dstFormat == VK_FORMAT_R8_SNORM;
++        break;
++      case VK_FORMAT_BC5_UNORM_BLOCK:
++      case VK_FORMAT_BC5_SNORM_BLOCK:
++        formatMatches = dstFormat == VK_FORMAT_R8G8_UNORM || dstFormat == VK_FORMAT_R8G8_SNORM;
++        break;
++      case VK_FORMAT_BC6H_UFLOAT_BLOCK:
++      case VK_FORMAT_BC6H_SFLOAT_BLOCK:
++        formatMatches = dstFormat == VK_FORMAT_R16G16B16A16_SFLOAT;
++        break;
++      default: return false;
++    }
++    const uint64_t pixels = uint64_t(extent.width) * extent.height;
++    return enabled && formatMatches && extent.depth == 1
++        && extent.width <= 4096 && extent.height <= 4096 &&
++        pixels >= minPixels && pixels <= 4096 * 4096;
++  }
++
++
++  bool DxvkContext::tryUploadBcImage(
++    const Rc<DxvkImage>&            image,
++          VkImageSubresourceLayers  subresources,
++          VkOffset3D                offset,
++          VkExtent3D                extent,
++          VkFormat                  packedFormat,
++    const void*                     data,
++          VkDeviceSize              pitchPerRow) {
++    static const bool tracing = env::getEnvVar("WINEHUA_GPU_BC_UPLOAD_TRACE") == "1";
++    if (tracing) {
++      static std::atomic<uint32_t> samples { 0 };
++      if (samples.fetch_add(1, std::memory_order_relaxed) < 32)
++        Logger::info(str::format("WineHua: BC upload probe format=", uint32_t(packedFormat),
++          " backing=", uint32_t(image->info().format), " extent=", extent.width, "x", extent.height,
++          " eligible=", canUploadBcImage(packedFormat, image->info().format, extent)));
++    }
++    if (!data || subresources.aspectMask != VK_IMAGE_ASPECT_COLOR_BIT ||
++        subresources.layerCount != 1 ||
++        !(image->info().usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ||
++        !canUploadBcImage(packedFormat, image->info().format, extent))
++      return false;
++
++    const auto& limits = m_device->properties().core.properties.limits;
++    const uint32_t bcBytes = imageFormatInfo(packedFormat)->elementSize;
++    const uint32_t paddedWidth = align(extent.width, 4u);
++    const uint32_t paddedHeight = align(extent.height, 4u);
++    const VkDeviceSize rowBytes = VkDeviceSize(paddedWidth / 4) * bcBytes;
++    const VkDeviceSize inputBytes = rowBytes * (paddedHeight / 4);
++    const uint32_t pixelBytes = image->formatInfo()->elementSize;
++    const VkDeviceSize outputBytes = VkDeviceSize(paddedWidth) * paddedHeight * pixelBytes;
++    const uint32_t groupsX = (extent.width + 31) / 32;
++    const uint32_t groupsY = (extent.height + 31) / 32;
++    if (pitchPerRow < rowBytes || outputBytes > limits.maxStorageBufferRange ||
++        groupsX > limits.maxComputeWorkGroupCount[0] ||
++        groupsY > limits.maxComputeWorkGroupCount[1])
++      return false;
++
++    auto& meta = m_common->metaBc();
++    const bool isSigned = packedFormat == VK_FORMAT_BC4_SNORM_BLOCK || packedFormat == VK_FORMAT_BC5_SNORM_BLOCK;
++    const bool bc2 = packedFormat == VK_FORMAT_BC2_UNORM_BLOCK || packedFormat == VK_FORMAT_BC2_SRGB_BLOCK;
++    const bool hdr = packedFormat == VK_FORMAT_BC6H_UFLOAT_BLOCK || packedFormat == VK_FORMAT_BC6H_SFLOAT_BLOCK;
++    const bool bc7 = packedFormat == VK_FORMAT_BC7_UNORM_BLOCK || packedFormat == VK_FORMAT_BC7_SRGB_BLOCK;
++    VkPipeline pipeline = hdr || bc7 ? meta.getBptcPipeline(hdr)
++      : pixelBytes < 4 ? meta.rgtc : bcBytes == 8 ? meta.bc1 : meta.bc3;
++    if (!pipeline)
++      return false;
++
++    DxvkBufferSlice input;
++    VkDescriptorSet set;
++    try {
++      if (m_bcUploadScratch == nullptr || m_bcUploadScratch->info().size < outputBytes) {
++        DxvkBufferCreateInfo info = { };
++        info.size   = align(outputBytes, VkDeviceSize(4 * 1024 * 1024));
++        info.usage  = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
++        info.stages = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT;
++        info.access = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_TRANSFER_READ_BIT;
++        m_bcUploadScratch = m_device->createBuffer(info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++      }
++      input = m_staging.alloc(std::max<VkDeviceSize>(256, limits.minStorageBufferOffsetAlignment), inputBytes);
++      set = allocateDescriptorSet(meta.descriptorLayout);
++    } catch (const DxvkError&) {
++      return false;
++    }
++
++    auto* dst = static_cast<uint8_t*>(input.mapPtr(0));
++    if (!set || !dst)
++      return false;
++    const auto* src = static_cast<const uint8_t*>(data);
++    if (pitchPerRow == rowBytes) {
++      std::memcpy(dst, src, inputBytes);
++    } else {
++      for (uint32_t row = 0; row < paddedHeight / 4; row++)
++        std::memcpy(dst + row * rowBytes, src + row * pitchPerRow, rowBytes);
++    }
++
++    if (this->flushMappedBuffer(input.buffer(), input.getSliceHandle()) != VK_SUCCESS)
++      return false;
++
++    this->spillRenderPass(true);
++    this->unbindComputePipeline();
++    m_execBarriers.recordCommands(m_cmd);
++
++    const VkDescriptorBufferInfo buffers[] = {
++      input.getDescriptor().buffer,
++      m_bcUploadScratch->getDescriptor(0, outputBytes).buffer,
++    };
++    VkWriteDescriptorSet writes[2] = { };
++    for (uint32_t i = 0; i < 2; i++) {
++      writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
++      writes[i].dstSet = set;
++      writes[i].dstBinding = i;
++      writes[i].descriptorCount = 1;
++      writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
++      writes[i].pBufferInfo = &buffers[i];
++    }
++    m_cmd->updateDescriptorSets(2, writes);
++
++    const uint32_t dimensions[] = { paddedWidth, paddedHeight,
++      pixelBytes < 4 ? (pixelBytes | (isSigned ? 4u : 0u)) : (bc2 ? 2u : uint32_t(packedFormat == VK_FORMAT_BC6H_SFLOAT_BLOCK)) };
++    m_cmd->cmdBindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
++    m_cmd->cmdBindDescriptorSet(VK_PIPELINE_BIND_POINT_COMPUTE, meta.pipelineLayout, set, 0, nullptr);
++    m_cmd->cmdPushConstants(meta.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(dimensions), dimensions);
++    m_cmd->cmdDispatch(groupsX, groupsY, 1);
++
++    m_execBarriers.accessBuffer(m_bcUploadScratch->getSliceHandle(),
++      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
++      VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
++    // copyBufferToImage checks a zero-length source slice and can miss
++    // the compute writes to this buffer. Publish them before the copy.
++    m_execBarriers.recordCommands(m_cmd);
++    m_cmd->trackResource<DxvkAccess::Read>(input.buffer());
++    m_cmd->trackResource<DxvkAccess::Write>(m_bcUploadScratch);
++    this->copyBufferToImage(image, subresources, offset, extent,
++                            m_bcUploadScratch, 0, 4 * pixelBytes, 1);
++    m_execBarriers.accessBuffer(m_bcUploadScratch->getSliceHandle(),
++      VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
++      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT);
++    static const bool logged = [] {
++      Logger::info("WineHua: GPU BC texture upload active");
++      return true;
++    }();
++    (void)logged;
++    return true;
++  }
++
++
++  void DxvkContext::updateBcCpuImage(
++    const Rc<DxvkImage>&            image,
++          VkImageSubresourceLayers  subresources,
++          VkOffset3D                offset,
++          VkExtent3D                extent,
++    const void*                     data,
++          VkDeviceSize              pitchPerRow) {
++    const VkDeviceSize rowBytes = VkDeviceSize(extent.width) * image->formatInfo()->elementSize;
++    auto staging = m_staging.alloc(256, rowBytes * extent.height);
++    auto* dst = static_cast<uint8_t*>(staging.mapPtr(0));
++    const auto* src = static_cast<const uint8_t*>(data);
++    for (uint32_t row = 0; row < extent.height; row++)
++      std::memcpy(dst + row * rowBytes, src + row * pitchPerRow, rowBytes);
++    this->flushMappedBuffer(staging.buffer(), staging.getSliceHandle());
++    this->copyBufferToImage(image, subresources, offset, extent,
++                            staging.buffer(), staging.offset(), 1, 1);
+   }
+ 
+ 
+diff --git a/src/d3d11/d3d11_initializer.cpp b/src/d3d11/d3d11_initializer.cpp
+--- a/src/d3d11/d3d11_initializer.cpp
++++ b/src/d3d11/d3d11_initializer.cpp
+@@ -192,6 +192,15 @@
+ 
+             const bool bcEmulated = formatInfo->flags.test(DxvkFormatFlag::BlockCompressed)
+                                  && !image->formatInfo()->flags.test(DxvkFormatFlag::BlockCompressed);
++            if (bcEmulated && mapMode == D3D11_COMMON_TEXTURE_MAP_MODE_NONE &&
++                m_context->tryUploadBcImage(image, { VK_IMAGE_ASPECT_COLOR_BIT, level, layer, 1 },
++                    { 0, 0, 0 }, mipLevelExtent, packedFormat, uploadData, uploadRowPitch)) {
++              m_transferCommands += 1;
++              m_transferMemory += uploadRowPitch * (mipLevelExtent.height / 4);
++              FlushImplicit();
++              continue;
++            }
++
+             const bool snormRtEmulated = pTexture->IsRgba8SnormRtEmulated();
+             if (snormRtEmulated) {
+               if (!ConvertD3D11Rgba8SnormToRgba16Float(
+diff --git a/src/d3d11/d3d11_context.cpp b/src/d3d11/d3d11_context.cpp
+--- a/src/d3d11/d3d11_context.cpp
++++ b/src/d3d11/d3d11_context.cpp
+@@ -4183,6 +4183,32 @@
+       winehuaTraceRgbaAlpha("update-src", pSrcData,
+         extent.width, extent.height, SrcRowPitch,
+         uint32_t(packedFormat), DstSubresource, subresource.arrayLayer);
++    if (bcEmulated && !snormRtEmulated && pDstTexture->GetMapMode() == D3D11_COMMON_TEXTURE_MAP_MODE_NONE) {
++      const auto image = pDstTexture->GetImage();
++      const auto layers = vk::makeSubresourceLayers(subresource);
++      if (pSrcData && DxvkContext::canUploadBcImage(packedFormat, image->info().format, extent)) {
++        const VkDeviceSize rowBytes = VkDeviceSize((extent.width + 3) / 4) * formatInfo->elementSize;
++        const VkDeviceSize bytes = rowBytes * ((extent.height + 3) / 4);
++        if (SrcRowPitch >= rowBytes) {
++          std::vector<uint8_t> blocks(bytes);
++          auto* source = static_cast<const uint8_t*>(pSrcData);
++          for (uint32_t row = 0; row < (extent.height + 3) / 4; row++)
++            std::memcpy(blocks.data() + row * rowBytes, source + row * SrcRowPitch, rowBytes);
++          EmitCs([image, layers, packedFormat, offset, extent, rowBytes, bytes,
++                  blocks = std::move(blocks)] (DxvkContext* ctx) {
++            if (ctx->tryUploadBcImage(image, layers, offset, extent, packedFormat, blocks.data(), rowBytes))
++              return;
++            D3D11CpuImage decoded;
++            if (!DecodeD3D11BcImage(packedFormat, extent, blocks.data(), rowBytes, bytes, decoded)) {
++              Logger::err("WineHua: Failed to decompress BC UpdateSubresource data");
++              return;
++            }
++            ctx->updateBcCpuImage(image, layers, offset, extent, decoded.data.data(), decoded.rowPitch);
++          });
++          return;
++        }
++      }
++    }
+     if (snormRtEmulated || bcEmulated) {
+       D3D11CpuImage converted;
+       const bool convertedOk = snormRtEmulated
+diff --git a/src/d3d9/d3d9_device.cpp b/src/d3d9/d3d9_device.cpp
+--- a/src/d3d9/d3d9_device.cpp
++++ b/src/d3d9/d3d9_device.cpp
+@@ -4531,17 +4531,28 @@
+       const auto srcBlocks = util::computeBlockCount(srcTexLevelExtent, packed->blockSize);
+       const VkDeviceSize packedPitch = align(srcBlocks.width * packed->elementSize, 4);
+       const VkDeviceSize packedSlicePitch = packedPitch * srcBlocks.height;
+-      D3D11CpuImage decoded;
+-      if (!DecodeD3D11BcImage(pSrcTexture->GetFormatMapping().FormatColor,
+-            srcTexLevelExtent, srcSlice.mapPtr, packedPitch, packedSlicePitch, decoded))
+-        throw DxvkError("D3D9: BC upload decode failed");
+-      const uint32_t pixelBytes = formatInfo->elementSize;
+-      const VkDeviceSize bytes = VkDeviceSize(extent.width) * extent.height * extent.depth * pixelBytes;
+-      auto staging = AllocTempBuffer<false>(bytes);
+-      const auto* pixels = decoded.data.data() + srcOffset.z * decoded.slicePitch
+-        + srcOffset.y * decoded.rowPitch + srcOffset.x * pixelBytes;
+-      util::packImageData(staging.mapPtr, pixels, extent, pixelBytes,
+-                          decoded.rowPitch, decoded.slicePitch);
++      const VkFormat packedFormat = pSrcTexture->GetFormatMapping().FormatColor;
++      const auto* source = static_cast<const uint8_t*>(srcSlice.mapPtr)
++        + srcOffset.z * packedSlicePitch + (srcOffset.y / 4) * packedPitch
++        + (srcOffset.x / 4) * packed->elementSize;
++      const auto regionBlocks = util::computeBlockCount(extent, packed->blockSize);
++      const VkDeviceSize regionPitch = VkDeviceSize(regionBlocks.width) * packed->elementSize;
++      const VkDeviceSize regionBytes = regionPitch * regionBlocks.height;
++      const bool gpuUpload = DxvkContext::canUploadBcImage(packedFormat, image->info().format, extent);
++      std::vector<uint8_t> blocks;
++      D3D9BufferSlice staging;
++
++      if (gpuUpload) {
++        blocks.resize(regionBytes);
++        for (uint32_t row = 0; row < regionBlocks.height; row++)
++          std::memcpy(blocks.data() + row * regionPitch, source + row * packedPitch, regionPitch);
++      } else {
++        D3D11CpuImage decoded;
++        if (!DecodeD3D11BcImage(packedFormat, extent, source, packedPitch, packedSlicePitch, decoded))
++          throw DxvkError("D3D9: BC upload decode failed");
++        staging = AllocTempBuffer<false>(decoded.data.size());
++        std::memcpy(staging.mapPtr, decoded.data.data(), decoded.data.size());
++      }
+ 
+       // Preserve the original blocks across UpdateSurface/UpdateTexture and
+       // future locks. GPU images contain RGBA; reading them into BC would corrupt memory.
+@@ -4562,12 +4573,25 @@
+                 + (srcOffset.y / 4 + y) * packedPitch + srcOffset.x / 4 * packed->elementSize,
+               copyBlocks.width * packed->elementSize);
+       }
+-      EmitCs([cImage = image, cLayers = dstLayers, cOffset = dstOffset,
+-              cExtent = extent, cSlice = std::move(staging.slice)] (DxvkContext* ctx) {
+-        PublishD3D9ShadowUpload(ctx, cSlice.buffer(), cSlice.getSliceHandle());
+-        ctx->copyBufferToImage(cImage, cLayers, cOffset, cExtent,
+-                              cSlice.buffer(), cSlice.offset(), 1, 1);
+-      });
++      if (gpuUpload) {
++        EmitCs([image, dstLayers, dstOffset, packedFormat, extent, regionPitch,
++                regionBytes, blocks = std::move(blocks)] (DxvkContext* ctx) {
++          if (ctx->tryUploadBcImage(image, dstLayers, dstOffset, extent, packedFormat, blocks.data(), regionPitch))
++            return;
++          D3D11CpuImage decoded;
++          if (!DecodeD3D11BcImage(packedFormat, extent, blocks.data(), regionPitch,
++                                 regionBytes, decoded))
++            throw DxvkError("D3D9: BC upload decode failed");
++          ctx->updateBcCpuImage(image, dstLayers, dstOffset, extent, decoded.data.data(), decoded.rowPitch);
++        });
++      } else {
++        EmitCs([cImage = image, cLayers = dstLayers, cOffset = dstOffset,
++                cExtent = extent, cSlice = std::move(staging.slice)] (DxvkContext* ctx) {
++          PublishD3D9ShadowUpload(ctx, cSlice.buffer(), cSlice.getSliceHandle());
++          ctx->copyBufferToImage(cImage, cLayers, cOffset, cExtent,
++                                cSlice.buffer(), cSlice.offset(), 1, 1);
++        });
++      }
+       pDestTexture->SetNeedsReadback(DestSubresource, false);
+       return;
+     }
+diff --git a/src/dxvk/shaders/dxvk_decode_rgtc.comp b/src/dxvk/shaders/dxvk_decode_rgtc.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_decode_rgtc.comp
+@@ -0,0 +1,61 @@
++#version 450
++
++// Each invocation owns one 4x4 block. Four R8 or two RG8 texels
++// share each output word, so adjacent blocks never race on a store.
++layout(local_size_x = 8, local_size_y = 8) in;
++layout(set = 0, binding = 0, std430) readonly buffer Blocks { uint words[]; };
++layout(set = 0, binding = 1, std430) writeonly buffer Output { uint pixels[]; };
++layout(push_constant) uniform Params { uint width; uint height; uint mode; };
++
++uvec4 channelRows(uint offset, bool snorm) {
++    uint lo = words[offset], hi = words[offset + 1u];
++    int a = int(lo & 255u), b = int((lo >> 8) & 255u);
++    if (snorm) {
++        a = max(bitfieldExtract(int(lo), 0, 8), -127);
++        b = max(bitfieldExtract(int(lo), 8, 8), -127);
++    }
++    int bias = snorm ? 0 : 1; // Vendored Wine bcdec uses +1 for UNORM.
++    uint indices = (lo >> 16) | (hi << 16);
++    uint remaining = hi >> 16;
++    uvec4 rows = uvec4(0u);
++    for (uint y = 0u; y < 4u; ++y) {
++        uint packed = 0u;
++        for (uint x = 0u; x < 4u; ++x) {
++            int k = int(indices & 7u);
++            indices = (indices >> 3) | (remaining << 29);
++            remaining >>= 3;
++            int value;
++            if (k < 2) value = k == 0 ? a : b;
++            else if (a > b) value = ((8-k)*a + (k-1)*b + bias) / 7;
++            else if (k < 6) value = ((6-k)*a + (k-1)*b + bias) / 5;
++            else value = k == 6 ? (snorm ? -127 : 0) : (snorm ? 127 : 255);
++            packed |= (uint(value) & 255u) << (8u * x);
++        }
++        rows[y] = packed;
++    }
++    return rows;
++}
++
++void main() {
++    uvec2 block = gl_GlobalInvocationID.xy;
++    uint cols = width / 4u;
++    if (block.x >= cols || block.y >= height / 4u) return;
++    uint channels = mode & 3u;
++    bool snorm = (mode & 4u) != 0u;
++    uint src = (block.y * cols + block.x) * (2u * channels);
++    uvec4 red = channelRows(src, snorm);
++    uvec4 green;
++    if (channels == 2u) green = channelRows(src + 2u, snorm);
++    for (uint y = 0u; y < 4u; ++y) {
++        uint dst = ((4u * block.y + y) * cols + block.x) * channels;
++        if (channels == 1u) {
++            pixels[dst] = red[y];
++        } else {
++            uint r = red[y], g = green[y];
++            pixels[dst] = (r & 255u) | ((g & 255u) << 8) |
++                          ((r & 0xff00u) << 8) | ((g & 0xff00u) << 16);
++            pixels[dst + 1u] = ((r >> 16) & 255u) | ((g >> 8) & 0xff00u) |
++                               ((r >> 8) & 0xff0000u) | (g & 0xff000000u);
++        }
++    }
++}
+diff --git a/src/dxvk/shaders/dxvk_decode_bc6.comp b/src/dxvk/shaders/dxvk_decode_bc6.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_decode_bc6.comp
+@@ -0,0 +1,479 @@
++#version 450
++// SPDX-License-Identifier: Unlicense
++// BPTC endpoint layouts and shapeIndex assignments from Sergii Kudlai's bcdec.
++// One invocation decodes a 4x4 block. The output row pitch includes edge padding.
++layout(local_size_x=8,local_size_y=8) in;
++layout(binding=0,std430) readonly buffer Source { uvec4 blocks[]; };
++layout(binding=1,std430) writeonly buffer Destination { uint pixels[]; };
++layout(push_constant) uniform Geometry { uint width; uint height; uint formatFlags; };
++uvec4 blockBits;
++int cursor;
++int readBits(int count) {
++    int word = cursor >> 5, shift = cursor & 31;
++    uint value = blockBits[word] >> shift;
++    if (shift + count > 32) value |= blockBits[word + 1] << (32 - shift);
++    cursor += count;
++    return int(value & ((1u << count) - 1u));
++}
++uint pixelOffset(int texel) {
++    uvec2 xy = gl_GlobalInvocationID.xy * 4u + uvec2(texel & 3, texel >> 2);
++    return xy.y * width + xy.x;
++}
++int weight(int bits, int index) {
++    const int w2[4] = int[](0,21,43,64);
++    const int w3[8] = int[](0,9,18,27,37,46,55,64);
++    const int w4[16] = int[](0,4,9,13,17,21,26,30,34,38,43,47,51,55,60,64);
++    if (bits == 2) return w2[index];
++    if (bits == 3) return w3[index];
++    return w4[index];
++}
++const uvec2 partitionMap[32] = uvec2[](
++    uvec2(0x50505050u, 0x8001u), uvec2(0x40404040u, 0x8001u), uvec2(0x54545454u, 0x8001u),
++    uvec2(0x54505040u, 0x8001u), uvec2(0x50404000u, 0x8001u), uvec2(0x55545450u, 0x8001u),
++    uvec2(0x55545040u, 0x8001u), uvec2(0x54504000u, 0x8001u), uvec2(0x50400000u, 0x8001u),
++    uvec2(0x55555450u, 0x8001u), uvec2(0x55544000u, 0x8001u), uvec2(0x54400000u, 0x8001u),
++    uvec2(0x55555440u, 0x8001u), uvec2(0x55550000u, 0x8001u), uvec2(0x55555500u, 0x8001u),
++    uvec2(0x55000000u, 0x8001u), uvec2(0x55150100u, 0x8001u), uvec2(0x00004054u, 0x0005u),
++    uvec2(0x15010000u, 0x0101u), uvec2(0x00405054u, 0x0005u), uvec2(0x00004050u, 0x0005u),
++    uvec2(0x15050100u, 0x0101u), uvec2(0x05010000u, 0x0101u), uvec2(0x40505054u, 0x8001u),
++    uvec2(0x00404050u, 0x0005u), uvec2(0x05010100u, 0x0101u), uvec2(0x14141414u, 0x0005u),
++    uvec2(0x05141450u, 0x0005u), uvec2(0x01155440u, 0x0101u), uvec2(0x00555500u, 0x0101u),
++    uvec2(0x15014054u, 0x0005u), uvec2(0x05414150u, 0x0005u)
++);
++const ivec4 precisions[14]=ivec4[](
++    ivec4(10,5,5,5),
++    ivec4(7,6,6,6),
++    ivec4(11,5,4,4),
++    ivec4(11,4,5,4),
++    ivec4(11,4,4,5),
++    ivec4(9,5,5,5),
++    ivec4(8,6,5,5),
++    ivec4(8,5,6,5),
++    ivec4(8,5,5,6),
++    ivec4(6,6,6,6),
++    ivec4(10,10,10,10),
++    ivec4(11,9,9,9),
++    ivec4(12,8,8,8),
++    ivec4(16,4,4,4)
++);
++int unquantize(int v,int bits,bool signedFormat) {
++    if (!signedFormat) {
++        if (bits>=15 || v==0) return v;
++        return v==((1<<bits)-1) ? 65535 : ((v<<16)+32768)>>bits;
++    }
++    if (bits>=16 || v==0) return v;
++    int a=abs(v);
++    int result=a>=((1<<(bits-1))-1) ? 32767 : ((a<<15)+16384)>>(bits-1);
++    return v<0 ? -result : result;
++}
++uint toHalfBits(int v, bool signedFormat) {
++    if (!signedFormat) return uint(v*31)>>6;
++    uint magnitude=uint(abs(v)*31)>>5;
++    return (v<0 && magnitude!=0u ? 32768u : 0u) | magnitude;
++}
++void main() {
++    uvec2 block = gl_GlobalInvocationID.xy;
++    if (any(greaterThanEqual(block, uvec2(width, height) / 4u))) return;
++    blockBits = blocks[block.y * (width / 4u) + block.x];
++    cursor = 0;
++    int mode=readBits(2);
++    if (mode>1) mode |= readBits(3)<<2;
++    int shapeIndex=0;
++    ivec3 ep[4];
++    for (int e=0;e<4;e++) ep[e]=ivec3(0);
++    switch (mode) {
++        /* mode 1 */
++        case 0: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 75 bits (10.555, 10.555, 10.555) */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(5);        /* rx[4:0] */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(5);        /* gx[4:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(5);        /* bx[4:0] */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(5);        /* ry[4:0] */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(5);        /* rz[4:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 0;
++        } break;
++
++        /* mode 2 */
++        case 1: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 75 bits (7666, 7666, 7666) */
++            ep[2].g |= readBits(1) << 5;       /* gy[5]   */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[3].g |= readBits(1) << 5;       /* gz[5]   */
++            ep[0].r |= readBits(7);        /* rw[6:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[0].g |= readBits(7);        /* gw[6:0] */
++            ep[2].b |= readBits(1) << 5;       /* by[5]   */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[0].b |= readBits(7);        /* bw[6:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            ep[3].b |= readBits(1) << 5;       /* bz[5]   */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[1].r |= readBits(6);        /* rx[5:0] */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(6);        /* gx[5:0] */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(6);        /* bx[5:0] */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(6);        /* ry[5:0] */
++            ep[3].r |= readBits(6);        /* rz[5:0] */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 1;
++        } break;
++
++        /* mode 3 */
++        case 2: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (11.555, 11.444, 11.444) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(5);        /* rx[4:0] */
++            ep[0].r |= readBits(1) << 10;      /* rw[10]  */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(4);        /* gx[3:0] */
++            ep[0].g |= readBits(1) << 10;      /* gw[10]  */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(4);        /* bx[3:0] */
++            ep[0].b |= readBits(1) << 10;      /* bw[10]  */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(5);        /* ry[4:0] */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(5);        /* rz[4:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 2;
++        } break;
++
++        /* mode 4 */
++        case 6: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (11.444, 11.555, 11.444) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(4);        /* rx[3:0] */
++            ep[0].r |= readBits(1) << 10;      /* rw[10]  */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(5);        /* gx[4:0] */
++            ep[0].g |= readBits(1) << 10;      /* gw[10]  */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(4);        /* bx[3:0] */
++            ep[0].b |= readBits(1) << 10;      /* bw[10]  */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(4);        /* ry[3:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(4);        /* rz[3:0] */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 3;
++        } break;
++
++        /* mode 5 */
++        case 10: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (11.444, 11.444, 11.555) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(4);        /* rx[3:0] */
++            ep[0].r |= readBits(1) << 10;      /* rw[10]  */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(4);        /* gx[3:0] */
++            ep[0].g |= readBits(1) << 10;      /* gw[10]  */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(5);        /* bx[4:0] */
++            ep[0].b |= readBits(1) << 10;      /* bw[10]  */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(4);        /* ry[3:0] */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(4);        /* rz[3:0] */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 4;
++        } break;
++
++        /* mode 6 */
++        case 14: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (9555, 9555, 9555) */
++            ep[0].r |= readBits(9);        /* rw[8:0] */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[0].g |= readBits(9);        /* gw[8:0] */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[0].b |= readBits(9);        /* bw[8:0] */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[1].r |= readBits(5);        /* rx[4:0] */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(5);        /* gx[4:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].g |= readBits(4);        /* gx[3:0] */
++            ep[1].b |= readBits(5);        /* bx[4:0] */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(5);        /* ry[4:0] */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(5);        /* rz[4:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 5;
++        } break;
++
++        /* mode 7 */
++        case 18: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (8666, 8555, 8555) */
++            ep[0].r |= readBits(8);        /* rw[7:0] */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[0].g |= readBits(8);        /* gw[7:0] */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[0].b |= readBits(8);        /* bw[7:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[1].r |= readBits(6);        /* rx[5:0] */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(5);        /* gx[4:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(5);        /* bx[4:0] */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(6);        /* ry[5:0] */
++            ep[3].r |= readBits(6);        /* rz[5:0] */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 6;
++        } break;
++
++        /* mode 8 */
++        case 22: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (8555, 8666, 8555) */
++            ep[0].r |= readBits(8);        /* rw[7:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[0].g |= readBits(8);        /* gw[7:0] */
++            ep[2].g |= readBits(1) << 5;       /* gy[5]   */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[0].b |= readBits(8);        /* bw[7:0] */
++            ep[3].g |= readBits(1) << 5;       /* gz[5]   */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[1].r |= readBits(5);        /* rx[4:0] */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(6);        /* gx[5:0] */
++            ep[3].g |= readBits(4);        /* zx[3:0] */
++            ep[1].b |= readBits(5);        /* bx[4:0] */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(5);        /* ry[4:0] */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(5);        /* rz[4:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 7;
++        } break;
++
++        /* mode 9 */
++        case 26: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (8555, 8555, 8666) */
++            ep[0].r |= readBits(8);        /* rw[7:0] */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[0].g |= readBits(8);        /* gw[7:0] */
++            ep[2].b |= readBits(1) << 5;       /* by[5]   */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[0].b |= readBits(8);        /* bw[7:0] */
++            ep[3].b |= readBits(1) << 5;       /* bz[5]   */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[1].r |= readBits(5);        /* bw[4:0] */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(5);        /* gx[4:0] */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(6);        /* bx[5:0] */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(5);        /* ry[4:0] */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[3].r |= readBits(5);        /* rz[4:0] */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 8;
++        } break;
++
++        /* mode 10 */
++        case 30: {
++            /* Partitition indices: 46 bits
++               Partition: 5 bits
++               Color Endpoints: 72 bits (6666, 6666, 6666) */
++            ep[0].r |= readBits(6);        /* rw[5:0] */
++            ep[3].g |= readBits(1) << 4;       /* gz[4]   */
++            ep[3].b |= readBits(1);            /* bz[0]   */
++            ep[3].b |= readBits(1) << 1;       /* bz[1]   */
++            ep[2].b |= readBits(1) << 4;       /* by[4]   */
++            ep[0].g |= readBits(6);        /* gw[5:0] */
++            ep[2].g |= readBits(1) << 5;       /* gy[5]   */
++            ep[2].b |= readBits(1) << 5;       /* by[5]   */
++            ep[3].b |= readBits(1) << 2;       /* bz[2]   */
++            ep[2].g |= readBits(1) << 4;       /* gy[4]   */
++            ep[0].b |= readBits(6);        /* bw[5:0] */
++            ep[3].g |= readBits(1) << 5;       /* gz[5]   */
++            ep[3].b |= readBits(1) << 3;       /* bz[3]   */
++            ep[3].b |= readBits(1) << 5;       /* bz[5]   */
++            ep[3].b |= readBits(1) << 4;       /* bz[4]   */
++            ep[1].r |= readBits(6);        /* rx[5:0] */
++            ep[2].g |= readBits(4);        /* gy[3:0] */
++            ep[1].g |= readBits(6);        /* gx[5:0] */
++            ep[3].g |= readBits(4);        /* gz[3:0] */
++            ep[1].b |= readBits(6);        /* bx[5:0] */
++            ep[2].b |= readBits(4);        /* by[3:0] */
++            ep[2].r |= readBits(6);        /* ry[5:0] */
++            ep[3].r |= readBits(6);        /* rz[5:0] */
++            shapeIndex = readBits(5);    /* d[4:0]  */
++            mode = 9;
++        } break;
++
++        /* mode 11 */
++        case 3: {
++            /* Partitition indices: 63 bits
++               Partition: 0 bits
++               Color Endpoints: 60 bits (10.10, 10.10, 10.10) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(10);       /* rx[9:0] */
++            ep[1].g |= readBits(10);       /* gx[9:0] */
++            ep[1].b |= readBits(10);       /* bx[9:0] */
++            mode = 10;
++        } break;
++
++        /* mode 12 */
++        case 7: {
++            /* Partitition indices: 63 bits
++               Partition: 0 bits
++               Color Endpoints: 60 bits (11.9, 11.9, 11.9) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(9);        /* rx[8:0] */
++            ep[0].r |= readBits(1) << 10;      /* rw[10]  */
++            ep[1].g |= readBits(9);        /* gx[8:0] */
++            ep[0].g |= readBits(1) << 10;      /* gw[10]  */
++            ep[1].b |= readBits(9);        /* bx[8:0] */
++            ep[0].b |= readBits(1) << 10;      /* bw[10]  */
++            mode = 11;
++        } break;
++
++        /* mode 13 */
++        case 11: {
++            /* Partitition indices: 63 bits
++               Partition: 0 bits
++               Color Endpoints: 60 bits (12.8, 12.8, 12.8) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(8);        /* rx[7:0] */
++            ep[0].r |= int(bitfieldReverse(uint(readBits(2))) >> (32-2)) << 10;/* rx[10:11] */
++            ep[1].g |= readBits(8);        /* gx[7:0] */
++            ep[0].g |= int(bitfieldReverse(uint(readBits(2))) >> (32-2)) << 10;/* gx[10:11] */
++            ep[1].b |= readBits(8);        /* bx[7:0] */
++            ep[0].b |= int(bitfieldReverse(uint(readBits(2))) >> (32-2)) << 10;/* bx[10:11] */
++            mode = 12;
++        } break;
++
++        /* mode 14 */
++        case 15: {
++            /* Partitition indices: 63 bits
++               Partition: 0 bits
++               Color Endpoints: 60 bits (16.4, 16.4, 16.4) */
++            ep[0].r |= readBits(10);       /* rw[9:0] */
++            ep[0].g |= readBits(10);       /* gw[9:0] */
++            ep[0].b |= readBits(10);       /* bw[9:0] */
++            ep[1].r |= readBits(4);        /* rx[3:0] */
++            ep[0].r |= int(bitfieldReverse(uint(readBits(6))) >> (32-6)) << 10;/* rw[10:15] */
++            ep[1].g |= readBits(4);        /* gx[3:0] */
++            ep[0].g |= int(bitfieldReverse(uint(readBits(6))) >> (32-6)) << 10;/* gw[10:15] */
++            ep[1].b |= readBits(4);        /* bx[3:0] */
++            ep[0].b |= int(bitfieldReverse(uint(readBits(6))) >> (32-6)) << 10;/* bw[10:15] */
++            mode = 13;
++        } break;
++
++        default:
++            for (int t=0;t<16;t++) {
++                uint outPos=2u*pixelOffset(t);
++                pixels[outPos]=0u; pixels[outPos+1u]=0x3c000000u;
++            }
++            return;
++    }
++    bool signedFormat = formatFlags!=0u;
++    int subsets = mode>=10 ? 1 : 2;
++    ivec4 precisionBits=precisions[mode];
++    int bits=precisionBits.x;
++    if (signedFormat) ep[0]=bitfieldExtract(ep[0],0,bits);
++    for (int e=1;e<2*subsets;e++) {
++        for (int ch=0;ch<3;ch++) {
++            int v=ep[e][ch];
++            if ((mode!=9 && mode!=10) || signedFormat)
++                v=bitfieldExtract(v,0,precisionBits[1+ch]);
++            if (mode!=9 && mode!=10) {
++                v=(v+ep[0][ch])&((1<<bits)-1);
++                if (signedFormat) v=bitfieldExtract(v,0,bits);
++            }
++            ep[e][ch]=v;
++        }
++    }
++    for (int e=0;e<2*subsets;e++)
++        for (int ch=0;ch<3;ch++) ep[e][ch]=unquantize(ep[e][ch],bits,signedFormat);
++    uvec2 shape=subsets==1 ? uvec2(0,1) : partitionMap[shapeIndex];
++    int indexBits=subsets==1 ? 4 : 3;
++    for (int t=0;t<16;t++) {
++        int e=int((shape.x>>(2*t))&3u)*2;
++        int w=weight(indexBits,readBits(indexBits-int((shape.y>>t)&1u)));
++        ivec3 color=(ep[e]*(64-w)+ep[e+1]*w+32)>>6;
++        uint outPos=2u*pixelOffset(t);
++        pixels[outPos]=toHalfBits(color.r,signedFormat) | (toHalfBits(color.g,signedFormat)<<16);
++        pixels[outPos+1u]=toHalfBits(color.b,signedFormat) | 0x3c000000u;
++    }
++}
+diff --git a/src/dxvk/shaders/dxvk_decode_bc7.comp b/src/dxvk/shaders/dxvk_decode_bc7.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_decode_bc7.comp
+@@ -0,0 +1,132 @@
++#version 450
++// SPDX-License-Identifier: Unlicense
++// BPTC endpoint layouts and shapeIndex assignments from Sergii Kudlai's bcdec.
++// One invocation decodes a 4x4 block. The output row pitch includes edge padding.
++layout(local_size_x=8,local_size_y=8) in;
++layout(binding=0,std430) readonly buffer Source { uvec4 blocks[]; };
++layout(binding=1,std430) writeonly buffer Destination { uint pixels[]; };
++layout(push_constant) uniform Geometry { uint width; uint height; uint formatFlags; };
++uvec4 blockBits;
++int cursor;
++int readBits(int count) {
++    int word = cursor >> 5, shift = cursor & 31;
++    uint value = blockBits[word] >> shift;
++    if (shift + count > 32) value |= blockBits[word + 1] << (32 - shift);
++    cursor += count;
++    return int(value & ((1u << count) - 1u));
++}
++uint pixelOffset(int texel) {
++    uvec2 xy = gl_GlobalInvocationID.xy * 4u + uvec2(texel & 3, texel >> 2);
++    return xy.y * width + xy.x;
++}
++int weight(int bits, int index) {
++    const int w2[4] = int[](0,21,43,64);
++    const int w3[8] = int[](0,9,18,27,37,46,55,64);
++    const int w4[16] = int[](0,4,9,13,17,21,26,30,34,38,43,47,51,55,60,64);
++    if (bits == 2) return w2[index];
++    if (bits == 3) return w3[index];
++    return w4[index];
++}
++const uvec2 partitionMap[128] = uvec2[](
++    uvec2(0x50505050u, 0x8001u), uvec2(0x40404040u, 0x8001u), uvec2(0x54545454u, 0x8001u),
++    uvec2(0x54505040u, 0x8001u), uvec2(0x50404000u, 0x8001u), uvec2(0x55545450u, 0x8001u),
++    uvec2(0x55545040u, 0x8001u), uvec2(0x54504000u, 0x8001u), uvec2(0x50400000u, 0x8001u),
++    uvec2(0x55555450u, 0x8001u), uvec2(0x55544000u, 0x8001u), uvec2(0x54400000u, 0x8001u),
++    uvec2(0x55555440u, 0x8001u), uvec2(0x55550000u, 0x8001u), uvec2(0x55555500u, 0x8001u),
++    uvec2(0x55000000u, 0x8001u), uvec2(0x55150100u, 0x8001u), uvec2(0x00004054u, 0x0005u),
++    uvec2(0x15010000u, 0x0101u), uvec2(0x00405054u, 0x0005u), uvec2(0x00004050u, 0x0005u),
++    uvec2(0x15050100u, 0x0101u), uvec2(0x05010000u, 0x0101u), uvec2(0x40505054u, 0x8001u),
++    uvec2(0x00404050u, 0x0005u), uvec2(0x05010100u, 0x0101u), uvec2(0x14141414u, 0x0005u),
++    uvec2(0x05141450u, 0x0005u), uvec2(0x01155440u, 0x0101u), uvec2(0x00555500u, 0x0101u),
++    uvec2(0x15014054u, 0x0005u), uvec2(0x05414150u, 0x0005u), uvec2(0x44444444u, 0x8001u),
++    uvec2(0x55005500u, 0x8001u), uvec2(0x11441144u, 0x0041u), uvec2(0x05055050u, 0x0101u),
++    uvec2(0x05500550u, 0x0005u), uvec2(0x11114444u, 0x0101u), uvec2(0x41144114u, 0x8001u),
++    uvec2(0x44111144u, 0x8001u), uvec2(0x15055054u, 0x0005u), uvec2(0x01055040u, 0x0101u),
++    uvec2(0x05041050u, 0x0005u), uvec2(0x05455150u, 0x0005u), uvec2(0x14414114u, 0x0005u),
++    uvec2(0x50050550u, 0x8001u), uvec2(0x41411414u, 0x8001u), uvec2(0x00141400u, 0x0041u),
++    uvec2(0x00041504u, 0x0041u), uvec2(0x00105410u, 0x0005u), uvec2(0x10541000u, 0x0041u),
++    uvec2(0x04150400u, 0x0101u), uvec2(0x50410514u, 0x8001u), uvec2(0x41051450u, 0x8001u),
++    uvec2(0x05415014u, 0x0005u), uvec2(0x14054150u, 0x0005u), uvec2(0x41050514u, 0x8001u),
++    uvec2(0x41505014u, 0x8001u), uvec2(0x40011554u, 0x8001u), uvec2(0x54150140u, 0x8001u),
++    uvec2(0x50505500u, 0x8001u), uvec2(0x00555050u, 0x0005u), uvec2(0x15151010u, 0x0005u),
++    uvec2(0x54540404u, 0x8001u), uvec2(0xaa685050u, 0x8009u), uvec2(0x6a5a5040u, 0x0109u),
++    uvec2(0x5a5a4200u, 0x8101u), uvec2(0x5450a0a8u, 0x8009u), uvec2(0xa5a50000u, 0x8101u),
++    uvec2(0xa0a05050u, 0x8009u), uvec2(0x5555a0a0u, 0x8009u), uvec2(0x5a5a5050u, 0x8101u),
++    uvec2(0xaa550000u, 0x8101u), uvec2(0xaa555500u, 0x8101u), uvec2(0xaaaa5500u, 0x8041u),
++    uvec2(0x90909090u, 0x8041u), uvec2(0x94949494u, 0x8041u), uvec2(0xa4a4a4a4u, 0x8021u),
++    uvec2(0xa9a59450u, 0x8009u), uvec2(0x2a0a4250u, 0x0109u), uvec2(0xa5945040u, 0x8009u),
++    uvec2(0x0a425054u, 0x0109u), uvec2(0xa5a5a500u, 0x8101u), uvec2(0x55a0a0a0u, 0x8009u),
++    uvec2(0xa8a85454u, 0x8009u), uvec2(0x6a6a4040u, 0x0109u), uvec2(0xa4a45000u, 0x8041u),
++    uvec2(0x1a1a0500u, 0x0501u), uvec2(0x0050a4a4u, 0x0029u), uvec2(0xaaa59090u, 0x8101u),
++    uvec2(0x14696914u, 0x0141u), uvec2(0x69691400u, 0x0441u), uvec2(0xa08585a0u, 0x8101u),
++    uvec2(0xaa821414u, 0x8021u), uvec2(0x50a4a450u, 0x8401u), uvec2(0x6a5a0200u, 0x8101u),
++    uvec2(0xa9a58000u, 0x8101u), uvec2(0x5090a0a8u, 0x8009u), uvec2(0xa8a09050u, 0x8009u),
++    uvec2(0x24242424u, 0x0421u), uvec2(0x00aa5500u, 0x0441u), uvec2(0x24924924u, 0x0501u),
++    uvec2(0x24499224u, 0x0301u), uvec2(0x50a50a50u, 0x8401u), uvec2(0x500aa550u, 0x8041u),
++    uvec2(0xaaaa4444u, 0x8009u), uvec2(0x66660000u, 0x8101u), uvec2(0xa5a0a5a0u, 0x8021u),
++    uvec2(0x50a050a0u, 0x8009u), uvec2(0x69286928u, 0x8041u), uvec2(0x44aaaa44u, 0x8041u),
++    uvec2(0x66666600u, 0x8101u), uvec2(0xaa444444u, 0x8009u), uvec2(0x54a854a8u, 0x8009u),
++    uvec2(0x95809580u, 0x8021u), uvec2(0x96969600u, 0x8021u), uvec2(0xa85454a8u, 0x8021u),
++    uvec2(0x80959580u, 0x8101u), uvec2(0xaa141414u, 0x8021u), uvec2(0x96960000u, 0x8401u),
++    uvec2(0xaaaa1414u, 0x8021u), uvec2(0xa05050a0u, 0x8401u), uvec2(0xa0a5a5a0u, 0x8101u),
++    uvec2(0x96000000u, 0xa001u), uvec2(0x40804080u, 0x8009u), uvec2(0xa9a8a9a8u, 0x9001u),
++    uvec2(0xaaaaaa44u, 0x8009u), uvec2(0x2a4a5254u, 0x0109u)
++);
++void main() {
++    uvec2 block = gl_GlobalInvocationID.xy;
++    if (any(greaterThanEqual(block, uvec2(width, height) / 4u))) return;
++    blockBits = blocks[block.y * (width / 4u) + block.x];
++    cursor = 0;
++    int mode = findLSB(blockBits.x & 255u);
++    if (mode < 0) {
++        for (int t=0;t<16;t++) pixels[pixelOffset(t)] = 0u;
++        return;
++    }
++    cursor = mode + 1;
++    const int subsetCount[8] = int[](3,2,3,2,1,1,1,2);
++    const int rgbBits[8] = int[](4,6,5,7,5,7,7,5);
++    const int alphaBits[8] = int[](0,0,0,0,6,8,7,5);
++    int subsets = subsetCount[mode];
++    uvec2 shapeIndex = uvec2(0,1);
++    if (subsets > 1)
++        shapeIndex = partitionMap[(subsets-2)*64 + readBits(mode == 0 ? 4 : 6)];
++    int rotation = 0, selection = 0;
++    if (mode == 4 || mode == 5) rotation = readBits(2);
++    if (mode == 4) selection = readBits(1);
++    ivec4 endpoints[6];
++    for (int i=0;i<subsets*2;i++) endpoints[i] = ivec4(0);
++    for (int ch=0;ch<4;ch++) {
++        int bits = ch==3 ? alphaBits[mode] : rgbBits[mode];
++        if (bits>0) for (int e=0;e<subsets*2;e++) endpoints[e][ch]=readBits(bits);
++    }
++    int pbits = (0xcb >> mode) & 1;
++    int pbit=0;
++    for (int e=0;e<subsets*2;e++) {
++        if (pbits != 0) {
++            if (mode != 1 || (e&1)==0) pbit=readBits(1);
++            endpoints[e] = (endpoints[e] << 1) | ivec4(pbit);
++        }
++        for (int ch=0;ch<4;ch++) {
++            int bits = ch==3 ? alphaBits[mode] : rgbBits[mode];
++            if (bits==0) { endpoints[e][ch]=255; continue; }
++            int n=bits+pbits;
++            int val=endpoints[e][ch] << (8-n);
++            endpoints[e][ch]=val | (val >> n);
++        }
++    }
++    int primary = mode<=1 ? 3 : (mode==6 ? 4 : 2);
++    int secondary = mode==4 ? 3 : (mode==5 ? 2 : 0);
++    int weights[16];
++    for (int t=0;t<16;t++)
++        weights[t]=weight(primary,readBits(primary-int((shapeIndex.y>>t)&1u)));
++    for (int t=0;t<16;t++) {
++        int subset=int((shapeIndex.x>>(2*t))&3u);
++        int w0=weights[t], w1=w0;
++        if (secondary>0) w1=weight(secondary,readBits(secondary-int(t==0)));
++        ivec4 w=ivec4(w0,w0,w0,w1);
++        if (selection!=0) w=ivec4(w1,w1,w1,w0);
++        ivec4 rgba=(endpoints[2*subset]*(64-w)+endpoints[2*subset+1]*w+32)>>6;
++        if (rotation!=0) {int a=rgba.w; rgba.w=rgba[rotation-1]; rgba[rotation-1]=a;}
++        pixels[pixelOffset(t)]=uint(rgba.x | (rgba.y<<8) | (rgba.z<<16) | (rgba.w<<24));
++    }
++}

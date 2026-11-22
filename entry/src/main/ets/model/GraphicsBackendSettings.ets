@@ -32,6 +32,15 @@ export function graphicsBackendLabel(value: string): string {
   }
 }
 
+export function supportsGpuBcUpload(mode: string): boolean {
+  return mode === 'virgl' || mode === 'dxvk_1_10';
+}
+
+export function gpuBcUploadEnvironment(backend: string, enabled: boolean): string {
+  const supported = backend === 'wined3d' || backend === 'dxvk_legacy';
+  return 'WINEHUA_GPU_BC_UPLOAD=' + (enabled && supported ? '1' : '0');
+}
+
 /** Explicitly reset for every launch, including a game inheriting another renderer. */
 export function resolveZinkPresentationEnvironment(backend: string): string[] {
   return ['WINEHUA_ZINK_PRESENT=' + (backend === 'wined3d_zink' ? '1' : '0')];

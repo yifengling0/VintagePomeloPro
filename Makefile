@@ -191,6 +191,8 @@ DXVK_ARTIFACTS := \
 	$(BUILD_DIR)/dxvk/legacy/x86/bin/dxgi.dll
 endif
 DXVK_STAMP := $(STAMPS)/dxvk-legacy-$(WINE_ARCH)
+GPU_BC_BUILD_MODE := $(if $(filter 1,$(WINEHUA_BUILD_GPU_BC_UPLOAD)),gpu,default)
+DXVK_BC_PATCH := $(if $(filter gpu,$(GPU_BC_BUILD_MODE)),$(ROOT)/patches/experimental/gpu-bc-upload/dxvk-legacy.patch)
 DXVK_SOURCE_INPUTS := $(shell find $(ROOT)/thirdparty/dxvk/src -type f 2>/dev/null; find $(ROOT)/thirdparty/dxvk -maxdepth 1 -type f 2>/dev/null)
 # dxvk-modern 产物按 WINE_ARCH 分支:
 #   方案③ (arm64 原生 wine + FEX): x86 (32 位 i386 应用必需, arm64x 只能顶替
@@ -236,6 +238,7 @@ DEPS_SENTINEL   := $(BUILD_DIR)/sysroot-ext/usr/lib/$(WINE_ARCH)-linux-ohos/libf
 ZLIB_RUNTIME_SENTINEL := $(BUILD_DIR)/zlib-runtime/$(WINE_ARCH)/lib/libz.so
 WINE_SENTINEL   := $(WINE_BUILD_ROOT)/wine-native/tools/winegcc/winegcc
 GUEST_GFX_SENTINEL := $(BUILD_DIR)/guest_gfx/$(GUEST_ARCH)/winehua-guest-gfx.env
+GUEST_GFX_BUILD_IDENTITY := $(SCRIPTS)/guest_gfx_build_identity.py
 MESA_OHOS_PATCH_INPUTS := $(SCRIPTS)/apply_mesa_ohos_patches.sh $(wildcard $(ROOT)/patches/mesa/*.patch)
 GUEST_VULKAN_SENTINEL := $(BUILD_DIR)/guest_vulkan/$(GUEST_ARCH)/manifest.json
 WINE_MONO_SENTINEL := $(BUILD_DIR)/wine-mono/wine-mono-10.4.1-x86.msi
@@ -305,11 +308,17 @@ dxvk-d3d9:
 # 必须显式前置 wine stamp, 否则干净环境 (无残留 build/) 中 dxvk 先于 wine 构建
 # → 链接失败 (CI 实测 2026-09-04: "no such file ... libvulkan-1.a")。
 $(DXVK_STAMP): $(SCRIPTS)/build_dxvk.sh $(SCRIPTS)/build_dxvk_arm64x.sh $(SCRIPTS)/apply_dxvk_compat_patches.py $(wildcard $(ROOT)/patches/dxvk/*.patch) $(ROOT)/docs/graphics/texture-compat-runtime.lock.json $(DXVK_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
-	$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
-	@echo "=== dxvk legacy ($(WINE_ARCH)) ==="
-	bash $(SCRIPTS)/build_dxvk.sh
-	@if [ "$(WINE_ARCH)" = "aarch64" ]; then bash $(SCRIPTS)/build_dxvk_arm64x.sh; fi
-	touch $@
+	$(DXVK_BC_PATCH) $(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) FORCE | $(STAMPS)
+	@mode="$(GPU_BC_BUILD_MODE)"; \
+	if [ -f "$@" ] && [ "$$(cat "$@")" = "$$mode" ] && [ -z "$(filter-out FORCE,$?)" ]; then \
+	    echo "  [dxvk legacy] up to date"; \
+	else \
+	    echo "=== dxvk legacy ($(WINE_ARCH), $$mode) ==="; \
+	    : > "$@" && \
+	    bash $(SCRIPTS)/build_dxvk.sh && \
+	    { [ "$(WINE_ARCH)" != "aarch64" ] || bash $(SCRIPTS)/build_dxvk_arm64x.sh; } && \
+	    printf '%s\n' "$$mode" > "$@"; \
+	fi
 
 # DXVK is produced as a four-file side effect of the stamp recipe.  Give each
 # packaged DLL an explicit rule so a clean checkout can resolve the assemble
@@ -444,8 +453,11 @@ $(STAMPS)/deps: $(WINE_GECKO_MANIFEST) $(SCRIPTS)/build_deps.sh $(SCRIPTS)/build
 	$(ROOT)/smoke/venus_separated_sample.comp \
 	$(SCRIPTS)/env.sh FORCE | $(STAMPS)
 	@guest_gfx_ready=1; \
-	if [ "$(BUILD_GUEST_GFX)" = "1" ] && [ ! -f "$(GUEST_GFX_SENTINEL)" ]; then \
-	    guest_gfx_ready=0; \
+	if [ "$(BUILD_GUEST_GFX)" = "1" ]; then \
+	    if [ ! -f "$(GUEST_GFX_SENTINEL)" ] || ! python3 "$(GUEST_GFX_BUILD_IDENTITY)" verify-bundle \
+	        --install-root "$(dir $(GUEST_GFX_SENTINEL))" --arch "$(GUEST_ARCH)"; then \
+	        guest_gfx_ready=0; \
+	    fi; \
 	fi; \
 	guest_vulkan_ready=1; \
 	if [ "$(BUILD_GUEST_VULKAN)" = "1" ] && [ ! -f "$(GUEST_VULKAN_SENTINEL)" ]; then \

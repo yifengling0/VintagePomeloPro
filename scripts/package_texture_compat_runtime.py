@@ -36,7 +36,13 @@ def validate(runtime, icd, lock=None, candidate=None):
         record = manifest['runtimes'][profile]
         if record['commit'] != pin['commit']:
             raise ValueError('unpaired DXVK commit: ' + profile)
-        for member, digest in pin['files'].items():
+        files = dict(pin['files'])
+        if profile == 'legacy' and 'gpuBcUpload' in record:
+            variant = pin.get('gpuBcUpload')
+            if not variant or record['gpuBcUpload'] != variant['patch']:
+                raise ValueError('unpaired Legacy DXVK GPU BC overlay')
+            files.update(variant['files'])
+        for member, digest in files.items():
             arch, name = member.split('/')
             if candidate is not None:
                 from source_build_contract import validate_member

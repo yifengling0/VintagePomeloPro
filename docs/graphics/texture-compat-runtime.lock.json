@@ -121,7 +121,25 @@
       "patchedSourceSha256": "b309efb40cadb2aa93f2eefd6fdb661f2627ecdd69a07d1e36881db417361362",
       "qualification": "host-validated-device-pending",
       "experimentalD3D9Qualification": "opt-in only; programmable/fixed-function and four-format three-mip uploads sampled correctly; EVENT fallback and mip/backing fixes reach real Heaven ship/dragon scenes without observed invalid-call/CS errors; full benchmark, product routing, SWVP/vertex blend and long-session correctness pending",
-      "backbufferQualification": "Mini PAL4 windowed DISCARD/one-backbuffer verified with rebuilt PE32 DLL and no configuration override; title/load/menu/resume/original-entry re-entry sampled; other games/fullscreen/long-session pending"
+      "backbufferQualification": "Mini PAL4 windowed DISCARD/one-backbuffer verified with rebuilt PE32 DLL and no configuration override; title/load/menu/resume/original-entry re-entry sampled; other games/fullscreen/long-session pending",
+      "gpuBcUpload": {
+        "patch": {
+          "path": "patches/experimental/gpu-bc-upload/dxvk-legacy.patch",
+          "sha256": "224c9d331fd5bb99a8d656c124a89a97bd77adf9be36b3f91a50116fa1323b5d"
+        },
+        "mesaPatch": {
+          "path": "patches/experimental/gpu-bc-upload/mesa.patch",
+          "sha256": "01829868aefada671ffbf80f74ec98c71448cbba08d257efc1e65e08d5b42ffb"
+        },
+        "files": {
+          "x86/d3d11.dll": "a1ba598c2d782b9aaebd392f81cdad1e112839e46c02412d5b578b865fc22dd5",
+          "x86/dxgi.dll": "ee1c4b98f66b1b94dedf1508cd12a47922058e759d873406f2175eeb7e17d072",
+          "arm64x/d3d11.dll": "26ef2b5351d428a9264795e82a2ba12072bb7225fc2157700692ee39e1126c3e",
+          "x64/d3d11.dll": "26ef2b5351d428a9264795e82a2ba12072bb7225fc2157700692ee39e1126c3e",
+          "arm64x/dxgi.dll": "b750416695909514fd0c82835715e543ac8882c65b4ca49d2791311e8cf84f92",
+          "x64/dxgi.dll": "b750416695909514fd0c82835715e543ac8882c65b4ca49d2791311e8cf84f92"
+        }
+      }
     },
     "modern-2.6": {
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
@@ -235,6 +253,10 @@
       {
         "path": "patches/mesa/0028-venus-forward-frame-generation-scene.patch",
         "sha256": "24d75af56c188076f868c126c00371ddd1f1af368f9096901855a2c537189811"
+      },
+      {
+        "path": "patches/mesa/0029-fast-s3tc-block-unpack.patch",
+        "sha256": "15cd525f74d5eca4bf2ae8772d574f9ffa9a1ad01a74d860835355a364e05825"
       }
     ]
   }

@@ -56,6 +56,9 @@ def load_lock():
         patches = [row for rows in source['managed_patches'].values() for row in rows]
         patches += texture['venus']['patches']
         patches += texture['runtimes']['legacy']['patches']
+        gpu_bc = texture['runtimes']['legacy'].get('gpuBcUpload')
+        if gpu_bc:
+            patches += [gpu_bc['patch'], gpu_bc['mesaPatch']]
         for row in patches:
             data = (ROOT / row['path']).read_bytes()
             # Historical pins used raw bytes; newer overlays normalize LF.
@@ -88,6 +91,15 @@ def verify_graphics(open_member, manifest, graphics):
         guest = runtime.read('bin/guest_vulkan/lib/libvulkan_virtio.so')
         validate(runtime, guest, texture)
         dxvk = json.loads(runtime.read('dxvk/manifest.json'))
+        gpu_bc = texture['runtimes']['legacy'].get('gpuBcUpload')
+        if graphics.get('gpuBcUpload'):
+            with open_member(RAW + 'gpu-bc-upload.flag') as flag:
+                if flag.read() != b'1':
+                    raise ValueError('Invalid GPU BC runtime capability marker')
+            mesa = json.loads(runtime.read('bin/guest_gfx/guest-gfx-build.json'))
+            if (dxvk['runtimes']['legacy'].get('gpuBcUpload') != gpu_bc['patch'] or
+                    mesa['mesaSource'].get('gpuBcUpload') != gpu_bc['mesaPatch']):
+                raise ValueError('Unpaired GPU BC Mesa and Legacy DXVK build')
     with open_member('libs/arm64-v8a/libvulkan_virtio.so') as stream:
         if elf_identity(stream.read()) != elf_identity(guest):
             raise ValueError('Unpaired top-level and nested graphics ICD')

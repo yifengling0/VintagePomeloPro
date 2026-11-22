@@ -786,6 +786,14 @@ EOF
         cp "$dxvk_arm64x/bin/dxgi.dll" "$wine_data/dxvk/legacy/x64/dxgi.dll"
         copy_arm64x_cxx_runtime "$wine_data/dxvk/legacy/x64"
     fi
+    if [ "${WINEHUA_BUILD_GPU_BC_UPLOAD:-0}" != "1" ]; then
+        local legacy_dll
+        for legacy_dll in "$wine_data"/dxvk/legacy/*/*.dll; do
+            if LC_ALL=C grep -aq 'WINEHUA_GPU_BC_UPLOAD' "$legacy_dll"; then
+                err "Default assembly found an experimental BC decoder in $legacy_dll; rebuild Legacy DXVK"
+            fi
+        done
+    fi
     local dxvk_modern_root="$DXVK_MODERN_BUILD_ROOT"
     [ -f "$dxvk_modern_root/x86/bin/d3d11.dll" ] || err "DXVK Modern x86 d3d11.dll missing: $dxvk_modern_root/x86/bin/d3d11.dll"
     [ -f "$dxvk_modern_root/x86/bin/dxgi.dll" ] || err "DXVK Modern x86 dxgi.dll missing: $dxvk_modern_root/x86/bin/dxgi.dll"
@@ -910,7 +918,7 @@ EOF
 }
 EOF
     python3 - "$wine_data/dxvk/manifest.json" "$ROOT/docs/graphics/texture-compat-runtime.lock.json" <<'PYDXVK'
-import hashlib, json, pathlib, sys
+import hashlib, json, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 manifest = json.loads(path.read_text())
 legacy_pin = json.loads(pathlib.Path(sys.argv[2]).read_text())['runtimes']['legacy']
@@ -919,6 +927,8 @@ if legacy_pin.get('patches'):
     manifest['runtimes']['legacy']['effectiveSourceSha256'] = legacy_pin['patchedSourceSha256']
 if 'qualification' in legacy_pin:
     manifest['runtimes']['legacy']['textureCompatibility'] = legacy_pin['qualification']
+if os.environ.get('WINEHUA_BUILD_GPU_BC_UPLOAD') == '1':
+    manifest['runtimes']['legacy']['gpuBcUpload'] = legacy_pin['gpuBcUpload']['patch']
 for profile, runtime in manifest['runtimes'].items():
     for architecture in ('x86', 'x64', 'arm64x'):
         directory = path.parent / profile / architecture
@@ -1035,6 +1045,10 @@ HKLM,%FontSubStr%,"Lucida Console",,"Noto Sans Mono"' "$wine_data/share/wine/win
 
     # guest GPU 库 (Mesa/VirGL, 供 GraphicsBroker 注入到 Wine LD_LIBRARY_PATH)
     if [ -d "$BUILD_DIR/guest_gfx/$guest_arch/lib" ]; then
+        if [ "${BUILD_GUEST_GFX:-0}" = "1" ]; then
+            python3 "$SCRIPT_DIR/guest_gfx_build_identity.py" verify-bundle \
+                --install-root "$BUILD_DIR/guest_gfx/$guest_arch" --arch "$guest_arch"
+        fi
         mkdir -p "$wine_data/bin/guest_gfx"
         cp -a "$BUILD_DIR/guest_gfx/$guest_arch/"* "$wine_data/bin/guest_gfx/"
         log "  guest_gfx ($guest_arch): $(ls "$wine_data/bin/guest_gfx/lib"/*.so* 2>/dev/null | wc -l) .so files"
@@ -1191,6 +1205,21 @@ XKB_KEYMAP
     # -- 3. 打包 zip → rawfile (不带 wine-data/ 前缀) --
     local rawfile_dir="$WINEHUA/entry/src/main/resources/rawfile"
     mkdir -p "$rawfile_dir"
+    local gpu_bc_flag="$rawfile_dir/gpu-bc-upload.flag"
+    rm -f "$gpu_bc_flag"
+    if [ "${WINEHUA_BUILD_GPU_BC_UPLOAD:-0}" = "1" ] && [ "$WINE_ARCH" = aarch64 ]; then
+        python3 "$SCRIPT_DIR/guest_gfx_build_identity.py" verify-bundle \
+            --install-root "$BUILD_DIR/guest_gfx/$guest_arch" --arch "$guest_arch"
+        local gpu_bc_arch gpu_bc_dll
+        for gpu_bc_arch in x86 arm64x x64; do
+            for gpu_bc_dll in d3d11.dll dxgi.dll; do
+                LC_ALL=C grep -aq 'WINEHUA_GPU_BC_UPLOAD' \
+                    "$wine_data/dxvk/legacy/$gpu_bc_arch/$gpu_bc_dll" ||
+                    err "GPU BC build requires the experimental Legacy DXVK $gpu_bc_arch/$gpu_bc_dll"
+            done
+        done
+        printf '1' > "$gpu_bc_flag"
+    fi
     local zip_name="wine-data.zip"
     cd "$wine_data"
     rm -f "$STAGING_DIR/$zip_name"

@@ -1595,5 +1595,14 @@
       "sha256": "9b34a2770db6bd7f8174794db45ca88aa726bf2700e9da0f10bb03842184461f"
     },
     "previousLibrarySha256": "5b0a2c3266edaf244176e368cea557aebe551ad01e70346bebcda10f9fdd85d2"
+  },
+  "gpuBcUploadLibraries": {
+    "libs/arm64-v8a/kms_swrast_dri.so": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f",
+    "libs/arm64-v8a/libEGL.so": "28892e8e4d7c4b408790d0df924be06fb02055db385951537888f0a10b1e1e68",
+    "libs/arm64-v8a/libEGL.so.1": "28892e8e4d7c4b408790d0df924be06fb02055db385951537888f0a10b1e1e68",
+    "libs/arm64-v8a/libgallium-25.0.1.so": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f",
+    "libs/arm64-v8a/swrast_dri.so": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f",
+    "libs/arm64-v8a/virtio_gpu_dri.so": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f",
+    "libs/arm64-v8a/zink_dri.so": "f625c49dd15304a6d78c1ae8ac69805edeb0779876926ecc9f74464cb28ce19f"
   }
 }

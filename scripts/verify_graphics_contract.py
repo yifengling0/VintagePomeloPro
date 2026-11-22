@@ -49,7 +49,7 @@ for engine,rows in lock['managed_patches'].items():
         check(actual==names,engine+' overlay order/registration')
     elif engine=='mesa':
         check(sorted(str(x.relative_to(R)) for x in (R/'patches/mesa').glob('*.patch'))==names,'Mesa overlay inventory')
-        actual=re.findall(r'\$SCRIPT_DIR/\.\./(patches/[^"\s]+\.patch)',read('scripts/apply_mesa_ohos_patches.sh'))
+        actual=re.findall(r'\$SCRIPT_DIR/\.\./(patches/mesa/[^"\s]+\.patch)',read('scripts/apply_mesa_ohos_patches.sh'))
         check(actual==lock['mesa_production_overlays'],'Mesa production overlay order/registration')
         check(set(actual)<=set(names),'Mesa production overlay inventory')
     else:

@@ -95,6 +95,7 @@ export class AppSettingsStore {
   private libraryPath: string = '';
   private renderMode: string = 'dxvk_1_10';
   private dxvkDepthD32: boolean = false;
+  private gpuBcUploadBuilt: boolean = false;
 
   static getInstance(): AppSettingsStore {
     if (!AppSettingsStore.instance) AppSettingsStore.instance = new AppSettingsStore();
@@ -104,6 +105,12 @@ export class AppSettingsStore {
   async initialize(context: common.UIAbilityContext): Promise<void> {
     if (this.store) return;
     this.store = await preferences.getPreferences(context, STORE_NAME);
+    try {
+      const marker = context.resourceManager.getRawFileContentSync('gpu-bc-upload.flag');
+      this.gpuBcUploadBuilt = marker.length === 1 && marker[0] === 49;
+    } catch (_) {
+      this.gpuBcUploadBuilt = false;
+    }
     this.loadGlobal();
     await this.applyPlatformDefaults();
     this.loadApps();
@@ -404,6 +411,7 @@ export class AppSettingsStore {
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
       graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+      gpuBcUpload: value.gpuBcUpload === true,
       gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),
       gameModeSettings: value.gameModeSettings ? normalizeGameModeSettings(value.gameModeSettings) : undefined,
       dxvkFloatControls: value.dxvkFloatControls !== false,
@@ -421,6 +429,10 @@ export class AppSettingsStore {
 
   getGlobalSettings(): GlobalSettings {
     return this.globalSettings;
+  }
+
+  hasGpuBcUpload(): boolean {
+    return this.gpuBcUploadBuilt;
   }
 
   async saveGlobalSettings(value: GlobalSettings): Promise<void> {

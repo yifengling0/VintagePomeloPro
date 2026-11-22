@@ -20,14 +20,21 @@ with ZipFile(args.hap) as hap:
     manifest = json.loads(hap.read(RAW + 'wine-runtime-manifest.json'))
     libraries = {n: hap.read(n) for n in (
         'libs/arm64-v8a/libvulkan_virtio.so', 'libs/arm64-v8a/libvirglrenderer.so.1')}
+    if lock.get('gpuBcUpload'):
+        libraries[RAW + 'gpu-bc-upload.flag'] = hap.read(RAW + 'gpu-bc-upload.flag')
     with ZipFile(io.BytesIO(hap.read(RAW + 'wine-data.zip'))) as runtime:
         names = {'dxvk/manifest.json', 'bin/guest_vulkan/manifest.json',
                  'bin/guest_vulkan/lib/libvulkan_virtio.so'}
+        if lock.get('gpuBcUpload'):
+            names.add('bin/guest_gfx/guest-gfx-build.json')
         names |= {'dxvk/' + profile + '/' + n
                   for profile, pin in texture['runtimes'].items() for n in pin['files']}
         baseline = {n: runtime.read(n) for n in names}
 
-for case in ('valid', 'legacy', 'modern', 'guest', 'top-guest', 'host', 'qualification', 'lock'):
+cases = ('valid', 'legacy', 'modern', 'guest', 'top-guest', 'host', 'qualification', 'lock')
+if lock.get('gpuBcUpload'):
+    cases += ('gpu-bc-flag', 'gpu-bc-mesa')
+for case in cases:
     nested = dict(baseline)
     data = dict(libraries)
     meta = copy.deepcopy(manifest)
@@ -45,6 +52,13 @@ for case in ('valid', 'legacy', 'modern', 'guest', 'top-guest', 'host', 'qualifi
         meta['graphicsSync']['qualification'] = 'device-tested'
     if case == 'lock':
         meta['graphicsSync']['textureLockSha256'] = '0' * 64
+    if case == 'gpu-bc-flag':
+        data[RAW + 'gpu-bc-upload.flag'] = b'0'
+    if case == 'gpu-bc-mesa':
+        name = 'bin/guest_gfx/guest-gfx-build.json'
+        mesa = json.loads(nested[name])
+        del mesa['mesaSource']['gpuBcUpload']
+        nested[name] = json.dumps(mesa).encode()
     buffer = io.BytesIO()
     with ZipFile(buffer, 'w') as runtime:
         for name, value in nested.items():

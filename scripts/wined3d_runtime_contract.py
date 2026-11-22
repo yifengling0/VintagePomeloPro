@@ -66,6 +66,8 @@ def validate_module(data, arch):
         raise ValueError(f'{arch}: missing opt-in dynamic buffer policy')
     if b'NtAlertThreadByThreadId' in data or b'NtWaitForAlertByThreadId' in data:
         raise ValueError(f'{arch}: obsolete thread-ID command queue wake backend')
+    if b'%s = %s.w;' not in data or b'%s = ffp_varying_specular.w;' in data:
+        raise ValueError(f'{arch}: missing WineD3D fix: legacy specular-alpha fog')
 
 
 def validate_runtime(record, read):

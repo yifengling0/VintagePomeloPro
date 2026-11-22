@@ -30,7 +30,9 @@ import {
   resolveFexCompatEnv,
   resolveWinePresentationMode
 } from '../model/AppModels';
-import { resolveAppOpenGLEnvironment, resolveZinkPresentationEnvironment } from '../model/GraphicsBackendSettings';
+import { gpuBcUploadEnvironment, resolveAppOpenGLEnvironment,
+  resolveGraphicsBackend, resolveZinkPresentationEnvironment,
+  supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
 import { WineEngineService } from './WineEngineService';
 import { WineWindowManager } from './WineWindowManager';
@@ -377,6 +379,11 @@ export class AppSessionService {
     if (!app.steam) {
       envOverrides.push(...resolveAppOpenGLEnvironment(appSettings.graphicsBackend ?? 'default'));
     }
+    envOverrides.push(gpuBcUploadEnvironment(hostGraphicsBackend,
+      AppSettingsStore.getInstance().hasGpuBcUpload() && appSettings.gpuBcUpload === true &&
+      app.launchTarget.kind === LaunchKind.WINE_EXE && !app.steam &&
+      supportsGpuBcUpload(resolveGraphicsBackend(AppSettingsStore.getInstance().getRenderMode(),
+        appSettings.graphicsBackend ?? 'default'))));
     if (appSettings.dxvkFloatControls === false) {
       const documents = `${wineDriveCForContainer(DEFAULT_GAME_CONTAINER_ID)}/users/steamuser/Documents`;
       try {

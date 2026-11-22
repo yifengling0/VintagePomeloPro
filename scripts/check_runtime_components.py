@@ -672,8 +672,16 @@ def validate_hap(path: Path, source_manifest=None) -> RuntimeInfo:
                               'HAP WineD3D graphics contract')
                 try:
                     validate_texture_runtime(payload, hap.read('libs/arm64-v8a/libvulkan_virtio.so'), candidate=candidate)
-                    validate_core(hap.read, candidate=candidate)
+                    gpu_bc_enabled = 'resources/rawfile/gpu-bc-upload.flag' in hap.names
                     dxvk = json.loads(payload.read('dxvk/manifest.json'))
+                    mesa_identity = 'bin/guest_gfx/guest-gfx-build.json'
+                    mesa = json.loads(payload.read(mesa_identity)) if mesa_identity in payload.names else {}
+                    if gpu_bc_enabled != ('gpuBcUpload' in dxvk['runtimes']['legacy']) or \
+                            gpu_bc_enabled != ('gpuBcUpload' in mesa.get('mesaSource', {})):
+                        raise ValueError('Unpaired GPU BC runtime capability')
+                    if gpu_bc_enabled and hap.read('resources/rawfile/gpu-bc-upload.flag') != b'1':
+                        raise ValueError('Invalid GPU BC runtime capability marker')
+                    validate_core(hap.read, candidate=candidate, gpu_bc_upload=gpu_bc_enabled)
                     require_equal(dxvk['venusRuntime']['hostVirglrendererSha256'],
                                   candidate['libraries']['libs/arm64-v8a/libvirglrenderer.so.1']['sha256']
                                   if candidate else hashlib.sha256(hap.read('libs/arm64-v8a/libvirglrenderer.so.1')).hexdigest(),

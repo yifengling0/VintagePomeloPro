@@ -32,7 +32,7 @@ def stack_applied(source, patches):
     return True
 
 
-def apply(source=None, verify_only=False):
+def apply(source=None, verify_only=False, gpu_bc_upload=False):
     source = Path(source or ROOT / 'thirdparty/dxvk').resolve(strict=True)
     pin = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())['runtimes']['legacy']
     patches = [ROOT / row['path'] for row in pin.get('patches', [])]
@@ -40,25 +40,35 @@ def apply(source=None, verify_only=False):
     for row, patch in zip(pin.get('patches', []), patches):
         if hashlib.sha256(patch.read_bytes().replace(b'\r\n', b'\n')).hexdigest() != row['sha256']:
             raise ValueError('DXVK overlay digest mismatch: ' + row['path'])
-    if stack_applied(source, patches):
-        return pin.get('patchedSourceSha256', pin['sourceSha256'])
-    for row in pin.get('patches', []):
-        patch = ROOT / row['path']
-        if hashlib.sha256(patch.read_bytes().replace(b'\r\n', b'\n')).hexdigest() != row['sha256']:
-            raise ValueError('DXVK overlay digest mismatch: ' + row['path'])
-        command = ['git', '-c', 'safe.directory=' + str(source), '-C', str(source), 'apply']
-        if subprocess.run(command + ['--reverse', '--check', str(patch)], capture_output=True).returncode == 0:
-            continue
+    command = ['git', '-c', 'safe.directory=' + str(source), '-C', str(source), 'apply']
+    experimental = ROOT / 'patches/experimental/gpu-bc-upload/dxvk-legacy.patch'
+    if not gpu_bc_upload and (source / 'src/dxvk/dxvk_meta_bc.cpp').exists():
         if verify_only:
-            raise ValueError('DXVK overlay missing: ' + row['path'])
-        subprocess.run(command + ['--check', str(patch)], check=True, capture_output=True)
-        subprocess.run(command + [str(patch)], check=True, capture_output=True)
+            raise ValueError('Experimental BC overlay is present in the default DXVK source')
+        # Reuse the incremental tree without retaining the experimental code.
+        subprocess.run(command + ['--reverse', '--check', str(experimental)], check=True)
+        subprocess.run(command + ['--reverse', str(experimental)], check=True)
+    if not (gpu_bc_upload and stack_applied(source, [*patches, experimental])):
+        pending = [] if stack_applied(source, patches) else patches
+        if gpu_bc_upload:
+            pending = [*pending, experimental]
+        for patch in pending:
+            if subprocess.run(command + ['--reverse', '--check', str(patch)], capture_output=True).returncode == 0:
+                continue
+            if verify_only:
+                raise ValueError('DXVK overlay missing: ' + str(patch.relative_to(ROOT)))
+            subprocess.run(command + ['--check', str(patch)], check=True)
+            subprocess.run(command + [str(patch)], check=True)
+    if gpu_bc_upload:
+        from dxvk_runtime_contract import source_digest
+        return source_digest(source / 'src')
     return pin.get('patchedSourceSha256', pin['sourceSha256'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path)
     parser.add_argument('--verify-only', action='store_true')
+    parser.add_argument('--gpu-bc-upload', action='store_true')
     args = parser.parse_args()
-    apply(args.source, args.verify_only)
+    apply(args.source, args.verify_only, args.gpu_bc_upload)
     print('Legacy DXVK managed overlays ready')

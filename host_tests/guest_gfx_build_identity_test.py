@@ -67,6 +67,32 @@ class GuestGraphicsIdentityTest(unittest.TestCase):
         (self.install / 'lib/dri/zink_dri.so').write_bytes(self.library.read_bytes())
         self.assertNotEqual(self.cli('verify-zink').returncode, 0)
 
+    def test_virgl_bundle_checks_driver_aliases(self):
+        self.record(['virgl', 'softpipe'])
+        manifest = self.install / 'share/winehua/guest-gfx-build.json'
+        env_path = self.install / 'winehua-guest-gfx.env'
+        env_path.write_text('GALLIUM_DRIVER=virpipe\n')
+        (self.install / manifest.name).write_bytes(manifest.read_bytes())
+        result = self.cli('verify-bundle')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('virgl, zink', result.stderr)
+        self.record(['zink', 'virgl', 'softpipe'])
+        (self.install / manifest.name).write_bytes(manifest.read_bytes())
+        drivers = self.install / 'lib/dri'
+        drivers.mkdir()
+        for name in ('virtio_gpu_dri.so', 'swrast_dri.so', 'kms_swrast_dri.so'):
+            (drivers / name).write_bytes(self.library.read_bytes())
+        result = self.cli('verify-bundle')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('zink_dri.so', result.stderr)
+        (drivers / 'zink_dri.so').write_bytes(self.library.read_bytes())
+        result = self.cli('verify-bundle')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        (drivers / 'virtio_gpu_dri.so').write_bytes(b'old Gallium build')
+        result = self.cli('verify-bundle')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('driver alias differs', result.stderr)
+
     def test_recorded_zink_artifact_accepted(self):
         self.record(['zink', 'virgl', 'softpipe'])
         result = self.cli('verify-zink')

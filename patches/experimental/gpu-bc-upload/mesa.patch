@@ -1,0 +1,518 @@
+diff --git a/src/mesa/state_tracker/st_texcompress_compute.c b/src/mesa/state_tracker/st_texcompress_compute.c
+--- a/src/mesa/state_tracker/st_texcompress_compute.c
++++ b/src/mesa/state_tracker/st_texcompress_compute.c
+@@ -43,6 +43,10 @@
+ #include "state_tracker/st_texcompress_compute.h"
+ #include "state_tracker/st_texture.h"
+ 
++#include "nir/nir_builder.h"
++#include "state_tracker/st_nir.h"
++#include "state_tracker/st_pbo.h"
++#include "util/u_debug.h"
+ #include "util/u_hash_table.h"
+ #include "util/u_string.h"
+ 
+@@ -783,8 +787,8 @@
+       }
+    }
+ 
+-   _mesa_hash_table_destroy(st->texcompress_compute.astc_partition_tables,
+-                            NULL);
++   if (st->texcompress_compute.astc_partition_tables)
++      _mesa_hash_table_destroy(st->texcompress_compute.astc_partition_tables, NULL);
+ }
+ 
+ void
+@@ -794,6 +798,12 @@
+     * are automatically destroyed when the context is destroyed (via
+     * _mesa_free_context_data -> ... -> free_shader_program_data_cb).
+     */
++   for (unsigned i = 0; i < ARRAY_SIZE(st->texcompress_compute.bc_upload); ++i) {
++      if (st->texcompress_compute.bc_upload_fs[i])
++         st->pipe->delete_fs_state(st->pipe, st->texcompress_compute.bc_upload_fs[i]);
++      if (st->texcompress_compute.bc_upload[i])
++         st->pipe->delete_compute_state(st->pipe, st->texcompress_compute.bc_upload[i]);
++   }
+    free(st->texcompress_compute.progs);
+ 
+    /* Destroy the SSBO used by the BC1 shader program. */
+@@ -850,3 +860,217 @@
+ 
+    return success;
+ }
++
++/* Build the upload shader inside Gallium. The active game's GL profile and
++ * ownership of GLSL program variants do not constrain these internal shaders. */
++static nir_def *
++bc_expand565(nir_builder *b, nir_def *word)
++{
++   nir_def *rgb = nir_vec3(b, nir_iand_imm(b, nir_ushr_imm(b, word, 11), 31),
++                              nir_iand_imm(b, nir_ushr_imm(b, word, 5), 63),
++                              nir_iand_imm(b, word, 31));
++   return nir_ior(b, nir_ishl(b, rgb, nir_imm_ivec3(b, 3, 2, 3)),
++                     nir_ushr(b, rgb, nir_imm_ivec3(b, 2, 4, 2)));
++}
++
++nir_def *
++st_nir_decode_s3tc(nir_builder *b, unsigned kind, nir_def *words, nir_def *lane)
++{
++   nir_def *zero = nir_imm_int(b, 0);
++   nir_def *endpoints = nir_channel(b, words, kind >= 2 ? 2 : 0);
++   nir_def *indices = nir_channel(b, words, kind >= 2 ? 3 : 1);
++   nir_def *i = nir_iadd(b, nir_channel(b, lane, 0),
++                             nir_imul_imm(b, nir_channel(b, lane, 1), 4));
++   nir_def *code = nir_iand_imm(b, nir_ushr(b, indices, nir_imul_imm(b, i, 2)), 3);
++   nir_def *first = nir_iand_imm(b, endpoints, 65535);
++   nir_def *second = nir_ushr_imm(b, endpoints, 16);
++   nir_def *a = bc_expand565(b, first), *c = bc_expand565(b, second);
++   nir_def *sum = nir_iadd(b, a, c);
++   nir_def *c2 = nir_udiv_imm(b, nir_iadd(b, sum, a), 3);
++   nir_def *c3 = nir_udiv_imm(b, nir_iadd(b, sum, c), 3);
++   nir_def *alpha = nir_imm_int(b, 255);
++   if (kind < 2) {
++      nir_def *four = nir_ult(b, second, first);
++      c2 = nir_bcsel(b, four, c2, nir_ushr_imm(b, sum, 1));
++      c3 = nir_bcsel(b, four, c3, nir_imm_ivec3(b, 0, 0, 0));
++      if (kind == 1)
++         alpha = nir_bcsel(b, nir_ior(b, four, nir_ine_imm(b, code, 3)), alpha, zero);
++   } else if (kind == 2) {
++      nir_def *word = nir_bcsel(b, nir_ult_imm(b, i, 8),
++         nir_channel(b, words, 0), nir_channel(b, words, 1));
++      alpha = nir_imul_imm(b, nir_iand_imm(b, nir_ushr(b, word,
++         nir_imul_imm(b, nir_iand_imm(b, i, 7), 4)), 15), 17);
++   } else {
++      nir_def *lo = nir_channel(b, words, 0), *hi = nir_channel(b, words, 1);
++      nir_def *a0 = nir_iand_imm(b, lo, 255), *a1 = nir_iand_imm(b, nir_ushr_imm(b, lo, 8), 255);
++      nir_def *shift = nir_imul_imm(b, i, 3);
++      /* Index 10 spans the two 32-bit words of the 48-bit stream. */
++      nir_def *low_indices = nir_ior(b, nir_ushr_imm(b, lo, 16), nir_ishl_imm(b, hi, 16));
++      nir_def *k = nir_bcsel(b, nir_ult_imm(b, shift, 16), nir_ushr(b, low_indices, shift),
++         nir_ushr(b, hi, nir_iadd_imm(b, shift, -16)));
++      k = nir_iand_imm(b, k, 7);
++      nir_def *right = nir_imul(b, nir_iadd_imm(b, k, -1), a1);
++      nir_def *v7 = nir_udiv_imm(b, nir_iadd(b, right,
++         nir_imul(b, nir_isub(b, nir_imm_int(b, 8), k), a0)), 7);
++      nir_def *v5 = nir_udiv_imm(b, nir_iadd(b, right,
++         nir_imul(b, nir_isub(b, nir_imm_int(b, 6), k), a0)), 5);
++      nir_def *v = nir_bcsel(b, nir_ult(b, a1, a0), v7,
++         nir_bcsel(b, nir_ult_imm(b, k, 6), v5,
++            nir_bcsel(b, nir_ieq_imm(b, k, 6), zero, alpha)));
++      alpha = nir_bcsel(b, nir_ieq_imm(b, k, 0), a0,
++         nir_bcsel(b, nir_ieq_imm(b, k, 1), a1, v));
++   }
++
++   nir_def *rgb = nir_bcsel(b, nir_ult_imm(b, code, 2),
++      nir_bcsel(b, nir_ieq_imm(b, code, 0), a, c),
++      nir_bcsel(b, nir_ieq_imm(b, code, 2), c2, c3));
++   return nir_vec4(b, nir_channel(b, rgb, 0), nir_channel(b, rgb, 1),
++                            nir_channel(b, rgb, 2), alpha);
++}
++
++static void *
++bc_create_shader(struct st_context *st, unsigned kind)
++{
++   nir_builder b = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
++      st_get_nir_compiler_options(st, MESA_SHADER_COMPUTE), "S3TC upload");
++   b.shader->info.workgroup_size[0] = 4;
++   b.shader->info.workgroup_size[1] = 4;
++   b.shader->info.workgroup_size[2] = 1;
++   b.shader->info.num_ssbos = 1;
++   b.shader->info.num_images = 1;
++   nir_variable_create(b.shader, nir_var_mem_ssbo,
++                       glsl_array_type(glsl_uint_type(), 0, 4), "blocks");
++   nir_variable *image = nir_variable_create(b.shader, nir_var_image,
++      glsl_image_type(GLSL_SAMPLER_DIM_2D, false, GLSL_TYPE_FLOAT), "pixels");
++   image->data.image.format = PIPE_FORMAT_R8G8B8A8_UNORM;
++   image->data.access = ACCESS_NON_READABLE;
++   BITSET_SET(b.shader->info.images_used, 0);
++
++   nir_def *zero = nir_imm_int(&b, 0);
++   nir_def *group = nir_load_workgroup_id(&b);
++   nir_def *lane = nir_load_local_invocation_id(&b);
++   nir_def *cols = nir_channel(&b, nir_load_num_workgroups(&b), 0);
++   nir_def *block = nir_iadd(&b, nir_channel(&b, group, 0),
++      nir_imul(&b, cols, nir_channel(&b, group, 1)));
++   nir_def *bytes = nir_imul_imm(&b, block, kind >= 2 ? 16 : 8);
++   nir_def *words = nir_load_ssbo(&b, kind >= 2 ? 4 : 2, 32, zero, bytes, .align_mul = 4);
++   nir_def *rgba = st_nir_decode_s3tc(&b, kind, words, lane);
++   nir_def *pos = nir_iadd(&b, nir_imul_imm(&b, group, 4), lane);
++   nir_image_deref_store(&b, &nir_build_deref_var(&b, image)->def,
++      nir_pad_vector_imm_int(&b, pos, 0, 4), zero,
++      nir_fmul_imm(&b, nir_u2f32(&b, rgba), 1.0f / 255.0f), zero);
++   return st_nir_finish_builtin_shader(st, b.shader);
++}
++
++bool
++st_compute_upload_s3tc(struct st_context *st, const uint8_t *data,
++                       unsigned stride, mesa_format format,
++                       struct pipe_resource *dst, unsigned level,
++                       const struct pipe_box *box)
++{
++   if (!debug_get_bool_option("WINEHUA_GPU_BC_UPLOAD", false) ||
++       !data || !dst || box->depth != 1 || box->width <= 0 || box->height <= 0 ||
++       box->width > 4096 || box->height > 4096 ||
++       box->width * box->height < 1024 * 1024 ||
++       (dst->format != PIPE_FORMAT_R8G8B8A8_UNORM && dst->format != PIPE_FORMAT_R8G8B8A8_SRGB))
++      return false;
++
++   unsigned kind;
++   switch (format) {
++   case MESA_FORMAT_RGB_DXT1: case MESA_FORMAT_SRGB_DXT1: kind = 0; break;
++   case MESA_FORMAT_RGBA_DXT1: case MESA_FORMAT_SRGBA_DXT1: kind = 1; break;
++   case MESA_FORMAT_RGBA_DXT3: case MESA_FORMAT_SRGBA_DXT3: kind = 2; break;
++   case MESA_FORMAT_RGBA_DXT5: case MESA_FORMAT_SRGBA_DXT5: kind = 3; break;
++   default: return false;
++   }
++
++   /* Desktop compatibility contexts on Mini cannot complete a compute
++    * dispatch. Use the PBO fragment draw with integer block fetches. */
++   if (_mesa_is_desktop_gl(st->ctx) && st->ctx->Const.GLSLVersion < 430)
++      return st_pbo_upload_s3tc(st, data, stride, kind, dst, level, box);
++   if (!_mesa_has_compute_shaders(st->ctx) || !st->pipe->launch_grid ||
++       !st->pipe->set_shader_images || !st->pipe->set_shader_buffers ||
++       !st->pipe->memory_barrier || !st->pipe->resource_copy_region)
++      return false;
++
++   struct pipe_screen *screen = st->screen;
++   if (!screen->is_format_supported(screen, PIPE_FORMAT_R8G8B8A8_UNORM,
++                                    PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_SHADER_IMAGE) ||
++       !screen->get_shader_param(screen, PIPE_SHADER_COMPUTE, PIPE_SHADER_CAP_MAX_SHADER_IMAGES) ||
++       !screen->get_shader_param(screen, PIPE_SHADER_COMPUTE, PIPE_SHADER_CAP_MAX_SHADER_BUFFERS))
++      return false;
++
++   const unsigned width = box->width, height = box->height;
++   const unsigned cols = DIV_ROUND_UP(width, 4), block_rows = DIV_ROUND_UP(height, 4);
++   const unsigned row_bytes = cols * (kind >= 2 ? 16 : 8);
++   const unsigned rows = MIN2(block_rows, 128u);
++   const unsigned alignment = MAX2(1u, screen->caps.shader_buffer_offset_alignment);
++   if (stride < row_bytes || (block_rows > rows && (rows * row_bytes) % alignment))
++      return false;
++
++   void **shader = &st->texcompress_compute.bc_upload[kind];
++   if (!*shader) {
++      const int irs = screen->get_shader_param(screen, PIPE_SHADER_COMPUTE, PIPE_SHADER_CAP_SUPPORTED_IRS);
++      if (!(irs & (1 << PIPE_SHADER_IR_NIR)))
++         return false;
++      *shader = bc_create_shader(st, kind);
++   }
++   if (!*shader)
++      return false;
++
++   const unsigned bytes = row_bytes * block_rows;
++   struct pipe_resource *blocks = pipe_buffer_create(screen, PIPE_BIND_SHADER_BUFFER,
++                                                     PIPE_USAGE_IMMUTABLE, bytes);
++   if (!blocks)
++      return false;
++
++   struct pipe_transfer *transfer = NULL;
++   uint8_t *map = pipe_buffer_map(st->pipe, blocks, PIPE_MAP_WRITE, &transfer);
++   if (!map) {
++      pipe_resource_reference(&blocks, NULL);
++      return false;
++   }
++   for (unsigned y = 0; y < block_rows; y++)
++      memcpy(map + y * row_bytes, data + (size_t)y * stride, row_bytes);
++   pipe_buffer_unmap(st->pipe, transfer);
++
++   struct pipe_resource *rgba = st_texture_create(st, PIPE_TEXTURE_2D,
++      PIPE_FORMAT_R8G8B8A8_UNORM, 0, cols * 4, rows * 4, 1, 1, 0,
++      PIPE_BIND_SHADER_IMAGE, false, PIPE_COMPRESSION_FIXED_RATE_NONE);
++   if (!rgba) {
++      pipe_resource_reference(&blocks, NULL);
++      return false;
++   }
++
++   const struct pipe_image_view image = {
++      .resource = rgba,
++      .format = PIPE_FORMAT_R8G8B8A8_UNORM,
++      .access = PIPE_IMAGE_ACCESS_WRITE,
++      .shader_access = PIPE_IMAGE_ACCESS_WRITE,
++   };
++   struct pipe_context *pipe = st->pipe;
++   cso_save_compute_state(st->cso_context, CSO_BIT_COMPUTE_SHADER);
++   cso_set_compute_shader_handle(st->cso_context, *shader);
++   pipe->set_shader_images(pipe, PIPE_SHADER_COMPUTE, 0, 1, 0, &image);
++   for (unsigned row = 0; row < block_rows; row += rows) {
++      const unsigned count = MIN2(block_rows - row, rows);
++      const struct pipe_shader_buffer ssbo = {
++         .buffer = blocks, .buffer_offset = row * row_bytes, .buffer_size = count * row_bytes,
++      };
++      pipe->set_shader_buffers(pipe, PIPE_SHADER_COMPUTE, 0, 1, &ssbo, 0);
++      const struct pipe_grid_info grid = { .block = {4, 4, 1}, .grid = {cols, count, 1} };
++      pipe->launch_grid(pipe, &grid);
++      pipe->memory_barrier(pipe, PIPE_BARRIER_IMAGE | PIPE_BARRIER_UPDATE_TEXTURE);
++      struct pipe_box src;
++      u_box_origin_2d(width, MIN2(height - row * 4, count * 4), &src);
++      pipe->resource_copy_region(pipe, dst, level, box->x, box->y + row * 4, box->z, rgba, 0, &src);
++      pipe->memory_barrier(pipe, PIPE_BARRIER_UPDATE_TEXTURE | PIPE_BARRIER_IMAGE);
++   }
++   pipe->set_shader_images(pipe, PIPE_SHADER_COMPUTE, 0, 0, 1, NULL);
++   pipe->set_shader_buffers(pipe, PIPE_SHADER_COMPUTE, 0, 1, NULL, 0);
++   cso_restore_compute_state(st->cso_context);
++   st->ctx->NewDriverState |= ST_NEW_CS_SSBOS | ST_NEW_CS_IMAGES;
++   pipe_resource_reference(&rgba, NULL);
++   pipe_resource_reference(&blocks, NULL);
++   return true;
++}
+diff --git a/src/mesa/state_tracker/st_context.c b/src/mesa/state_tracker/st_context.c
+--- a/src/mesa/state_tracker/st_context.c
++++ b/src/mesa/state_tracker/st_context.c
+@@ -342,8 +342,7 @@
+    st_destroy_drawtex(st);
+    st_destroy_pbo_helpers(st);
+ 
+-   if (_mesa_has_compute_shaders(st->ctx) && st->transcode_astc)
+-      st_destroy_texcompress_compute(st);
++   st_destroy_texcompress_compute(st);
+ 
+    st_destroy_bound_texture_handles(st);
+    st_destroy_bound_image_handles(st);
+diff --git a/src/mesa/state_tracker/st_texcompress_compute.h b/src/mesa/state_tracker/st_texcompress_compute.h
+--- a/src/mesa/state_tracker/st_texcompress_compute.h
++++ b/src/mesa/state_tracker/st_texcompress_compute.h
+@@ -48,4 +48,10 @@
+                                   unsigned dxt5_level,
+                                   unsigned dxt5_layer);
+ 
++bool
++st_compute_upload_s3tc(struct st_context *st, const uint8_t *data,
++                       unsigned stride, mesa_format format,
++                       struct pipe_resource *dst, unsigned level,
++                       const struct pipe_box *box);
++
+ #endif /* ST_TEXCOMPRESS_COMPUTE_H */
+diff --git a/src/mesa/state_tracker/st_cb_texture.c b/src/mesa/state_tracker/st_cb_texture.c
+--- a/src/mesa/state_tracker/st_cb_texture.c
++++ b/src/mesa/state_tracker/st_cb_texture.c
+@@ -726,6 +726,15 @@
+             }
+          }
+ 
++         if (_mesa_is_format_s3tc(texImage->TexFormat) &&
++             st_compute_upload_s3tc(st, itransfer->temp_data, itransfer->temp_stride,
++                                    texImage->TexFormat, texImage->pt,
++                                    st_texture_image_resource_level(texImage), &itransfer->box)) {
++            assert(itransfer->transfer == NULL);
++            memset(itransfer, 0, sizeof(*itransfer));
++            return;
++         }
++
+          struct pipe_transfer *transfer;
+          GLubyte *map = st_texture_image_map(st, texImage,
+                                              PIPE_MAP_WRITE |
+@@ -1721,15 +1730,14 @@
+ try_pbo_upload_common(struct gl_context *ctx,
+                       struct pipe_surface *surface,
+                       const struct st_pbo_addresses *addr,
+-                      enum pipe_format src_format)
++                      enum pipe_format src_format, void *fs)
+ {
+    struct st_context *st = st_context(ctx);
+    struct cso_context *cso = st->cso_context;
+    struct pipe_context *pipe = st->pipe;
+    bool success = false;
+-   void *fs;
+-
+-   fs = st_pbo_get_upload_fs(st, src_format, surface->format, addr->depth != 1);
++   if (!fs)
++      fs = st_pbo_get_upload_fs(st, src_format, surface->format, addr->depth != 1);
+    if (!fs)
+       return false;
+ 
+@@ -1823,6 +1831,68 @@
+ }
+ 
+ 
++bool
++st_pbo_upload_s3tc(struct st_context *st, const uint8_t *data, unsigned stride,
++                   unsigned kind, struct pipe_resource *dst, unsigned level,
++                   const struct pipe_box *box)
++{
++   const enum pipe_format input = kind < 2 ? PIPE_FORMAT_R32G32_UINT : PIPE_FORMAT_R32G32B32A32_UINT;
++   const unsigned cols = DIV_ROUND_UP(box->width, 4);
++   const unsigned rows = DIV_ROUND_UP(box->height, 4);
++   const unsigned block_bytes = kind < 2 ? 8 : 16;
++   const unsigned row_bytes = cols * block_bytes;
++   struct pipe_screen *screen = st->screen;
++   struct pipe_context *pipe = st->pipe;
++   if (!st->pbo.upload_enabled || stride < row_bytes ||
++       cols * rows > st->ctx->Const.MaxTextureBufferSize ||
++       !screen->is_format_supported(screen, input, PIPE_BUFFER, 0, 0, PIPE_BIND_SAMPLER_VIEW) ||
++       !screen->is_format_supported(screen, PIPE_FORMAT_R8G8B8A8_UNORM, PIPE_TEXTURE_2D,
++                                    0, 0, PIPE_BIND_RENDER_TARGET))
++      return false;
++
++   void *fs = st_pbo_get_s3tc_fs(st, kind);
++   if (!fs)
++      return false;
++
++   struct pipe_resource *blocks = pipe_buffer_create(screen, PIPE_BIND_SAMPLER_VIEW,
++                                                     PIPE_USAGE_STREAM, row_bytes * rows);
++   if (!blocks)
++      return false;
++
++   struct pipe_transfer *transfer = NULL;
++   uint8_t *map = pipe_buffer_map(pipe, blocks, PIPE_MAP_WRITE, &transfer);
++   if (!map) {
++      pipe_resource_reference(&blocks, NULL);
++      return false;
++   }
++   for (unsigned row = 0; row < rows; row++)
++      memcpy(map + row * row_bytes, data + (size_t)row * stride, row_bytes);
++   pipe_buffer_unmap(pipe, transfer);
++
++   /* A linear temporary also preserves the encoded bytes of sRGB uploads
++    * and works when the destination has no render-target binding. */
++   struct pipe_resource *rgba = st_texture_create(st, PIPE_TEXTURE_2D,
++      PIPE_FORMAT_R8G8B8A8_UNORM, 0, box->width, box->height, 1, 1, 0,
++      PIPE_BIND_RENDER_TARGET, false, PIPE_COMPRESSION_FIXED_RATE_NONE);
++   const struct pipe_surface templ = { .format = PIPE_FORMAT_R8G8B8A8_UNORM };
++   struct pipe_surface *surface = rgba ? pipe->create_surface(pipe, rgba, &templ) : NULL;
++   struct st_pbo_addresses addr = {
++      .width = box->width, .height = box->height, .depth = 1,
++      .buffer = blocks, .last_element = cols * rows - 1, .bytes_per_pixel = block_bytes,
++      .constants.stride = cols,
++   };
++   bool success = surface && try_pbo_upload_common(st->ctx, surface, &addr, input, fs);
++   if (success) {
++      struct pipe_box src;
++      u_box_origin_2d(box->width, box->height, &src);
++      pipe->resource_copy_region(pipe, dst, level, box->x, box->y, box->z, rgba, 0, &src);
++   }
++   pipe_surface_reference(&surface, NULL);
++   pipe_resource_reference(&rgba, NULL);
++   pipe_resource_reference(&blocks, NULL);
++   return success;
++}
++
+ static bool
+ try_pbo_upload(struct gl_context *ctx, GLuint dims,
+                struct gl_texture_image *texImage,
+@@ -1931,7 +2001,7 @@
+          return false;
+    }
+ 
+-   success = try_pbo_upload_common(ctx, surface, &addr, src_format);
++   success = try_pbo_upload_common(ctx, surface, &addr, src_format, NULL);
+ 
+    pipe_surface_reference(&surface, NULL);
+ 
+@@ -2465,7 +2535,7 @@
+    if (!surface)
+       return false;
+ 
+-   success = try_pbo_upload_common(ctx, surface, &addr, surface_templ->format);
++   success = try_pbo_upload_common(ctx, surface, &addr, surface_templ->format, NULL);
+ 
+    pipe_surface_reference(&surface, NULL);
+ 
+diff --git a/src/mesa/state_tracker/st_context.h b/src/mesa/state_tracker/st_context.h
+--- a/src/mesa/state_tracker/st_context.h
++++ b/src/mesa/state_tracker/st_context.h
+@@ -347,6 +347,8 @@
+    } pbo;
+ 
+    struct {
++      void *bc_upload[4];
++      void *bc_upload_fs[4];
+       struct gl_program **progs;
+       struct pipe_resource *bc1_endpoint_buf;
+       struct pipe_sampler_view *astc_luts[5];
+diff --git a/src/mesa/state_tracker/st_pbo.c b/src/mesa/state_tracker/st_pbo.c
+--- a/src/mesa/state_tracker/st_pbo.c
++++ b/src/mesa/state_tracker/st_pbo.c
+@@ -392,7 +392,7 @@
+           enum pipe_texture_target target,
+           enum st_pbo_conversion conversion,
+           enum pipe_format format,
+-          bool need_layer)
++          bool need_layer, int bc_kind)
+ {
+    const nir_shader_compiler_options *options =
+       st_get_nir_compiler_options(st, MESA_SHADER_FRAGMENT);
+@@ -461,6 +461,12 @@
+                           nir_imul(&b, layer, nir_channel(&b, param, 3)));
+    }
+ 
++   if (bc_kind >= 0) {
++      nir_def *block = nir_ushr_imm(&b, offset_pos, 2);
++      pbo_addr = nir_iadd(&b, nir_channel(&b, block, 0),
++         nir_imul(&b, nir_channel(&b, block, 1), nir_channel(&b, param, 2)));
++   }
++
+    nir_def *texcoord;
+    if (download) {
+       texcoord = nir_f2i32(&b, nir_channels(&b, coord, TGSI_WRITEMASK_XY));
+@@ -523,6 +529,11 @@
+    nir_def_init(&tex->instr, &tex->def, 4, 32);
+    nir_builder_instr_insert(&b, &tex->instr);
+    nir_def *result = &tex->def;
++
++   if (bc_kind >= 0) {
++      nir_def *rgba = st_nir_decode_s3tc(&b, bc_kind, result, nir_iand_imm(&b, offset_pos, 3));
++      result = nir_fmul_imm(&b, nir_u2f32(&b, rgba), 1.0f / 255.0f);
++   }
+ 
+    if (conversion == ST_PBO_CONVERT_SINT_TO_UINT)
+       result = nir_imax(&b, result, zero);
+@@ -598,9 +609,19 @@
+    enum st_pbo_conversion conversion = get_pbo_conversion(src_format, dst_format);
+ 
+    if (!st->pbo.upload_fs[conversion][need_layer])
+-      st->pbo.upload_fs[conversion][need_layer] = create_fs(st, false, 0, conversion, PIPE_FORMAT_NONE, need_layer);
++      st->pbo.upload_fs[conversion][need_layer] = create_fs(st, false, 0, conversion, PIPE_FORMAT_NONE, need_layer, -1);
+ 
+    return st->pbo.upload_fs[conversion][need_layer];
++}
++
++void *
++st_pbo_get_s3tc_fs(struct st_context *st, unsigned kind)
++{
++   void **fs = &st->texcompress_compute.bc_upload_fs[kind];
++   if (!*fs)
++      *fs = create_fs(st, false, PIPE_BUFFER, ST_PBO_CONVERT_UINT,
++                      PIPE_FORMAT_NONE, false, kind);
++   return *fs;
+ }
+ 
+ void *
+@@ -624,12 +645,12 @@
+ 
+    if (formatless_store) {
+       if (!st->pbo.download_fs[conversion][target][need_layer])
+-         st->pbo.download_fs[conversion][target][need_layer] = create_fs(st, true, target, conversion, PIPE_FORMAT_NONE, need_layer);
++         st->pbo.download_fs[conversion][target][need_layer] = create_fs(st, true, target, conversion, PIPE_FORMAT_NONE, need_layer, -1);
+       return st->pbo.download_fs[conversion][target][need_layer];
+    } else {
+       void **fs_array = (void **)st->pbo.download_fs[conversion][target][need_layer];
+       if (!fs_array[dst_format])
+-         fs_array[dst_format] = create_fs(st, true, target, conversion, dst_format, need_layer);
++         fs_array[dst_format] = create_fs(st, true, target, conversion, dst_format, need_layer, -1);
+       return fs_array[dst_format];
+    }
+ }
+diff --git a/src/mesa/state_tracker/st_pbo.h b/src/mesa/state_tracker/st_pbo.h
+--- a/src/mesa/state_tracker/st_pbo.h
++++ b/src/mesa/state_tracker/st_pbo.h
+@@ -27,6 +27,21 @@
+ struct gl_pixelstore_attrib;
+ 
+ struct st_context;
++struct nir_builder;
++struct nir_def;
++struct pipe_box;
++
++struct nir_def *
++st_nir_decode_s3tc(struct nir_builder *b, unsigned kind,
++                   struct nir_def *words, struct nir_def *lane);
++
++bool
++st_pbo_upload_s3tc(struct st_context *st, const uint8_t *data, unsigned stride,
++                   unsigned kind, struct pipe_resource *dst, unsigned level,
++                   const struct pipe_box *box);
++
++void *
++st_pbo_get_s3tc_fs(struct st_context *st, unsigned kind);
+ 
+ struct st_pbo_addresses {
+    int xoffset;

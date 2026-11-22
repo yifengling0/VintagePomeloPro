@@ -557,6 +557,7 @@ export interface AppSettings {
   graphicsLaunchPreset: string;
   /** default inherits the system renderer when launching. */
   graphicsBackend?: string;
+  gpuBcUpload?: boolean;
   gameModeOverride?: GameModeOverride;
   gameModeSettings?: GameModeSettings;
   /** 每游戏 DXVK 浮点控制；关闭时向该游戏注入 d3d11.floatControls=False。默认开启。 */
@@ -606,6 +607,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
     graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+    gpuBcUpload: value.gpuBcUpload === true,
     gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),
     gameModeSettings: value.gameModeSettings ? normalizeGameModeSettings(value.gameModeSettings) : undefined,
     dxvkFloatControls: value.dxvkFloatControls !== false,
@@ -1342,6 +1344,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
     graphicsBackend: 'default',
+    gpuBcUpload: false,
     gameModeOverride: 'follow',
     dxvkFloatControls: true,
     fexStrictPrecision: false,

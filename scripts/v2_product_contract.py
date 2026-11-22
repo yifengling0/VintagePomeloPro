@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Product boundary: OHOS Wine and Windows Steam, without retired Linux payloads."""
 import argparse
+import json
 import shutil
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +71,14 @@ def verify_hap(path):
                     if symbol in data: raise ValueError('Device test entry in ' + member)
         if 'ets/modules.abc' in names:
             code = archive.read('ets/modules.abc')
+            if 'module.json' in names:
+                module = json.loads(archive.read('module.json'))['module']
+                source = module.get('srcEntry')
+                if source:
+                    entry = PurePosixPath(source).with_suffix('').as_posix()
+                    record = f"L&{module['name']}/src/main/{entry}&;".encode()
+                    if record not in code:
+                        raise ValueError('ArkTS stage entry is missing from normalized bytecode: ' + source)
             for symbol in DEVICE_TEST_MARKERS + (b'/service/SmokeRunner', b'/smoke/SmokeHook', b'/game/GameHook'):
                 if symbol in code: raise ValueError('Device test entry in ArkTS: ' + symbol.decode())
         # Keep memory bounded; do not expand an entire runtime tree for auditing.

@@ -44,6 +44,24 @@ PATCHES=(
     exit 1
 }
 MESA_SOURCE="$(cd "$MESA_SOURCE" && pwd)"
+GPU_BC_PATCH="$SCRIPT_DIR/../patches/experimental/gpu-bc-upload/mesa.patch"
+mesa_apply=(git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply)
+if [ "${WINEHUA_BUILD_GPU_BC_UPLOAD:-0}" != 1 ]; then
+    # Incremental release builds reuse the same tree as diagnostic builds.
+    # Reverse only the known overlay, leaving locally modified sources alone.
+    if "${mesa_apply[@]}" --reverse --check "$GPU_BC_PATCH" >/dev/null 2>&1; then
+        "${mesa_apply[@]}" --reverse "$GPU_BC_PATCH"
+    elif grep -q 'st_compute_upload_s3tc' "$MESA_SOURCE/src/mesa/state_tracker/st_cb_texture.c"; then
+        echo "Mesa: remove the locally modified experimental BC overlay before a default build" >&2
+        exit 1
+    fi
+fi
+apply_experimental_bc_overlay() {
+    [ "${WINEHUA_BUILD_GPU_BC_UPLOAD:-0}" = 1 ] || return 0
+    if ! "${mesa_apply[@]}" --reverse --check "$GPU_BC_PATCH" >/dev/null 2>&1; then
+        "${mesa_apply[@]}" "$GPU_BC_PATCH"
+    fi
+}
 # A later reviewed overlay may change an earlier hunk's context. Prove the
 # complete stack on a small disposable copy of touched files before accepting
 # an incremental tree; never reverse or reset the caller's source.
@@ -56,6 +74,7 @@ sys.exit(0 if stack_applied(Path(sys.argv[1]), [Path(p) for p in sys.argv[3:]]) 
 PY
 then
     echo "Mesa: complete reviewed overlay already applied"
+    apply_experimental_bc_overlay
     exit 0
 fi
 for PATCH in "${PATCHES[@]}"; do
@@ -73,6 +92,7 @@ for PATCH in "${PATCHES[@]}"; do
     }
     git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" apply "$PATCH"
 done
+apply_experimental_bc_overlay
 # Mounted linked worktrees can lack their external Git metadata. git apply
 # still validates every hunk there; only the repository diff needs metadata.
 if git -c safe.directory="$MESA_SOURCE" -C "$MESA_SOURCE" rev-parse \
