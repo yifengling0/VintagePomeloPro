@@ -24,12 +24,19 @@ import {
   resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
-import { APP_OPENGL_SOFTPIPE, normalizeAppGraphicsBackend, resolveGraphicsBackend } from '../model/GraphicsBackendSettings';
+import { APP_OPENGL_SOFTPIPE, APP_OPENGL_VIRGL_COMPAT,
+  normalizeAppGraphicsBackend, resolveGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
 
 const DOMAIN = 0x0000;
 const TAG = 'WineEngine';
+// Wine strips the WINE prefix when importing SDL variables into the Windows
+// environment. Older SDL 2 releases accept only a single driver name.
+const SDL_PLAYBACK_ENVIRONMENT: string[] = [
+  'WINESDL_AUDIODRIVER=directsound',
+  'WINESDL_AUDIO_DRIVER=directsound,wasapi'
+];
 const FILES_BASE = '/data/storage/el2/base/files';
 const WINE_ROOT = FILES_BASE + '/wine';
 const WINE_BIN = WINE_ROOT + '/bin';
@@ -1043,7 +1050,7 @@ export class WineEngineService {
     // product sessions add no experiment override.
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
     const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset)
-      .concat(this.depthStorageEnvironment(), envOverrides);
+      .concat(this.depthStorageEnvironment(), SDL_PLAYBACK_ENVIRONMENT, envOverrides);
     const systemScript = argumentsValue.lastIndexOf('-system_script');
     if (this.d3dBackend === 'dxvk_legacy_d3d9' && systemScript >= 0 &&
       argumentsValue[systemScript + 1] === 'vpp-harmony-frame-camera.cpp') {
@@ -1094,7 +1101,7 @@ export class WineEngineService {
       backend = 'dxvk_legacy_d3d9';
     } else if (mode === 'zink') {
       backend = 'wined3d_zink';
-    } else if (mode === 'virgl' || mode === APP_OPENGL_SOFTPIPE) {
+    } else if (mode === 'virgl' || mode === APP_OPENGL_SOFTPIPE || mode === APP_OPENGL_VIRGL_COMPAT) {
       backend = 'wined3d';
     } else if (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26()) {
       backend = 'dxvk_modern_2_6';

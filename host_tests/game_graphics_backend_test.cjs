@@ -29,6 +29,13 @@ assert.equal(policy.resolveGraphicsBackend('virgl', 'corrupt'), 'virgl');
 assert.equal(policy.resolveGraphicsBackend('corrupt', 'default'), 'dxvk_1_10');
 assert.equal(policy.resolveGraphicsBackend('zink', 'default'), 'zink');
 assert.equal(policy.resolveGraphicsBackend('virgl', 'dxvk9'), 'dxvk9');
+assert.equal(policy.resolveGraphicsBackend('zink', policy.APP_OPENGL_VIRGL_COMPAT), policy.APP_OPENGL_VIRGL_COMPAT);
+assert.equal(policy.normalizeGraphicsBackend(policy.APP_OPENGL_VIRGL_COMPAT), 'dxvk_1_10');
+assert.deepEqual(Array.from(policy.resolveAppOpenGLEnvironment(policy.APP_OPENGL_VIRGL_COMPAT)),
+  ['MESA_GL_VERSION_OVERRIDE=3.2FC', 'MESA_GLSL_VERSION_OVERRIDE=150']);
+for (const backend of policy.GRAPHICS_BACKEND_IDS.concat(['default'])) {
+  assert.deepEqual(Array.from(policy.resolveAppOpenGLEnvironment(backend)), []);
+}
 const old = models.createDefaultAppSettings('old');
 delete old.graphicsBackend;
 assert.equal(models.cloneAppSettings(old).graphicsBackend, 'default');
@@ -71,6 +78,7 @@ const context = {exports: {}, ...policy, DOMAIN: 0, TAG: 'test',
 vm.runInNewContext(compiled.outputText, context);
 const engine = new context.exports.Engine();
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', 'virgl'), 'wined3d');
+assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', policy.APP_OPENGL_VIRGL_COMPAT), 'wined3d');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'dxvk_legacy');
 system = 'virgl';
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined3d');
@@ -80,7 +88,7 @@ assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe', 'invali
 assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'dxvk9'), 'dxvk_legacy_d3d9');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'zink'), 'wined3d_zink');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined3d');
-for (const backend of ['dxvk9', 'zink']) {
+for (const backend of ['dxvk9', 'zink', policy.APP_OPENGL_VIRGL_COMPAT]) {
   old.graphicsBackend = backend;
   assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(old))).graphicsBackend, backend);
 }
@@ -95,7 +103,12 @@ async function checkLaunchQueue() {
     reportDiagnostics: true,
   });
   assert.equal(js.diagnostics.length, 0);
-  const sandbox = {exports: {}};
+  const sandbox = {
+    exports: {},
+    EngineState: {STOPPED: 'stopped', ERROR: 'error'},
+    WineEngineService: {getInstance: () => ({getState: () => 'ready'})},
+    GameModeService: {begin() {}, finish() {}},
+  };
   vm.runInNewContext(js.outputText, sandbox);
   const sessions = new sandbox.exports.Sessions();
   let release;

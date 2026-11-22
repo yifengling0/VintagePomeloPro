@@ -2,8 +2,9 @@
 export const GRAPHICS_BACKEND_DEFAULT = 'default';
 export const GRAPHICS_BACKEND_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl', 'dxvk9', 'zink'];
 export const APP_OPENGL_SOFTPIPE = 'opengl_softpipe';
+export const APP_OPENGL_VIRGL_COMPAT = 'opengl_virgl_compat';
 export const APP_GRAPHICS_BACKEND_IDS: string[] =
-  [GRAPHICS_BACKEND_DEFAULT].concat(GRAPHICS_BACKEND_IDS, [APP_OPENGL_SOFTPIPE]);
+  [GRAPHICS_BACKEND_DEFAULT].concat(GRAPHICS_BACKEND_IDS, [APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_SOFTPIPE]);
 
 export function normalizeGraphicsBackend(value: string): string {
   return GRAPHICS_BACKEND_IDS.includes(value) ? value : 'dxvk_1_10';
@@ -21,6 +22,7 @@ export function resolveGraphicsBackend(system: string, game: string): string {
 export function graphicsBackendLabel(value: string): string {
   switch (value) {
     case 'virgl': return 'VirGL / GLES';
+    case APP_OPENGL_VIRGL_COMPAT: return 'VirGL OpenGL 兼容（实验）';
     case APP_OPENGL_SOFTPIPE: return 'OpenGL 软件渲染（实验）';
     case 'dxvk9': return 'DXVK9（32位实验）';
     case 'zink': return 'Zink（实验）';
@@ -36,6 +38,11 @@ export function resolveZinkPresentationEnvironment(backend: string): string[] {
 }
 
 export function resolveAppOpenGLEnvironment(backend: string): string[] {
+  if (backend === APP_OPENGL_VIRGL_COMPAT) {
+    // Mesa otherwise limits shader compilation to GLSL 1.40 on a 3.1 context.
+    // Scope the version override to the explicitly selected game's process.
+    return ['MESA_GL_VERSION_OVERRIDE=3.2FC', 'MESA_GLSL_VERSION_OVERRIDE=150'];
+  }
   if (backend !== APP_OPENGL_SOFTPIPE) return [];
   return [
     'GALLIUM_DRIVER=softpipe',
