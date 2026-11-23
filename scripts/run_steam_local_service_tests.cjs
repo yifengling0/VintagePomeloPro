@@ -4,16 +4,19 @@ const assert=require('node:assert/strict'), ts=require(process.argv[2]||'typescr
 const root=path.resolve(__dirname,'../entry/src/main/ets');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'steam-local-'));
 const settings=new Map(), processes=[], killed=[], stopped=[], launches=[];
+let openGLProfiles=[];
 let mode='ready', catalogCache=[];
 const fileIo={accessSync:fs.existsSync, statSync:fs.statSync,lstatSync:fs.lstatSync,
   stat:fs.promises.stat, listFile:fs.promises.readdir, listFileSync:p=>fs.readdirSync(p),readTextSync:p=>fs.readFileSync(p,'utf8'),mkdirSync:fs.mkdirSync,
  OpenMode:{CREATE:64,TRUNC:512,WRITE_ONLY:1},openSync:p=>({fd:fs.openSync(p,'w')}),
  writeSync:(fd,v)=>fs.writeSync(fd,typeof v==='string'?v:Buffer.from(v)),fsyncSync:fs.fsyncSync,closeSync:f=>fs.closeSync(f.fd),rename:fs.promises.rename,unlink:fs.promises.unlink};
 const native={getProcessList:()=>processes.slice(),getWineSession:()=>null,getDesktopRootId:()=>0,
+ setSteamGameOpenGLSettings:profiles=>{openGLProfiles=JSON.parse(JSON.stringify(profiles));},
  killProcess:p=>{killed.push(p);return true;},stopWineSession:s=>{stopped.push(s);return true;},activateWineSession(){},raiseToplevel(){}};
 const store={getAppSettings:id=>settings.get(id)||{customCover:'',customTitle:'',arguments:[],displayModeOverride:null,box64Preset:'default'},
  getCatalogCache:()=>catalogCache,saveCatalogCache:async cards=>{catalogCache=cards;},
- recordRecentLaunch:async()=>{},usesManagedWineWindows:()=>true,getGlobalSettings:()=>({}),getRenderMode:()=>'dxvk_2_6'};
+ recordRecentLaunch:async()=>{},usesManagedWineWindows:()=>true,getGlobalSettings:()=>({}),
+ getRenderMode:()=>'dxvk_2_6',hasGpuBcUpload:()=>false};
 let local, models;
 const engine={getState:()=>models.EngineState.READY,isReady:()=>true,
  getPresentationMode:()=>models.WinePresentationMode.MANAGED_WINDOWS,
@@ -75,9 +78,13 @@ function manifest(lib,id,name,flags=4){put(lib+'/steamapps/appmanifest_'+id+'.ac
  put(client+'/steamapps/libraryfolders.vdf','"libraryfolders" {"0" {"path" "Z:\\\\Steam"} "1" {"path" "Z:\\\\游戏 库"} "2" {"path" "Q:\\\\unavailable"}}');
  manifest(client,'123','中文 游戏');manifest(client,'456','半安装',1026);
  manifest(second,'123','另一个',1026);manifest(second,'789','另一个');
- settings.set('steam-default-123',{customCover:'/my/cover.jpg',arguments:['game arg'],customTitle:'自定义',displayModeOverride:null,box64Preset:'default'});
+ settings.set('steam-default-123',{customCover:'/my/cover.jpg',arguments:['game arg'],customTitle:'自定义',displayModeOverride:null,box64Preset:'default',steamOpenGL33:true});
  let cards=await local.scan();assert.equal(cards.length,4);assert.equal(cards.filter(c=>c.steam.appId==='123').length,1);
  const game=local.getGame('123');assert.equal(game.available,true);assert.equal(game.coverPath,'/my/cover.jpg');assert.equal(game.title,'自定义');
+ assert.deepEqual(openGLProfiles,[
+  {directory:client+'/steamapps/common/中文 游戏',enabled:true},
+  {directory:second+'/steamapps/common/另一个',enabled:false}
+ ]);
  assert.equal(local.getGame('456').available,false);assert.equal(local.getGame('789').available,true);
  assert.equal(await local.libraryChanged(),true);assert.equal(await local.libraryChanged(),false);
  put(client+'/steamapps/appmanifest_123.acf','"AppState" {');
