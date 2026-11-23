@@ -24,7 +24,7 @@ import {
   resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
-import { APP_OPENGL_SOFTPIPE, APP_OPENGL_VIRGL_COMPAT,
+import { APP_OPENGL_SOFTPIPE, isVirglOpenGLCompatibility,
   normalizeAppGraphicsBackend, resolveGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
@@ -1101,7 +1101,7 @@ export class WineEngineService {
       backend = 'dxvk_legacy_d3d9';
     } else if (mode === 'zink') {
       backend = 'wined3d_zink';
-    } else if (mode === 'virgl' || mode === APP_OPENGL_SOFTPIPE || mode === APP_OPENGL_VIRGL_COMPAT) {
+    } else if (mode === 'virgl' || mode === APP_OPENGL_SOFTPIPE || isVirglOpenGLCompatibility(mode)) {
       backend = 'wined3d';
     } else if (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26()) {
       backend = 'dxvk_modern_2_6';

@@ -33,6 +33,12 @@ assert.equal(policy.resolveGraphicsBackend('zink', policy.APP_OPENGL_VIRGL_COMPA
 assert.equal(policy.normalizeGraphicsBackend(policy.APP_OPENGL_VIRGL_COMPAT), 'dxvk_1_10');
 assert.deepEqual(Array.from(policy.resolveAppOpenGLEnvironment(policy.APP_OPENGL_VIRGL_COMPAT)),
   ['MESA_GL_VERSION_OVERRIDE=3.2FC', 'MESA_GLSL_VERSION_OVERRIDE=150']);
+assert.equal(policy.resolveGraphicsBackend('virgl', policy.APP_OPENGL_VIRGL_33), policy.APP_OPENGL_VIRGL_33);
+assert.equal(policy.normalizeGraphicsBackend(policy.APP_OPENGL_VIRGL_33), 'dxvk_1_10');
+assert.equal(policy.APP_GRAPHICS_BACKEND_IDS.includes(policy.APP_OPENGL_VIRGL_33), false);
+assert.equal(policy.isVirglOpenGLCompatibility(policy.APP_OPENGL_VIRGL_33), true);
+assert.deepEqual(Array.from(policy.resolveAppOpenGLEnvironment(policy.APP_OPENGL_VIRGL_33)),
+  ['MESA_GL_VERSION_OVERRIDE=3.3FC', 'MESA_GLSL_VERSION_OVERRIDE=330']);
 for (const backend of policy.GRAPHICS_BACKEND_IDS.concat(['default'])) {
   assert.deepEqual(Array.from(policy.resolveAppOpenGLEnvironment(backend)), []);
 }
@@ -79,6 +85,7 @@ vm.runInNewContext(compiled.outputText, context);
 const engine = new context.exports.Engine();
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', 'virgl'), 'wined3d');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', policy.APP_OPENGL_VIRGL_COMPAT), 'wined3d');
+assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', policy.APP_OPENGL_VIRGL_33), 'wined3d');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'dxvk_legacy');
 system = 'virgl';
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined3d');
@@ -88,7 +95,7 @@ assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe', 'invali
 assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'dxvk9'), 'dxvk_legacy_d3d9');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'zink'), 'wined3d_zink');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined3d');
-for (const backend of ['dxvk9', 'zink', policy.APP_OPENGL_VIRGL_COMPAT]) {
+for (const backend of ['dxvk9', 'zink', policy.APP_OPENGL_VIRGL_COMPAT, policy.APP_OPENGL_VIRGL_33]) {
   old.graphicsBackend = backend;
   assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(old))).graphicsBackend, backend);
 }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "selection": "branch-release-upstream-pair",
-  "selectedForVersion": "2.0.8",
+  "selectedForVersion": "2.0.9",
   "components": "Full adapted Proton Wine core and FEX; independent DXVK/VKD3D/media pins retained",
   "qualification": {
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
@@ -166,8 +166,8 @@
       "sha256": "ca3a23bedbd27393739e953426d1321fd4fcdb7ed13ee0143f7752678433dac9"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 28594,
-      "sha256": "dd0dff4b432f8e667d680e3f0d5ddd5502a2ef004520a20f1814c4cd823b6d17"
+      "bytes": 28916,
+      "sha256": "bdb32ded17e3d616dcb046dca42d07f9734a6a7846de2b35657d30b72ee452ee"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 412,

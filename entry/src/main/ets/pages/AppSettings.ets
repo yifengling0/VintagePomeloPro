@@ -34,8 +34,9 @@ import {
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
-import { APP_GRAPHICS_BACKEND_IDS, normalizeAppGraphicsBackend,
-  resolveGraphicsBackend, graphicsBackendLabel, supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
+import { APP_GRAPHICS_BACKEND_IDS, APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_VIRGL_33, normalizeAppGraphicsBackend,
+  isVirglOpenGLCompatibility, resolveGraphicsBackend, graphicsBackendLabel,
+  supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
 import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -731,6 +732,11 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private selectedGraphicsBackendButton(): string {
+    const backend = this.value.graphicsBackend ?? 'default';
+    return isVirglOpenGLCompatibility(backend) ? APP_OPENGL_VIRGL_COMPAT : backend;
+  }
+
   private setDxvkFloatControls(enabled: boolean): void {
     if (enabled === this.value.dxvkFloatControls) return;
     const next = cloneAppSettings(this.value);
@@ -866,14 +872,29 @@ struct AppSettingsPage {
                 Button(graphicsBackendLabel(backend))
                   .height(42).padding({ left: 12, right: 12 }).margin({ right: 8, bottom: 8 })
                   .borderRadius(14).fontSize(12)
-                  .fontColor((this.value.graphicsBackend ?? 'default') === backend ?
+                  .fontColor(this.selectedGraphicsBackendButton() === backend ?
                     '#FFFFFFFF' : skinColor('text_primary'))
-                  .backgroundColor((this.value.graphicsBackend ?? 'default') === backend ?
+                  .backgroundColor(this.selectedGraphicsBackendButton() === backend ?
                     skinColor('accent') : skinColor('search_background'))
                   .id('app-settings-renderer-' + backend)
-                  .onClick((): void => this.setGraphicsBackend(backend))
+                  .onClick((): void => {
+                    if (this.selectedGraphicsBackendButton() !== backend) this.setGraphicsBackend(backend);
+                  })
               }, (backend: string): string => backend)
             }.width('100%')
+            if (this.app?.launchTarget.kind === LaunchKind.WINE_EXE && !this.app?.steam &&
+              isVirglOpenGLCompatibility(this.value.graphicsBackend ?? 'default')) {
+              Row({ space: 8 }) {
+                Text('尝试 OpenGL 3.3（实验）').fontSize(13).layoutWeight(1)
+                  .fontColor(skinColor('text_primary'))
+                Toggle({ type: ToggleType.Switch, isOn: this.value.graphicsBackend === APP_OPENGL_VIRGL_33 })
+                  .id('app-settings-opengl33')
+                  .onChange((enabled: boolean): void =>
+                    this.setGraphicsBackend(enabled ? APP_OPENGL_VIRGL_33 : APP_OPENGL_VIRGL_COMPAT))
+              }.width('100%')
+              Text('游戏明确要求 OpenGL 3.3 时再开启。关闭后使用 3.2 兼容模式。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            }
             Text('当前选择：' + graphicsBackendLabel(resolveGraphicsBackend(
               AppSettingsStore.getInstance().getRenderMode(), this.value.graphicsBackend ?? 'default')) +
               '。DXVK9 当前用于 32 位 D3D9 游戏；Zink 使用 WineD3D / Vulkan。实验后端出现画面异常时可切回 VirGL。')
