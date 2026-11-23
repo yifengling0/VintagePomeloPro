@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { preferences } from '@kit.ArkData';
-import testNapi, { SteamZipProgress } from 'libentry.so';
+import testNapi, { SteamGameOpenGLSetting, SteamZipProgress } from 'libentry.so';
 import { AppDescriptor, AppSource, LaunchKind, NativeProcessInfo } from '../model/AppModels';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { wineDriveCForContainer } from '../service/GameContainer';
@@ -23,6 +23,11 @@ function exists(path: string): boolean {
 }
 function directory(path: string): boolean {
   try { return fs.statSync(path).isDirectory(); } catch (_) { return false; }
+}
+
+export function supportsSteamGameOpenGL(app: AppDescriptor): boolean {
+  return app.launchTarget.kind === LaunchKind.STEAM_GAME &&
+    app.available && app.steam?.state === 'installed' && app.directory.length > 0;
 }
 function textFile(path: string): string {
   if (fs.statSync(path).size > 4 * 1024 * 1024) throw new Error('Steam 清单过大');
@@ -95,6 +100,7 @@ export class SteamLocalService {
   }
 
   private async prepareLaunchFiles(): Promise<void> {
+    this.syncGameOpenGLSettings();
     await this.ensureGpuDependencies();
     // An existing client accepts the URI/game request without touching its
     // installation. Keep the same check at each migration's write boundary.
@@ -399,6 +405,17 @@ export class SteamLocalService {
     } finally { this.coverDownloads--; }
   }
   getCards(): AppDescriptor[] { return this.cards.slice(); }
+
+  syncGameOpenGLSettings(): void {
+    const settings = AppSettingsStore.getInstance();
+    const profiles: SteamGameOpenGLSetting[] = [];
+    for (const card of this.cards) {
+      if (supportsSteamGameOpenGL(card)) {
+        profiles.push({ directory: card.directory, enabled: settings.getAppSettings(card.id).steamOpenGL33 === true });
+      }
+    }
+    testNapi.setSteamGameOpenGLSettings(profiles);
+  }
   getCatalogScope(): SteamCatalogScope {
     if (!this.root) return { excludedRoots: [], libraryRoots: [], legacyGameRoots: [] };
     const libraries = this.libraries();
@@ -449,7 +466,11 @@ export class SteamLocalService {
     return task.finally((): void => { this.scanning = null; });
   }
   private async scanLibrary(): Promise<AppDescriptor[]> {
-    if (!this.isInstalled()) { this.cards = []; return []; }
+    if (!this.isInstalled()) {
+      this.cards = [];
+      this.syncGameOpenGLSettings();
+      return [];
+    }
     const result: AppDescriptor[] = [this.clientCard()];
     for (const library of this.libraries()) {
       const manifestNames = names(library + '/steamapps').filter((name: string): boolean => /^appmanifest_\d+\.acf$/i.test(name));
@@ -492,6 +513,7 @@ export class SteamLocalService {
       }
     }
     this.cards = result;
+    this.syncGameOpenGLSettings();
     return result.slice();
   }
   processesFor(app: AppDescriptor, processes: NativeProcessInfo[], includeClientUi: boolean = false): NativeProcessInfo[] {

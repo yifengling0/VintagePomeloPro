@@ -116,8 +116,8 @@ static int NativeLaunch(NativeChildProcess_Args args, int32_t* pid, int kind) {
         assert(fcntl(node->fd, F_GETFD) >= 0); names.emplace_back(node->fdName);
     }
     assert(winehua::spawn::MatchNames(delivered, names));
-    assert(delivered.home == "/session|home\n中文");
-    assert(delivered.env.back() == "WINEPREFIX=/prefix|with\nseparator");
+    assert(delivered.home == gBrokerHomeDir);
+    assert(winehua::spawn::ImageEnvironment(delivered, "WINEPREFIX") == gBrokerPrefixDir);
     route=kind; ++launches; *pid=nativeStatus ? -1 : 123; return nativeStatus;
 }
 Ability_NativeChildProcess_ErrCode WineHua_StartNativeChildProcess(const char*, NativeChildProcess_Args args, NativeChildProcess_Options, int32_t* pid) {
@@ -379,6 +379,64 @@ static void WineClient() {
     assert(ohos_broker_spawn_child(invalidArgs,invalidFd,-1,"X",&invalidPid)==-1 && errno==EINVAL);
     close(invalidFd);
     unsetenv("WINEHUA_WINEDEBUG"); unsetenv("WINEDEBUG");
+    // The same running Steam process sends launches for different installed games.
+    char library[] = "/tmp/vp-steam-XXXXXX";
+    assert(mkdtemp(library));
+    const std::string game = std::string(library) + "/Game A";
+    const std::string sibling = game + " Deluxe";
+    assert(!mkdir(game.c_str(), 0700) && !mkdir(sibling.c_str(), 0700));
+    for (const auto& image : {game + "/Game.exe", sibling + "/Game.exe", game + "/steam.exe"}) {
+        const int fd = open(image.c_str(), O_CREAT | O_WRONLY, 0600);
+        assert(fd >= 0);
+        close(fd);
+    }
+    const auto savedHome = gBrokerHomeDir;
+    gBrokerHomeDir = library;
+    winehua::spawn::SetSteamGameOpenGLSettings({{game, true}, {sibling, false}});
+    auto launch = [&](const char* image) {
+        std::thread receiver([&] {
+            const int fd = accept(listener, nullptr, nullptr);
+            assert(fd >= 0);
+            BrokerJob job(fd);
+            assert(ReceiveJob(job));
+            LaunchJob(job);
+        });
+        char* args[] = {const_cast<char*>(image), nullptr};
+        const int fd = open("/dev/null", O_RDONLY);
+        int child = -1;
+        assert(!ohos_broker_spawn_child(args, fd, -1, nullptr, &child) && child == 123);
+        receiver.join();
+        close(fd);
+    };
+    setenv("MESA_GL_VERSION_OVERRIDE", "3.2FC", 1);
+    unsetenv("MESA_GLSL_VERSION_OVERRIDE");
+    launch("\\??\\Z:\\Game A\\Game.exe");
+    assert(winehua::spawn::ImageEnvironment(delivered, "MESA_GL_VERSION_OVERRIDE") == "3.3FC");
+    assert(winehua::spawn::ImageEnvironment(delivered, "MESA_GLSL_VERSION_OVERRIDE") == "330");
+    assert(!strcmp(getenv("MESA_GL_VERSION_OVERRIDE"), "3.2FC"));
+    // Simulate a helper launched by the opted-in game, including forwarded backups.
+    for (const auto& line : delivered.env) {
+        if (line.rfind("WINEHUA_STEAM_PREVIOUS_", 0) != 0 && line.rfind("MESA_", 0) != 0) continue;
+        const auto sep = line.find('=');
+        setenv(line.substr(0, sep).c_str(), line.c_str() + sep + 1, 1);
+    }
+    for (const char* image : {"Z:\\Game A Deluxe\\Game.exe", "Z:\\Game A\\steam.exe"}) {
+        launch(image);
+        assert(winehua::spawn::ImageEnvironment(delivered, "MESA_GL_VERSION_OVERRIDE") == "3.2FC");
+        assert(winehua::spawn::ImageEnvironment(delivered, "MESA_GLSL_VERSION_OVERRIDE").empty());
+    }
+    winehua::spawn::SetSteamGameOpenGLSettings({});
+    launch("Z:\\Game A\\Game.exe");
+    assert(winehua::spawn::ImageEnvironment(delivered, "MESA_GL_VERSION_OVERRIDE") == "3.2FC");
+    assert(winehua::spawn::ImageEnvironment(delivered, "WINEHUA_STEAM_PREVIOUS_GL_VERSION").empty());
+    for (const char* key : {"MESA_GL_VERSION_OVERRIDE", "MESA_GLSL_VERSION_OVERRIDE",
+                            "WINEHUA_STEAM_PREVIOUS_GL_VERSION", "WINEHUA_STEAM_PREVIOUS_GLSL_VERSION"})
+        unsetenv(key);
+    gBrokerHomeDir = savedHome;
+    assert(!unlink((game + "/Game.exe").c_str()) && !unlink((game + "/steam.exe").c_str()));
+    assert(!unlink((sibling + "/Game.exe").c_str()));
+    assert(!rmdir(game.c_str()) && !rmdir(sibling.c_str()) && !rmdir(library));
+
     std::thread server([&] { int fd=accept(listener,nullptr,nullptr); BrokerJob job(fd); assert(ReceiveJob(job)); LaunchJob(job); });
     int pid=-1; assert(!ohos_broker_spawn_wineserver(&pid)); server.join();
     assert((delivered.argv==std::vector<std::string>{"wineserver","-f","-p"}));

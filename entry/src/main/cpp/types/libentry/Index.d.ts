@@ -243,7 +243,7 @@ export const setToplevelCallback: (cb: (id: number, event: string, data: string)
 export const setImeCallback: (cb: (active: number, x: number, y: number, w: number, h: number) => void) => void;
 export const registerHostWindow: (windowId: number) => void;
 export const dumpWindowLayout: (displayId?: number) => void;
-export const setPointerLockCallback: (cb: (locked: boolean, toplevelId: number) => void) => void;
+export const setPointerLockCallback: (cb: (active: boolean, toplevelId: number, relative: boolean) => void) => void;
 export const sendImeCommit: (text: string) => void;
 export const sendImePreedit: (text: string, start: number, end: number) => void;
 export const imeBackspace: () => void;
@@ -379,6 +379,8 @@ export interface HarmonyGpuProbeResult {
 export const getHarmonyGpuProbeResult: () => HarmonyGpuProbeResult;
 export const stopHostVulkanProbe: () => boolean;
 export interface SteamZipProgress { done: number; total: number; }
+export interface SteamGameOpenGLSetting { directory: string; enabled: boolean; }
+export const setSteamGameOpenGLSettings: (settings: SteamGameOpenGLSetting[]) => void;
 export const extractSteamZipAsync: (fd: number, outDir: string) => Promise<void>;
 export const getSteamZipProgress: () => SteamZipProgress;
 

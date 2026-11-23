@@ -44,10 +44,14 @@ for (const backend of policy.GRAPHICS_BACKEND_IDS.concat(['default'])) {
 }
 const old = models.createDefaultAppSettings('old');
 delete old.graphicsBackend;
+delete old.steamOpenGL33;
 assert.equal(models.cloneAppSettings(old).graphicsBackend, 'default');
+assert.equal(models.cloneAppSettings(old).steamOpenGL33, false);
+old.steamOpenGL33 = true;
 old.graphicsBackend = 'virgl';
 const restored = models.cloneAppSettings(JSON.parse(JSON.stringify(old)));
 assert.equal(restored.graphicsBackend, 'virgl');
+assert.equal(restored.steamOpenGL33, true);
 assert.equal(old.graphicsBackend, 'virgl');
 old.graphicsBackend = 'invalid';
 assert.equal(models.cloneAppSettings(old).graphicsBackend, 'default');

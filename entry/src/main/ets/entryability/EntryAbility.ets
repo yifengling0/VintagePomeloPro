@@ -256,6 +256,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    WineWindowManager.getInstance().setEntryPointerHostForeground(true);
     AppReviewService.foreground(this.context);
     X11ClipboardService.foreground(this.context);
     if (this.mainWindow) WineImeCoordinator.getInstance().foreground(0, this.mainWindow);
@@ -268,6 +269,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    WineWindowManager.getInstance().setEntryPointerHostForeground(false);
     AppReviewService.background(this.context);
     X11ClipboardService.background(this.context);
     WineImeCoordinator.getInstance().background(this.mainWindow);

@@ -34,6 +34,12 @@ public:
     bool HasPointerResource() const { return ptrCount_.load() > 0; }
     bool HasKeyboardResource() const { return kbdCount_.load() > 0; }
 
+    // Cursor requests belong to the surface that received wl_pointer.enter.
+    using CursorVisibilityCallback = void (*)(bool hidden, uint32_t toplevelId);
+    void SetCursorVisibilityCallback(CursorVisibilityCallback callback);
+    void SetCursorFocus(uint32_t toplevel, wl_resource* surface, uint32_t serial);
+    void ClearCursorFocus(wl_resource* surface = nullptr);
+
     // -- wl_seat bind 回调 --
     static void seat_bind(wl_client* client, void* data, uint32_t version, uint32_t id);
 
@@ -42,6 +48,8 @@ public:
     static void seat_get_keyboard(wl_client*, wl_resource*, uint32_t id);
     static void seat_get_touch(wl_client*, wl_resource*, uint32_t id);
     static void seat_release(wl_client*, wl_resource*);
+    static void pointer_set_cursor(wl_client*, wl_resource*, uint32_t serial,
+                                   wl_resource* cursorSurface, int32_t, int32_t);
 
 private:
     Seat() = default;
@@ -53,6 +61,14 @@ private:
     wl_global* global_ = nullptr;
     wl_display* display_ = nullptr;
     wl_resource* seatResource_ = nullptr;
+
+    // Used on the Wayland dispatch thread, or after the server has stopped.
+    wl_resource* cursorFocusSurface_ = nullptr;
+    wl_resource* cursorHiddenBy_ = nullptr;
+    uint32_t cursorFocusToplevel_ = 0;
+    uint32_t cursorEnterSerial_ = 0;
+    std::atomic<CursorVisibilityCallback> cursorVisibilityCallback_{nullptr};
+    void UpdateCursorVisibility(wl_resource* hiddenBy);
 
     // pointer 资源池 (vector, mutex 保护)
     std::mutex ptrResMutex_;

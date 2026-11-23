@@ -411,6 +411,7 @@ export class AppSettingsStore {
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
       graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+      steamOpenGL33: value.steamOpenGL33 === true,
       gpuBcUpload: value.gpuBcUpload === true,
       gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),
       gameModeSettings: value.gameModeSettings ? normalizeGameModeSettings(value.gameModeSettings) : undefined,

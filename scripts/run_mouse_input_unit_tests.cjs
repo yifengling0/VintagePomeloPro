@@ -63,8 +63,8 @@ dispatcher.pointerMove('hardware', 400, 300, false, { rawDx: 0, rawDy: 0, fromMo
 assert.deepEqual(calls.pop(), [10, 3, 400, 300, 0, 0, 0, true]);
 function method(file, name) {
   const text = fs.readFileSync(path.join(root, file), 'utf8');
-  const start = text.indexOf('  private ' + name + '(');
-  assert.ok(start >= 0);
+  const start = text.search(new RegExp('^  (?:private )?' + name + '\\(', 'm'));
+  assert.ok(start >= 0, 'method missing: ' + name);
   return text.slice(start, text.indexOf('\n  }', start) + 4);
 }
 const handler = method('pages/InputOverlay.ets', 'handleDirectMouse');
@@ -237,14 +237,24 @@ assert.equal(virtual.shouldShowVirtualCursor(), false, 'toolbar hardware input a
 virtual.handleToolbarButtonTouch({ ...touch, source: 1, sourceTool: 3 }, () => {
   throw new Error('mouse touch copy must not toggle the toolbar');
 });
-const visibility = ['desktopOwns', 'canHideCursor'].map(name => method('service/WineWindowManager.ets', name)).join('\n');
+const visibility = ['desktopOwns', 'canHideCursor', 'onPointerCursor', 'applyPointerVisibility',
+  'noteAbilityForeground', 'notePointerWindowFocus', 'setGamePointerPanelOpen', 'clearPointerLockFor',
+  'setEntryPointerHostForeground'].map(name => method('service/WineWindowManager.ets', name)).join('\n');
 const policyExports = {};
+const visibilityChanges = [];
+let failVisibilityChange = false;
 vm.runInNewContext(ts.transpileModule('export class Policy {\n' + visibility + '\n}', {
   compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText,
-  { exports: policyExports, DeviceCapabilityPolicy: { usesManagedWineWindows: () => false } });
+  { exports: policyExports, DeviceCapabilityPolicy: { usesManagedWineWindows: () => false },
+    pointer: { setPointerVisibleSync(visible) {
+      if (failVisibilityChange) throw new Error('InputKit service unavailable');
+      visibilityChanges.push(visible);
+    } }, hilog: { info() {}, warn() {} }, DOMAIN: 0, TAG: 'test' });
 const policy = new policyExports.Policy();
 Object.assign(policy, { isDesktopMode: true, desktopAbilityRunning: true, desktopAbilityForeground: true,
-  desktopLauncherVisible: true, desktopRootId: 1, externalToplevels: new Set(), foregroundAbilities: new Set() });
+  desktopLauncherVisible: true, desktopRootId: 1, entryPointerHostForeground: true,
+  destroyed: new Set(), foregroundAbilities: new Set(), inactivePointerWindows: new Set(),
+  pointerLockToplevel: 0, cursorHiddenToplevel: 0, effectiveHidden: false, gamePointerPanelOpen: false });
 assert.equal(policy.canHideCursor(10), true, 'foreground tablet desktop ignores launcher flag');
 assert.equal(policy.canHideCursor(1), false, 'desktop shell stays visible');
 assert.equal(policy.canHideCursor(0), false, 'unidentified surface stays visible');
@@ -254,6 +264,33 @@ policy.desktopAbilityRunning = false;
 assert.equal(policy.canHideCursor(10), false, 'launcher preview stays visible');
 policy.desktopLauncherVisible = false;
 assert.equal(policy.canHideCursor(10), true, 'embedded full desktop still supports hiding');
+policy.onPointerCursor(true, 10, false);
+policy.setEntryPointerHostForeground(false);
+policy.setEntryPointerHostForeground(true);
+policy.onPointerCursor(false, 10, false);
+assert.deepEqual(visibilityChanges.splice(0), [false, true, false, true],
+  'absolute pointer follows the game and the embedded host foreground');
+
+policy.isDesktopMode = false;
+policy.noteAbilityForeground(20, true);
+policy.onPointerCursor(true, 20, true);
+policy.onPointerCursor(true, 20, false);
+policy.onPointerCursor(false, 0, true);
+policy.setGamePointerPanelOpen(true);
+policy.setGamePointerPanelOpen(false);
+policy.notePointerWindowFocus(20, false);
+policy.notePointerWindowFocus(20, true);
+policy.clearPointerLockFor(20);
+assert.deepEqual(visibilityChanges.splice(0), [false, true, false, true, false, true],
+  'relative unlock preserves explicit hiding, and panel, focus and close restore visibility');
+
+failVisibilityChange = true;
+policy.onPointerCursor(true, 20, false);
+assert.equal(policy.effectiveHidden, false, 'failed InputKit calls are not cached');
+failVisibilityChange = false;
+policy.noteAbilityForeground(20, true);
+policy.noteAbilityForeground(20, false);
+assert.deepEqual(visibilityChanges.splice(0), [false, true], 'foreground changes retry and restore visibility');
 console.log('mouse_input: hardware, touch, calibration, all entrances, cursor ownership and visibility PASS');
 
 

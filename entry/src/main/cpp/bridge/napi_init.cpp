@@ -11,6 +11,7 @@
 #include "bridge/plugin_manager.h"
 #include "input/input_manager.h"
 #include "input/pointer_extras.h"
+#include "input/seat.h"
 #include "graphics/egl_renderer.h"
 #include "audio/audio_broker.h"
 #include "audio_ipc_protocol.h"
@@ -20,6 +21,7 @@
 #include "wine/wine_env.h"
 #include "wine/container_session.h"
 #include "proc/wine_process.h"
+#include "proc/wine_spawn_compatibility.h"
 #include "wine/wine_launch.h"
 #include "wine/wine_cpu_policy.h"
 #include "wine/wine_exe.h"
@@ -1086,58 +1088,55 @@ static napi_value RegisterHostWindow(napi_env env, napi_callback_info info) {
     return nullptr;
 }
 
-// -- NAPI: setPointerLockCallback -- (锁定状态 → ets 隐藏/恢复系统光标)
-// gPointerLockTsfn 在主线程注册/替换、wl 线程回调读取 (20260822 review:
-// 裸指针跨线程读写 + 先 release 后 create 是 data race — 窗口重建 (launcher
-// resume 再次 init) 恰逢相对模式切换时, wl 线程可能读到已关闭/被交换的
-// 句柄 → UAF 或锁状态通知丢失)。修复: atomic 化; 替换时先原子摘除旧句柄
-// 再 release(释放后 wl 线程不可能再读到旧值); 读到 closing 中旧句柄时
-// napi_call_threadsafe_function 返回错误 — 忽略, 新句柄接管后续事件。
-static std::atomic<napi_threadsafe_function> gPointerLockTsfn{nullptr};
-static void CallJsPointerLock(napi_env env, napi_value cb, void*, void* data) {
-    if (env && cb) {
-        // data 打包: bit0 = locked, 高位 = 触发相对模式的约束 surface 的 toplevelId
-        // (解锁时该值为 0)。送到 ets 供"桌面 shell 自身藏光标 vs 游戏真相对模式"
-        // 的门禁区分。
-        uintptr_t packed = reinterpret_cast<uintptr_t>(data);
-        const bool locked = (packed & 1u) != 0;
-        const uint32_t toplevelId = static_cast<uint32_t>(packed >> 1);
-        napi_value undef, argLocked, argTl;
-        napi_get_undefined(env, &undef);
-        napi_get_boolean(env, locked, &argLocked);
-        napi_create_uint32(env, toplevelId, &argTl);
-        napi_value args[2] = {argLocked, argTl};
-        napi_call_function(env, undef, cb, 2, args, nullptr);
-    }
+// Deliver relative lock and explicit visibility changes through one JS queue.
+static std::mutex gPointerCursorMutex;
+static napi_threadsafe_function gPointerCursorTsfn = nullptr;
+
+static void PostPointerCursor(bool active, uint32_t toplevelId, bool relative) {
+    std::lock_guard<std::mutex> lock(gPointerCursorMutex);
+    if (!gPointerCursorTsfn) return;
+    const uintptr_t packed = (static_cast<uintptr_t>(toplevelId) << 2)
+        | (relative ? 2u : 0u) | (active ? 1u : 0u);
+    napi_call_threadsafe_function(gPointerCursorTsfn, reinterpret_cast<void*>(packed), napi_tsfn_nonblocking);
 }
+
+static void CallJsPointerCursor(napi_env env, napi_value cb, void*, void* data) {
+    if (!env || !cb) return;
+    const uintptr_t packed = reinterpret_cast<uintptr_t>(data);
+    napi_value undef, args[3];
+    napi_get_undefined(env, &undef);
+    napi_get_boolean(env, (packed & 1u) != 0, &args[0]);
+    napi_create_uint32(env, static_cast<uint32_t>(packed >> 2), &args[1]);
+    napi_get_boolean(env, (packed & 2u) != 0, &args[2]);
+    napi_call_function(env, undef, cb, 3, args, nullptr);
+}
+
 static napi_value SetPointerLockCallback(napi_env env, napi_callback_info info) {
     size_t argc = 1;
     napi_value args[1];
     napi_get_cb_info(env, info, &argc, args, nullptr, nullptr);
     if (argc < 1) return nullptr;
-    if (napi_threadsafe_function old = gPointerLockTsfn.exchange(nullptr)) {
-        napi_release_threadsafe_function(old, napi_tsfn_release);
-    }
+
     napi_value name;
-    napi_create_string_utf8(env, "WLPointerLock", NAPI_AUTO_LENGTH, &name);
-    napi_threadsafe_function newTsfn = nullptr;
-    if (napi_create_threadsafe_function(env, args[0], nullptr, name,
-                                         0, 1, nullptr, nullptr, nullptr, CallJsPointerLock,
-                                         &newTsfn) != napi_ok) {
+    napi_create_string_utf8(env, "WLPointerCursor", NAPI_AUTO_LENGTH, &name);
+    napi_threadsafe_function tsfn = nullptr;
+    if (napi_create_threadsafe_function(env, args[0], nullptr, name, 0, 1,
+                                      nullptr, nullptr, nullptr, CallJsPointerCursor, &tsfn) != napi_ok) {
         OH_LOG_ERROR(LOG_APP, "[NAPI] setPointerLockCallback: create tsfn failed");
         return nullptr;
     }
-    gPointerLockTsfn.store(newTsfn);
+    napi_threadsafe_function old;
+    {
+        std::lock_guard<std::mutex> lock(gPointerCursorMutex);
+        old = gPointerCursorTsfn;
+        gPointerCursorTsfn = tsfn;
+    }
+    if (old) napi_release_threadsafe_function(old, napi_tsfn_abort);
     PointerExtras::GetInstance()->SetPointerLockCallback([](bool locked, uint32_t toplevelId) {
-        if (napi_threadsafe_function tsfn = gPointerLockTsfn.load()) {
-            // bit0 = locked, 高位 = toplevelId (见 CallJsPointerLock 解包)
-            uintptr_t packed = static_cast<uintptr_t>(locked ? 1u : 0u) |
-                               (static_cast<uintptr_t>(toplevelId) << 1);
-            if (napi_call_threadsafe_function(tsfn, reinterpret_cast<void*>(packed),
-                    napi_tsfn_blocking) != napi_ok) {
-                // tsfn 正在关闭 (窗口重建竞态): 忽略, 新句柄接管后续事件
-            }
-        }
+        PostPointerCursor(locked, toplevelId, true);
+    });
+    Seat::GetInstance()->SetCursorVisibilityCallback([](bool hidden, uint32_t toplevelId) {
+        PostPointerCursor(hidden, toplevelId, false);
     });
     return nullptr;
 }
@@ -1466,6 +1465,39 @@ std::string GetStringArgument(napi_env env, napi_callback_info info) {
     napi_get_value_string_utf8(env, args[0], value.data(), value.size(), &length);
     value.resize(length);
     return value;
+}
+
+static napi_value SetSteamGameOpenGLSettingsNapi(napi_env env, napi_callback_info info) {
+    size_t argc = 1;
+    napi_value args[1]{};
+    bool array = false;
+    uint32_t count = 0;
+    if (napi_get_cb_info(env, info, &argc, args, nullptr, nullptr) != napi_ok || argc != 1 ||
+        napi_is_array(env, args[0], &array) != napi_ok || !array ||
+        napi_get_array_length(env, args[0], &count) != napi_ok) {
+        napi_throw_type_error(env, nullptr, "Expected Steam game OpenGL settings array");
+        return nullptr;
+    }
+    std::vector<winehua::spawn::SteamGameOpenGLSetting> settings;
+    for (uint32_t i = 0; i < count; ++i) {
+        napi_value item, directory, enabled;
+        size_t length = 0;
+        bool value = false;
+        if (napi_get_element(env, args[0], i, &item) != napi_ok ||
+            napi_get_named_property(env, item, "directory", &directory) != napi_ok ||
+            napi_get_named_property(env, item, "enabled", &enabled) != napi_ok ||
+            napi_get_value_bool(env, enabled, &value) != napi_ok ||
+            napi_get_value_string_utf8(env, directory, nullptr, 0, &length) != napi_ok) {
+            napi_throw_type_error(env, nullptr, "Expected Steam game directory and OpenGL preference");
+            return nullptr;
+        }
+        std::string path(length + 1, '\0');
+        if (napi_get_value_string_utf8(env, directory, path.data(), path.size(), &length) != napi_ok) return nullptr;
+        path.resize(length);
+        if (path.find('\0') == std::string::npos) settings.push_back({std::move(path), value});
+    }
+    winehua::spawn::SetSteamGameOpenGLSettings(settings);
+    return nullptr;
 }
 
 static bool ApplyHostGraphicsProfile(const winehua::HostGraphicsProfile& profile) {
@@ -2019,6 +2051,7 @@ static napi_value Init(napi_env env, napi_value exports) {
         {"destroyRenderer", nullptr, DestroyRenderer, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setOutputSize",   nullptr, SetOutputSize,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setWineLogPixels", nullptr, SetWineLogPixelsNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"setSteamGameOpenGLSettings", nullptr, SetSteamGameOpenGLSettingsNapi, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDisplayScale",  nullptr, SetDisplayScale,  nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setDesktopMode",   nullptr, SetDesktopMode,   nullptr, nullptr, nullptr, napi_default, nullptr},
         {"setPhoneMode",     nullptr, SetPhoneMode,     nullptr, nullptr, nullptr, napi_default, nullptr},

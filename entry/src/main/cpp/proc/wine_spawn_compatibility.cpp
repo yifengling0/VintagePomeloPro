@@ -3,9 +3,101 @@
 #include "graphics/graphics_profile.h"
 #include "wine/wine_env.h"
 #include "wine/wine_constants.h"
+#include <cstdlib>
+#include <map>
+#include <mutex>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace winehua::spawn {
+namespace {
+std::mutex steamGameOpenGLMutex;
+std::map<std::string, bool> steamGameOpenGLDirectories;
+
+struct OpenGLOverride {
+    const char* key;
+    const char* value;
+    const char* inheritedKey;
+};
+
+constexpr OpenGLOverride steamOpenGLOverrides[] = {
+    { "MESA_GL_VERSION_OVERRIDE", "3.3FC", "WINEHUA_STEAM_PREVIOUS_GL_VERSION" },
+    { "MESA_GLSL_VERSION_OVERRIDE", "330", "WINEHUA_STEAM_PREVIOUS_GLSL_VERSION" },
+};
+
+std::string CanonicalPath(const std::string& path) {
+    if (path.empty() || path.front() != '/') return {};
+    char* resolved = realpath(path.c_str(), nullptr);
+    if (!resolved) return {};
+    std::string result(resolved);
+    free(resolved);
+    return result;
+}
+
+void RestoreInheritedOpenGL(Request& request, const OpenGLOverride& override) {
+    const std::string saved = ImageEnvironment(request, override.inheritedKey);
+    if (saved.empty()) return;
+    const std::string originalPrefix = std::string(override.key) + '=';
+    const std::string inheritedPrefix = std::string(override.inheritedKey) + '=';
+    auto& env = request.env;
+    env.erase(std::remove_if(env.begin(), env.end(), [&](const std::string& line) {
+        return line.rfind(originalPrefix, 0) == 0 || line.rfind(inheritedPrefix, 0) == 0;
+    }), env.end());
+    if (saved.front() == '1') env.push_back(originalPrefix + saved.substr(1));
+}
+
+bool SteamGameOpenGL33Enabled(const Request& request) {
+    std::lock_guard<std::mutex> lock(steamGameOpenGLMutex);
+    if (steamGameOpenGLDirectories.empty()) return false;
+    const std::string image = CanonicalPath(WineImageNativePath(request));
+    const auto slash = image.find_last_of('/');
+    if (slash == std::string::npos) return false;
+    std::string name = image.substr(slash + 1);
+    std::transform(name.begin(), name.end(), name.begin(), [](char c) {
+        return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c;
+    });
+    if (name.size() < 4 || name.compare(name.size() - 4, 4, ".exe") ||
+        name == "steam.exe" || name == "steamwebhelper.exe") return false;
+    // Prefer the closest owner, including games that have opted out.
+    for (auto parent = slash; parent > 0; parent = image.rfind('/', parent - 1)) {
+        const auto entry = steamGameOpenGLDirectories.find(image.substr(0, parent));
+        if (entry != steamGameOpenGLDirectories.end()) return entry->second;
+    }
+    return false;
+}
+} // namespace
+
+void SetSteamGameOpenGLSettings(const std::vector<SteamGameOpenGLSetting>& settings) {
+    std::map<std::string, bool> directories;
+    if (std::any_of(settings.begin(), settings.end(), [](const auto& setting) { return setting.enabled; })) {
+        for (const auto& setting : settings) {
+            const std::string path = CanonicalPath(setting.directory);
+            struct stat st{};
+            if (path.size() <= 1 || stat(path.c_str(), &st) || !S_ISDIR(st.st_mode)) continue;
+            const auto [entry, inserted] = directories.emplace(path, setting.enabled);
+            if (!inserted) entry->second = entry->second && setting.enabled;
+        }
+    }
+    std::lock_guard<std::mutex> lock(steamGameOpenGLMutex);
+    steamGameOpenGLDirectories.swap(directories);
+}
+
+bool ApplySteamGameOpenGLSetting(Request& request) {
+    // Wine forwards the creator's Unix environment. Restore its previous
+    // values before resolving the new image, even if the setting was removed.
+    for (const auto& override : steamOpenGLOverrides) RestoreInheritedOpenGL(request, override);
+    if (!SteamGameOpenGL33Enabled(request)) return false;
+    for (const auto& override : steamOpenGLOverrides) {
+        const std::string prefix = std::string(override.key) + '=';
+        const auto original = std::find_if(request.env.rbegin(), request.env.rend(),
+            [&](const std::string& line) { return line.rfind(prefix, 0) == 0; });
+        const std::string saved = original == request.env.rend() ? "0" : "1" + original->substr(prefix.size());
+        UpsertEnvLine(request.env, std::string(override.inheritedKey) + '=' + saved);
+        UpsertEnvLine(request.env, prefix + override.value);
+    }
+    return true;
+}
+
 FreshWineGraphics ConfigureFreshWineGraphics(Request& request, bool fresh,
                                              const std::string& binDir) {
     if (!fresh || ImageEnvironment(request, "WINEHUA_VULKAN_BACKEND") != "direct")

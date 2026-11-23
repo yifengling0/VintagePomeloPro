@@ -85,6 +85,7 @@ void InputInjector::InjectPointerEnter(uint32_t tl, wl_resource* surface, wl_fix
 
     int nSent = 0;
     struct wl_client* surfClient = wl_resource_get_client(surface);
+    seat->SetCursorFocus(tl, surface, s);
     OH_LOG_INFO(LOG_APP, "[Input] InjectEnter tl=%{public}u serial=%{public}u sx=%{public}.1f sy=%{public}.1f nPtrs=%{public}zu t=%{public}u",
                 tl, s, wl_fixed_to_double(sx), wl_fixed_to_double(sy), ptrs.size(), NowMs());
     for (auto* ptr : ptrs) {
@@ -199,7 +200,9 @@ void InputInjector::InjectPointerAxis(int axis, wl_fixed_t value, bool continuou
 
 void InputInjector::InjectPointerLeave() {
     positionedSurface_ = nullptr;
-    auto ptrs = Seat::GetInstance()->GetAllPointerResources();
+    auto* seat = Seat::GetInstance();
+    seat->ClearCursorFocus();
+    auto ptrs = seat->GetAllPointerResources();
     wl_resource* surf = tracker_->PointerFocusedSurface();
     if (ptrs.empty() || !surf) return;
     // 防御: surface 可能在 leave 入队后到 flush 前被销毁 — 对已复用的

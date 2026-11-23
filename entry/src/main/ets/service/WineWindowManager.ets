@@ -3,7 +3,6 @@ import { InputRouter } from './InputRouter';
 import { common, Want } from '@kit.AbilityKit';
 import { window, display } from '@kit.ArkUI';
 import { hilog } from './LogService';
-import { BusinessError } from '@kit.BasicServicesKit';
 import { pointer } from '@kit.InputKit';
 import testNapi from 'libentry.so';
 import { HostWindowTasks, HostWindowTask } from './HostWindowTasks';
@@ -75,17 +74,13 @@ export class WineWindowManager {
   isDesktopMode: boolean = true;
   // 公开: 由 applyModePolicy 统一判定 (phone 强制虚拟; tablet 默虚拟可切多窗口; PC 按设置)
   presentationMode: WinePresentationMode = WinePresentationMode.DESKTOP;
-  // -- 光标隐藏门禁 (dinput 相对模式驱动, 见 applyPointerVisibility) --
-  // pointerLocked: wine 最近的真实"相对模式锁定"请求 (不受展示形态门禁过滤,
-  // 只是原始事实); effectiveHidden: 我们实际对系统光标做的显隐。两者分离,
-  // 以便"悬浮窗 ↔ 完整桌面"切换时按 pointerLocked × 是否允许隐藏重算 — 否则
-  // 悬浮态被抑制的隐藏, 切到完整桌面后没有新事件通知 → 光标残留显示 (游戏里
-  // 光标浮出)。default=false, 与融合模式"只拦桌面"的判据兼容。
-  private pointerLocked: boolean = false;
-  private effectiveHidden: boolean = false;
-  // 触发相对模式的约束 surface 的 toplevelId (解锁时=0)。用于区分"桌面 shell
-  // 自身藏光标 (启动瞬时 toplevelId==desktopRootId)"与"游戏子窗口真相对模式"。
+  // Relative capture and explicit hiding have independent lifetimes.
   private pointerLockToplevel: number = 0;
+  private cursorHiddenToplevel: number = 0;
+  private inactivePointerWindows: Set<number> = new Set();
+  private effectiveHidden: boolean = false;
+  private gamePointerPanelOpen: boolean = false;
+  private entryPointerHostForeground: boolean = true;
   private desktopRootId: number = 0;
   private desktopEmbeddedHost: boolean | null = null;
 
@@ -282,21 +277,12 @@ export class WineWindowManager {
     });
     hilog.info(DOMAIN, TAG, '[MW] toplevel callback registered OK');
 
-    // dinput 相对模式 (游戏隐藏光标无限转视角) 的 host 侧配套:
-    // 注册主窗口 id 供 native OH_WindowManager_LockCursor 冻结光标;
-    // 锁定状态回调里隐藏/恢复系统光标 (隐藏能力只有 ArkTS API)
+    // Register the host window for relative capture.
     if (this.mainWindow) {
       testNapi.registerHostWindow(this.mainWindow.getWindowProperties().id);
     }
-    testNapi.setPointerLockCallback((locked: boolean, fromToplevel: number) => {
-      // 记录 wine 真实锁定请求与来源 toplevel (不受门禁过滤), 再由
-      // applyPointerVisibility 按展示形态 + 来源决定是否 setPointerVisible —
-      // 悬浮窗态抑制; 完整桌面态: 桌面 root surface (shell 自身) 也抑制, 仅
-      // 子窗口 (真游戏) 跟随。解锁 (locked=false) 必然走 SHOW 分支。
-      this.pointerLocked = locked;
-      this.pointerLockToplevel = fromToplevel;
-      this.applyPointerVisibility();
-    });
+    testNapi.setPointerLockCallback((active: boolean, fromToplevel: number, relative: boolean) =>
+      this.onPointerCursor(active, fromToplevel, relative));
 
     // Returning to the launcher is an explicit foreground choice. Existing
     // desktop windows are restored through the task activator, never by init.
@@ -664,6 +650,16 @@ export class WineWindowManager {
     // Set insertion order tracks the latest foreground event on multiwindow PCs.
     this.foregroundAbilities.delete(id);
     if (foreground && !this.destroyed.has(id)) this.foregroundAbilities.add(id);
+    this.applyPointerVisibility();
+  }
+
+  notePointerWindowFocus(id: number, focused: boolean): void {
+    if (focused) {
+      this.inactivePointerWindows.delete(id);
+    } else {
+      this.inactivePointerWindows.add(id);
+    }
+    this.applyPointerVisibility();
   }
 
   private hostAbilityContext(): common.UIAbilityContext | null {
@@ -1773,53 +1769,58 @@ export class WineWindowManager {
     return false;
   }
 
-  // 光标隐藏门禁判据 (fromToplevel = 触发相对模式的约束 surface 所属 toplevel):
-  //   融合模式   → 允许 (每个 app 独立窗口, setPointerVisible 按"当前窗口"
-  //                作用, 只有发起相对模式的应用窗口隐藏, 天然满足"其它窗口
-  //                不隐藏") — 不拦。
-  //   PC 虚拟桌面 → 对齐 WineHua desktopSeparateWindow + desktopWindowActive:
-  //                DesktopAbility 前台才允许; 不看 Pad 浮窗标志
-  //                (desktopLauncherVisible 默认 true, PC 从不走 Index 放大清位)。
-  //   Pad/手机    → 悬浮窗形态禁止; 完整桌面形态仅非桌面 root 允许。
-  //                悬浮 = launcherVisible; 完整 = !launcherVisible
-  //   完整桌面下 fromToplevel == desktopRootId → 桌面 shell 自身藏
-  //   光标 (启动瞬时) → 禁止; 子窗口 (真实游戏/程序) → 允许。
+  // InputKit visibility is process-wide. Restrict it to active game hosts.
   private canHideCursor(fromToplevel: number): boolean {
-    if (!this.desktopOwns(fromToplevel)) return this.foregroundAbilities.has(fromToplevel);
+    if (fromToplevel <= 0 || this.destroyed.has(fromToplevel)) return false;
+    if (!this.desktopOwns(fromToplevel)) {
+      return this.foregroundAbilities.has(fromToplevel) && !this.inactivePointerWindows.has(fromToplevel);
+    }
     if (this.desktopAbilityRunning || DeviceCapabilityPolicy.usesManagedWineWindows()) {
       if (!this.desktopAbilityForeground) return false;
-    } else {
-      if (this.desktopLauncherVisible) return false;
+    } else if (this.desktopLauncherVisible || !this.entryPointerHostForeground) {
+      return false;
     }
-    return fromToplevel > 0 && fromToplevel !== this.desktopRootId;
+    return fromToplevel !== this.desktopRootId;
   }
 
-  // 关窗/锁定失败时清相对模式锁: 与 native ReleaseLockForToplevel 配对,
-  // 避免 pointerLocked 永真、光标一直隐藏、下一局游戏锁不上。
-  private clearPointerLockFor(id: number): void {
-    if (!this.pointerLocked || this.pointerLockToplevel !== id) return;
-    this.pointerLocked = false;
-    this.pointerLockToplevel = 0;
+  private onPointerCursor(active: boolean, fromToplevel: number, relative: boolean): void {
+    if (relative) {
+      this.pointerLockToplevel = active ? fromToplevel : 0;
+    } else if (active || this.cursorHiddenToplevel === fromToplevel) {
+      this.cursorHiddenToplevel = active ? fromToplevel : 0;
+    }
     this.applyPointerVisibility();
   }
 
-  // 统一重算并应用光标显隐: shouldHide = pointerLocked × canHideCursor()。
+  setGamePointerPanelOpen(open: boolean): void {
+    this.gamePointerPanelOpen = open;
+    this.applyPointerVisibility();
+  }
+
+  setEntryPointerHostForeground(foreground: boolean): void {
+    this.entryPointerHostForeground = foreground;
+    this.applyPointerVisibility();
+  }
+
+  private clearPointerLockFor(id: number): void {
+    this.inactivePointerWindows.delete(id);
+    if (this.pointerLockToplevel === id) this.pointerLockToplevel = 0;
+    if (this.cursorHiddenToplevel === id) this.cursorHiddenToplevel = 0;
+    this.applyPointerVisibility();
+  }
+
   private applyPointerVisibility(): void {
-    const canHide = this.canHideCursor(this.pointerLockToplevel);
-    const shouldHide = this.pointerLocked && canHide;
-    hilog.info(DOMAIN, TAG,
-      '[MW]PtrVis → %{public}s (locked=%{public}s canHide=%{public}s tl=%{public}d desktop=%{public}s pcManaged=%{public}s launcher=%{public}s fg=%{public}s root=%{public}d)',
-      shouldHide ? 'HIDE' : 'SHOW',
-      String(this.pointerLocked), String(canHide), this.pointerLockToplevel,
-      String(this.isDesktopMode),
-      String(DeviceCapabilityPolicy.usesManagedWineWindows()),
-      String(this.desktopLauncherVisible),
-      String(this.desktopAbilityForeground), this.desktopRootId);
+    const shouldHide = !this.gamePointerPanelOpen &&
+      (this.canHideCursor(this.pointerLockToplevel) || this.canHideCursor(this.cursorHiddenToplevel));
     if (shouldHide === this.effectiveHidden) return;
-    this.effectiveHidden = shouldHide;
-    pointer.setPointerVisible(!shouldHide).catch((e: BusinessError) => {
+    try {
+      pointer.setPointerVisibleSync(!shouldHide);
+      this.effectiveHidden = shouldHide;
+      hilog.info(DOMAIN, TAG, '[MW]PtrVis → %{public}s (relative=%{public}d explicit=%{public}d)',
+        shouldHide ? 'HIDE' : 'SHOW', this.pointerLockToplevel, this.cursorHiddenToplevel);
+    } catch (e) {
       hilog.warn(DOMAIN, TAG, '[MW] setPointerVisible failed: %{public}s', JSON.stringify(e));
-    });
+    }
   }
 
   registerDesktopAbility(ctx: common.UIAbilityContext): void {

@@ -18,6 +18,7 @@ import { AppSettingsStore } from '../service/AppSettingsStore';
 import { ThemeSettingsListener, ThemeSettingsService } from '../service/ThemeSettingsService';
 import { consoleColors } from '../service/SkinColors';
 import { InputDispatcher } from '../service/InputDispatcher';
+import { WineWindowManager } from '../service/WineWindowManager';
 import { InputEventGate } from '../service/InputEventGate';
 import { InputOverlayWindowCoordinator } from '../service/InputOverlayWindowCoordinator';
 import { mapMouseButton } from '../common/MouseMap';
@@ -1970,6 +1971,11 @@ export struct VirtualInputOverlay {
     ctx.fill();
   }
 
+  private setGamePanelOpen(open: boolean): void {
+    this.gamePanel = open;
+    WineWindowManager.getInstance().setGamePointerPanelOpen(open);
+  }
+
   aboutToAppear(): void {
     this.applyOverlayTheme(AppSettingsStore.getInstance().getGlobalSettings());
     this.themeListener = (settings: GlobalSettings): void => this.applyOverlayTheme(settings);
@@ -1981,6 +1987,7 @@ export struct VirtualInputOverlay {
   }
 
   aboutToDisappear(): void {
+    if (this.gamePanel) this.setGamePanelOpen(false);
     if (this.themeListener) ThemeSettingsService.getInstance().unsubscribe(this.themeListener);
     this.themeListener = null;
     this.cancelToolbarAutoHide();
@@ -2117,7 +2124,7 @@ export struct VirtualInputOverlay {
     if (action === 'launcher') {
       this.releaseAllElementTouches();
       InputDispatcher.getInstance().releaseAll('return-to-launcher');
-      if (this.gameSession) this.gamePanel = true;
+      if (this.gameSession) this.setGamePanelOpen(true);
       else void HostWindowTasks.getInstance().showLauncher();
       return;
     }
@@ -2472,7 +2479,7 @@ export struct VirtualInputOverlay {
       }
       if (!this.hideToolbar) this.Toolbar()
       if (this.gamePanel && this.gameSession) {
-        GameQuickPanel({ onResume: (): void => { this.gamePanel = false; } }).zIndex(100)
+        GameQuickPanel({ onResume: (): void => { this.setGamePanelOpen(false); } }).zIndex(100)
       }
     }
     .width('100%').height('100%')

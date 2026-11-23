@@ -2,6 +2,7 @@
 #include "keymap_xkb.h"
 #include "input_manager.h"
 #include "compositor/wayland_server.h"
+#include "proc/wine_process.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -25,15 +26,10 @@ static const struct wl_seat_interface kSeatImpl = {
 };
 
 // -- wl_pointer 接口实现表 --
-// set_cursor 不处理: 系统光标由 host (ArkTS/OH_WindowManager) 显示, wine 的
-// shm 自定义光标不呈现 — 光标可见性跟踪交由相对模式的
-// PointerExtras/InputManager (与 wine 侧 cursor.wl_surface 时序无耦合)。
-static void ptr_set_cursor(wl_client*, wl_resource*, uint32_t,
-                           wl_resource*, int32_t, int32_t) {}
 static void ptr_release(wl_client*, wl_resource* r) { wl_resource_destroy(r); }
 
 static const struct wl_pointer_interface kPointerImpl = {
-    .set_cursor = ptr_set_cursor,
+    .set_cursor = Seat::pointer_set_cursor,
     .release    = ptr_release,
 };
 
@@ -55,6 +51,53 @@ static const struct wl_touch_interface kTouchImpl = {
 Seat* Seat::GetInstance() {
     static Seat s;
     return &s;
+}
+
+void Seat::SetCursorVisibilityCallback(CursorVisibilityCallback callback) {
+    cursorVisibilityCallback_.store(callback);
+}
+
+void Seat::UpdateCursorVisibility(wl_resource* hiddenBy) {
+    const bool changed = (cursorHiddenBy_ == nullptr) != (hiddenBy == nullptr);
+    cursorHiddenBy_ = hiddenBy;
+    if (changed) {
+        if (auto callback = cursorVisibilityCallback_.load()) {
+            callback(hiddenBy != nullptr, cursorFocusToplevel_);
+        }
+    }
+}
+
+void Seat::SetCursorFocus(uint32_t toplevel, wl_resource* surface, uint32_t serial) {
+    if (cursorFocusSurface_ != surface || cursorFocusToplevel_ != toplevel) ClearCursorFocus();
+    cursorFocusSurface_ = surface;
+    cursorFocusToplevel_ = toplevel;
+    cursorEnterSerial_ = serial;
+}
+
+void Seat::ClearCursorFocus(wl_resource* surface) {
+    if (surface && surface != cursorFocusSurface_) return;
+    UpdateCursorVisibility(nullptr);
+    cursorFocusSurface_ = nullptr;
+    cursorFocusToplevel_ = 0;
+    cursorEnterSerial_ = 0;
+}
+
+void Seat::pointer_set_cursor(wl_client* client, wl_resource* pointer, uint32_t serial,
+                              wl_resource* cursorSurface, int32_t, int32_t) {
+    auto* self = static_cast<Seat*>(wl_resource_get_user_data(pointer));
+    if (!self->cursorFocusSurface_ || serial != self->cursorEnterSerial_ ||
+        client != wl_resource_get_client(self->cursorFocusSurface_)) return;
+    if (!cursorSurface) {
+        // Wine's startup helper windows can receive synthetic pointer focus
+        // before any game opens and also request a null cursor surface.
+        pid_t pid = 0;
+        wl_client_get_credentials(client, &pid, nullptr, nullptr);
+        WineProcessEntry process{};
+        if (QueryProcessSnapshot(pid, &process) && process.desktopShell) return;
+    }
+    // A null surface requests invisibility. A non-null surface restores the
+    // host pointer, which owns cursor rendering in this compositor.
+    self->UpdateCursorVisibility(cursorSurface ? nullptr : pointer);
 }
 
 // -- 资源访问 --
@@ -88,6 +131,7 @@ void Seat::Register(wl_display* display) {
 }
 
 void Seat::Unregister() {
+    ClearCursorFocus();
     if (global_) {
         wl_global_destroy(global_);
         global_ = nullptr;
@@ -203,6 +247,7 @@ void Seat::seat_release(wl_client*, wl_resource* r) {
 // -- resource destructors --
 void Seat::pointer_destroy(wl_resource* r) {
     auto* self = static_cast<Seat*>(wl_resource_get_user_data(r));
+    if (self->cursorHiddenBy_ == r) self->UpdateCursorVisibility(nullptr);
     {
         std::lock_guard<std::mutex> lk(self->ptrResMutex_);
         auto& v = self->pointerResources_;

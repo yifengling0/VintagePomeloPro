@@ -117,6 +117,9 @@ static void LaunchJob(BrokerJob& job) {
     request.home = gBrokerHomeDir;
     AppendWineDpiEnv(request.env);
     if (!gBrokerPrefixDir.empty()) request.env.emplace_back("WINEPREFIX=" + gBrokerPrefixDir);
+    if (winehua::spawn::ApplySteamGameOpenGLSetting(request))
+        OH_LOG_INFO(LOG_APP, "[Broker] Steam game OpenGL 3.3 override image=%{public}s",
+                    winehua::spawn::ProcessPath(request).c_str());
     const bool freshImage = winehua::spawn::RequiresFreshWineProcess(request);
     const auto freshGraphics = winehua::spawn::ConfigureFreshWineGraphics(request, freshImage, request.bin);
     if (freshGraphics == winehua::spawn::FreshWineGraphics::MissingRuntime) {

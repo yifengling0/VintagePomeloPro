@@ -204,6 +204,7 @@ void InputManager::ResetSessionState() {
 
 void InputManager::OnSurfaceDestroyed(wl_resource* surface) {
     TextInput::GetInstance()->OnSurfaceDestroyed(surface);
+    Seat::GetInstance()->ClearCursorFocus(surface);
     // surface 已被 Wine 销毁, 如果仍持有引用并在后续 Inject*Leave 中使用,
     // 会导致 Wayland 协议错误 "invalid object" → Wine 断开连接
     if (tracker_.PointerFocusedSurfaceIs(surface)) {

@@ -33,6 +33,7 @@ import {
   parseLaunchArgumentText
 } from '../model/AppModels';
 import { AppCatalogService } from '../service/AppCatalogService';
+import { SteamLocalService, supportsSteamGameOpenGL } from '../steam/SteamLocalService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { APP_GRAPHICS_BACKEND_IDS, APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_VIRGL_33, normalizeAppGraphicsBackend,
   isVirglOpenGLCompatibility, resolveGraphicsBackend, graphicsBackendLabel,
@@ -732,6 +733,17 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private async setSteamOpenGL33(enabled: boolean): Promise<void> {
+    if (enabled === (this.value.steamOpenGL33 === true)) return;
+    const next = cloneAppSettings(this.value);
+    next.steamOpenGL33 = enabled;
+    this.value = next;
+    const saving = this.persist();
+    // saveAppSettings updates its in-memory value before flushing to disk.
+    SteamLocalService.getInstance().syncGameOpenGLSettings();
+    await saving;
+  }
+
   private selectedGraphicsBackendButton(): string {
     const backend = this.value.graphicsBackend ?? 'default';
     return isVirglOpenGLCompatibility(backend) ? APP_OPENGL_VIRGL_COMPAT : backend;
@@ -893,6 +905,16 @@ struct AppSettingsPage {
                     this.setGraphicsBackend(enabled ? APP_OPENGL_VIRGL_33 : APP_OPENGL_VIRGL_COMPAT))
               }.width('100%')
               Text('游戏明确要求 OpenGL 3.3 时再开启。关闭后使用 3.2 兼容模式。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            } else if (this.app && supportsSteamGameOpenGL(this.app)) {
+              Row({ space: 8 }) {
+                Text('尝试 OpenGL 3.3（实验）').fontSize(13).layoutWeight(1)
+                  .fontColor(skinColor('text_primary'))
+                Toggle({ type: ToggleType.Switch, isOn: this.value.steamOpenGL33 === true })
+                  .id('app-settings-steam-opengl33')
+                  .onChange((enabled: boolean): void => { void this.setSteamOpenGL33(enabled); })
+              }.width('100%')
+              Text('仅在此游戏下次启动时生效。关闭后使用运行时默认的 OpenGL 版本。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             }
             Text('当前选择：' + graphicsBackendLabel(resolveGraphicsBackend(

@@ -123,6 +123,10 @@ export default class WineWindowAbility extends UIAbility {
 
           hilog.info(DOMAIN, TAG, '[WWA] #%{public}d  WINDOW_SHOWN → resume input', this.toplevelId);
           try { testNapi.setToplevelVisible(this.toplevelId, true); } catch (_) {}
+        } else if (eventType === window.WindowEventType.WINDOW_ACTIVE ||
+          eventType === window.WindowEventType.WINDOW_INACTIVE) {
+          WineWindowManager.getInstance().notePointerWindowFocus(this.toplevelId,
+            eventType === window.WindowEventType.WINDOW_ACTIVE);
         } else if (eventType === window.WindowEventType.WINDOW_HIDDEN) {
           // 2in1 融合: 失焦也会 HIDDEN, surface 仍可呈现。只关输入, 不停 GPU
           // (停渲染会出现任务栏两个图标、切过去黑屏)。对齐 master/main-ui。
