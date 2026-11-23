@@ -17,9 +17,12 @@ function load(file, deps = {}, globals = {}) {
   }}, {filename: file + '.ets'});
   return exports;
 }
+const graphics = load('model/GraphicsBackendSettings');
 const models = load('model/AppModels', {
   '../common/EvdevKeyNames': load('common/EvdevKeyNames'),
-  './PerformanceHudSettings': load('model/PerformanceHudSettings')
+  './PerformanceHudSettings': load('model/PerformanceHudSettings'),
+  './GameModeSettings': load('model/GameModeSettings'),
+  './GraphicsBackendSettings': graphics
 });
 const rules = load('model/AppCatalogRules');
 const hilog = {info(){},warn(){},error(){}};
@@ -56,7 +59,8 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   const wm = load('service/WineWindowManager', {
     '@kit.AbilityKit':{},'@kit.ArkUI':{window:{}},'./LogService':{hilog},
     '@kit.BasicServicesKit':{},'@kit.InputKit':{},'libentry.so':{default:native},
-    'libsmoke_napi.so':{default:{}},'./HostWindowTasks':{HostWindowTasks:{getInstance:()=>hostTasks}},
+    '../model/DisplayScalePolicy':load('model/DisplayScalePolicy'),
+    './InputRouter':{},'./HostWindowTasks':{HostWindowTasks:{getInstance:()=>hostTasks}},
     './InputDispatcher':{InputDispatcher:{getInstance:()=>({releaseAll(){},setActiveToplevel(){}})}},'../model/AppModels':models,'./PopupWindowManager':{},
     './ModalWindowManager':{},'./FusionWindowManager':{},
     './AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},'./DesktopModeService':{},
@@ -78,10 +82,13 @@ async function fixture(deviceType, pcMode, initialMode, laterMode=initialMode, l
   assert.equal(wm.getDesktopRootId(),7,'closing carrier preserves root');
   const engine = {getState:()=>models.EngineState.READY,isReady:()=>true,
     getMode:()=>models.DisplayMode.DESKTOP,getPresentationMode:()=>models.WinePresentationMode.DESKTOP,
+    selectHostGraphicsBackendForExecutable:()=>'',needsHostGraphicsRestart:()=>false,
     subscribe(){},ensureReady:async()=>true};
   const service = new (load('service/AppSessionService', {
     'libentry.so':{default:native},'./LogService':{hilog},'../model/AppModels':models,
-    '../model/AppCatalogRules':rules,'./WineEngineService':{WineEngineService:{getInstance:()=>engine}},
+    '../model/AppCatalogRules':rules,'../model/GraphicsBackendSettings':graphics,
+    './GameModeService':{GameModeService:{begin(){},finish(){},reset(){},noteActiveApp(){},enabled:()=>false}},
+    './WineEngineService':{WineEngineService:{getInstance:()=>engine}},
     './WineWindowManager':{WineWindowManager:{getInstance:()=>wm}},
     './HostWindowTasks':{HostWindowTasks:{getInstance:()=>hostTasks}},
     './AppSettingsStore':{AppSettingsStore:{getInstance:()=>store}},'./InputOverlayWindowCoordinator':{},

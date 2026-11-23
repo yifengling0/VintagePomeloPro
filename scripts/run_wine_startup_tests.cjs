@@ -30,6 +30,7 @@ function fixture() {
     require(name) {
       if(name==='libentry.so')return {default:napi};
       if(name.includes('X11ClipboardService'))return {X11ClipboardService:{start(){},stop(){}}};
+      if(name==='./SystemOpenService')return {SystemOpenService:{start(){},stop(){}}};
       if(name==='libdisplay_route_napi.so')return {default:route};
       if(name==='@kit.CoreFileKit')return {fileIo:{accessSync:()=>false}};
       if(name.includes('LogService'))return {hilog:{info(){},warn(){},error(){}}};
@@ -37,7 +38,7 @@ function fixture() {
         WinePresentationMode:{DESKTOP:'desktop',MANAGED_WINDOWS:'managed'},
         ScreenOrientationSetting:{SENSOR_LANDSCAPE:'landscape'},canTransitionEngineState:()=>true};
       if(name.includes('WineUpgradeGuard'))return {WineUpgradeGuard:class {needsReset(){return false;}}};
-      if(name.includes('AppSettingsStore'))return {AppSettingsStore:{getInstance:()=>({getGlobalSettings:()=>settings})}};
+      if(name.includes('AppSettingsStore'))return {AppSettingsStore:{getInstance:()=>({getGlobalSettings:()=>settings,getDxvkDepthD32:()=>true})}};
       if(name.includes('WineWindowManager'))return {WineWindowManager:{getInstance:()=>wm}};
       return {};
     }
@@ -74,7 +75,7 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
       f.napi.launchClient=(...args)=>{cold=args[12];Object.assign(f.snapshot(),{generation:1,active:false,state:'ready'});return 0;};
       f.napi.runWineExe=(...args)=>{hot=args[8];return {pid:42,sessionId:'test',reused:false};};
       assert.equal(await f.start(),true);f.s.launchExecutable('C:/game.exe');
-      const expected=modelExports.resolveWineCpuEnvironment(engine,'performance');
+      const expected=[...modelExports.resolveWineCpuEnvironment(engine,'performance'),'WINEHUA_DXVK_D24_STORAGE_D32=1'];
       assert.equal(JSON.stringify(cold),JSON.stringify(expected));
       assert.equal(JSON.stringify(hot.slice(0,expected.length)),JSON.stringify(expected));
       assert.equal(cold.some(x=>x.startsWith('BOX64_DYNAREC_')),engine==='box64');
@@ -176,13 +177,14 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
     assert.deepEqual(paths,[root+'/fex',root+'/icu',root+'/.winehua-prefix-runtime-version']);
     assert.equal(paths.some(p=>p.includes('/files/.wine/')),false);
   });
-  await test('clean prerequisite cannot enqueue a desktop window for the immediately destroyed root',async()=>{
+  await test('readiness forwards the current foreground guard to session startup',async()=>{
     const f=fixture();let guard;
-    f.s.ensureReady=async(mode,presentation,home,current)=>{guard=current;return false;};
-    assert.equal(await f.s.ensureSmokeReady('desktop','desktop','/games','clean'),false);
-    assert.equal(typeof guard,'function');assert.equal(guard(),false);
-    assert.equal(await f.s.ensureSmokeReady('desktop','desktop','/games','reuse'),false);
-    assert.equal(guard,undefined,'normal product readiness keeps its foreground behavior');
+    f.s.startSession=async(mode,presentation,home,prefix,current)=>{assert.equal(prefix,'reuse');guard=current;return false;};
+    const covered=()=>false;
+    assert.equal(await f.s.ensureReady('desktop','desktop','/games',covered),false);
+    assert.equal(guard,covered);
+    assert.equal(await f.s.ensureReady('desktop','desktop','/games'),false);
+    assert.equal(guard,undefined);
   });
   console.log(`${count} production Wine startup cases passed`);
 })().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>clearTimeout(watchdog));
