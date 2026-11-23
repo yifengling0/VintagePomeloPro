@@ -23,9 +23,11 @@ const char* Plain = "text/plain";
 const char* WineTag = "application/x.winewayland.tag";
 struct Source { wl_resource* resource; std::vector<std::string> mimes; };
 struct Offer { wl_resource* resource; std::shared_ptr<const std::string> text; };
+enum class SelectionOrigin { None, Host, Client, Wine };
 struct Transfer {
     int fd; bool writing; uint64_t generation; size_t offset = 0;
     std::string text; wl_event_source *event = nullptr, *timer = nullptr;
+    SelectionOrigin origin = SelectionOrigin::Client;
 };
 wl_display* display;
 wl_global* global;
@@ -40,8 +42,8 @@ std::vector<Transfer*> transfers;
 std::mutex bridgeMutex;
 int wake[2] = {-1, -1};
 wl_event_source* wakeEvent;
-bool pending = false, reset = false, hasSelection = false;
-bool wineSelection = false;
+bool pending = false, reset = false;
+SelectionOrigin selectionOrigin = SelectionOrigin::None;
 std::string pendingText, snapshot;
 std::shared_ptr<const std::string> selectionText;
 uint64_t version = 0, generation = 0;
@@ -63,6 +65,12 @@ void Publish(const std::string& text) {
 void Invalidate() {
     ++generation;
     for (auto* t : std::vector<Transfer*>(transfers)) Finish(t);
+}
+void CancelSelectionRead() {
+    // SetSelection starts at most one read. Preserve writes from host offers
+    // while a Wine client is mirroring the selection it just received.
+    auto read = std::find_if(transfers.begin(), transfers.end(), [](const Transfer* t) { return !t->writing; });
+    if (read != transfers.end()) Finish(*read);
 }
 int Timeout(void* data) { Finish(static_cast<Transfer*>(data)); return 0; }
 void SendSelections();
@@ -91,7 +99,13 @@ int TransferReady(int fd, uint32_t, void* data) {
             if (t->text.size() + static_cast<size_t>(n) > MaxText) { Finish(t); return 0; }
             t->text.append(bytes, static_cast<size_t>(n));
         } else if (!n) {
-            selectionText = std::make_shared<const std::string>(t->text); hasSelection = true;
+            if (selectionOrigin == SelectionOrigin::Host && t->origin == SelectionOrigin::Wine &&
+                t->text == *selectionText) {
+                Finish(t);
+                return 0;
+            }
+            selectionText = std::make_shared<const std::string>(t->text);
+            selectionOrigin = t->origin;
             Publish(t->text); Finish(t); SendSelections(); return 0;
         } else if (errno == EINTR) continue;
         else if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
@@ -100,11 +114,12 @@ int TransferReady(int fd, uint32_t, void* data) {
     return 0;
 }
 
-bool StartTransfer(int fd, bool writing, const std::string& text = {}) {
+bool StartTransfer(int fd, bool writing, const std::string& text = {},
+                   SelectionOrigin origin = SelectionOrigin::Client) {
     if (transfers.size() >= MaxTransfers) { close(fd); return false; }
     int flags = fcntl(fd, F_GETFL);
     if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) { close(fd); return false; }
-    auto* t = new Transfer{fd, writing, generation, 0, {}, nullptr, nullptr}; t->text = text;
+    auto* t = new Transfer{fd, writing, generation, 0, text, nullptr, nullptr, origin};
     auto* loop = wl_display_get_event_loop(display);
     t->event = wl_event_loop_add_fd(loop, fd, writing ? WL_EVENT_WRITABLE : WL_EVENT_READABLE, TransferReady, t);
     t->timer = wl_event_loop_add_timer(loop, Timeout, t);
@@ -129,7 +144,7 @@ void OfferDestroyed(wl_resource* r) {
 }
 void SendTo(wl_resource* device) {
     if (wl_resource_get_client(device) != focusClient) return;
-    if (!hasSelection) {
+    if (!selectionText) {
         // The new owner may still be rendering its data. A transient NULL offer
         // would empty Wine's shared clipboard before it services source.send.
         if (!selection) wl_data_device_send_selection(device, nullptr);
@@ -142,7 +157,7 @@ void SendTo(wl_resource* device) {
     wl_resource_set_implementation(resource, &OfferImpl, offer, OfferDestroyed);
     wl_data_device_send_data_offer(device, resource);
     wl_data_offer_send_offer(resource, Utf8); wl_data_offer_send_offer(resource, Plain);
-    if (wineSelection) wl_data_offer_send_offer(resource, WineTag);
+    if (selectionOrigin == SelectionOrigin::Wine) wl_data_offer_send_offer(resource, WineTag);
     wl_data_device_send_selection(device, resource);
 }
 void SendSelections() { for (auto* d : devices) SendTo(d); }
@@ -154,7 +169,11 @@ void SourceOffer(wl_client*, wl_resource* r, const char* mime) {
 void SourceActions(wl_client*, wl_resource*, uint32_t) {}
 const struct wl_data_source_interface SourceImpl = {SourceOffer, DestroyResource, SourceActions};
 void SourceDestroyed(wl_resource* r) {
-    if (selection == r) { selection = nullptr; Invalidate(); }
+    if (selection == r) {
+        selection = nullptr;
+        if (selectionOrigin == SelectionOrigin::Host) CancelSelectionRead();
+        else Invalidate();
+    }
     auto it = sources.find(r);
     if (it != sources.end()) { delete it->second; sources.erase(it); }
 }
@@ -166,18 +185,31 @@ void CreateSource(wl_client* client, wl_resource* manager, uint32_t id) {
 }
 void StartDrag(wl_client*, wl_resource*, wl_resource*, wl_resource*, wl_resource*, uint32_t) {}
 void SetSelection(wl_client* client, wl_resource*, wl_resource* source, uint32_t) {
-    if (client != focusClient || (source && (wl_resource_get_client(source) != client || !sources.count(source)))) return;
+    if (client != focusClient) return;
+    const auto offered = sources.find(source);
+    if (source && (offered == sources.end() || wl_resource_get_client(source) != client)) return;
+    const bool fromWine = source &&
+        std::find(offered->second->mimes.begin(), offered->second->mimes.end(), WineTag) != offered->second->mimes.end();
     if (selection && selection != source) wl_data_source_send_cancelled(selection);
-    Invalidate(); selection = source;
-    // Never offer the previous owner's text while the new source is being read.
-    selectionText.reset(); hasSelection = false; wineSelection = false;
+    selection = source;
+    if (selectionOrigin == SelectionOrigin::Host && fromWine) {
+        // Wine can export a tag without text or echo the host text during startup.
+        // Keep the host offer live until a distinct Wine value has been read.
+        CancelSelectionRead();
+    } else {
+        Invalidate();
+        selectionText.reset();
+        selectionOrigin = SelectionOrigin::None;
+    }
     if (!source) { Publish(""); SendSelections(); return; }
-    const auto& mimes = sources[source]->mimes;
-    wineSelection = std::find(mimes.begin(), mimes.end(), WineTag) != mimes.end();
+    const auto& mimes = offered->second->mimes;
     auto utf8 = std::find(mimes.begin(), mimes.end(), Utf8);
     if (utf8 == mimes.end() && std::find(mimes.begin(), mimes.end(), Plain) == mimes.end()) return;
     int pipefd[2]; if (pipe2(pipefd, O_CLOEXEC | O_NONBLOCK)) return;
-    if (!StartTransfer(pipefd[0], false)) { close(pipefd[1]); return; }
+    if (!StartTransfer(pipefd[0], false, {}, fromWine ? SelectionOrigin::Wine : SelectionOrigin::Client)) {
+        close(pipefd[1]);
+        return;
+    }
     // wl_data_source.send duplicates the descriptor over SCM_RIGHTS.
     wl_data_source_send_send(source, utf8 != mimes.end() ? Utf8 : Plain, pipefd[1]); close(pipefd[1]);
 }
@@ -200,7 +232,7 @@ void Bind(wl_client* client, void*, uint32_t v, uint32_t id) {
 void FocusDestroyed(wl_listener*, void*) { WineClipboardFocus(nullptr); }
 void ClearLoopState() {
     Invalidate(); if (selection) wl_data_source_send_cancelled(selection);
-    selection = nullptr; hasSelection = false; wineSelection = false; selectionText.reset(); WineClipboardFocus(nullptr);
+    selection = nullptr; selectionOrigin = SelectionOrigin::None; selectionText.reset(); WineClipboardFocus(nullptr);
 }
 int Posted(int fd, uint32_t, void*) {
     char bytes[64]; while (read(fd, bytes, sizeof(bytes)) > 0) {}
@@ -210,8 +242,10 @@ int Posted(int fd, uint32_t, void*) {
     if (clear) ClearLoopState();
     if (apply) {
         Invalidate(); if (selection) wl_data_source_send_cancelled(selection);
-        selection = nullptr; wineSelection = false;
-        selectionText = std::make_shared<const std::string>(std::move(text)); hasSelection = true; SendSelections();
+        selection = nullptr;
+        selectionOrigin = SelectionOrigin::Host;
+        selectionText = std::make_shared<const std::string>(std::move(text));
+        SendSelections();
         Publish(*selectionText); // Acknowledge only after the loop applied the host selection.
     }
     return 0;

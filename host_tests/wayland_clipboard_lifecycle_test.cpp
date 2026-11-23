@@ -51,15 +51,76 @@ int main() {
     auto* seatB = wl_resource_create(clientB, &wl_seat_interface, 2, 0);
     Bind(clientA, nullptr, 2, 0); auto* managerA = managers.back(); GetDevice(clientA, managerA, 0, seatA);
     Bind(clientB, nullptr, 2, 0); auto* managerB = managers.back(); GetDevice(clientB, managerB, 0, seatB);
-    WineClipboardFocus(surfaceA); WineClipboardPost("host"); assert(Snapshot().empty()); Dispatch();
+    WineClipboardPost("host"); assert(Snapshot().empty()); Dispatch();
+    assert(offers.empty());
+    WineClipboardFocus(surfaceA);
     assert(Snapshot() == "host");
     assert(!offers.empty()); for (auto* offer : offers) assert(wl_resource_get_client(offer->resource) == clientA);
     WineClipboardFocus(surfaceB); assert(wl_resource_get_client(offers.back()->resource) == clientB);
+    // At startup Wine may announce a source without text, then echo the host
+    // text through a tagged export. Neither may replace the host selection.
+    auto* hostOffer = offers.back();
+    uint64_t hostVersion;
+    assert(Snapshot(&hostVersion) == "host");
+    CreateSource(clientB, managerB, 0);
+    auto* emptySource = sources.begin()->first;
+    SourceOffer(clientB, emptySource, WineTag);
+    SetSelection(clientB, devices.back(), emptySource, 1);
+    assert(selectionText == hostOffer->text && selectionOrigin == SelectionOrigin::Host);
+    assert(Receive(clientB, b[1]).fds.empty());
+    wl_resource_destroy(emptySource);
+    CreateSource(clientB, managerB, 0);
+    auto* echoSource = sources.begin()->first;
+    SourceOffer(clientB, echoSource, WineTag);
+    SourceOffer(clientB, echoSource, Utf8);
+    int paste[2];
+    assert(!pipe2(paste, O_CLOEXEC | O_NONBLOCK));
+    OfferReceive(clientB, hostOffer->resource, Utf8, paste[1]);
+    SetSelection(clientB, devices.back(), echoSource, 1);
+    auto echo = Receive(clientB, b[1]);
+    assert(echo.fds.size() == 1 && transfers.size() == 2);
+    assert(selectionText == hostOffer->text);
+    assert(write(echo.fds[0], "host", 4) == 4);
+    close(echo.fds[0]);
+    Dispatch();
+    uint64_t afterEcho;
+    assert(Snapshot(&afterEcho) == "host" && afterEcho == hostVersion);
+    assert(offers.back() == hostOffer && selectionOrigin == SelectionOrigin::Host);
+    char pasted[4];
+    assert(read(paste[0], pasted, sizeof(pasted)) == 4 && std::string(pasted, sizeof(pasted)) == "host");
+    close(paste[0]);
+    wl_resource_destroy(echoSource);
+    // A new host post supersedes a guest response still waiting for EOF.
+    CreateSource(clientB, managerB, 0);
+    auto* staleSource = sources.begin()->first;
+    SourceOffer(clientB, staleSource, WineTag);
+    SourceOffer(clientB, staleSource, Utf8);
+    SetSelection(clientB, devices.back(), staleSource, 1);
+    auto stale = Receive(clientB, b[1]);
+    assert(stale.fds.size() == 1);
+    assert(write(stale.fds[0], "stale", 5) == 5);
+    Dispatch();
+    WineClipboardPost("fresh"); Dispatch();
+    close(stale.fds[0]); Dispatch();
+    assert(Snapshot() == "fresh" && selectionOrigin == SelectionOrigin::Host);
+    wl_resource_destroy(staleSource);
+    CreateSource(clientB, managerB, 0);
+    auto* distinctSource = sources.begin()->first;
+    SourceOffer(clientB, distinctSource, WineTag);
+    SourceOffer(clientB, distinctSource, Utf8);
+    SetSelection(clientB, devices.back(), distinctSource, 1);
+    auto distinct = Receive(clientB, b[1]);
+    assert(distinct.fds.size() == 1 && Snapshot() == "fresh");
+    assert(write(distinct.fds[0], "distinct", 8) == 8);
+    close(distinct.fds[0]); Dispatch();
+    assert(Snapshot() == "distinct" && selectionOrigin == SelectionOrigin::Wine);
+    wl_resource_destroy(distinctSource);
     // Host empty text remains a valid offer, and old offers retain their snapshot.
     auto* old = offers.front(); WineClipboardPost(""); Dispatch(); assert(*old->text == "host"); assert(offers.back()->text->empty());
     // Unsupported replacement must not expose an old offer to a newly focused client.
     CreateSource(clientB, managerB, 0); auto* unsupported = sources.rbegin()->first;
-    SetSelection(clientB, devices.back(), unsupported, 1); assert(!hasSelection && !selectionText);
+    SetSelection(clientB, devices.back(), unsupported, 1);
+    assert(!selectionText && selectionOrigin == SelectionOrigin::None);
     wl_resource_destroy(unsupported);
     ReadPipe("guest"); assert(Snapshot() == "guest"); ReadPipe(""); assert(Snapshot().empty());
     assert(Receive(clientA, a[1]).fds.empty()); assert(Receive(clientB, b[1]).fds.empty());
@@ -68,18 +129,18 @@ int main() {
     SetSelection(clientB, devices.back(), wineSource, 1);
     auto request = Receive(clientB, b[1]);
     assert(!NullSelection(request, devices.back())); // Never erase Wine's delayed-render owner before reading it.
-    assert(request.fds.size() == 1 && wineSelection && !hasSelection);
+    assert(request.fds.size() == 1 && !selectionText);
     WineClipboardFocus(nullptr);
     assert(!NullSelection(Receive(clientB, b[1]), devices.back())); // Focus loss is not clipboard deletion.
     WineClipboardFocus(surfaceB);
     assert(!NullSelection(Receive(clientB, b[1]), devices.back())); // Pending read is not an empty selection.
     assert(write(request.fds[0], "wine guest", 10) == 10); close(request.fds[0]); Dispatch();
-    assert(Snapshot() == "wine guest");
+    assert(Snapshot() == "wine guest" && selectionOrigin == SelectionOrigin::Wine);
     auto exported = Receive(clientB, b[1]); assert(exported.bytes.find(WineTag) != std::string::npos);
     WineClipboardFocus(surfaceA);
     assert(Receive(clientA, a[1]).bytes.find(WineTag) != std::string::npos); // Other Wine process ignores its own export.
     WineClipboardPost("system"); Dispatch();
-    assert(Receive(clientA, a[1]).bytes.find(WineTag) == std::string::npos && !wineSelection);
+    assert(Receive(clientA, a[1]).bytes.find(WineTag) == std::string::npos && selectionOrigin == SelectionOrigin::Host);
     wl_resource_destroy(wineSource); WineClipboardPost(""); Dispatch();
     int p[2]; assert(!pipe2(p, O_CLOEXEC | O_NONBLOCK)); assert(StartTransfer(p[0], false));
     assert(write(p[1], "partial", 7) == 7); Dispatch(); assert(transfers.size() == 1);
