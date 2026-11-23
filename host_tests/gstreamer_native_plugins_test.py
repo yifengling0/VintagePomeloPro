@@ -75,9 +75,10 @@ with tempfile.TemporaryDirectory(prefix="gst-inventory-") as temporary:
     rejected(with_payload, archive(bad), "packaged GStreamer plugin inventory")
     stale = dict(payload_files); stale["bin/aarch64-unix/gstreamer-1.0/libgstlibav.so"] = arm64
     rejected(archive(stale), native, "el2 payload")
-    bad = dict(native_files); bad["libs/arm64-v8a/libgstlibav.so"] = x64
+    bad = dict(native_files); bad["libs/arm64-v8a/libgstlibav.so"] = arm64 + b"stale plugin build"
     rejected(with_payload, archive(bad), "plugin checksum")
     # A self-consistent manifest cannot hide a foreign-ABI plugin.
+    bad["libs/arm64-v8a/libgstlibav.so"] = x64
     gst["files"]["libgstlibav.so"] = hashlib.sha256(x64).hexdigest()
     gst["inventorySha256"] = fingerprint(gst["files"])
     payload_files["runtime-components.json"] = json.dumps(manifest)
