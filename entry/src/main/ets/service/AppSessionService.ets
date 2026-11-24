@@ -69,17 +69,6 @@ const VENUS_EXCLUSIVE_APP_IDS: string[] = [
   'builtin-vkd3d-triangle'
 ];
 
-interface PendingLaunchRequest {
-  app: AppDescriptor;
-  settings: GlobalSettings;
-  mode: DisplayMode;
-  presentationMode: WinePresentationMode;
-  homeDirectory: string;
-  steamLaunchNavigation?: number;
-  resolve: (result: RuntimeSession | null) => void;
-  reject: (error: Error) => void;
-}
-
 export interface RunningAppSnapshot {
   appIds: Set<string>;
   paths: Set<string>;
@@ -173,7 +162,7 @@ export class AppSessionService {
 
   // Host graphics belongs to the Wine session. Serialize requests across the
   // awaits in startup/restart so another game's override cannot replace it.
-  private static readonly STEAM_WINDOW_WAIT_MS: number = 60000;
+  private static readonly STEAM_WINDOW_WAIT_MS: number = 120000;
   private launchTail: Promise<void> = Promise.resolve();
 
   launch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {
@@ -275,18 +264,20 @@ export class AppSessionService {
     }
 
 
-    // 程序/游戏：事件驱动启动。
-    // - 引擎已 READY 且模式匹配 → 直接启动；
-    // - 未就绪 → 挂到引擎 READY 事件，由"桌面就绪"事件触发真正启动，
-    //   避免 ensureReady 返回后继续执行造成的竞态（桌面会话未入表、
-    //   DesktopAbility startAbility 阻塞等）。
     const engine = WineEngineService.getInstance();
     engine.selectHostGraphicsBackendForExecutable(app.launchTarget.executable,
       AppSettingsStore.getInstance().getAppSettings(app.id).graphicsBackend ?? 'default');
-    if (engine.isReady() && engine.getPresentationMode() === presentationMode) {
-      return this.launchReady(app, settings, mode, presentationMode, homeDirectory, steamLaunchNavigation);
+    if (!engine.isReady() || engine.getPresentationMode() !== presentationMode) {
+      // A restart can emit STOPPED while it drains the old Wine session.
+      // The readiness result belongs to this request and covers the new session.
+      const ready = await engine.ensureReady(mode, presentationMode, homeDirectory,
+        app.steam ? (): boolean => false : undefined);
+      if (!ready) {
+        if (app.steam) throw new Error(engine.getMessage());
+        return null;
+      }
     }
-    return this.deferLaunchUntilReady(app, settings, mode, presentationMode, homeDirectory, steamLaunchNavigation);
+    return this.launchReady(app, settings, mode, presentationMode, homeDirectory, steamLaunchNavigation);
   }
 
   /** A stale portable default may point at the game root while the exe is nested. */
@@ -305,8 +296,7 @@ export class AppSessionService {
     const engine = WineEngineService.getInstance();
     if (engine.getState() !== EngineState.READY ||
       engine.getPresentationMode() !== presentationMode) {
-      // 状态在检查后变化：重新走事件队列。
-      return this.deferLaunchUntilReady(app, settings, mode, presentationMode, homeDirectory, steamLaunchNavigation);
+      return null;
     }
 
     const hostGraphicsBackend =
@@ -347,16 +337,16 @@ export class AppSessionService {
       // 先跳到桌面再启动 exe：非阻塞地把桌面窗口（DWA）带到前台（不 await，
       // 冷启动时 startAbility 可能阻塞启动链）。exe 启动后其窗口出现在桌面
       // 合成里，窗口 created 后再自动切到该窗口（auto-promote）。
-      if (app.steam) {
-        // Wait for a real Steam or game window before switching away from the library.
-      } else if (!WineWindowManager.getInstance().isDesktopAbilityForeground(desktopSession.toplevelId)) {
-        this.resume(desktopSession).catch((err: Error) => {
-          hilog.warn(DOMAIN, '[SESS]', 'launch: jump-to-desktop failed err=%{public}s',
-            JSON.stringify(err));
-        });
-      } else {
-        try { testNapi.activateWineSession(desktopSession.sessionId); } catch (_) {}
-        try { testNapi.raiseToplevel(desktopSession.toplevelId); } catch (_) {}
+      if (!app.steam) {
+        if (!WineWindowManager.getInstance().isDesktopAbilityForeground(desktopSession.toplevelId)) {
+          this.resume(desktopSession).catch((err: Error) => {
+            hilog.warn(DOMAIN, '[SESS]', 'launch: jump-to-desktop failed err=%{public}s',
+              JSON.stringify(err));
+          });
+        } else {
+          try { testNapi.activateWineSession(desktopSession.sessionId); } catch (_) {}
+          try { testNapi.raiseToplevel(desktopSession.toplevelId); } catch (_) {}
+        }
       }
     }
 
@@ -419,6 +409,7 @@ export class AppSessionService {
       }
     }
     let launchExecutable = app.launchTarget.executable;
+    let coldSteamClient: AppDescriptor | null = null;
     if (app.steam) {
       const steam = SteamLocalService.getInstance();
       if (!steam.canLaunch()) throw new Error('Steam 正在更新，请稍候');
@@ -426,6 +417,10 @@ export class AppSessionService {
       await steam.prepareLaunch();
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';
+      if (action === 'play' && app.steam.state === 'installed' && presentationMode === WinePresentationMode.DESKTOP) {
+        const client = steam.clientCard();
+        if (steam.processesFor(client, this.getNativeProcesses()).length === 0) coldSteamClient = client;
+      }
       launchArguments = steamLaunchArguments(action, app.steam.appId,
         steam.isCompatibility(), action === 'play' ? launchArguments : [],
         app.steam.clientAction ?? 'library');
@@ -471,6 +466,14 @@ export class AppSessionService {
       if (app.steam.state === 'installed') {
         session.steamLaunchNavigation = steamLaunchNavigation;
         this.pendingSteamGames.set(app.id, session);
+        if (coldSteamClient && steamLaunchNavigation !== undefined) {
+          // Cold -applaunch may open a sign-in or update window while Steam
+          // queues the game. Make it usable until the game maps its own window.
+          void this.waitForSteamClientWindow(coldSteamClient, session, steamLaunchNavigation, session)
+            .catch((error: Error): void => {
+              hilog.info(DOMAIN, '[SESS]', 'Steam game startup window: %{public}s', error.message);
+            });
+        }
       }
       return session;
     }
@@ -520,7 +523,7 @@ export class AppSessionService {
   }
 
   async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
-    navigation: number): Promise<RuntimeSession> {
+    navigation: number, pendingGame?: RuntimeSession): Promise<RuntimeSession | null> {
     // On translated ARM64 cold starts, CEF can create its first real window
     // after 45 seconds. Keep the launch feedback alive through that startup
     // rather than reporting failure immediately before the window arrives.
@@ -529,6 +532,8 @@ export class AppSessionService {
     const steam = SteamLocalService.getInstance();
     let webHelperSeen = false;
     while (Date.now() < deadline) {
+      if (pendingGame && (this.pendingSteamGames.get(pendingGame.appId) !== pendingGame ||
+        tasks.navigationSerial() !== navigation)) return null;
       let ready: RuntimeSession | null = null;
       const state = WineEngineService.getInstance().getState();
       if (state === EngineState.ERROR || state === EngineState.STOPPED) {
@@ -574,8 +579,9 @@ export class AppSessionService {
         hilog.info(DOMAIN, '[SESS]', 'Steam window observed after dispatch ms=%{public}d',
           Date.now() - launched.startedAt);
         // A deliberate navigation while loading wins over auto-focus.
-        if (tasks.navigationSerial() === navigation) await this.resume(ready);
-        ready.automaticForeground = true;
+        if (tasks.navigationSerial() === navigation &&
+          (!pendingGame || this.pendingSteamGames.get(pendingGame.appId) === pendingGame)) await this.resume(ready);
+        if (!pendingGame) ready.automaticForeground = true;
         return ready;
       }
       await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 250); });
@@ -629,81 +635,6 @@ export class AppSessionService {
       'external launch registered sid=%{public}s pid=%{public}d tl=%{public}d',
       session.sessionId, session.pid, session.toplevelId);
     return session;
-  }
-
-  private pendingLaunches: Array<PendingLaunchRequest> = [];
-  private pendingLaunchListenerInstalled: boolean = false;
-  private drainingPendingLaunches: boolean = false;
-
-  private ensurePendingLaunchListener(): void {
-    if (this.pendingLaunchListenerInstalled) return;
-    this.pendingLaunchListenerInstalled = true;
-    let sawPreparing = false;
-    WineEngineService.getInstance().subscribe((state: EngineState): void => {
-      if (state === EngineState.PREPARING || state === EngineState.SWITCHING) sawPreparing = true;
-
-      if (state === EngineState.READY) {
-        this.drainPendingLaunches();
-      } else if (sawPreparing && (state === EngineState.ERROR || state === EngineState.STOPPED)) {
-        // 只有引擎真实经过启动后失败/停止才拒绝挂起请求；初始 STOPPED 快照
-        // 只是引擎即将启动，不能把请求直接放弃。
-        const pending = this.pendingLaunches.splice(0);
-        pending.forEach((req: PendingLaunchRequest) => req.resolve(null));
-      }
-    });
-  }
-
-  private deferLaunchUntilReady(app: AppDescriptor, settings: GlobalSettings,
-    mode: DisplayMode, presentationMode: WinePresentationMode,
-    homeDirectory: string, steamLaunchNavigation?: number): Promise<RuntimeSession | null> {
-    return new Promise<RuntimeSession | null>((resolve: (result: RuntimeSession | null) => void,
-      reject: (error: Error) => void): void => {
-      const request: PendingLaunchRequest = { app, settings, mode, presentationMode, homeDirectory,
-        steamLaunchNavigation, resolve, reject };
-      this.pendingLaunches.push(request);
-      const fail = (): void => {
-        const index = this.pendingLaunches.indexOf(request);
-        if (index >= 0) this.pendingLaunches.splice(index, 1);
-        resolve(null);
-      };
-
-      this.ensurePendingLaunchListener();
-      // 触发引擎启动（不 await）；引擎 READY 事件会驱动队列真正执行。
-      WineEngineService.getInstance().ensureReady(mode, presentationMode, homeDirectory,
-        app.steam ? (): boolean => false : undefined)
-        .then((ready: boolean): void => { if (!ready) fail(); }).catch((error: Error): void => {
-          const index = this.pendingLaunches.indexOf(request);
-          if (index >= 0) this.pendingLaunches.splice(index, 1);
-          reject(error);
-        });
-      // 竞态兜底：若已经就绪立即排水。
-      if (WineEngineService.getInstance().isReady()) this.drainPendingLaunches();
-    });
-  }
-
-  private drainPendingLaunches(): void {
-    if (this.drainingPendingLaunches) return;
-    this.drainingPendingLaunches = true;
-    const pending = this.pendingLaunches.splice(0);
-
-    for (const req of pending) {
-      const engine = WineEngineService.getInstance();
-      if (!engine.isReady() || engine.getPresentationMode() !== req.presentationMode) {
-        // 状态又切走（重启/切换模式中）：请求重新入队，等下一次 READY 事件
-        // 再排水，而不是静默判失败（否则表现为"点了没反应"）。
-        const state = engine.getState();
-        if (state === EngineState.PREPARING || state === EngineState.SWITCHING) {
-          this.pendingLaunches.push(req);
-        } else {
-          req.resolve(null);
-        }
-        continue;
-      }
-      this.launchReady(req.app, req.settings, req.mode, req.presentationMode, req.homeDirectory, req.steamLaunchNavigation)
-        .then((session: RuntimeSession | null): void => req.resolve(session))
-        .catch((error: Error): void => req.reject(error));
-    }
-    this.drainingPendingLaunches = false;
   }
 
   async switchModeAndLaunch(app: AppDescriptor, settings: GlobalSettings, homeDirectory: string): Promise<RuntimeSession | null> {

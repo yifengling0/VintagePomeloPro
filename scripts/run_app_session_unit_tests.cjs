@@ -52,6 +52,7 @@ function fixture() {
     subscribe: listener => listener(state)
   };
   const windows = { setSessionAssociationCallback() {}, getDesktopRootId:()=>root,
+    isDesktopMode: true,
     isDesktopAbilityForeground:()=>false, usesEmbeddedDesktopHost:()=>false,
     resumeDesktopHost:async()=>{ starts.push({abilityName:'DesktopAbility',parameters:{toplevelId:root}}); } };
   const steam = { canLaunch: () => true, hasForeignClient: () => false, prepareLaunch: async () => {},
@@ -76,6 +77,8 @@ function fixture() {
     './AppSettingsStore': { AppSettingsStore: { getInstance: () => ({
       getGlobalSettings: () => globalSettings,
       getAppSettings: () => appSettings,
+      hasGpuBcUpload: () => false,
+      usesManagedWineWindows: () => false,
       recordRecentLaunch: async () => {}
     }) } },
     './InputOverlayWindowCoordinator': {},
@@ -473,15 +476,41 @@ function fixture() {
     f.setState(models.EngineState.ERROR);
     await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, navigation), /会话已停止/);
   }
-  { // Queued setup errors retain their cause rather than silently returning null.
-    const f = fixture(); f.setState(models.EngineState.READY);
-    let failure;
-    f.service.launchReady = async () => { throw Error('Steam helper is unavailable'); };
-    f.service.pendingLaunches.push({ app: steamApp, settings: f.globalSettings,
-      presentationMode: models.WinePresentationMode.DESKTOP, resolve() { assert.fail('Failure was swallowed'); },
-      reject: error => { failure = error; } });
-    f.service.drainPendingLaunches(); await Promise.resolve(); await Promise.resolve();
-    assert.match(failure.message, /helper is unavailable/);
+  { // The STOPPED event from draining a failed engine is part of its restart.
+    const f = fixture();
+    f.setState(models.EngineState.ERROR);
+    f.engine.ensureReady = async (mode, presentation, home, foreground) => {
+      assert.equal(presentation, models.WinePresentationMode.DESKTOP);
+      assert.equal(foreground(), false);
+      f.setState(models.EngineState.STOPPED);
+      assert.equal(f.launches.length, 0);
+      await Promise.resolve();
+      f.setState(models.EngineState.PREPARING);
+      f.service.associateToplevel('desktop', 0, 7);
+      f.setState(models.EngineState.READY);
+      return true;
+    };
+    const app = { ...steamApp, launchTarget: { ...steamApp.launchTarget, kind: models.LaunchKind.STEAM_CLIENT } };
+    f.steam.prepareLaunch = async () => { throw Error('Steam helper is unavailable'); };
+    await assert.rejects(f.service.launch(app, f.globalSettings, '/games'), /helper is unavailable/);
+    assert.equal(f.launches.length, 0);
+    f.steam.prepareLaunch = async () => {};
+    assert.equal((await f.service.launch(app, f.globalSettings, '/games')).pid, 42);
+    assert.equal(f.launches.length, 1);
+  }
+  { // A cold game can show Steam for sign-in while its own launch is pending.
+    const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    const pending = { appId: 'steam-default-123', sessionId: 'request' };
+    f.service.pendingSteamGames.set(pending.appId, pending);
+    f.processes.push({ pid: 82, sessionId: 'cold-client', path: 'C:/Steam/steam.exe', state: 'running' });
+    tasks.onEvent(95, 'created', JSON.stringify({ sessionId: 'cold-client', clientPid: 82 }));
+    const navigation = tasks.navigationSerial();
+    assert.equal((await f.service.waitForSteamClientWindow(steamApp, launched, navigation, pending)).pid, 82);
+    assert.equal(f.starts.length, 1);
+    f.service.pendingSteamGames.delete(pending.appId);
+    assert.equal(await f.service.waitForSteamClientWindow(steamApp, launched, navigation, pending), null);
+    assert.equal(f.starts.length, 1);
   }
   { // A recycled PID at the same Steam path cannot claim an old live window.
     const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
@@ -513,7 +542,7 @@ function fixture() {
       assert.equal(raised, 0, 'The desktop root must not be raised to wait for Steam');
       assert.equal(f.service.isSteamGameStarting(game.id, request.sessionId), true);
       if (scenario === 'after-timeout') {
-        request.startedAt -= 61000;
+        request.startedAt -= 121000;
         tasks.markLauncherForeground();
         assert.equal(f.service.isSteamGameStarting(game.id, request.sessionId), false);
         assert.equal(f.service.getRunningSnapshot().startingSteamIds.length, 0);
