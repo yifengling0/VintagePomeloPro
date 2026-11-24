@@ -168,16 +168,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 454328355,
-      "sha256": "0052b82c28f588d6cd7a03d14e32b9b9b6822e90cabbe8a38feecba919c7a665"
+      "bytes": 454328354,
+      "sha256": "a7749f2d25638bd8805472a4af5fe89e720e581527b5ea5e38f638fe9fa95bc1"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
       "bytes": 29069,
-      "sha256": "17a7ce3f80875d54ef3efaf59e9739b1b162537cd1482741411c4659217dad1f"
+      "sha256": "ca61634a7a2f04378f229b15436f4eafa7e254e1e26c8918266db0ed9bed90bd"
     },
     "resources/rawfile/wine_runtime.version": {
       "bytes": 441,
-      "sha256": "395776f9ed7906dbc056ff2efccda66cbb38021bb110d74377b8f30fd349ef08"
+      "sha256": "93ec7cb5e6f02fe9e95cc01c92d400991de7804585be707935c0be078e9079e6"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1007328,
