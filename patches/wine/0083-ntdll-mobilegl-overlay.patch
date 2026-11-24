@@ -1,0 +1,49 @@
+diff --git a/dlls/ntdll/loader.c b/dlls/ntdll/loader.c
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -3531,6 +3531,35 @@
+     return status;
+ }
+ 
++/* Only the managed Wine launch may opt into the bundled renderer. The
++ * normal DLL search remains available to other architectures. */
++static NTSTATUS search_winehua_mobilegl_overlay( LPCWSTR libname, UNICODE_STRING *nt_name,
++                                                WINE_MODREF **pwm, HANDLE *mapping,
++                                                SECTION_IMAGE_INFORMATION *image_info,
++                                                struct file_id *id )
++{
++    static const WCHAR enabledW[] = L"WINEHUA_MOBILEGL";
++    static const WCHAR moduleW[] = L"opengl32.dll";
++    static const WCHAR pathW[] =
++        L"\\??\\unix/data/storage/el2/base/files/mobilegl/9df3600-x64/opengl32.dll";
++    UNICODE_STRING enabled, path;
++    NTSTATUS status;
++
++    if (_wcsicmp( libname, moduleW ) || get_env_var( enabledW, 0, &enabled ))
++        return STATUS_DLL_NOT_FOUND;
++    if (wcscmp( enabled.Buffer, L"1" ))
++    {
++        RtlFreeUnicodeString( &enabled );
++        return STATUS_DLL_NOT_FOUND;
++    }
++    RtlFreeUnicodeString( &enabled );
++    if (!RtlCreateUnicodeString( &path, pathW )) return STATUS_NO_MEMORY;
++    status = open_dll_file( &path, pwm, mapping, image_info, id );
++    if (!status) *nt_name = path;
++    else RtlFreeUnicodeString( &path );
++    return status == STATUS_NOT_SUPPORTED ? STATUS_DLL_NOT_FOUND : status;
++}
++
+ static WCHAR *strstriW( const WCHAR *str, const WCHAR *sub )
+ {
+     while (*str)
+@@ -3602,6 +3631,9 @@
+ 
+     if (RtlDetermineDosPathNameType_U( libname ) == RtlPathTypeRelative)
+     {
++        status = search_winehua_mobilegl_overlay( libname, nt_name, pwm, mapping, image_info, id );
++        if (status != STATUS_DLL_NOT_FOUND) goto done;
++
+         status = search_winehua_dxvk_overlay( libname, nt_name, pwm, mapping,
+                                               image_info, id );
+         if (status == STATUS_SUCCESS) goto done;

@@ -357,6 +357,7 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0079-x11-ohos-text-only-caption-r
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0080-wineohos-shared-multichannel-downmix.patch" "OHOS shared multichannel speaker downmix"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0081-wineohos-render-event-pacing.patch" "OHOS render writable-period event pacing"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0082-ntdll-explicit-dxvk9-overlay.patch" "Explicit per-game DXVK9 managed DLL overlay"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0083-ntdll-mobilegl-overlay.patch" "Managed MobileGL OpenGL DLL overlay"
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0083-winebus-multiple-gamepads.patch" \
     "Route independent WHGP slots and controller hotplug in Winebus"

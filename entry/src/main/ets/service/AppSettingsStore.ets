@@ -1,7 +1,7 @@
 import { normalizeGameModeOverride, normalizeGameModeSettings } from '../model/GameModeSettings';
 import preferences from '@ohos.data.preferences';
 import { normalizePerformanceHud } from '../model/PerformanceHudSettings';
-import { normalizeAppGraphicsBackend } from '../model/GraphicsBackendSettings';
+import { normalizeAppGraphicsBackend, normalizeGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { common } from '@kit.AbilityKit';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
@@ -180,9 +180,6 @@ export class AppSettingsStore {
   }
 
   private normalizeRenderMode(value: string): string {
-    if (value === 'dxvk_2_6' || value === 'dxvk_1_10' || value === 'virgl' || value === 'dxvk9' || value === 'zink') {
-      return value;
-    }
     if (value === 'dxvk_modern_2_6') {
       return 'dxvk_2_6';
     }
@@ -190,7 +187,7 @@ export class AppSettingsStore {
       return 'dxvk_1_10';
     }
     // 旧版 "auto" 与未知值一律落到 1.10，不再按 GPU 自动挑 2.6。
-    return 'dxvk_1_10';
+    return normalizeGraphicsBackend(value);
   }
 
   private dxvkPreferenceOf(mode: string): string {

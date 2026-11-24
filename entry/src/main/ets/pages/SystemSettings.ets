@@ -45,6 +45,7 @@ import {
 } from '../model/AppModels';
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
+import { APP_OPENGL_MOBILEGL, graphicsBackendLabel, normalizeGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { GamepadManager } from '../service/GamepadManager';
 import { HostWindowTasks } from '../service/HostWindowTasks';
 import { SteamClientService } from '../service/SteamClientService';
@@ -303,6 +304,7 @@ struct SystemSettingsPage {
   @State private gpuSupportDxvk26: boolean = true;
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
+  @State private mobileGLAvailable: boolean = false;
   @State private dxvkDepthD32: boolean = false;
   @State private fontImporting: boolean = false;
   @State private sgdbKeyDraft: string = '';
@@ -1057,6 +1059,9 @@ struct SystemSettingsPage {
 
   /** host GPU 名称 + DXVK2.6 支持判定: 马良 (Mali-Gxxx) 920 以下不支持 DXVK2.6。 */
   private loadGpuInfo(): void {
+    void WineEngineService.getInstance().canSelectMobileGL().then((available: boolean): void => {
+      this.mobileGLAvailable = available;
+    });
     try {
       const name = (testNapi.getHostGpuName() as string) ?? '';
       this.gpuName = name;
@@ -1077,7 +1082,7 @@ struct SystemSettingsPage {
 
   /** 渲染模式: dxvk_1_10 / dxvk_2_6 / virgl。默认 1.10；2.6 仅 920+ 可选（实验）。 */
   private updateRenderMode(mode: string): void {
-    const selected = mode === 'dxvk_2_6' || mode === 'dxvk_1_10' || mode === 'virgl' || mode === 'dxvk9' || mode === 'zink' ? mode : 'dxvk_1_10';
+    const selected = normalizeGraphicsBackend(mode);
     const current = AppSettingsStore.getInstance().getRenderMode()
       || AppStorage.get<string>('winehua.render.mode')
       || 'dxvk_1_10';
@@ -2396,6 +2401,15 @@ struct SystemSettingsPage {
             this.RenderModeChip('DXVK9（32位实验）', 'dxvk9')
             this.RenderModeChip('Zink（实验）', 'zink')
           }.width('100%')
+          if (this.mobileGLAvailable) {
+            Row() {
+              this.RenderModeChip(graphicsBackendLabel(APP_OPENGL_MOBILEGL), APP_OPENGL_MOBILEGL)
+            }.width('100%')
+            if (this.renderMode === APP_OPENGL_MOBILEGL) {
+              Text('打开 Wine 程序和 Steam 时使用 MobileGL。当前运行库为 x64，依赖直连 Vulkan。')
+                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+            }
+          }
           Text(this.gpuSupportDxvk26
             ? '默认使用 DXVK 1.10。当前 GPU 支持开启 DXVK 2.6（实验）。'
             : `默认使用 DXVK 1.10。当前 GPU（${this.gpuName || '未知'}）低于 920，不提供 DXVK 2.6。`)
