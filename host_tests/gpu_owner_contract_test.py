@@ -37,7 +37,8 @@ struct SurfaceData{uint32_t clientPid=100,protocolId=151,toplevelId=5;uint64_t s
 wl_resource* parentSurface=nullptr;int w=101,h=398,vpDstW=0,vpDstH=0,subsurfaceX=0,subsurfaceY=0;
 struct{struct{int x=0,y=0;}contentRect;}committed;std::atomic<uint64_t> shmCommitSerial{0};};
 void* wl_resource_get_user_data(wl_resource* p){return p?p->data:nullptr;}
-struct State{bool minimized=false,background=false;bool IsMinimized()const{return minimized;}bool IsBackground()const{return background;}bool IsFullscreen()const{return false;}
+struct State{bool minimized=false,background=false;bool IsMinimized()const{return minimized;}bool IsBackground()const{return background;}
+bool IsPresentationFullscreen()const{return false;}
 int Width()const{return 101;}int Height()const{return 398;}int X()const{return 0;}int Y()const{return 0;}int WineX()const{return 0;}int WineY()const{return 0;}};
 struct Manager{State state;bool shmVisible=true;std::mutex m;std::unordered_map<uint64_t,wl_resource*>resources;
 auto Lock(){return std::unique_lock<std::mutex>(m);}wl_resource* FindSurfaceResource(uint64_t k){auto it=resources.find(k);return it==resources.end()?nullptr:it->second;}
