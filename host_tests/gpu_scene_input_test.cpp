@@ -14,6 +14,7 @@
 #ifndef GPU_FOLLOWUP_BASELINE
 #include "compositor/input/input_injector.h"
 #include "compositor/input/input_queue.h"
+#include "input/data_device.h"
 #include "input/seat.h"
 #include "input/text_input.h"
 #include "input/input_manager.h"
@@ -47,6 +48,9 @@ Seat* Seat::GetInstance() {
 std::vector<wl_resource*> Seat::GetAllKeyboardResources() { return keyboards; }
 std::vector<wl_resource*> Seat::GetAllPointerResources() { return pointers; }
 wl_resource* Seat::GetKeyboardResource() { return keyboards.empty()?nullptr:keyboards.front(); }
+void Seat::SetCursorFocus(uint32_t, wl_resource*, uint32_t) {}
+void Seat::ClearCursorFocus(wl_resource*) {}
+void WineClipboardFocus(wl_resource*) {}
 PointerExtras* PointerExtras::GetInstance() { static PointerExtras extras; return &extras; }
 bool PointerExtras::HasRelativePointer() const { return false; }
 #ifdef RELATIVE_POINTER_WITH_SURFACE

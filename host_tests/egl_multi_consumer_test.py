@@ -37,12 +37,14 @@ STUB = r'''
 #include "common/frame_loop_diagnostics.h"
 #include "compositor/frame/gpu_desktop_scene.h"
 #include "compositor/frame/zc_bridge.h"
+#include "graphics/game_presentation.h"
 using GLuint=unsigned; using GLint=int;
 constexpr int GL_TEXTURE_EXTERNAL_OES=1, GL_TEXTURE_2D=2, GL_LINEAR=3,
 GL_CLAMP_TO_EDGE=4, GL_TEXTURE_MIN_FILTER=5, GL_TEXTURE_MAG_FILTER=6,
 GL_TEXTURE_WRAP_S=7, GL_TEXTURE_WRAP_T=8, GL_ONE=9, GL_ONE_MINUS_SRC_ALPHA=10,
 GL_SCISSOR_TEST=11, GL_BLEND=12, GL_ARRAY_BUFFER=13, GL_FLOAT=14,
 GL_FALSE=0, GL_TRIANGLES=15, GL_RGBA=16, GL_UNSIGNED_BYTE=17, GL_COLOR_BUFFER_BIT=18,
+GL_NEAREST=19,
 NATIVEBUFFER_USAGE_HW_RENDER=1, NATIVEBUFFER_USAGE_HW_TEXTURE=2, GET_BUFFERQUEUE_SIZE=0;
 struct OHNativeWindow {};
 struct OH_OnFrameAvailableListener { void* context=nullptr; void (*onFrameAvailable)(void*)=nullptr; };
