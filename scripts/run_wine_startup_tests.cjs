@@ -9,12 +9,18 @@ const text = fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/service
 const compiled = ts.transpileModule(text, {compilerOptions:{target:ts.ScriptTarget.ES2020, module:ts.ModuleKind.CommonJS}}).outputText;
 const modelExports = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../entry/src/main/ets/model/AppModels.ets'), 'utf8'), {compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS}}).outputText, {exports:modelExports,require:()=>({})});
+const graphicsExports = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../entry/src/main/ets/model/GraphicsBackendSettings.ets'), 'utf8'), {
+  compilerOptions: {target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS}
+}).outputText, {exports: graphicsExports});
 const State = {STOPPED:'stopped', PREPARING:'preparing', SWITCHING:'switching', READY:'ready', ERROR:'error'};
 function fixture() {
   let now=1000, next=0, launches=0, stops=0;
   const timers=new Map();
   let snapshot={generation:0,active:false,state:'idle',phase:''};
-  const settings={wineLanguage:'zh_CN',defaultDisplayMode:'desktop',wineTranslationEngine:'fex',box64Preset:'default'};
+  const settings={wineLanguage:'zh_CN',defaultDisplayMode:'desktop',wineTranslationEngine:'fex',
+    box64Preset:'default',renderMode:'dxvk_1_10'};
   const wm={presentationMode:'desktop',applyModePolicy(){},setStartupForegroundGuard(){},prepareOutputForOrientation(){}};
   const route={setDisplayRoute:()=>true,stopDisplayRouteChain(){},startDisplayRouteChain(){},displayRoutePhase:()=>0};
   const napi={
@@ -38,7 +44,9 @@ function fixture() {
         WinePresentationMode:{DESKTOP:'desktop',MANAGED_WINDOWS:'managed'},
         ScreenOrientationSetting:{SENSOR_LANDSCAPE:'landscape'},canTransitionEngineState:()=>true};
       if(name.includes('WineUpgradeGuard'))return {WineUpgradeGuard:class {needsReset(){return false;}}};
-      if(name.includes('AppSettingsStore'))return {AppSettingsStore:{getInstance:()=>({getGlobalSettings:()=>settings,getDxvkDepthD32:()=>true})}};
+      if(name.includes('GraphicsBackendSettings'))return graphicsExports;
+      if(name.includes('AppSettingsStore'))return {AppSettingsStore:{getInstance:()=>({getGlobalSettings:()=>settings,
+        getRenderMode:()=>settings.renderMode,getDxvkDepthD32:()=>true})}};
       if(name.includes('WineWindowManager'))return {WineWindowManager:{getInstance:()=>wm}};
       return {};
     }
@@ -64,6 +72,29 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
 (async()=>{
   let count=0;
   async function test(name,run){await run();++count;console.log('PASS '+name);}
+  await test('MobileGL requires Vulkan 1.3 on the GPU, loader and instance plus a working Direct transport',async()=>{
+    const v12 = (1 << 22) | (2 << 12) | 999;
+    const v13 = (1 << 22) | (3 << 12);
+    const v14 = (1 << 22) | (4 << 12);
+    const passed = {status:'PASS',apiVersion:v13,loaderVersion:v13,requestedApiVersion:v13};
+    for (const [result,direct,expected] of [
+      [passed,true,true],
+      [{...passed,apiVersion:v14,loaderVersion:v14},true,true],
+      [{...passed,apiVersion:v12},true,false],
+      [{...passed,loaderVersion:v12},true,false],
+      [{...passed,requestedApiVersion:v12},true,false],
+      [{...passed,status:'FAIL'},true,false],
+      [passed,false,false],
+    ]) {
+      const f=fixture();
+      f.s.hasMobileGLPayload=()=>true;
+      f.s.ensureProductDirectCapability=async()=>direct;
+      let probes=0;
+      f.napi.runDirectVulkanInlineProbe=async()=>{++probes;return result;};
+      assert.deepEqual(await Promise.all([f.s.canSelectMobileGL(),f.s.canSelectMobileGL()]),[expected,expected]);
+      assert.equal(probes,1);
+    }
+  });
   await test('terminal before waiter/native callback is recovered from retained state',async()=>{
     const f=fixture();f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready',phase:'explorer'});return 0;};
     assert.equal(await f.start(),true);assert.equal(f.s.state,State.READY);assert.equal(f.timers.size,0);

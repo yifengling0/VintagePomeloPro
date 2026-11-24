@@ -932,12 +932,11 @@ export class WineEngineService {
         // 注: explorer 等进程 exit=11 是 wine SEH 正常形态 (fault-forensics:
         // "宿主返回码不等于失败"), 不作为路由回归的依据。
         this.handleEnginePhase('graphics');
-        const directAvailable = await this.ensureProductDirectCapability();
+        await this.ensureProductDirectCapability();
         if (!this.startupCurrent(generation)) return;
         this.mobileGLEnvironment = [];
-        if (AppSettingsStore.getInstance().getRenderMode() === APP_OPENGL_MOBILEGL ||
-          this.appGraphicsBackend === APP_OPENGL_MOBILEGL) {
-          if (directAvailable && settings.wineDisplayRoute !== 'x11' && await this.canSelectMobileGL()) {
+        if (this.selectedGraphicsMode() === APP_OPENGL_MOBILEGL) {
+          if (settings.wineDisplayRoute !== 'x11' && await this.canSelectMobileGL()) {
             if (!this.startupCurrent(generation)) return;
             this.mobileGLEnvironment = this.prepareMobileGLEnvironment();
           }
@@ -1180,14 +1179,25 @@ export class WineEngineService {
   canSelectMobileGL(): Promise<boolean> {
     if (!this.hasMobileGLPayload()) return Promise.resolve(false);
     if (!this.mobileGLCapability) {
-      this.mobileGLCapability = testNapi.runDirectVulkanInlineProbe().then((result): boolean => {
-        const supported = supportsMobileGLVulkan(result.apiVersion) && supportsMobileGLVulkan(result.loaderVersion);
-        hilog.info(DOMAIN, TAG, 'MobileGL Vulkan device=%{public}s api=%{public}d loader=%{public}d available=%{public}s',
-          result.deviceName, result.apiVersion, result.loaderVersion, supported ? 'true' : 'false');
-        return supported;
-      }).catch((): boolean => false);
+      this.mobileGLCapability = this.probeMobileGLCapability();
     }
     return this.mobileGLCapability;
+  }
+
+  private async probeMobileGLCapability(): Promise<boolean> {
+    try {
+      const result = await testNapi.runDirectVulkanInlineProbe();
+      const vulkanSupported = result.status === 'PASS' && supportsMobileGLVulkan(result.apiVersion) &&
+        supportsMobileGLVulkan(result.loaderVersion) && supportsMobileGLVulkan(result.requestedApiVersion);
+      const available = vulkanSupported && await this.ensureProductDirectCapability();
+      hilog.info(DOMAIN, TAG,
+        'MobileGL Vulkan device=%{public}s api=%{public}d loader=%{public}d instance=%{public}d probe=%{public}s stage=%{public}s available=%{public}s',
+        result.deviceName, result.apiVersion, result.loaderVersion, result.requestedApiVersion,
+        result.status, result.stage, available ? 'true' : 'false');
+      return available;
+    } catch (_) {
+      return false;
+    }
   }
 
   private prepareMobileGLEnvironment(): string[] {

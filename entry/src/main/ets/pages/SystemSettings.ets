@@ -2401,12 +2401,12 @@ struct SystemSettingsPage {
             this.RenderModeChip('DXVK9（32位实验）', 'dxvk9')
             this.RenderModeChip('Zink（实验）', 'zink')
           }.width('100%')
-          if (this.mobileGLAvailable) {
+          if (this.mobileGLAvailable && this.settings.wineDisplayRoute !== 'x11') {
             Row() {
               this.RenderModeChip(graphicsBackendLabel(APP_OPENGL_MOBILEGL), APP_OPENGL_MOBILEGL)
             }.width('100%')
             if (this.renderMode === APP_OPENGL_MOBILEGL) {
-              Text('打开 Wine 程序和 Steam 时使用 MobileGL。当前运行库为 x64，依赖直连 Vulkan。')
+              Text('打开 64 位 Wine 程序和 Steam 时可使用 MobileGL。需要 Wayland 和直连 Vulkan 1.3 或更高版本。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             }
           }
