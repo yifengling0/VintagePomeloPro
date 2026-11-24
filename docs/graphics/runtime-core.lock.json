@@ -505,7 +505,7 @@
     "bin/aarch64-windows/cryptui.dll": "337062f2648172f72ce5fc85a81fde83e0e0c1aa09814423ab64402996c1387b",
     "bin/aarch64-windows/wldap32.dll": "763f132695bf71e5ac71e05ce4cbb0c32c9dd091775fe8002c3c26653ac04d72",
     "bin/aarch64-windows/xactengine3_4.dll": "ddf7933cfdd3fd92aa0af09a2a068d0f43fb3981c44c13ba507dff896b5f5703",
-    "bin/aarch64-windows/ntdll.dll": "674a8ea6e1cb0ab372335953cdfbf6f1a238f47ab4d26eabfdd7b7b0085b8bdb",
+    "bin/aarch64-windows/ntdll.dll": "bcef2eebbdc5b873a8408c715fb56f10a9319565041d14e10147ed4fbf6a8af1",
     "bin/aarch64-windows/atlthunk.dll": "f24948420f8506a50fcb5d75b64f3776e1860c9eab26bdb3552fdb844b31e6cd",
     "bin/aarch64-windows/rtutils.dll": "33ca04d6ba60b25bbab7e47440f9c7561b14d5af5e89d04917b41ff805311c26",
     "bin/aarch64-windows/msctfp.dll": "d54d26570c8c50f9470ccf27dfee31ba852ba83b76e6925c3f5c21235362034b",

@@ -7,7 +7,13 @@
     "record": "docs/upstream-sync/validation/mini-games-and-steam.json",
     "recordSha256": "5043c7386a7170e6553ac8c9e94f5f09ab0f51dda0d732c45951696b07ad52f4",
     "testedPackageSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
-    "scope": "Historical Mini evidence. The 2.0.6 release runtime reuses the audited RC graphics and FEX; the WMP update is host-validated and awaits integrated device retest. The 2.0.7 child working directory change has host broker coverage. World of Warships device retest pending."
+    "scope": "Historical Mini evidence. The 2.0.6 release runtime reuses the audited RC graphics and FEX; the WMP update is host-validated and awaits integrated device retest. The 2.0.7 child working directory change has host broker coverage. World of Warships device retest pending.",
+    "mobileGL": {
+      "testedPackageSha256": "5d65c90dd737f09519dcf3f023b6f3239dbaa281d30a1b0a8550a4ef6439f970",
+      "loaderPatch": "patches/wine/0083-ntdll-mobilegl-overlay.patch",
+      "loaderSha256": "bcef2eebbdc5b873a8408c715fb56f10a9319565041d14e10147ed4fbf6a8af1",
+      "scope": "Pro S Maleoon 935, direct Vulkan 1.3.309. OpenGL 4.1 request, GLSL 410, window/FBO pixels and 60 swaps passed. Phone Direct and Steam game acceptance pending."
+    }
   },
   "wine": {
     "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
@@ -162,16 +168,16 @@
       "sha256": "d40884e89874bc2df7b2b16a4f44a2fa92cd23407aadde929b39d8cf013ce1a1"
     },
     "resources/rawfile/wine-data.zip": {
-      "bytes": 454327852,
-      "sha256": "ca3a23bedbd27393739e953426d1321fd4fcdb7ed13ee0143f7752678433dac9"
+      "bytes": 454328355,
+      "sha256": "0052b82c28f588d6cd7a03d14e32b9b9b6822e90cabbe8a38feecba919c7a665"
     },
     "resources/rawfile/wine-runtime-manifest.json": {
-      "bytes": 28916,
-      "sha256": "bdb32ded17e3d616dcb046dca42d07f9734a6a7846de2b35657d30b72ee452ee"
+      "bytes": 29069,
+      "sha256": "17a7ce3f80875d54ef3efaf59e9739b1b162537cd1482741411c4659217dad1f"
     },
     "resources/rawfile/wine_runtime.version": {
-      "bytes": 412,
-      "sha256": "c68c2bd0075acfd757d1acd9226620f7da7a6e6b723d544f21301d233af36ad5"
+      "bytes": 441,
+      "sha256": "395776f9ed7906dbc056ff2efccda66cbb38021bb110d74377b8f30fd349ef08"
     },
     "libs/arm64-v8a/libvulkan_virtio.so": {
       "bytes": 1007328,
