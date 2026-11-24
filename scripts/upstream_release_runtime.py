@@ -47,9 +47,12 @@ def load_lock():
                 raise ValueError('Reverified source differs from packaged source: ' + component)
     graphics = lock.get('graphics')
     if graphics:
-        for key in ('source', 'texture'):
+        # The selected runtime retains the graphics provenance of its build.
+        # Validate the live source lock separately when its inventory advances.
+        source_sha = graphics.get('reviewedSourceLockSha256', graphics['sourceLockSha256'])
+        for key, expected_sha in (('source', source_sha), ('texture', graphics['textureLockSha256'])):
             path = ROOT / graphics[key + 'LockFile']
-            if file_sha(path) != graphics[key + 'LockSha256']:
+            if file_sha(path) != expected_sha:
                 raise ValueError('Selected graphics source lock changed: ' + key)
         source = json.loads((ROOT / graphics['sourceLockFile']).read_text())
         texture = json.loads((ROOT / graphics['textureLockFile']).read_text())

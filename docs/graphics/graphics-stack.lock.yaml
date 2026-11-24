@@ -375,6 +375,10 @@
         "sha256": "3e551346d3cba87c2656f053cf3bad01baff2184f3b68c032fab430b52051283"
       },
       {
+        "path": "patches/wine/0083-ntdll-mobilegl-overlay.patch",
+        "sha256": "b58d498a001a27c79eed6093dd1098a40847ece8a5a1f2862125aa4344a67ecb"
+      },
+      {
         "path": "patches/wine/0083-winebus-multiple-gamepads.patch",
         "sha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37"
       }

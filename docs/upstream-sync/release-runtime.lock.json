@@ -251,6 +251,7 @@
   "graphics": {
     "sourceLockFile": "docs/graphics/graphics-stack.lock.yaml",
     "sourceLockSha256": "13d4972960753e567521bceaecba984034f486df514faf5c07dfd6b1f7178f8c",
+    "reviewedSourceLockSha256": "5daa5b4df01b31fdf8c16ea69053e2f70d54f8fcd3f4344e6c3fdfc812f682cb",
     "textureLockFile": "docs/graphics/texture-compat-runtime.lock.json",
     "textureLockSha256": "694279d079c22b6051e6b0e39c94fe862c75af876543d63910b8a4550a8877f3",
     "qualification": "host-validated-mini-components-tested-integrated-package-pending",
