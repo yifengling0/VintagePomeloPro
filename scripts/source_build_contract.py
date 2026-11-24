@@ -122,13 +122,20 @@ def source_identity(manifest):
         dxvk[profile] = {'commit': pin['commit'], 'sourceSha256': expected_source}
     if manifest['submodules']['thirdparty/mesa'] != texture['venus']['commit']:
         raise ValueError('candidate Mesa source differs from reviewed source')
-    for patch in texture['venus']['patches']:
-        path = ROOT / patch['path']
-        if sha(path.read_bytes().replace(b'\r\n', b'\n')) != patch['sha256']:
-            raise ValueError('candidate Mesa overlay changed: ' + patch['path'])
+    from guest_gfx_build_identity import mesa_identity
+    mesa_source = ROOT / 'thirdparty/mesa'
+    mesa = mesa_identity(mesa_source)
+    venus_overlays = texture['venus']['patches']
+    venus_paths = {row['path'] for row in venus_overlays}
+    if [row for row in mesa['overlays'] if row['path'] in venus_paths] != venus_overlays:
+        raise ValueError('candidate Mesa production overlays differ from the reviewed Venus stack')
+    # Later Zink overlays can change the context of earlier Venus-stack hunks.
+    # Reverse the exact production sequence before checking those hunks.
+    overlays = [ROOT / row['path'] for row in mesa['overlays']]
+    if 'gpuBcUpload' in mesa:
+        overlays.append(ROOT / mesa['gpuBcUpload']['path'])
     from apply_dxvk_compat_patches import stack_applied
-    if not stack_applied(ROOT / 'thirdparty/mesa',
-                         [ROOT / p['path'] for p in texture['venus']['patches']]):
+    if not stack_applied(mesa_source, overlays):
         raise ValueError('candidate Mesa reviewed patch stack is missing or has drifted')
     return {'checkout': manifest, 'dxvk': dxvk,
             'wineD3D': source_contract(ROOT / 'thirdparty/wine-valve')}
