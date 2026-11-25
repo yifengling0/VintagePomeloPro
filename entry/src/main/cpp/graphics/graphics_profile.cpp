@@ -88,6 +88,7 @@ D3dBackendKind ParseD3dBackend(std::string_view backend)
     if (backend == "dxvk_legacy") return D3dBackendKind::DxvkLegacy;
     if (backend == "dxvk_modern_2_6") return D3dBackendKind::DxvkModern26;
     if (backend == "vkd3d_limited_500k") return D3dBackendKind::Vkd3dLimited500k;
+    if (backend == "vkd3d_limited_500k_direct") return D3dBackendKind::Vkd3dLimited500kDirect;
     return D3dBackendKind::Unknown;
 }
 
@@ -98,10 +99,16 @@ bool IsDxvkBackend(D3dBackendKind backend)
         backend == D3dBackendKind::DxvkModern26;
 }
 
+bool IsVkd3dBackend(D3dBackendKind backend)
+{
+    return backend == D3dBackendKind::Vkd3dLimited500k ||
+        backend == D3dBackendKind::Vkd3dLimited500kDirect;
+}
+
 bool UsesVenusPresent(D3dBackendKind backend)
 {
     return IsDxvkBackend(backend) || backend == D3dBackendKind::WineD3dZink ||
-        backend == D3dBackendKind::Vkd3dLimited500k;
+        IsVkd3dBackend(backend);
 }
 
 static bool ResolveVenusProductGraphicsPolicy(D3dBackendKind backend,
@@ -127,7 +134,8 @@ static bool ResolveVenusProductGraphicsPolicy(D3dBackendKind backend,
             GuestSubmissionPolicy::StrongRingBarrier;
         break;
     }
-    case D3dBackendKind::Vkd3dLimited500k: {
+    case D3dBackendKind::Vkd3dLimited500k:
+    case D3dBackendKind::Vkd3dLimited500kDirect: {
         resolved.route = kProductVulkanRoute;
         resolved.host = {resolved.route, "precise", "0"};
         resolved.guest.preciseShadow = true;
@@ -162,14 +170,16 @@ bool ResolveProductGraphicsPolicy(D3dBackendKind backend,
                                   ProductGraphicsPolicy* policy)
 {
     if (!ResolveVenusProductGraphicsPolicy(backend, policy)) return false;
-    // Legacy DXVK's D3D11 upload/readback contract is verified for PE32 and
-    // PE64. Modern DXVK/VKD3D have not passed this WOW64 mapping gate.
-    if (backend == D3dBackendKind::DxvkLegacy && IsProductDirectVulkanVerified() &&
+    // Legacy DXVK has verified range publication. The explicit VKD3D Direct
+    // profile uses whole mappings while its upload/readback is qualified.
+    const bool legacy = backend == D3dBackendKind::DxvkLegacy;
+    if ((legacy || backend == D3dBackendKind::Vkd3dLimited500kDirect) &&
+        IsProductDirectVulkanVerified() &&
         productDirectPresentationSupported.load(std::memory_order_acquire)) {
         policy->guest = {};
         policy->guest.directVulkan = true;
-        policy->guest.preciseShadow = true;
-        policy->guest.directPreciseMaps = true;
+        policy->guest.preciseShadow = legacy;
+        policy->guest.directPreciseMaps = legacy;
         policy->vulkanDesktop = true;
     }
     return true;
@@ -196,6 +206,7 @@ bool ResolveDxvkRuntimeProfile(D3dBackendKind backend,
         return true;
     case D3dBackendKind::DxvkModern26:
     case D3dBackendKind::Vkd3dLimited500k:
+    case D3dBackendKind::Vkd3dLimited500kDirect:
         *profile = {
             "modern-2.6", "2.6.2",
             false, // relaxedFeatureCompatibility

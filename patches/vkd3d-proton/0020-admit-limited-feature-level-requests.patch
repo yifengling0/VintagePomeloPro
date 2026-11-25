@@ -1,0 +1,41 @@
+From dc1a110f8e3c42cb6023af86896911c1d6e277d3 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] vkd3d: admit limited feature-level requests after Vulkan initialization
+
+diff --git a/libs/vkd3d/device.c b/libs/vkd3d/device.c
+--- a/libs/vkd3d/device.c
++++ b/libs/vkd3d/device.c
+@@ -6160,10 +6160,29 @@
+     if (!d3d12_device_supports_feature_level(object, create_info->minimum_feature_level))
+     {
+-        WARN("Feature level %#x is not supported.\n", create_info->minimum_feature_level);
+-        d3d12_device_destroy(object);
+-        vkd3d_free(object);
+-        pthread_mutex_unlock(&d3d12_device_map_mutex);
+-        return E_INVALIDARG;
++#ifdef VKD3D_EXPERIMENTAL_LIMITED_RESOURCE_VIEW_HEAPS
++        const D3D_FEATURE_LEVEL requested = create_info->minimum_feature_level;
++
++        /* The base Vulkan device is already initialized. Small titles can
++         * request FL 12_0 as a startup check and use only baseline commands.
++         * Keep the real caps for feature queries and pipeline validation. */
++        if (requested == D3D_FEATURE_LEVEL_11_1 || requested == D3D_FEATURE_LEVEL_12_0)
++        {
++            const struct d3d12_caps *caps = &object->d3d12_caps;
++            WARN("WineHua feature admission OK (advisory): requested %#x, native %#x; "
++                    "logicOp %u, typedUavAdditionalFormats %u, tiledResourcesTier %u, resourceBindingTier %u.\n",
++                    requested, caps->max_feature_level, (unsigned int)caps->options.OutputMergerLogicOp,
++                    (unsigned int)caps->options.TypedUAVLoadAdditionalFormats,
++                    caps->options.TiledResourcesTier, caps->options.ResourceBindingTier);
++        }
++        else
++#endif
++        {
++            WARN("Feature level %#x is not supported.\n", create_info->minimum_feature_level);
++            d3d12_device_destroy(object);
++            vkd3d_free(object);
++            pthread_mutex_unlock(&d3d12_device_map_mutex);
++            return E_INVALIDARG;
++        }
+     }
+ 
+     TRACE("Created device %p.\n", object);

@@ -61,13 +61,11 @@ for (const backend of ['wined3d', 'dxvk_legacy_d3d9', 'dxvk_legacy', 'invalid'])
   assert.deepEqual(Array.from(policy.resolveZinkPresentationEnvironment(backend)), ['WINEHUA_ZINK_PRESENT=0']);
 }
 const source = fs.readFileSync(path.join(root, 'service/WineEngineService.ets'), 'utf8');
-const start = source.indexOf('  private selectedD3DBackend(): string {');
+const start = source.indexOf('  private selectedGraphicsMode(): string {');
 const end = source.indexOf('  private ensureProductDirectCapability()', start);
 assert(start >= 0 && end > start);
 const program = `class Engine {
   private appGraphicsBackend = 'default';
-  private hostGraphicsLabExperiment = '';
-  private hostGraphicsBackendOverride = '';
   private hostGraphicsBackend = '';
   ${source.slice(start, end)}
 }
@@ -79,7 +77,6 @@ const compiled = ts.transpileModule(program, {
 assert.equal(compiled.diagnostics.length, 0);
 let system = 'dxvk_1_10';
 const context = {exports: {}, ...policy, DOMAIN: 0, TAG: 'test',
-  executableUsesVkd3dGraphics: () => false,
   AppSettingsStore: {getInstance: () => ({getRenderMode: () => system})},
   AppStorage: {get: () => undefined, setOrCreate: () => {}},
   testNapi: {getHostGpuName: () => 'Maleoon 910'},
@@ -96,6 +93,10 @@ assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', 'dxvk_1_10'), 'dxvk_legacy');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-a.exe', 'dxvk_2_6'), 'dxvk_legacy');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe', 'invalid'), 'wined3d');
+assert.equal(engine.selectHostGraphicsBackendForExecutable('dx12.exe', policy.VKD3D_DIRECT), policy.VKD3D_DIRECT);
+system = policy.VKD3D_VENUS;
+assert.equal(engine.selectHostGraphicsBackendForExecutable('dx12.exe'), policy.VKD3D_VENUS);
+system = 'virgl';
 assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'dxvk9'), 'dxvk_legacy_d3d9');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('pal4.exe', 'zink'), 'wined3d_zink');
 assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'wined3d');

@@ -844,6 +844,9 @@ EOF
     mkdir -p "$wine_data/vkd3d/limited-500k/x64"
     cp "$vkd3d_root/x64/d3d12.dll" "$wine_data/vkd3d/limited-500k/x64/d3d12.dll"
     cp "$vkd3d_root/manifest.json" "$wine_data/vkd3d/manifest.json"
+    install -D -m 0644 "$vkd3d_root/x64/triangle.exe" "$wine_data/smoke/x64/triangle.exe"
+    install -D -m 0644 "$vkd3d_root/x64/gears.exe" "$wine_data/smoke/x64/gears.exe"
+    install -D -m 0644 "$vkd3d_root/x64/winehua-d3d12-smoke.exe" "$wine_data/smoke/x64/winehua_d3d12_smoke.exe"
     # DXVK/VKD3D 二进制是 runtime overlay: 由 SpawnWineProgram 按选定后端经
     # WINEDLLPATH 暴露, 不作为 C:\smoke 载荷的一部分。
     local vkd3d64_d3d12_sha
@@ -939,7 +942,7 @@ path.write_text(json.dumps(manifest, indent=2) + '\n')
 PYDXVK
     # Suite 编排定义由 automation/smoke.py 产出 (smoke/tests + smoke/suites),
     # 见 assemble 尾部的载荷拷贝。
-    log "  VKD3D-Proton 2.6 limited-500K (default mixed D3D12 profile) → vkd3d/limited-500k/x64 (sha256=$vkd3d64_d3d12_sha)"
+    log "  VKD3D-Proton 2.6 limited-500K (experimental mixed D3D12 profile) → vkd3d/limited-500k/x64 (sha256=$vkd3d64_d3d12_sha)"
 
     # fonts
     cp "$WINE_SRC/fonts/"*.ttf "$wine_data/share/wine/fonts/"

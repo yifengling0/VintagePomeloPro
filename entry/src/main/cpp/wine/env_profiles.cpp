@@ -29,10 +29,8 @@ void AppendStableDxvkEnv(std::vector<std::string>& env,
                                 const std::string& d3dBackend,
                                  const std::string&)
 {
-    const bool usesDxvkOverlay = d3dBackend == "dxvk_legacy_d3d9" ||
-                                 d3dBackend == "dxvk_legacy" ||
-                                 d3dBackend == "dxvk_modern_2_6";
-    if (!usesDxvkOverlay) return;
+    const auto backend = ParseD3dBackend(d3dBackend);
+    if (!IsDxvkBackend(backend) && !IsVkd3dBackend(backend)) return;
 
     // 全部 probeBase 读取集中在写入之前 (允许调用方 env 与 probeBase 别名)
     /* SetHostShadowProfile carries the selected diagnostic profile through
@@ -50,7 +48,7 @@ void AppendStableDxvkEnv(std::vector<std::string>& env,
     };
     constexpr size_t kTraceKeyCount = sizeof(traceKeys) / sizeof(traceKeys[0]);
     std::string traceValues[kTraceKeyCount];
-    const bool traceKeysEnabled = d3dBackend == "dxvk_modern_2_6";
+    const bool traceKeysEnabled = backend == D3dBackendKind::DxvkModern26 || IsVkd3dBackend(backend);
     if (traceKeysEnabled) {
         for (size_t i = 0; i < kTraceKeyCount; ++i)
             traceValues[i] = FindEnvValue(probeBase, traceKeys[i]);
@@ -124,16 +122,12 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
     std::vector<std::string> env = BuildWineEnv(p.sockDir, p.sockName, p.libPath,
                                                 p.binDir, p.audioBootstrapFd, p.homeDir,
                                                 p.prefixDir, p.wineLang);
-    // DXVK 1.10.3 is the default, DXVK 2.6.2 is opt-in, and WineD3D remains
-    // available for VirGL. VKD3D artifacts may be packaged for future work,
-    // but no caller can activate that overlay through this product path.
-    const std::string d3dBackend = p.d3dBackend == "wined3d_zink" ||
-        p.d3dBackend == "dxvk_legacy_d3d9" || p.d3dBackend == "wined3d" ||
-        p.d3dBackend == "dxvk_modern_2_6" ? p.d3dBackend : "dxvk_legacy";
-    const std::string dxvkBackend = d3dBackend == "dxvk_modern_2_6" ?
-        "dxvk_modern_2_6" : "dxvk_legacy";
-    if (!d3dBackend.empty())
-        AppendD3dBackendEnv(env, d3dBackend, dxvkBackend, p.binDir);
+    const auto requested = ParseD3dBackend(p.d3dBackend);
+    const auto backend = requested == D3dBackendKind::Unknown ? D3dBackendKind::DxvkLegacy : requested;
+    const std::string d3dBackend = requested == D3dBackendKind::Unknown ? "dxvk_legacy" : p.d3dBackend;
+    const std::string dxvkBackend = backend == D3dBackendKind::DxvkModern26 || IsVkd3dBackend(backend)
+        ? "dxvk_modern_2_6" : "dxvk_legacy";
+    AppendD3dBackendEnv(env, d3dBackend, dxvkBackend, p.binDir);
     // 桌面稳定化 overlay。probe 快照 = 到此处为止的 env (基线+D3D),
     // 与旧实现探测 LaunchParams.envStrs 语义一致
     if (p.applyStableOverlay)
@@ -142,14 +136,13 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
         UpsertEnvLine(env, "WINEHUA_DESKTOP=shell");
     std::vector<std::string> graphicsEnvironment;
     const bool graphicsPolicyApplied = BuildProductGuestGraphicsEnvironment(
-        ParseD3dBackend(d3dBackend), &graphicsEnvironment);
+        backend, &graphicsEnvironment);
     if (graphicsPolicyApplied)
         for (const auto& line : graphicsEnvironment) UpsertEnvLine(env, line);
     // Direct Vulkan programs intentionally keep d3dBackend=wined3d, so the
     // D3D overlay above does not configure Venus.
     if (FindEnvValue(p.extraEnv, "WINEHUA_VULKAN_RUNTIME") == "1" &&
-        d3dBackend != "dxvk_legacy_d3d9" && d3dBackend != "wined3d_zink" &&
-        d3dBackend != "dxvk_legacy" && d3dBackend != "dxvk_modern_2_6")
+        !UsesVenusPresent(backend))
         AppendVulkanRuntimeEnv(env, p.binDir);
     // Per-app overrides keep their original empty-value semantics. Display
     // identity belongs to the entire native Wine session, never to one app.

@@ -90,25 +90,25 @@
     },
     {
       "id": "builtin-vkd3d-triangle",
-      "enabled": false,
-      "title": "VKD3D 方块测试",
+      "renderModes": ["vkd3d_limited_500k", "vkd3d_limited_500k_direct"],
+      "title": "VKD3D 三角形测试",
       "launchKind": "wine-system",
       "launchParams": {
-        "executable": "C:\\smoke\\x64\\triangle.exe",
+        "executable": "/data/storage/el2/base/files/wine/smoke/x64/triangle.exe",
         "arguments": [],
-        "workingDirectory": "C:\\smoke\\x64"
+        "workingDirectory": "/data/storage/el2/base/files/wine/smoke/x64"
       },
       "cover": ""
     },
     {
       "id": "builtin-vkd3d-gears",
-      "enabled": false,
+      "renderModes": ["vkd3d_limited_500k", "vkd3d_limited_500k_direct"],
       "title": "VKD3D 齿轮测试",
       "launchKind": "wine-system",
       "launchParams": {
-        "executable": "C:\\smoke\\x64\\gears.exe",
+        "executable": "/data/storage/el2/base/files/wine/smoke/x64/gears.exe",
         "arguments": [],
-        "workingDirectory": "C:\\smoke\\x64"
+        "workingDirectory": "/data/storage/el2/base/files/wine/smoke/x64"
       },
       "cover": ""
     }

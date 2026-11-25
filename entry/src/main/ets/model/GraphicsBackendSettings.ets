@@ -2,8 +2,10 @@
 export const GRAPHICS_BACKEND_DEFAULT = 'default';
 export const APP_OPENGL_MOBILEGL = 'opengl_mobilegl';
 export const APP_OPENGL_MOBILEGL_VENUS = 'opengl_mobilegl_venus';
+export const VKD3D_VENUS = 'vkd3d_limited_500k';
+export const VKD3D_DIRECT = 'vkd3d_limited_500k_direct';
 export const GRAPHICS_BACKEND_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl', 'dxvk9', 'zink',
-  APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS];
+  VKD3D_VENUS, VKD3D_DIRECT, APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS];
 export const APP_OPENGL_SOFTPIPE = 'opengl_softpipe';
 export const APP_OPENGL_VIRGL_COMPAT = 'opengl_virgl_compat';
 export const APP_OPENGL_VIRGL_33 = 'opengl_virgl_33';
@@ -32,6 +34,10 @@ export function isMobileGLBackend(backend: string): boolean {
   return backend === APP_OPENGL_MOBILEGL || backend === APP_OPENGL_MOBILEGL_VENUS;
 }
 
+export function isVkd3dBackend(backend: string): boolean {
+  return backend === VKD3D_VENUS || backend === VKD3D_DIRECT;
+}
+
 export function isVirglOpenGLCompatibility(backend: string): boolean {
   return backend === APP_OPENGL_VIRGL_COMPAT || backend === APP_OPENGL_VIRGL_33;
 }
@@ -53,6 +59,8 @@ export function graphicsBackendLabel(value: string): string {
     case 'zink': return 'Zink（实验）';
     case 'dxvk_1_10': return 'DXVK 1.10';
     case 'dxvk_2_6': return 'DXVK 2.6（实验）';
+    case VKD3D_VENUS: return 'DX12 · Venus（实验）';
+    case VKD3D_DIRECT: return 'DX12 · 直通（实验）';
     default: return '跟随系统';
   }
 }

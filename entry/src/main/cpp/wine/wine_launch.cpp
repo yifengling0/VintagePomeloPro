@@ -11,6 +11,7 @@
 #include "compositor/wayland_server.h"
 #include "audio_ipc_protocol.h"
 #include "graphics/graphics_broker.h"
+#include "graphics/graphics_profile.h"
 #include "direct/direct_vulkan_desktop_compositor.h"
 #include "input/controller/controller_runtime.h"
 
@@ -352,8 +353,7 @@ static bool IsWineserverSocketReady(const std::string& prefix) {
 
 static bool UsesVulkanD3dBackend(const std::string& backend)
 {
-    return backend == "dxvk_legacy" || backend == "dxvk_modern_2_6" ||
-        backend == "dxvk_legacy_d3d9" || backend == "wined3d_zink";
+    return winehua::UsesVenusPresent(winehua::ParseD3dBackend(backend));
 }
 
 // 兼容模式档位已收窄到程序级 (AppLibraryService per-app environment),

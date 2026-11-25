@@ -46,7 +46,7 @@ import {
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
 import { APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS, graphicsBackendLabel,
-  normalizeGraphicsBackend } from '../model/GraphicsBackendSettings';
+  normalizeGraphicsBackend, VKD3D_DIRECT, VKD3D_VENUS } from '../model/GraphicsBackendSettings';
 import { GamepadManager } from '../service/GamepadManager';
 import { HostWindowTasks } from '../service/HostWindowTasks';
 import { SteamClientService } from '../service/SteamClientService';
@@ -2406,6 +2406,14 @@ struct SystemSettingsPage {
             this.RenderModeChip('DXVK9（32位实验）', 'dxvk9')
             this.RenderModeChip('Zink（实验）', 'zink')
           }.width('100%')
+          Row({ space: 6 }) {
+            this.RenderModeChip(graphicsBackendLabel(VKD3D_VENUS), VKD3D_VENUS)
+            this.RenderModeChip(graphicsBackendLabel(VKD3D_DIRECT), VKD3D_DIRECT)
+          }.width('100%')
+          if (this.renderMode === VKD3D_DIRECT) {
+            Text('直通探测或当前显示路径不支持直通时，将使用 Venus。')
+              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+          }
           if (this.mobileGLAvailable && this.settings.wineDisplayRoute !== 'x11') {
             Row() {
               this.RenderModeChip(graphicsBackendLabel(APP_OPENGL_MOBILEGL), APP_OPENGL_MOBILEGL)

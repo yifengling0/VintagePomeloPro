@@ -20,6 +20,7 @@ enum class D3dBackendKind {
     DxvkLegacyD3d9,
     DxvkModern26,
     Vkd3dLimited500k,
+    Vkd3dLimited500kDirect,
 };
 
 enum class GpuUploadPolicy {
@@ -88,6 +89,7 @@ struct ProductGraphicsPolicy {
 
 D3dBackendKind ParseD3dBackend(std::string_view backend);
 bool IsDxvkBackend(D3dBackendKind backend);
+bool IsVkd3dBackend(D3dBackendKind backend);
 bool UsesVenusPresent(D3dBackendKind backend);
 // Resolves one of the two normal product routes. DXVK generations and the
 // VKD3D DXGI companion may differ in adapter details without becoming routes.

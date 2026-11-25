@@ -412,9 +412,7 @@ static napi_value LaunchClient(napi_env env, napi_callback_info info) {
     if (argc >= 6) {
         char d3dBackend[64] = {};
         napi_get_value_string_utf8(env, args[5], d3dBackend, sizeof(d3dBackend), nullptr);
-        if (!strcmp(d3dBackend, "wined3d") || !strcmp(d3dBackend, "dxvk_legacy") ||
-            !strcmp(d3dBackend, "dxvk_modern_2_6") ||
-            !strcmp(d3dBackend, "dxvk_legacy_d3d9") || !strcmp(d3dBackend, "wined3d_zink"))
+        if (winehua::ParseD3dBackend(d3dBackend) != winehua::D3dBackendKind::Unknown)
             p->d3dBackend = d3dBackend;
     }
     if (argc >= 7) {

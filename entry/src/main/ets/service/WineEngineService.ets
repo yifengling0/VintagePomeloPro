@@ -25,7 +25,7 @@ import {
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
 import { APP_OPENGL_MOBILEGL_VENUS, APP_OPENGL_SOFTPIPE, isMobileGLBackend, isVirglOpenGLCompatibility,
-  normalizeAppGraphicsBackend, resolveGraphicsBackend, supportsMobileGLVulkan } from '../model/GraphicsBackendSettings';
+  isVkd3dBackend, normalizeAppGraphicsBackend, resolveGraphicsBackend, supportsMobileGLVulkan } from '../model/GraphicsBackendSettings';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
 
@@ -1121,7 +1121,9 @@ export class WineEngineService {
   private selectedD3DBackend(): string {
     const mode = this.selectedGraphicsMode();
     let backend = 'dxvk_legacy';
-    if (mode === 'dxvk9') {
+    if (isVkd3dBackend(mode)) {
+      backend = mode;
+    } else if (mode === 'dxvk9') {
       backend = 'dxvk_legacy_d3d9';
     } else if (mode === 'zink') {
       backend = 'wined3d_zink';

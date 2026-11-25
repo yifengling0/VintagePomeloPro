@@ -23,8 +23,10 @@ void UpsertEnvLine(std::vector<std::string>& env, const std::string& line) {
     env.push_back(line);
 }
 void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string& backend,
-    const std::string&, const std::string&) {
-    UpsertEnvLine(env, "WINEHUA_D3D_BACKEND=" + backend);
+    const std::string& dxvk, const std::string&) {
+    const bool vkd3d = winehua::IsVkd3dBackend(winehua::ParseD3dBackend(backend));
+    UpsertEnvLine(env, "WINEHUA_D3D_BACKEND=" + (vkd3d ? std::string("vkd3d_limited_500k") : backend));
+    UpsertEnvLine(env, "WINEHUA_DXVK_BACKEND_FOR_TEST=" + dxvk);
     UpsertEnvLine(env, "DXVK_WINEHUA_PRECISE_SHADOW=1");
 }
 void AppendWineDpiEnv(std::vector<std::string>& env) {
@@ -209,6 +211,26 @@ int main() {
     winehua::SetProductDirectPresentationSupported(true);
     assert(winehua::ResolveProductGraphicsPolicy(winehua::D3dBackendKind::DxvkLegacy, &policy));
     assert(policy.guest.directVulkan && policy.vulkanDesktop);
+    session.d3dBackend = "vkd3d_limited_500k";
+    env = winehua::BuildSessionEnv(session);
+    assert(Has(env, "WINEHUA_D3D_BACKEND=vkd3d_limited_500k"));
+    assert(Has(env, "WINEHUA_DXVK_BACKEND_FOR_TEST=dxvk_modern_2_6"));
+    assert(Has(env, "WINEHUA_VULKAN_BACKEND=venus"));
+    assert(Has(env, "VN_WINEHUA_DIRECT_FENCE_WAIT=1"));
+    session.d3dBackend = "vkd3d_limited_500k_direct";
+    env = winehua::BuildSessionEnv(session);
+    assert(Has(env, "WINEHUA_D3D_BACKEND=vkd3d_limited_500k"));
+    assert(Has(env, "WINEHUA_VULKAN_BACKEND=direct"));
+    assert(Has(env, "WINEHUA_VK_PRECISE_MAP=0"));
+    assert(winehua::ResolveProductGraphicsPolicy(winehua::D3dBackendKind::Vkd3dLimited500kDirect, &policy));
+    assert(policy.vulkanDesktop);
+    winehua::SetProductDirectPresentationSupported(false);
+    env = winehua::BuildSessionEnv(session);
+    assert(Has(env, "WINEHUA_VULKAN_BACKEND=venus"));
+    assert(Has(env, "VN_WINEHUA_DIRECT_FENCE_WAIT=1"));
+    winehua::SetProductDirectPresentationSupported(true);
     winehua::SetProductDirectVulkanVerified(false);
+    env = winehua::BuildSessionEnv(session);
+    assert(Has(env, "WINEHUA_VULKAN_BACKEND=venus"));
     std::cout << "PASS: automatic Direct, protected mapping, X11 presentation capability and Venus fallback\n";
 }
