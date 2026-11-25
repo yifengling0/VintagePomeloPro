@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+import json
 import struct
 from pathlib import Path
 from zipfile import ZipFile
@@ -76,6 +77,13 @@ def verify_ui_payload(candidate: ZipFile, compiled: ZipFile) -> None:
     for name in sorted(expected):
         if digest_member(candidate, name) != digest_member(compiled, name):
             raise ValidationError(f"HAP UI member differs from the same compilation: {name}")
+
+    module = json.loads(candidate.read("module.json"))["module"]
+    stage = module.get("srcEntry")
+    if stage and stage.startswith("./") and stage.endswith(".ets"):
+        record = f'L&{module["name"]}/src/main/{stage[2:-4]}&;'.encode("utf-8")
+        if record not in candidate.read("ets/modules.abc"):
+            raise ValidationError(f"Compiled ability stage {stage} requires useNormalizedOHMUrl")
 
 
 def load_signature(label: str, data: bytes) -> tuple[object, ...]:
