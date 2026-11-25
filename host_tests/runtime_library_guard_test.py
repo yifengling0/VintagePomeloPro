@@ -77,7 +77,13 @@ class RuntimeLibraryGuardTest(unittest.TestCase):
         package = (ROOT / 'scripts/package.sh').read_text()
         self.assertEqual(assemble.count('copy_runtime_library.py'), 3)
         routing = (ROOT / 'entry/src/main/cpp/wine/wine_env.cpp').read_text()
-        self.assertEqual(routing.count('libxml2.so:libxml2.so.2:libz.so:libz.so.1'), 2)
+        # DXVK and VKD3D share the managed Box64 library environment.
+        backend_start = routing.index('void AppendD3dBackendEnv(')
+        backend_end = routing.index('std::string SerializeEnvToEntryParams(', backend_start)
+        managed = routing[backend_start:backend_end]
+        self.assertIn('if (!vkd3d && d3dBackend.rfind("dxvk_", 0) != 0) return;', managed)
+        self.assertIn('BOX64_EMULATED_LIBS=', managed)
+        self.assertIn('libxml2.so:libxml2.so.2:libz.so:libz.so.1', managed)
         self.assertIn('runtime_library_guard.py" "$NATIVE_LIBS" "$wine_data"', assemble)
         self.assertLess(package.index('runtime_library_guard.py" "$unsigned_hap"'),
                         package.index('if [ "$mode" = unsigned ]; then', package.index('hvigorw assembleHap')))
