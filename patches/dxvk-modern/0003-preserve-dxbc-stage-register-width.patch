@@ -1,0 +1,51 @@
+diff --git a/src/dxbc/dxbc_compiler.cpp b/src/dxbc/dxbc_compiler.cpp
+index c42c7eed5..d6692e552 100644
+--- a/src/dxbc/dxbc_compiler.cpp
++++ b/src/dxbc/dxbc_compiler.cpp
+@@ -8458,7 +8458,8 @@ namespace dxvk {
+         result.ctype  = DxbcScalarType::Float32;
+         result.ccount = 4;
+ 
+-        if (m_isgn == nullptr || !m_isgn->findByRegister(regIdx))
++        if (m_moduleInfo.options.fullStageInterface
++         || m_isgn == nullptr || !m_isgn->findByRegister(regIdx))
+           return result;
+ 
+         DxbcRegMask mask(0u);
+@@ -8512,7 +8513,7 @@ namespace dxvk {
+         result.ctype  = DxbcScalarType::Float32;
+         result.ccount = 4;
+ 
+-        if (m_osgn->findByRegister(regIdx))
++        if (!m_moduleInfo.options.fullStageInterface && m_osgn->findByRegister(regIdx))
+           result.ccount = m_osgn->regMask(regIdx).minComponents();
+         return result;
+       }
+diff --git a/src/dxbc/dxbc_options.cpp b/src/dxbc/dxbc_options.cpp
+index 946b0e46e..efa9502d2 100644
+--- a/src/dxbc/dxbc_options.cpp
++++ b/src/dxbc/dxbc_options.cpp
+@@ -54,6 +54,11 @@ namespace dxvk {
+       devFeatures.extCustomBorderColor.customBorderColorWithoutFormat ? 1 : 0));
+ 
+     const bool maleoon = std::strstr(devInfo.core.properties.deviceName, "Maleoon") != nullptr;
++    const auto stageInterface = env::getEnvVar("WINEHUA_DXVK_STAGE_INTERFACE");
++    fullStageInterface = stageInterface == "full"
++      || (stageInterface.empty() && maleoon && adapter->isWineHuaVenus());
++    if (fullStageInterface)
++      Logger::info("WineHua: preserving full DXBC stage interface registers");
+     padCubeDrefCoordinates = maleoon;
+     emulateCubeArrayDref = maleoon;
+     emulateSingleSampleA2C = maleoon;
+diff --git a/src/dxbc/dxbc_options.h b/src/dxbc/dxbc_options.h
+index cf2217faa..b8e576a19 100644
+--- a/src/dxbc/dxbc_options.h
++++ b/src/dxbc/dxbc_options.h
+@@ -17,6 +17,7 @@ namespace dxvk {
+ 
+   struct DxbcOptions {
+     bool virtualBc = false;
++    bool fullStageInterface = false;
+     DxbcOptions();
+     DxbcOptions(const Rc<DxvkDevice>& device, const D3D11Options& options);
+ 

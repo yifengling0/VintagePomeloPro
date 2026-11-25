@@ -18,6 +18,7 @@ source "$SCRIPT_DIR/arm64x_build_cache.sh"
     err "DXVK Modern Vulkan-Headers submodule is missing"
 [ -f "$DXVK_MODERN_SRC/include/spirv/include/spirv/unified1/spirv.hpp" ] || \
     err "DXVK Modern SPIRV-Headers submodule is missing"
+python3 "$SCRIPT_DIR/apply_dxvk_compat_patches.py" --modern --source "$DXVK_MODERN_SRC"
 command -v glslangValidator >/dev/null 2>&1 || \
     err "glslangValidator missing (负责 dxvk shader .h 生成)"
 
@@ -92,7 +93,7 @@ SRCS=$(find "$DXVK_MODERN_SRC/src/wsi" "$DXVK_MODERN_SRC/src/util" "$DXVK_MODERN
            "$DXVK_MODERN_SRC/src/vulkan" "$DXVK_MODERN_SRC/src/dxvk" "$DXVK_MODERN_SRC/src/dxbc" \
            "$DXVK_MODERN_SRC/src/dxgi" "$DXVK_MODERN_SRC/src/d3d10" "$DXVK_MODERN_SRC/src/d3d11" \
            \( -name '*.cpp' -o -name '*.c' \) 2>/dev/null)
-SRCS="$SRCS $(find "$DXVK_MODERN_SRC/subprojects/libdisplay-info" -maxdepth 1 -name '*.c' 2>/dev/null)"
+SRCS="$SRCS $(find -H "$DXVK_MODERN_SRC/subprojects/libdisplay-info" -maxdepth 1 -name '*.c' 2>/dev/null)"
 SRCS="$SRCS $GEN/pnp-id-table.c"
 
 # 编译参数指纹 (增量 skip 不感知 CFLAGS 变化, 见 build_dxvk_arm64x.sh 注释)

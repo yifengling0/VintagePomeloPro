@@ -924,12 +924,17 @@ EOF
 import hashlib, json, os, pathlib, sys
 path = pathlib.Path(sys.argv[1])
 manifest = json.loads(path.read_text())
-legacy_pin = json.loads(pathlib.Path(sys.argv[2]).read_text())['runtimes']['legacy']
+pins = json.loads(pathlib.Path(sys.argv[2]).read_text())['runtimes']
+legacy_pin = pins['legacy']
+modern_pin = pins['modern-2.6']
 if legacy_pin.get('patches'):
     manifest['runtimes']['legacy']['managedPatches'] = legacy_pin['patches']
     manifest['runtimes']['legacy']['effectiveSourceSha256'] = legacy_pin['patchedSourceSha256']
 if 'qualification' in legacy_pin:
     manifest['runtimes']['legacy']['textureCompatibility'] = legacy_pin['qualification']
+if modern_pin.get('patches'):
+    manifest['runtimes']['modern-2.6']['managedPatches'] = modern_pin['patches']
+    manifest['runtimes']['modern-2.6']['effectiveSourceSha256'] = modern_pin['patchedSourceSha256']
 if os.environ.get('WINEHUA_BUILD_GPU_BC_UPLOAD') == '1':
     manifest['runtimes']['legacy']['gpuBcUpload'] = legacy_pin['gpuBcUpload']['patch']
 for profile, runtime in manifest['runtimes'].items():

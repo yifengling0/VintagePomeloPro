@@ -358,6 +358,8 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0080-wineohos-shared-multichannel
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0081-wineohos-render-event-pacing.patch" "OHOS render writable-period event pacing"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0082-ntdll-explicit-dxvk9-overlay.patch" "Explicit per-game DXVK9 managed DLL overlay"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0083-ntdll-mobilegl-overlay.patch" "Managed MobileGL OpenGL DLL overlay"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0084-ntdll-compose-direct3d-overlays.patch" "Compose managed D3D9, D3D11 and D3D12 DLL overlays"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0085-ntdll-mobilegl-x86-overlay.patch" "Load the MobileGL renderer matching the Wine process architecture"
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0083-winebus-multiple-gamepads.patch" \
     "Route independent WHGP slots and controller hotplug in Winebus"

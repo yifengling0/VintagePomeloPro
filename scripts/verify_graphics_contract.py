@@ -6,22 +6,22 @@ Static and behavior checks are distinct; neither is device qualification.
 import argparse, hashlib, io, json, re, subprocess
 from zipfile import ZipFile
 from pathlib import Path
-from dxvk_runtime_contract import load_modern_lock, source_digest, validate_modern_runtime
+from dxvk_runtime_contract import validate_modern_source, validate_modern_runtime
 R=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('--virgl-source',type=Path)
 p.add_argument('--wine-source',type=Path)
 p.add_argument('--mesa-source',type=Path)
+p.add_argument('--dxvk-modern-source',type=Path)
 p.add_argument('--hap',type=Path)
 p.add_argument('--native-output-dir',type=Path)
 p.add_argument('--behavior',action='store_true')
 a=p.parse_args()
 lock=json.loads((R/'docs/graphics/graphics-stack.lock.yaml').read_text())
-if source_digest(R/'thirdparty/dxvk-modern/src') != load_modern_lock()['sourceSha256']:
-    raise SystemExit('graphics-contract: FAIL: Modern DXVK source fingerprint differs from the reviewed binaries')
+validate_modern_source(a.dxvk_modern_source)
 def check(ok,message):
     if not ok:raise SystemExit('graphics-contract: FAIL: '+message)
-def read(name):return (R/name).read_text()
+def read(name):return (R/name).read_text(encoding='utf-8')
 def sha(path):return hashlib.sha256(path.read_bytes().replace(b'\r\n',b'\n')).hexdigest()
 def run(*cmd):subprocess.run(cmd,cwd=R,check=True)
 check(lock['schema_version']==3,'unsupported lock schema')
@@ -48,12 +48,12 @@ for engine,rows in lock['managed_patches'].items():
             actual=['scripts/'+assignments[var] for var in re.findall(r'"\$(\w+)"',order)]
         check(actual==names,engine+' overlay order/registration')
     elif engine=='mesa':
-        check(sorted(str(x.relative_to(R)) for x in (R/'patches/mesa').glob('*.patch'))==names,'Mesa overlay inventory')
+        check(sorted(x.relative_to(R).as_posix() for x in (R/'patches/mesa').glob('*.patch'))==names,'Mesa overlay inventory')
         actual=re.findall(r'\$SCRIPT_DIR/\.\./(patches/mesa/[^"\s]+\.patch)',read('scripts/apply_mesa_ohos_patches.sh'))
         check(actual==lock['mesa_production_overlays'],'Mesa production overlay order/registration')
         check(set(actual)<=set(names),'Mesa production overlay inventory')
     else:
-        check(sorted(str(x.relative_to(R)) for x in (R/'patches'/engine).glob('*.patch'))==names,engine+' overlay inventory')
+        check(sorted(x.relative_to(R).as_posix() for x in (R/'patches'/engine).glob('*.patch'))==names,engine+' overlay inventory')
 for name,expected in lock['x11_integration']['build_inputs'].items():
     check(sha(R/name)==expected,'X11 build recipe '+name)
 protocol=read('entry/src/main/cpp/graphics/virgl_ipc_protocol.h')

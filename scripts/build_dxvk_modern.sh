@@ -9,6 +9,7 @@ source "$SCRIPT_DIR/env.sh"
     err "DXVK Modern Vulkan-Headers submodule is missing"
 [ -f "$DXVK_MODERN_SRC/include/spirv/include/spirv/unified1/spirv.hpp" ] || \
     err "DXVK Modern SPIRV-Headers submodule is missing"
+python3 "$SCRIPT_DIR/apply_dxvk_compat_patches.py" --modern --source "$DXVK_MODERN_SRC"
 
 setup_if_missing() {
     local build_dir="$1"

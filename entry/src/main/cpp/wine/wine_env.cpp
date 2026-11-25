@@ -321,9 +321,9 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
     const auto& dxvkSelection = vkd3d ? dxvkBackend : d3dBackend;
     std::string profile = dxvkSelection.substr(strlen("dxvk_"));
     if (profile.empty()) profile = "legacy";
-    const bool nativeD3d9 = profile == "legacy_d3d9";
-    const bool legacy = profile == "legacy" || nativeD3d9;
+    const bool legacy = profile == "legacy" || profile == "legacy_d3d9";
     const bool modern26 = profile == "modern_2_6";
+    const bool nativeD3d9 = profile == "legacy_d3d9" || (modern26 && !vkd3d);
     if (!legacy && !modern26) return;
     const std::string runtimeProfile = modern26 ? "modern-2.6" : "legacy";
     const std::string overlayRoot = std::string(WINE_RUNTIME_ROOT) +
@@ -354,7 +354,8 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
      * wineohos.drv's unixlib and GetDefaultAudioEndpoint returns E_NOTFOUND. */
     const std::string vkd3dRoot = std::string(WINE_RUNTIME_ROOT) + "/vkd3d/limited-500k";
     const std::string vkd3d64 = vkd3dRoot + "/x64";
-    const std::string wineDllPath = (vkd3d ? vkd3d64 + ":" : "") +
+    const bool useVkd3d = vkd3d || (modern26 && access((vkd3d64 + "/d3d12.dll").c_str(), R_OK) == 0);
+    const std::string wineDllPath = (useVkd3d ? vkd3d64 + ":" : "") +
         overlay64 + ":" + overlay86 + ":" + BuiltinWineDllPath(binDir);
 
     const std::vector<std::string> managed = {
@@ -431,14 +432,14 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
          *
          * vulkan-1=b: 让 DXVK 走 winevulkan 而不是 exe 同目录的原生 loader。 */
         "WINEDLLOVERRIDES=" + std::string(winehua::DxvkDllOverrides(modern26, nativeD3d9)) +
-            (vkd3d ? ";d3d12=n" : ""),
+            (useVkd3d ? ";d3d12=n,b" : ""),
         "VN_WINEHUA_REMOTE_MEMORY_SYNC=1",
         "VN_WINEHUA_ALWAYS_NOTIFY_RING=1",
         "WINEDLLPATH=" + wineDllPath,
     };
     for (const std::string& line : managed) UpsertEnvLine(env, line);
     std::vector<std::string> dllDirs;
-    if (vkd3d) {
+    if (useVkd3d) {
         // The VKD3D PE is x64 even when Wine and the DXVK companion use ARM64X.
         dllDirs.push_back(vkd3d64);
         UpsertEnvLine(env, "WINEHUA_VKD3D_ROOT=" + vkd3dRoot);
@@ -464,6 +465,7 @@ void AppendD3dBackendEnv(std::vector<std::string>& env,
 #endif
     UpsertEnvLine(env, "DXVK_WINEHUA_BATCH_MAPPED_FLUSH=1");
     if (nativeD3d9) {
+        UpsertEnvLine(env, "WINEHUA_DXVK9_ROOT=" + std::string(WINE_RUNTIME_ROOT) + "/dxvk/legacy");
         for (const char *key : {"BC_EMULATION", "SHADOW_READBACK", "SHADOW_UPLOAD",
              "SHADOW_CONSTANTS", "SHADOW_BUFFERS", "SHADOW_FIXED_FUNCTION",
              "EVENT_FENCE", "MATCH_TOP_MIPS"})

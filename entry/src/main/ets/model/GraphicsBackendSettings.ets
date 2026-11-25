@@ -9,17 +9,30 @@ export const GRAPHICS_BACKEND_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl',
 export const APP_OPENGL_SOFTPIPE = 'opengl_softpipe';
 export const APP_OPENGL_VIRGL_COMPAT = 'opengl_virgl_compat';
 export const APP_OPENGL_VIRGL_33 = 'opengl_virgl_33';
-export const APP_GRAPHICS_BACKEND_IDS: string[] =
-  [GRAPHICS_BACKEND_DEFAULT].concat(
-    GRAPHICS_BACKEND_IDS.filter((backend: string): boolean => !isMobileGLBackend(backend)),
-    [APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_SOFTPIPE]);
+export const GRAPHICS_PROFILE_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl', 'zink', VKD3D_DIRECT];
+export const APP_GRAPHICS_BACKEND_IDS: string[] = [GRAPHICS_BACKEND_DEFAULT].concat(
+  GRAPHICS_PROFILE_IDS, [APP_OPENGL_VIRGL_COMPAT]);
+
+/** Keep saved backend IDs readable while presenting the reduced set of choices. */
+export function graphicsProfileButton(backend: string): string {
+  if (backend === 'dxvk9') return 'dxvk_1_10';
+  if (isMobileGLBackend(backend)) return backend === APP_OPENGL_MOBILEGL_VENUS ? 'dxvk_2_6' : 'dxvk_1_10';
+  return isVirglOpenGLCompatibility(backend) ? APP_OPENGL_VIRGL_COMPAT : backend;
+}
+
+export function showVirglOpenGLCompatibility(gpu: string, selected: string, mobileGLAvailable: boolean = true): boolean {
+  const model = /Maleoon\s*(\d+)/i.exec(gpu);
+  return !mobileGLAvailable || isVirglOpenGLCompatibility(selected) ||
+    (model !== null && parseInt(model[1], 10) <= 910);
+}
 
 export function normalizeGraphicsBackend(value: string): string {
   return GRAPHICS_BACKEND_IDS.includes(value) ? value : 'dxvk_1_10';
 }
 
 export function normalizeAppGraphicsBackend(value: string): string {
-  return value === APP_OPENGL_VIRGL_33 || APP_GRAPHICS_BACKEND_IDS.includes(value)
+  return value === GRAPHICS_BACKEND_DEFAULT || value === APP_OPENGL_SOFTPIPE ||
+    isVirglOpenGLCompatibility(value) || GRAPHICS_BACKEND_IDS.includes(value)
     ? value : GRAPHICS_BACKEND_DEFAULT;
 }
 
@@ -49,7 +62,7 @@ export function resolveGraphicsBackend(system: string, game: string): string {
 
 export function graphicsBackendLabel(value: string): string {
   switch (value) {
-    case 'virgl': return 'VirGL / GLES';
+    case 'virgl': return 'VirGL';
     case APP_OPENGL_VIRGL_COMPAT: return 'VirGL OpenGL 兼容（实验）';
     case APP_OPENGL_VIRGL_33: return 'VirGL OpenGL 3.3（实验）';
     case APP_OPENGL_MOBILEGL: return 'MobileGL OpenGL 4.6（实验）';
@@ -60,7 +73,7 @@ export function graphicsBackendLabel(value: string): string {
     case 'dxvk_1_10': return 'DXVK 1.10';
     case 'dxvk_2_6': return 'DXVK 2.6（实验）';
     case VKD3D_VENUS: return 'DX12 · Venus（实验）';
-    case VKD3D_DIRECT: return 'DX12 · 直通（实验）';
+    case VKD3D_DIRECT: return 'DX12 自动';
     default: return '跟随系统';
   }
 }
@@ -70,7 +83,7 @@ export function supportsGpuBcUpload(mode: string): boolean {
 }
 
 export function gpuBcUploadEnvironment(backend: string, enabled: boolean): string {
-  const supported = backend === 'wined3d' || backend === 'dxvk_legacy';
+  const supported = backend === 'wined3d' || backend === 'dxvk_legacy' || backend === 'dxvk_legacy_d3d9';
   return 'WINEHUA_GPU_BC_UPLOAD=' + (enabled && supported ? '1' : '0');
 }
 

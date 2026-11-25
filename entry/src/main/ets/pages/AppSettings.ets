@@ -35,8 +35,11 @@ import {
 import { AppCatalogService } from '../service/AppCatalogService';
 import { SteamLocalService, supportsSteamGameOpenGL } from '../steam/SteamLocalService';
 import { AppSettingsStore } from '../service/AppSettingsStore';
+import { WineEngineService } from '../service/WineEngineService';
+import testNapi from 'libentry.so';
 import { APP_GRAPHICS_BACKEND_IDS, APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_VIRGL_33, normalizeAppGraphicsBackend,
-  isVirglOpenGLCompatibility, resolveGraphicsBackend, graphicsBackendLabel,
+  isVirglOpenGLCompatibility, resolveGraphicsBackend, graphicsBackendLabel, graphicsProfileButton,
+  showVirglOpenGLCompatibility,
   supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
 import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
@@ -277,6 +280,7 @@ struct AppSettingsPage {
   @StorageLink('libraryTitleButtonInsetVp') private titleButtonInsetVp: number = 0;
   @State private app: AppDescriptor | null = null;
   @State private value: StoredAppSettings = createDefaultAppSettings('');
+  @State private mobileGLAvailable: boolean = true;
   @State private breakpoint: BreakpointType = 'lg';
   @State private titleContentTopInsetVp: number = 40;
   @State private navBarInsetVp: number = 0;
@@ -368,6 +372,13 @@ struct AppSettingsPage {
     this.openExecutablePickerOnShow = params.selectExecutable === 'true';
     this.app = AppCatalogService.getInstance().getApps().find((item: AppDescriptor) => item.id === appId) ?? null;
     this.value = AppSettingsStore.getInstance().getAppSettings(appId);
+    if (AppSettingsStore.getInstance().getGlobalSettings().wineDisplayRoute === 'x11') {
+      this.mobileGLAvailable = false;
+    } else {
+      void WineEngineService.getInstance().canSelectMobileGL(true).then((available: boolean): void => {
+        this.mobileGLAvailable = available;
+      });
+    }
     if (this.app) {
       const next = cloneAppSettings(this.value);
       next.appId = appId;
@@ -744,9 +755,18 @@ struct AppSettingsPage {
     await saving;
   }
 
+  private graphicsBackendChoices(): string[] {
+    let gpu = '';
+    try { gpu = (testNapi.getHostGpuName() as string) ?? ''; } catch (_) {}
+    const showCompat = showVirglOpenGLCompatibility(gpu, this.value.graphicsBackend ?? 'default',
+      this.mobileGLAvailable);
+    return APP_GRAPHICS_BACKEND_IDS.filter((backend: string): boolean =>
+      backend !== APP_OPENGL_VIRGL_COMPAT || showCompat);
+  }
+
   private selectedGraphicsBackendButton(): string {
     const backend = this.value.graphicsBackend ?? 'default';
-    return isVirglOpenGLCompatibility(backend) ? APP_OPENGL_VIRGL_COMPAT : backend;
+    return graphicsProfileButton(backend);
   }
 
   private setDxvkFloatControls(enabled: boolean): void {
@@ -880,7 +900,7 @@ struct AppSettingsPage {
             Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
             Text('游戏渲染后端').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
-              ForEach(APP_GRAPHICS_BACKEND_IDS, (backend: string) => {
+              ForEach(this.graphicsBackendChoices(), (backend: string) => {
                 Button(graphicsBackendLabel(backend))
                   .height(42).padding({ left: 12, right: 12 }).margin({ right: 8, bottom: 8 })
                   .borderRadius(14).fontSize(12)
@@ -919,7 +939,7 @@ struct AppSettingsPage {
             }
             Text('当前选择：' + graphicsBackendLabel(resolveGraphicsBackend(
               AppSettingsStore.getInstance().getRenderMode(), this.value.graphicsBackend ?? 'default')) +
-              '。DXVK9 当前用于 32 位 D3D9 游戏；Zink 使用 WineD3D / Vulkan。实验后端出现画面异常时可切回 VirGL。')
+              '。DX12 自动在设备和显示路径允许时使用直通。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Text('保存后下次启动生效。切换后端可能需要重启 Wine，会关闭其他 Windows 程序。')
               .fontSize(11).fontColor('#C47A20').width('100%')

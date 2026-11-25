@@ -9,14 +9,13 @@ import re
 from pathlib import Path
 from zipfile import ZipFile
 
-from dxvk_runtime_contract import ROOT, load_modern_lock, source_digest, validate_modern_runtime
+from dxvk_runtime_contract import ROOT, load_modern_lock, validate_modern_source, validate_modern_runtime
 
 
 def package(rawfile, profile):
     lock_path = ROOT / 'docs/graphics/graphics-stack.lock.yaml'
     pinned = load_modern_lock()
-    if source_digest(ROOT / 'thirdparty/dxvk-modern/src') != pinned['sourceSha256']:
-        raise ValueError('reviewed Modern DXVK source fingerprint does not match')
+    validate_modern_source()
     replacement = {}
     for name, expected in pinned['files'].items():
         data = (profile / name).read_bytes()
@@ -29,6 +28,9 @@ def package(rawfile, profile):
         manifest = json.loads(original.read('dxvk/manifest.json'))
         modern = manifest['runtimes']['modern-2.6']
         modern['commit'] = pinned['commit']
+        if pinned.get('patches'):
+            modern['managedPatches'] = pinned['patches']
+            modern['effectiveSourceSha256'] = pinned['patchedSourceSha256']
         for name, digest in pinned['files'].items():
             architecture, filename = Path(name).parts
             modern.setdefault(architecture, {})[filename] = digest

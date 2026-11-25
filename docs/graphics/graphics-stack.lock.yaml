@@ -379,6 +379,14 @@
         "sha256": "b58d498a001a27c79eed6093dd1098a40847ece8a5a1f2862125aa4344a67ecb"
       },
       {
+        "path": "patches/wine/0084-ntdll-compose-direct3d-overlays.patch",
+        "sha256": "ea769094f39d390443ced02243e58533202c239389bd106a50a6dbb8e39ad3b5"
+      },
+      {
+        "path": "patches/wine/0085-ntdll-mobilegl-x86-overlay.patch",
+        "sha256": "a88bef4ffd44d87598d80b358d800973dc061c9981abd3371e129870a90fb60a"
+      },
+      {
         "path": "patches/wine/0083-winebus-multiple-gamepads.patch",
         "sha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37"
       }
@@ -687,6 +695,14 @@
       {
         "path": "patches/vkd3d-proton/0019-vkd3d-flush-mapped-upload-width-on-execute.patch",
         "sha256": "05df7063e506822da27c8fa05c698eeb9c8af77b0b58296d6a2b96cb1db5763f"
+      },
+      {
+        "path": "patches/vkd3d-proton/0020-admit-limited-feature-level-requests.patch",
+        "sha256": "484a69539e6fb0833f9af6c4da42486e92b1c1b6208d62ae8eb5f2c75dd30c11"
+      },
+      {
+        "path": "patches/vkd3d-proton/0021-select-compatible-direct-surface-format.patch",
+        "sha256": "f2f28dfd8ef050f3d846dff650b7ee573e785b940aba621921ed8f52a5b89173"
       }
     ],
     "wlroots": [
@@ -921,7 +937,7 @@
       "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1",
       "dlls/win32u/defwnd.c": "01907307b6d196c3f2d607512086c11f148298b9633f25ea6fdfe6178ba10941",
       "dlls/wineohos.drv/ohos_audio_mix.h": "9c127f769482afd53df47bdde58c1be3477161acedb46a896677d392a9c8ba6c",
-      "dlls/ntdll/loader.c": "100f2f514fa20cbccdeeb20fa86eb797b71bdc01ea8214a73d5acb5dbf02ed2d"
+      "dlls/ntdll/loader.c": "3ca13810996ea595ff67c066159f09a618f874eb4e693329eb3d0bb9f9cb0b73"
     },
     "virglrenderer": {
       "src/vrend/vrend_renderer.c": "9cb823e0b4e4c5acb79cdbe159540cda2892db518bd8a5a56dd2a6d6a55f7e9d",
@@ -986,8 +1002,8 @@
       "scripts/build_xwayland.sh": "966b47239037202c72c875f2efbb0cfc026311f06035c770f32aacaf51993e37",
       "scripts/build_wayland.sh": "6ef50c813b9322282fa2930d292f228e430e536126783a44531ad5d5d42caa8b",
       "scripts/build_xkbcommon.sh": "52ecf41aec2a39843fe48c50032387a74e0d46d072553d7f9d2009bbec8a3d8d",
-      "scripts/build_wine.sh": "734d207fca90ccaed831a9f7dd94918963b828c43947ba5508e5c989e641633e",
-      "scripts/env.sh": "7114cabf2d9d65d1fe3c64a954a97ab2ad6d56fe266f5a3318e345cf9437e7e8",
+      "scripts/build_wine.sh": "3938391b0741aa6bd35c02d49b48b0e576a4c1e784c81c117403029200442010",
+      "scripts/env.sh": "a657b4de10412d998efa3c0f1b5cc67d82963a134596a3f5b349155c94ca665f",
       "scripts/verify_x11_wine_config.py": "89c0a5513aa258ef68b86a2f9812d8decaf8da75ea23b4599b01ff68c70bd2a4"
     }
   },

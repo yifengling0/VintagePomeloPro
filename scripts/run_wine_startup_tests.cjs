@@ -105,13 +105,35 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
     f.s.hasMobileGLPayload=()=>true;
     f.napi.runDirectVulkanInlineProbe=async()=>({status:'PASS',apiVersion:4206592,
       loaderVersion:4206592,requestedApiVersion:4206592});
-    let backend,shadow;
+    let backend;
     f.napi.setHostGraphicsBackend=value=>{backend=value;return true;};
-    f.s.prepareMobileGLEnvironment=venus=>{shadow=venus;return ['WINEHUA_MOBILEGL=1'];};
+    f.s.extractMobileGLPayload=(name)=>name==='mobilegl/x86/opengl32.dll';
     f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready',phase:'explorer'});return 0;};
     assert.equal(await f.start(),true);
     assert.equal(backend,'dxvk_modern_2_6');
-    assert.equal(shadow,true);
+    let launch;
+    f.napi.runWineExe=(...args)=>{launch=args[8];return {pid:42,sessionId:'test',reused:false};};
+    f.s.launchExecutable('C:/game.exe');
+    assert(launch.includes('WINEHUA_MOBILEGL_X86=1'));
+    assert(launch.includes('WINEHUA_MOBILEGL=0'));
+    assert(launch.includes('MESA_GL_VERSION_OVERRIDE=3.2FC'));
+  });
+  await test('Vulkan below 1.3 uses VirGL compatibility for automatic OpenGL',async()=>{
+    const f=fixture();
+    f.s.hasMobileGLPayload=()=>true;
+    f.napi.runDirectVulkanInlineProbe=async()=>({status:'PASS',apiVersion:4202496,
+      loaderVersion:4206592,requestedApiVersion:4206592});
+    f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready'});return 0;};
+    let launch;
+    f.napi.runWineExe=(...args)=>{launch=args[8];return {pid:42,sessionId:'test',reused:false};};
+    assert.equal(await f.start(),true);
+    f.s.launchExecutable('C:/game.exe');
+    assert(launch.includes('MESA_GL_VERSION_OVERRIDE=3.2FC'));
+    assert(!launch.some(line=>line.startsWith('WINEHUA_MOBILEGL')));
+    f.s.launchExecutable('C:/game.exe', [], '', graphicsExports.resolveAppOpenGLEnvironment(
+      graphicsExports.APP_OPENGL_VIRGL_33));
+    assert.equal(launch.filter(line=>line.startsWith('MESA_GL_VERSION_OVERRIDE=')).at(-1),
+      'MESA_GL_VERSION_OVERRIDE=3.3FC');
   });
   await test('terminal before waiter/native callback is recovered from retained state',async()=>{
     const f=fixture();f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready',phase:'explorer'});return 0;};

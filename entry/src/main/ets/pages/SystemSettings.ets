@@ -45,8 +45,7 @@ import {
 } from '../model/AppModels';
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
-import { APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS, graphicsBackendLabel,
-  normalizeGraphicsBackend, VKD3D_DIRECT, VKD3D_VENUS } from '../model/GraphicsBackendSettings';
+import { graphicsBackendLabel, graphicsProfileButton, normalizeGraphicsBackend, VKD3D_DIRECT } from '../model/GraphicsBackendSettings';
 import { GamepadManager } from '../service/GamepadManager';
 import { HostWindowTasks } from '../service/HostWindowTasks';
 import { SteamClientService } from '../service/SteamClientService';
@@ -301,12 +300,9 @@ struct SystemSettingsPage {
   @State private appVersion: string = '版本信息读取中…';
   @State private debugBuild: boolean = false;
   // host GPU 名称 + DXVK2.6 支持判定 (马良 920 以下不支持, 经 testNapi.getHostGpuName)
-  @State private gpuName: string = '';
   @State private gpuSupportDxvk26: boolean = true;
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
-  @State private mobileGLAvailable: boolean = false;
-  @State private mobileGLVenusAvailable: boolean = false;
   @State private dxvkDepthD32: boolean = false;
   @State private fontImporting: boolean = false;
   @State private sgdbKeyDraft: string = '';
@@ -1061,15 +1057,8 @@ struct SystemSettingsPage {
 
   /** host GPU 名称 + DXVK2.6 支持判定: 马良 (Mali-Gxxx) 920 以下不支持 DXVK2.6。 */
   private loadGpuInfo(): void {
-    void WineEngineService.getInstance().canSelectMobileGL().then((available: boolean): void => {
-      this.mobileGLAvailable = available;
-    });
-    void WineEngineService.getInstance().canSelectMobileGL(true).then((available: boolean): void => {
-      this.mobileGLVenusAvailable = available;
-    });
     try {
       const name = (testNapi.getHostGpuName() as string) ?? '';
-      this.gpuName = name;
       // 马良 GPU: "Maleoon 910" / "Mali-G920" 等。920 以下不支持 DXVK2.6。
       const m = /(?:Maleoon|Mali-?G)\s*(\d+)/i.exec(name);
       if (m) {
@@ -1687,7 +1676,7 @@ struct SystemSettingsPage {
 
   private renderModeActive(mode: string): boolean {
     const effective = (this.renderMode === 'dxvk_2_6' && !this.gpuSupportDxvk26)
-      ? 'dxvk_1_10' : this.renderMode;
+      ? 'dxvk_1_10' : graphicsProfileButton(this.renderMode);
     return effective === mode;
   }
 
@@ -2403,41 +2392,15 @@ struct SystemSettingsPage {
             this.RenderModeChip('VirGL', 'virgl')
           }.width('100%')
           Row({ space: 6 }) {
-            this.RenderModeChip('DXVK9（32位实验）', 'dxvk9')
-            this.RenderModeChip('Zink（实验）', 'zink')
-          }.width('100%')
-          Row({ space: 6 }) {
-            this.RenderModeChip(graphicsBackendLabel(VKD3D_VENUS), VKD3D_VENUS)
+            this.RenderModeChip('Zink', 'zink')
             this.RenderModeChip(graphicsBackendLabel(VKD3D_DIRECT), VKD3D_DIRECT)
           }.width('100%')
-          if (this.renderMode === VKD3D_DIRECT) {
-            Text('直通探测或当前显示路径不支持直通时，将使用 Venus。')
-              .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-          }
-          if (this.mobileGLAvailable && this.settings.wineDisplayRoute !== 'x11') {
-            Row() {
-              this.RenderModeChip(graphicsBackendLabel(APP_OPENGL_MOBILEGL), APP_OPENGL_MOBILEGL)
-            }.width('100%')
-            if (this.renderMode === APP_OPENGL_MOBILEGL) {
-              Text('打开 64 位 Wine 程序和 Steam 时可使用 MobileGL。需要 Wayland 和直连 Vulkan 1.3 或更高版本。')
-                .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-            }
-          }
-          if (this.mobileGLVenusAvailable && this.settings.wineDisplayRoute !== 'x11') {
-            Row() {
-              this.RenderModeChip(graphicsBackendLabel(APP_OPENGL_MOBILEGL_VENUS), APP_OPENGL_MOBILEGL_VENUS)
-            }.width('100%')
-          }
-          Text(this.gpuSupportDxvk26
-            ? '默认使用 DXVK 1.10。当前 GPU 支持开启 DXVK 2.6（实验）。'
-            : `默认使用 DXVK 1.10。当前 GPU（${this.gpuName || '未知'}）低于 920，不提供 DXVK 2.6。`)
+          Text('DXVK 2.6 同时启用 DX12。选择「DX12 自动」可优先走直通，当前设备或显示模式不支持时使用 Venus。')
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-          Text('更改后需要重启 Wine 引擎；运行中的游戏不会被立即中断。')
+          Text('游戏卡片可覆盖默认设置。切换渲染组合需要重启 Wine，会关闭运行中的 Windows 程序。')
             .fontSize(11).fontColor('#C47A20').width('100%')
-          Text('游戏设置可单独选择后端；选择“跟随系统”的游戏会使用这里的默认值。D3D9 可选 DXVK9 或 Zink；画面异常时可切回 VirGL。')
-            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
 
-          if (this.renderMode === 'dxvk_1_10') {
+          if (graphicsProfileButton(this.renderMode) === 'dxvk_1_10' || this.renderMode === 'virgl') {
             Row({ space: 8 }) {
               Text('深度画面兼容').fontSize(12).layoutWeight(1)
                 .fontColor(skinColor('text_secondary'))

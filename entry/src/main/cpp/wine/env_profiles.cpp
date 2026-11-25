@@ -150,6 +150,7 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
         if (line.rfind("WINEHUA_DISPLAY_ROUTE=", 0) == 0 ||
             line.rfind("WAYLAND_DISPLAY=", 0) == 0 || line.rfind("DISPLAY=", 0) == 0) continue;
         if (line.rfind("WINEHUA_D3D_BACKEND=", 0) == 0 ||
+            line.rfind("WINEHUA_DXVK9_ROOT=", 0) == 0 ||
             line.rfind("WINEHUA_DXVK_ROOT=", 0) == 0 ||
             line.rfind("WINEHUA_DXVK_PROFILE=", 0) == 0 ||
             line.rfind("WINEHUA_DXVK_VERSION=", 0) == 0 ||
@@ -177,10 +178,15 @@ std::vector<std::string> BuildSessionEnv(const SessionEnvPolicy& p)
                 line.rfind("DXVK_WINEHUA_FLUSH_DYNAMIC_MAPPED=", 0) == 0)
                 UpsertEnvLine(env, line);
     }
+    if (FindEnvValue(env, "WINEHUA_MOBILEGL") == "1" ||
+        FindEnvValue(env, "WINEHUA_MOBILEGL_X86") == "1") {
+        UpsertEnvLine(env, FindEnvValue(env, "WINEHUA_VULKAN_BACKEND") == "direct"
+            ? "MOBILEGL_WINEHUA_VENUS_SHADOW=0" : "MOBILEGL_WINEHUA_VENUS_SHADOW=1");
+    }
     // Derive this after merging app rules; user environment cannot force the
     // bundled overlay when Wine was explicitly requested to load builtin.
     UpsertEnvLine(env, std::string("WINEHUA_DXVK9_OVERLAY=") +
-        (d3dBackend == "dxvk_legacy_d3d9" &&
+        ((backend == D3dBackendKind::DxvkLegacyD3d9 || backend == D3dBackendKind::DxvkModern26) &&
          NativeDllPreferred(FindEnvValue(env, "WINEDLLOVERRIDES"), "d3d9") ? "1" : "0"));
     AppendWineDpiEnv(env); // Per-app environment must not split the session DPI.
     return env;

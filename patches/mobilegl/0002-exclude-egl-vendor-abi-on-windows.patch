@@ -1,0 +1,17 @@
+--- a/MobileGL/MG_Impl/EGLImpl/Exporting/GlvndVendor.cpp
++++ b/MobileGL/MG_Impl/EGLImpl/Exporting/GlvndVendor.cpp
+@@ -25,6 +25,8 @@
+ //
+ // The entry points below are this library's own (MG_Impl::EGLImpl, the same functions
+ // Exporting/Definitions.cpp exports), so a vendor call and a direct call cannot drift apart.
++
++#ifndef _WIN32
+ 
+ #include <Includes.h>
+ #include <glvnd/libeglabi.h>
+@@ -399,3 +401,5 @@
+             kPlatformExtensions);
+     return EGL_TRUE;
+ }
++
++#endif

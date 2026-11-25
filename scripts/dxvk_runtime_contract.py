@@ -25,6 +25,13 @@ def source_digest(source):
     return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def validate_modern_source(source=None):
+    pin = load_modern_lock()
+    source = Path(source or ROOT / 'thirdparty/dxvk-modern')
+    if source_digest(source / 'src') != pin.get('patchedSourceSha256', pin['sourceSha256']):
+        raise ValueError('Modern DXVK effective source differs from the reviewed runtime')
+
+
 def validate_modern_runtime(archive, lock=None, candidate=None):
     pinned = load_modern_lock()
     if lock is not None and lock['submodules']['dxvk-modern'] != pinned['commit']:
@@ -32,6 +39,11 @@ def validate_modern_runtime(archive, lock=None, candidate=None):
     runtime = json.loads(archive.read('dxvk/manifest.json'))['runtimes']['modern-2.6']
     if runtime.get('commit') != pinned['commit']:
         raise ValueError('Modern DXVK packaged commit differs from the graphics lock')
+    if pinned.get('patches') and (
+        runtime.get('managedPatches') != pinned['patches']
+        or runtime.get('effectiveSourceSha256') != pinned['patchedSourceSha256']
+    ):
+        raise ValueError('Modern DXVK package differs from the reviewed source overlays')
     for member, expected in pinned['files'].items():
         architecture, filename = Path(member).parts
         data = archive.read('dxvk/modern-2.6/' + member)
@@ -51,9 +63,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime-zip', type=Path)
     parser.add_argument('--hap', type=Path)
+    parser.add_argument('--source', type=Path)
     args = parser.parse_args()
-    if source_digest(ROOT / 'thirdparty/dxvk-modern/src') != load_modern_lock()['sourceSha256']:
-        raise SystemExit('Modern DXVK source differs from the reviewed runtime')
+    validate_modern_source(args.source)
     if args.hap:
         with ZipFile(args.hap) as hap:
             members = [n for n in hap.namelist() if n.endswith('/rawfile/wine-data.zip')]

@@ -29,7 +29,8 @@ void AppendD3dBackendEnv(std::vector<std::string>& env, const std::string& backe
                        const std::string&, const std::string&)
 {
     UpsertEnvLine(env, std::string("WINEDLLOVERRIDES=") +
-        winehua::DxvkDllOverrides(backend == "dxvk_modern_2_6", backend == "dxvk_legacy_d3d9"));
+        winehua::DxvkDllOverrides(backend == "dxvk_modern_2_6",
+            backend == "dxvk_legacy_d3d9" || backend == "dxvk_modern_2_6"));
 }
 
 void AppendVulkanRuntimeEnv(std::vector<std::string>&, const std::string&) {}
@@ -75,11 +76,19 @@ int main()
     p.extraEnv = {"WINEDLLOVERRIDES=vcruntime140,vcruntime140_1=b", "WINEHUA_WINEDEBUG=-all,+loaddll"};
     auto env = winehua::BuildSessionEnv(p);
     assert(Value(env, "WINEDLLOVERRIDES") ==
-           "ddraw=b;d3d8=b;d3d9=b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=b;vcruntime140_1=b");
+           "ddraw=b;d3d8=b;d3d9=n,b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=b;vcruntime140_1=b");
     assert(Value(env, "WINEHUA_WINEDEBUG") == "-all,+loaddll");
+    assert(Value(env, "WINEHUA_DXVK9_OVERLAY") == "1");
+    p.extraEnv.push_back("WINEHUA_MOBILEGL=1");
+    p.extraEnv.push_back("WINEDLLOVERRIDES=opengl32=n,b");
+    auto mobileGl = winehua::BuildSessionEnv(p);
+    assert(Value(mobileGl, "WINEDLLOVERRIDES").find("opengl32=n,b") != std::string::npos);
+    assert(Value(mobileGl, "MOBILEGL_WINEHUA_VENUS_SHADOW") == "1");
+    p.extraEnv.pop_back();
+    p.extraEnv.pop_back();
     p.extraEnv.push_back("WINEDLLOVERRIDES=vcruntime140=n,b");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES") ==
-           "ddraw=b;d3d8=b;d3d9=b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
+           "ddraw=b;d3d8=b;d3d9=n,b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
     p.d3dBackend = "dxvk_legacy";
     auto legacy = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
     assert(legacy == "ddraw=b;d3d8=b;d3d9=b;d3d10=n;d3d10_1=n;d3d10core=n;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
@@ -90,7 +99,7 @@ int main()
     p.extraEnv.pop_back();
     p.d3dBackend = "dxvk_legacy_d3d9";
     auto dxvk9 = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
-    assert(dxvk9.find("d3d9=n;") != std::string::npos);
+    assert(dxvk9.find("d3d9=n,b;") != std::string::npos);
     p.extraEnv.push_back("WINEDLLOVERRIDES=d3d9=b");
     dxvk9 = Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES");
     assert(dxvk9.find("d3d9=b;") != std::string::npos);
@@ -110,7 +119,7 @@ int main()
     p.d3dBackend = "dxvk_modern_2_6";
     p.extraEnv.push_back("WINEDLLOVERRIDES=broken");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES") ==
-           "ddraw=b;d3d8=b;d3d9=b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
+           "ddraw=b;d3d8=b;d3d9=n,b;d3d11=n;dxgi=n;vulkan-1=b;vcruntime140=n,b;vcruntime140_1=b");
     p.extraEnv.push_back("WINEDLLOVERRIDES=");
     assert(Value(winehua::BuildSessionEnv(p), "WINEDLLOVERRIDES").empty());
     std::puts("DLL override merge and production environment pipeline passed");

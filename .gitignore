@@ -4,6 +4,7 @@
 *.d
 *.dll
 !entry/src/main/resources/rawfile/mobilegl/opengl32.dll
+!entry/src/main/resources/rawfile/mobilegl/x86/opengl32.dll
 *.exe
 # Self-owned Wine window adapter required by standard Linux Steam HAP builds.
 !entry/src/main/resources/rawfile/hmosdeck/hmosdeck-steam.exe

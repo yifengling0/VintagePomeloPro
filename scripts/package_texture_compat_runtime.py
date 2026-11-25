@@ -79,7 +79,7 @@ def package(rawfile, profiles, icd_path, host_path):
         source = ROOT / 'thirdparty' / ('dxvk' if profile == 'legacy' else 'dxvk-modern')
         commit = subprocess.check_output(['git', '-c', 'safe.directory=' + str(source),
                                           '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
-        expected_source = pin['sourceSha256']
+        expected_source = pin.get('patchedSourceSha256', pin['sourceSha256'])
         if profile == 'legacy':
             from apply_dxvk_compat_patches import apply
             expected_source = apply(source, verify_only=True)

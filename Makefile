@@ -335,6 +335,7 @@ $(DXVK_ARTIFACTS): $(DXVK_STAMP)
 dxvk-modern: $(DXVK_MODERN_STAMP)
 
 $(DXVK_MODERN_STAMP): $(SCRIPTS)/build_dxvk_modern.sh $(SCRIPTS)/build_dxvk_modern_arm64x.sh $(DXVK_MODERN_SOURCE_INPUTS) $(SCRIPTS)/arm64x_build_cache.sh \
+	$(SCRIPTS)/apply_dxvk_compat_patches.py $(wildcard $(ROOT)/patches/dxvk-modern/*.patch) $(ROOT)/docs/graphics/dxvk-runtime.lock.json \
 	$(WINE_STAMPS)/wine-$(CONFIG)-$(WINE_ARCH) | $(STAMPS)
 	@echo "=== dxvk modern 2.6 ($(WINE_ARCH)) ==="
 	bash $(SCRIPTS)/build_dxvk_modern.sh

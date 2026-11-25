@@ -13,7 +13,7 @@ inline bool SteamWebhelperD3d9Overrides(int argc, char* const argv[],
                                        const std::string& overrides,
                                        std::string& result)
 {
-    if (backend != "dxvk_legacy_d3d9" || managedOverlay != "1" ||
+    if ((backend != "dxvk_legacy_d3d9" && backend != "dxvk_modern_2_6") || managedOverlay != "1" ||
         ProcessImageName(argc, argv) != "steamwebhelper.exe" ||
         !NativeDllPreferred(overrides, "d3d9")) return false;
     return MergeDllOverrides(overrides, "d3d9=b", result);

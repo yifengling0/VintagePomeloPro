@@ -1,0 +1,20 @@
+--- a/dlls/ntdll/loader.c
++++ b/dlls/ntdll/loader.c
+@@ -3556,10 +3556,16 @@
+                                                 SECTION_IMAGE_INFORMATION *image_info,
+                                                 struct file_id *id )
+ {
+-    static const WCHAR enabledW[] = L"WINEHUA_MOBILEGL";
+     static const WCHAR moduleW[] = L"opengl32.dll";
++#ifdef __i386__
++    static const WCHAR enabledW[] = L"WINEHUA_MOBILEGL_X86";
++    static const WCHAR pathW[] =
++        L"\\??\\unix/data/storage/el2/base/files/mobilegl/9df3600-x86/opengl32.dll";
++#else
++    static const WCHAR enabledW[] = L"WINEHUA_MOBILEGL";
+     static const WCHAR pathW[] =
+         L"\\??\\unix/data/storage/el2/base/files/mobilegl/9df3600-x64/opengl32.dll";
++#endif
+     UNICODE_STRING enabled, path;
+     NTSTATUS status;
+ 

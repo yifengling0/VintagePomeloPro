@@ -24,8 +24,9 @@ import {
   resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
-import { APP_OPENGL_MOBILEGL_VENUS, APP_OPENGL_SOFTPIPE, isMobileGLBackend, isVirglOpenGLCompatibility,
-  isVkd3dBackend, normalizeAppGraphicsBackend, resolveGraphicsBackend, supportsMobileGLVulkan } from '../model/GraphicsBackendSettings';
+import { APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS, APP_OPENGL_SOFTPIPE, APP_OPENGL_VIRGL_COMPAT,
+  isMobileGLBackend, isVirglOpenGLCompatibility, isVkd3dBackend, normalizeAppGraphicsBackend,
+  resolveAppOpenGLEnvironment, resolveGraphicsBackend, supportsMobileGLVulkan } from '../model/GraphicsBackendSettings';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
 
@@ -43,6 +44,8 @@ const WINE_BIN = WINE_ROOT + '/bin';
 const WINE_LIB = WINE_BIN + '/x86_64-unix';
 const MOBILEGL_RAWFILE = 'mobilegl/opengl32.dll';
 const MOBILEGL_DIRECTORY = FILES_BASE + '/mobilegl/9df3600-x64';
+const MOBILEGL_X86_RAWFILE = 'mobilegl/x86/opengl32.dll';
+const MOBILEGL_X86_DIRECTORY = FILES_BASE + '/mobilegl/9df3600-x86';
 const BOX64 = WINE_BIN + '/box64';
 const SOCK = FILES_BASE + '/.wine/wine-wayland';
 const PREFIX_MARKER = WINE_ROOT + '/share/wine/wine.inf';
@@ -666,7 +669,7 @@ export class WineEngineService {
   private appGraphicsBackend: string = 'default';
   private mobileGLEnvironment: string[] = [];
   private mobileGLCapability: Promise<boolean> | null = null;
-  private mobileGLPayloadReady: boolean = false;
+  private readonly mobileGLPayloadReady: Set<string> = new Set<string>();
   private appliedHostGraphicsBackend: string = 'dxvk_legacy';
   private productDirectProbe: Promise<boolean> | null = null;
   private enginePhase: string = '';
@@ -936,18 +939,17 @@ export class WineEngineService {
         await this.ensureProductDirectCapability();
         if (!this.startupCurrent(generation)) return;
         this.mobileGLEnvironment = [];
-        const graphicsMode = this.selectedGraphicsMode();
-        if (isMobileGLBackend(graphicsMode)) {
-          const venus = graphicsMode === APP_OPENGL_MOBILEGL_VENUS;
-          if (settings.wineDisplayRoute !== 'x11' && await this.canSelectMobileGL(venus)) {
+        if (settings.wineDisplayRoute !== 'x11' &&
+          (this.usesMobileGL(this.selectedGraphicsMode()) || this.hostGraphicsBackend === 'dxvk_legacy')) {
+          if (await this.canSelectMobileGL(true)) {
             if (!this.startupCurrent(generation)) return;
-            this.mobileGLEnvironment = this.prepareMobileGLEnvironment(venus);
+            try {
+              this.mobileGLEnvironment = this.prepareMobileGLEnvironment();
+            } catch (error) {
+              hilog.warn(DOMAIN, TAG, 'MobileGL payload unavailable: %{public}s', JSON.stringify(error));
+            }
           }
           if (!this.startupCurrent(generation)) return;
-          if (this.mobileGLEnvironment.length === 0) {
-            hilog.warn(DOMAIN, TAG, 'MobileGL unavailable on the current Vulkan or display route');
-            promptAction.showToast({ message: '当前会话无法使用 MobileGL，使用 Wine 内置 OpenGL' });
-          }
         }
         const policyApplied = testNapi.setHostGraphicsBackend(this.hostGraphicsBackend) as boolean;
         if (!policyApplied) {
@@ -1068,9 +1070,11 @@ export class WineEngineService {
     // the Guest half from the same policy authority that configured Host;
     // product sessions add no experiment override.
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
+    const useAutomaticOpenGL = this.usesMobileGL(this.selectedGraphicsMode()) && !isWineDesktopProgram(program);
     const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset)
       .concat(this.depthStorageEnvironment(), SDL_PLAYBACK_ENVIRONMENT,
-        isMobileGLBackend(this.selectedGraphicsMode()) ? this.mobileGLEnvironment : [], envOverrides);
+        useAutomaticOpenGL
+          ? resolveAppOpenGLEnvironment(APP_OPENGL_VIRGL_COMPAT).concat(this.mobileGLEnvironment) : [], envOverrides);
     const systemScript = argumentsValue.lastIndexOf('-system_script');
     if (this.d3dBackend === 'dxvk_legacy_d3d9' && systemScript >= 0 &&
       argumentsValue[systemScript + 1] === 'vpp-harmony-frame-camera.cpp') {
@@ -1109,7 +1113,8 @@ export class WineEngineService {
 
   private depthStorageEnvironment(): string[] {
     return ['WINEHUA_DXVK_D24_STORAGE_D32=' +
-      (this.activeDxvkDepthD32 && this.d3dBackend === 'dxvk_legacy' ? '1' : '0')];
+      (this.activeDxvkDepthD32 &&
+        (this.d3dBackend === 'dxvk_legacy' || this.d3dBackend === 'dxvk_legacy_d3d9') ? '1' : '0')];
   }
 
   private selectedGraphicsMode(): string {
@@ -1120,14 +1125,14 @@ export class WineEngineService {
 
   private selectedD3DBackend(): string {
     const mode = this.selectedGraphicsMode();
-    let backend = 'dxvk_legacy';
+    let backend = 'dxvk_legacy_d3d9';
     if (isVkd3dBackend(mode)) {
       backend = mode;
-    } else if (mode === 'dxvk9') {
-      backend = 'dxvk_legacy_d3d9';
     } else if (mode === 'zink') {
       backend = 'wined3d_zink';
-    } else if (mode === 'virgl' || mode === APP_OPENGL_SOFTPIPE || isVirglOpenGLCompatibility(mode)) {
+    } else if (mode === 'virgl' || mode === APP_OPENGL_MOBILEGL) {
+      backend = 'dxvk_legacy';
+    } else if (mode === APP_OPENGL_SOFTPIPE || isVirglOpenGLCompatibility(mode)) {
       backend = 'wined3d';
     } else if (mode === APP_OPENGL_MOBILEGL_VENUS || (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26())) {
       backend = 'dxvk_modern_2_6';
@@ -1162,6 +1167,11 @@ export class WineEngineService {
     return this.hostGraphicsBackend;
   }
 
+  private usesMobileGL(mode: string): boolean {
+    return mode === 'dxvk_1_10' || mode === 'dxvk_2_6' || mode === 'dxvk9' ||
+      isVkd3dBackend(mode) || isMobileGLBackend(mode);
+  }
+
   private ensureProductDirectCapability(): Promise<boolean> {
     if (!this.productDirectProbe) {
       this.productDirectProbe = this.probeProductDirectCapability();
@@ -1169,12 +1179,12 @@ export class WineEngineService {
     return this.productDirectProbe;
   }
 
-  private hasMobileGLPayload(): boolean {
+  private hasMobileGLPayload(rawfile: string = MOBILEGL_RAWFILE): boolean {
     if (!this.context) return false;
     try {
       const resources = this.context.resourceManager;
-      const descriptor = resources.getRawFdSync(MOBILEGL_RAWFILE);
-      resources.closeRawFdSync(MOBILEGL_RAWFILE);
+      const descriptor = resources.getRawFdSync(rawfile);
+      resources.closeRawFdSync(rawfile);
       return descriptor.length > 0;
     } catch (_) {
       return false;
@@ -1182,7 +1192,7 @@ export class WineEngineService {
   }
 
   async canSelectMobileGL(venus: boolean = false): Promise<boolean> {
-    if (!this.hasMobileGLPayload()) return false;
+    if (!this.hasMobileGLPayload() && !this.hasMobileGLPayload(MOBILEGL_X86_RAWFILE)) return false;
     if (!this.mobileGLCapability) {
       this.mobileGLCapability = this.probeMobileGLCapability();
     }
@@ -1204,15 +1214,15 @@ export class WineEngineService {
     }
   }
 
-  private prepareMobileGLEnvironment(venus: boolean): string[] {
-    if (!this.context || !this.hasMobileGLPayload()) return [];
-    const dll = MOBILEGL_DIRECTORY + '/opengl32.dll';
+  private extractMobileGLPayload(rawfile: string, directory: string): boolean {
+    if (!this.context || !this.hasMobileGLPayload(rawfile)) return false;
+    const dll = directory + '/opengl32.dll';
     const resourceManager = this.context.resourceManager;
-    const descriptor = resourceManager.getRawFdSync(MOBILEGL_RAWFILE);
+    const descriptor = resourceManager.getRawFdSync(rawfile);
     try {
-      if (!this.mobileGLPayloadReady || !pathExists(dll) || fs.statSync(dll).size !== descriptor.length) {
-        ensureDirectory(MOBILEGL_DIRECTORY);
-        const bytes = resourceManager.getRawFileContentSync(MOBILEGL_RAWFILE);
+      if (!this.mobileGLPayloadReady.has(rawfile) || !pathExists(dll) || fs.statSync(dll).size !== descriptor.length) {
+        ensureDirectory(directory);
+        const bytes = resourceManager.getRawFileContentSync(rawfile);
         const staging = dll + '.tmp';
         const output = fs.openSync(staging, fs.OpenMode.CREATE | fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
         try {
@@ -1221,13 +1231,23 @@ export class WineEngineService {
           }
         } finally { fs.closeSync(output); }
         fs.renameSync(staging, dll);
-        this.mobileGLPayloadReady = true;
+        this.mobileGLPayloadReady.add(rawfile);
       }
+      return true;
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, 'MobileGL extraction failed for %{public}s: %{public}s', rawfile, JSON.stringify(error));
+      return false;
     } finally {
-      resourceManager.closeRawFdSync(MOBILEGL_RAWFILE);
+      resourceManager.closeRawFdSync(rawfile);
     }
-    return ['WINEHUA_MOBILEGL=1', 'WINEDLLOVERRIDES=opengl32=n,b', 'MOBILEGL_BACKEND_TYPE=DirectVulkan',
-      'MOBILEGL_WINEHUA_VENUS_SHADOW=' + (venus ? '1' : '0')];
+  }
+
+  private prepareMobileGLEnvironment(): string[] {
+    const x64 = this.extractMobileGLPayload(MOBILEGL_RAWFILE, MOBILEGL_DIRECTORY);
+    const x86 = this.extractMobileGLPayload(MOBILEGL_X86_RAWFILE, MOBILEGL_X86_DIRECTORY);
+    if (!x64 && !x86) return [];
+    return ['WINEHUA_MOBILEGL=' + (x64 ? '1' : '0'), 'WINEHUA_MOBILEGL_X86=' + (x86 ? '1' : '0'),
+      'WINEDLLOVERRIDES=opengl32=n,b', 'MOBILEGL_BACKEND_TYPE=DirectVulkan'];
   }
 
   private async probeProductDirectCapability(): Promise<boolean> {

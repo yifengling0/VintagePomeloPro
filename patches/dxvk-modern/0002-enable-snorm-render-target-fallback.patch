@@ -1,0 +1,57 @@
+diff --git a/src/d3d11/d3d11_texture.cpp b/src/d3d11/d3d11_texture.cpp
+index 31218ec43..3ebcaf36b 100644
+--- a/src/d3d11/d3d11_texture.cpp
++++ b/src/d3d11/d3d11_texture.cpp
+@@ -296,11 +296,10 @@ namespace dxvk {
+       imageInfo.layout = OptimizeLayout(imageInfo.usage);
+ 
+     // RGBA16F preserves signed intermediates on GPUs without SNORM color
+-    // attachments. This explicit compatibility option does not reproduce
+-    // SNORM quantization after blending, so it must not affect capability flags.
++    // attachments. The backing does not reproduce SNORM quantization after
++    // blending, so it must not affect the reported capabilities.
+     bool supported = CheckImageSupport(&imageInfo, imageInfo.tiling);
+-    const bool allowSnormFallback = env::getEnvVar("DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT") == "1"
+-      && m_desc.Format == DXGI_FORMAT_R8G8B8A8_SNORM
++    if (!supported && m_desc.Format == DXGI_FORMAT_R8G8B8A8_SNORM
+       && m_dimension == D3D11_RESOURCE_DIMENSION_TEXTURE2D
+       && m_desc.Usage == D3D11_USAGE_DEFAULT && !m_desc.CPUAccessFlags
+       && m_desc.SampleDesc.Count == 1 && (m_desc.BindFlags & D3D11_BIND_RENDER_TARGET)
+@@ -308,19 +307,24 @@ namespace dxvk {
+       && !(m_desc.MiscFlags & (D3D11_RESOURCE_MISC_SHARED | D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX
+         | D3D11_RESOURCE_MISC_SHARED_NTHANDLE | D3D11_RESOURCE_MISC_TILED))
+       && !vkImage && !m_11on12.Resource.ptr()
+-      && imageInfo.sharing.mode == DxvkSharedHandleMode::None;
+-    if (!supported && allowSnormFallback) {
+-      auto emulated = imageInfo;
+-      emulated.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+-      emulated.flags &= ~VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+-      emulated.viewFormatCount = 0;
+-      emulated.viewFormats = nullptr;
+-      emulated.tiling = VK_IMAGE_TILING_OPTIMAL;
+-      supported = CheckImageSupport(&emulated, emulated.tiling);
+-      if (supported) {
+-        imageInfo = emulated;
+-        m_rgba8SnormRtEmulated = true;
+-        Logger::info("WineHuaFormat: RGBA8_SNORM RT uses RGBA16F compatibility backing");
++      && imageInfo.sharing.mode == DxvkSharedHandleMode::None) {
++      const auto setting = env::getEnvVar("DXVK_WINEHUA_EMULATE_RGBA8_SNORM_RT");
++      const auto adapter = pDevice->GetDXVKDevice()->adapter();
++      const bool mobileDefault = adapter->isWineHuaVenus()
++        || std::strstr(adapter->deviceProperties().deviceName, "Maleoon");
++      if (setting == "1" || setting == "auto" || (setting.empty() && mobileDefault)) {
++        auto emulated = imageInfo;
++        emulated.format = VK_FORMAT_R16G16B16A16_SFLOAT;
++        emulated.flags &= ~VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
++        emulated.viewFormatCount = 0;
++        emulated.viewFormats = nullptr;
++        emulated.tiling = VK_IMAGE_TILING_OPTIMAL;
++        supported = CheckImageSupport(&emulated, emulated.tiling);
++        if (supported) {
++          imageInfo = emulated;
++          m_rgba8SnormRtEmulated = true;
++          Logger::info("WineHuaFormat: RGBA8_SNORM RT uses RGBA16F compatibility backing");
++        }
+       }
+     }
+     if (!supported) {

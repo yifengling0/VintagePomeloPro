@@ -161,7 +161,7 @@ WINE_SRC="${WINE_SRC:-$ROOT/thirdparty/wine-valve}"
 DXVK_SRC="$ROOT/thirdparty/dxvk"
 # box64+wine 方案 (方案②, arm64 设备 + x86_64 wine) 的 in-process 转译器源码
 BOX64_SRC="$ROOT/thirdparty/box64"
-DXVK_MODERN_SRC="$ROOT/thirdparty/dxvk-modern"
+DXVK_MODERN_SRC="${DXVK_MODERN_SRC:-$ROOT/thirdparty/dxvk-modern}"
 VKD3D_PROTON_SRC="$ROOT/thirdparty/vkd3d-proton"
 
 # 产物路径

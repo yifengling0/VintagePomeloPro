@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the reviewed OHOS Legacy DXVK overlays; fail on drift, never reset sources."""
+"""Apply reviewed OHOS DXVK overlays; fail on drift without resetting sources."""
 import argparse
 import hashlib
 import json
@@ -32,7 +32,21 @@ def stack_applied(source, patches):
     return True
 
 
-def apply(source=None, verify_only=False, gpu_bc_upload=False):
+def apply(source=None, verify_only=False, gpu_bc_upload=False, modern=False):
+    if modern:
+        from dxvk_runtime_contract import load_modern_lock, source_digest, validate_modern_source
+        source = Path(source or ROOT / 'thirdparty/dxvk-modern').resolve(strict=True)
+        pin = load_modern_lock()
+        patches = [ROOT / row['path'] for row in pin.get('patches', [])]
+        for row, patch in zip(pin.get('patches', []), patches):
+            if hashlib.sha256(patch.read_bytes().replace(b'\r\n', b'\n')).hexdigest() != row['sha256']:
+                raise ValueError('DXVK overlay digest mismatch: ' + row['path'])
+        if not verify_only and patches and source_digest(source / 'src') == pin['sourceSha256']:
+            command = ['git', '-c', 'safe.directory=' + str(source), '-C', str(source), 'apply']
+            subprocess.run(command + [str(patch) for patch in patches], check=True)
+        validate_modern_source(source)
+        return pin['patchedSourceSha256']
+
     source = Path(source or ROOT / 'thirdparty/dxvk').resolve(strict=True)
     pin = json.loads((ROOT / 'docs/graphics/texture-compat-runtime.lock.json').read_text())['runtimes']['legacy']
     patches = [ROOT / row['path'] for row in pin.get('patches', [])]
@@ -69,6 +83,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=Path)
     parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('--gpu-bc-upload', action='store_true')
+    parser.add_argument('--modern', action='store_true')
     args = parser.parse_args()
-    apply(args.source, args.verify_only, args.gpu_bc_upload)
-    print('Legacy DXVK managed overlays ready')
+    apply(args.source, args.verify_only, args.gpu_bc_upload, args.modern)
+    print(('Modern' if args.modern else 'Legacy') + ' DXVK managed overlays ready')
