@@ -1,0 +1,42 @@
+From d1645206532ba0cab1e5680d66e6737c4919e0da Mon Sep 17 00:00:00 2001
+Subject: [PATCH] vkd3d: select supported Direct surface format and alpha mode
+
+diff --git a/libs/vkd3d/swapchain.c b/libs/vkd3d/swapchain.c
+--- a/libs/vkd3d/swapchain.c
++++ b/libs/vkd3d/swapchain.c
+@@ -685,6 +685,8 @@
+ {
+     switch (vk_format)
+     {
++        case VK_FORMAT_B8G8R8A8_UNORM:
++            return VK_FORMAT_R8G8B8A8_UNORM;
+         case VK_FORMAT_R8G8B8A8_UNORM:
+         case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+         case VK_FORMAT_R16G16B16A16_SFLOAT:
+@@ -1489,9 +1491,12 @@
+ 
+     TRACE("Vulkan swapchain extent %ux%u.\n", width, height);
+ 
+-    if (!(surface_caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR))
+-    {
+-        FIXME("Unsupported alpha mode.\n");
++    /* Direct OHOS surfaces may expose only INHERIT. The consumer owns
++     * window composition on that path. Keep OPAQUE wherever supported. */
++    if (!(surface_caps.supportedCompositeAlpha &
++            (VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR | VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR)))
++    {
++        WARN("Unsupported surface composite alpha mask %#x.\n", surface_caps.supportedCompositeAlpha);
+         return DXGI_ERROR_UNSUPPORTED;
+     }
+ 
+@@ -1538,7 +1543,9 @@
+         vk_swapchain_desc.queueFamilyIndexCount = 0;
+         vk_swapchain_desc.pQueueFamilyIndices = NULL;
+         vk_swapchain_desc.preTransform = surface_caps.currentTransform;
+-        vk_swapchain_desc.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
++        vk_swapchain_desc.compositeAlpha =
++                (surface_caps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) ?
++                VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR : VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+         vk_swapchain_desc.presentMode = swapchain->present_mode;
+         vk_swapchain_desc.clipped = VK_TRUE;
+         vk_swapchain_desc.oldSwapchain = swapchain->vk_swapchain;
