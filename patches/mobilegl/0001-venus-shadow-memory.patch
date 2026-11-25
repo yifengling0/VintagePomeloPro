@@ -1,0 +1,144 @@
+--- a/MobileGL/MG_Backend/DirectVulkan/Renderer/VkBufferObject.cpp
++++ b/MobileGL/MG_Backend/DirectVulkan/Renderer/VkBufferObject.cpp
+@@ -7,6 +7,7 @@
+ // End of Source File Header
+ 
+ #include "VkBufferObject.h"
++#include "VenusShadowMemory.h"
+ 
+ #if MOBILEGL_BUILD_DISAGGREGATED
+ #include <MG_Remote/Transport/AdoptT0.h>
+@@ -100,6 +101,11 @@
+         VmaAllocationCreateInfo allocationInfo{};
+         allocationInfo.usage = memoryUsage;
+         allocationInfo.flags = allocationFlags;
++        if (UsesVenusShadowMemory() &&
++            (allocationFlags & (VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT |
++                                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT))) {
++            allocationInfo.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
++        }
+         allocationInfo.requiredFlags = requiredFlags;
+ 
+         const VkResult result =
+@@ -200,7 +206,7 @@
+             range.size = VK_WHOLE_SIZE;
+             return vkFlushMappedMemoryRanges(m_device, 1, &range) == VK_SUCCESS;
+         }
+-        const VkResult flushResult = vmaFlushAllocation(m_allocator, m_allocation, offset, size);
++        const VkResult flushResult = SyncVenusShadowMemory(m_allocator, m_allocation, offset, size, false);
+         if (flushResult != VK_SUCCESS) {
+             MGLOG_E_ONCE("VkBufferObject::Upload failed: vmaFlushAllocation returned %d", flushResult);
+             if (!wasMapped) {
+@@ -233,7 +239,7 @@
+             return vkInvalidateMappedMemoryRanges(m_device, 1, &range) == VK_SUCCESS;
+         }
+ 
+-        const VkResult result = vmaInvalidateAllocation(m_allocator, m_allocation, offset, resolvedSize);
++        const VkResult result = SyncVenusShadowMemory(m_allocator, m_allocation, offset, resolvedSize, true);
+         if (result != VK_SUCCESS) {
+             MGLOG_E_ONCE("VkBufferObject::Invalidate failed: vmaInvalidateAllocation returned %d", result);
+             return false;
+--- a/MobileGL/MG_Backend/DirectVulkan/Renderer/VkTextureManager.cpp
++++ b/MobileGL/MG_Backend/DirectVulkan/Renderer/VkTextureManager.cpp
+@@ -8,6 +8,7 @@
+ 
+ #include "RenderPassGuard.h"
+ #include "VkTextureManager.h"
++#include "VenusShadowMemory.h"
+ 
+ #include "ProgramFactory.h"
+ 
+@@ -2391,6 +2392,8 @@
+                 stagingAllocationInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+                 stagingAllocationInfo.flags =
+                     VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
++                if (UsesVenusShadowMemory())
++                    stagingAllocationInfo.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+                 stagingAllocationInfo.requiredFlags =
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+                 VmaAllocationInfo allocationResult{};
+@@ -2424,6 +2427,12 @@
+     void VkTextureManager::FlushPendingUploads() {
+         if (!m_uploadBatchOpen) {
+             return;
++        }
++        if (UsesVenusShadowMemory()) {
++            for (const auto& block : m_uploadBatchBlocks) {
++                VK_VERIFY(SyncVenusShadowMemory(m_allocator, block.allocation, 0, block.cursor, false),
++                          "Flush texture staging memory");
++            }
+         }
+         VK_VERIFY(vkEndCommandBuffer(m_uploadBatchCommandBuffer), "vkEndCommandBuffer(texture upload batch)");
+ 
+--- a/MobileGL/MG_Backend/DirectVulkan/Renderer/BufferArena.cpp
++++ b/MobileGL/MG_Backend/DirectVulkan/Renderer/BufferArena.cpp
+@@ -7,6 +7,7 @@
+ // End of Source File Header
+ 
+ #include "BufferArena.h"
++#include "VenusShadowMemory.h"
+ #include <Config.h>
+ 
+ namespace MobileGL::MG_Backend::DirectVulkan {
+@@ -74,7 +75,7 @@
+             return false;
+         }
+ 
+-        if (outSlice.mapped != nullptr) {
++        if (outSlice.mapped != nullptr && !UsesVenusShadowMemory()) {
+             Memcpy(outSlice.mapped, data, static_cast<SizeT>(size));
+             return true;
+         }
+diff --git a/MobileGL/MG_Backend/DirectVulkan/Renderer/VenusShadowMemory.h b/MobileGL/MG_Backend/DirectVulkan/Renderer/VenusShadowMemory.h
+new file mode 100644
+--- /dev/null
++++ b/MobileGL/MG_Backend/DirectVulkan/Renderer/VenusShadowMemory.h
+@@ -0,0 +1,48 @@
++// MobileGL - MobileGL/MG_Backend/DirectVulkan/Renderer/VenusShadowMemory.h
++// Copyright (c) 2025-2026 MobileGL-Dev
++// SPDX-License-Identifier: LGPL-3.0-only
++
++#pragma once
++
++#include <algorithm>
++#include <cstdlib>
++#include <vk_mem_alloc.h>
++
++namespace MobileGL::MG_Backend::DirectVulkan {
++    inline bool UsesVenusShadowMemory() {
++        static const bool enabled = [] {
++            const char* value = std::getenv("MOBILEGL_WINEHUA_VENUS_SHADOW");
++            return value && value[0] == '1' && value[1] == '\0';
++        }();
++        return enabled;
++    }
++
++    inline VkResult SyncVenusShadowMemory(VmaAllocator allocator, VmaAllocation allocation,
++                                         VkDeviceSize offset, VkDeviceSize size, bool read) {
++        if (!size) return VK_SUCCESS;
++        if (!UsesVenusShadowMemory()) {
++            if (read) return vmaInvalidateAllocation(allocator, allocation, offset, size);
++            return vmaFlushAllocation(allocator, allocation, offset, size);
++        }
++
++        // A shadow-backed coherent map still needs a host transfer. VMA maps the entire
++        // VkDeviceMemory block, so keep the range within that block and align it to its atom.
++        VmaAllocatorInfo allocatorInfo{};
++        VmaAllocationInfo2 memory{};
++        const VkPhysicalDeviceProperties* properties = nullptr;
++        vmaGetAllocatorInfo(allocator, &allocatorInfo);
++        vmaGetAllocationInfo2(allocator, allocation, &memory);
++        vmaGetPhysicalDeviceProperties(allocator, &properties);
++        const VkDeviceSize atom = properties->limits.nonCoherentAtomSize;
++        const VkDeviceSize start = memory.allocationInfo.offset + offset;
++        const VkDeviceSize begin = start - start % atom;
++        const VkDeviceSize end = start + size;
++        const VkDeviceSize alignedEnd = std::min(memory.blockSize, ((end + atom - 1) / atom) * atom);
++        VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};
++        range.memory = memory.allocationInfo.deviceMemory;
++        range.offset = begin;
++        range.size = alignedEnd - begin;
++        if (read) return vkInvalidateMappedMemoryRanges(allocatorInfo.device, 1, &range);
++        return vkFlushMappedMemoryRanges(allocatorInfo.device, 1, &range);
++    }
++}

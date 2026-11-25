@@ -45,7 +45,8 @@ import {
 } from '../model/AppModels';
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
-import { APP_OPENGL_MOBILEGL, graphicsBackendLabel, normalizeGraphicsBackend } from '../model/GraphicsBackendSettings';
+import { APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS, graphicsBackendLabel,
+  normalizeGraphicsBackend } from '../model/GraphicsBackendSettings';
 import { GamepadManager } from '../service/GamepadManager';
 import { HostWindowTasks } from '../service/HostWindowTasks';
 import { SteamClientService } from '../service/SteamClientService';
@@ -305,6 +306,7 @@ struct SystemSettingsPage {
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
   @State private mobileGLAvailable: boolean = false;
+  @State private mobileGLVenusAvailable: boolean = false;
   @State private dxvkDepthD32: boolean = false;
   @State private fontImporting: boolean = false;
   @State private sgdbKeyDraft: string = '';
@@ -1061,6 +1063,9 @@ struct SystemSettingsPage {
   private loadGpuInfo(): void {
     void WineEngineService.getInstance().canSelectMobileGL().then((available: boolean): void => {
       this.mobileGLAvailable = available;
+    });
+    void WineEngineService.getInstance().canSelectMobileGL(true).then((available: boolean): void => {
+      this.mobileGLVenusAvailable = available;
     });
     try {
       const name = (testNapi.getHostGpuName() as string) ?? '';
@@ -2409,6 +2414,11 @@ struct SystemSettingsPage {
               Text('打开 64 位 Wine 程序和 Steam 时可使用 MobileGL。需要 Wayland 和直连 Vulkan 1.3 或更高版本。')
                 .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             }
+          }
+          if (this.mobileGLVenusAvailable && this.settings.wineDisplayRoute !== 'x11') {
+            Row() {
+              this.RenderModeChip(graphicsBackendLabel(APP_OPENGL_MOBILEGL_VENUS), APP_OPENGL_MOBILEGL_VENUS)
+            }.width('100%')
           }
           Text(this.gpuSupportDxvk26
             ? '默认使用 DXVK 1.10。当前 GPU 支持开启 DXVK 2.6（实验）。'

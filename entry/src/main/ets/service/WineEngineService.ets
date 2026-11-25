@@ -24,7 +24,7 @@ import {
   resolveWineCpuEnvironment
 } from '../model/AppModels';
 import { AppSettingsStore } from './AppSettingsStore';
-import { APP_OPENGL_MOBILEGL, APP_OPENGL_SOFTPIPE, isVirglOpenGLCompatibility,
+import { APP_OPENGL_MOBILEGL_VENUS, APP_OPENGL_SOFTPIPE, isMobileGLBackend, isVirglOpenGLCompatibility,
   normalizeAppGraphicsBackend, resolveGraphicsBackend, supportsMobileGLVulkan } from '../model/GraphicsBackendSettings';
 import { WineWindowManager } from './WineWindowManager';
 import { WineUpgradeGuard, WINE_UPGRADE_RESET_MESSAGE } from './WineUpgradeGuard';
@@ -666,6 +666,7 @@ export class WineEngineService {
   private appGraphicsBackend: string = 'default';
   private mobileGLEnvironment: string[] = [];
   private mobileGLCapability: Promise<boolean> | null = null;
+  private mobileGLPayloadReady: boolean = false;
   private appliedHostGraphicsBackend: string = 'dxvk_legacy';
   private productDirectProbe: Promise<boolean> | null = null;
   private enginePhase: string = '';
@@ -935,10 +936,12 @@ export class WineEngineService {
         await this.ensureProductDirectCapability();
         if (!this.startupCurrent(generation)) return;
         this.mobileGLEnvironment = [];
-        if (this.selectedGraphicsMode() === APP_OPENGL_MOBILEGL) {
-          if (settings.wineDisplayRoute !== 'x11' && await this.canSelectMobileGL()) {
+        const graphicsMode = this.selectedGraphicsMode();
+        if (isMobileGLBackend(graphicsMode)) {
+          const venus = graphicsMode === APP_OPENGL_MOBILEGL_VENUS;
+          if (settings.wineDisplayRoute !== 'x11' && await this.canSelectMobileGL(venus)) {
             if (!this.startupCurrent(generation)) return;
-            this.mobileGLEnvironment = this.prepareMobileGLEnvironment();
+            this.mobileGLEnvironment = this.prepareMobileGLEnvironment(venus);
           }
           if (!this.startupCurrent(generation)) return;
           if (this.mobileGLEnvironment.length === 0) {
@@ -1067,7 +1070,7 @@ export class WineEngineService {
     const settings = AppSettingsStore.getInstance().getGlobalSettings();
     const launchEnvironment = resolveWineCpuEnvironment(settings.wineTranslationEngine, settings.box64Preset)
       .concat(this.depthStorageEnvironment(), SDL_PLAYBACK_ENVIRONMENT,
-        this.selectedGraphicsMode() === APP_OPENGL_MOBILEGL ? this.mobileGLEnvironment : [], envOverrides);
+        isMobileGLBackend(this.selectedGraphicsMode()) ? this.mobileGLEnvironment : [], envOverrides);
     const systemScript = argumentsValue.lastIndexOf('-system_script');
     if (this.d3dBackend === 'dxvk_legacy_d3d9' && systemScript >= 0 &&
       argumentsValue[systemScript + 1] === 'vpp-harmony-frame-camera.cpp') {
@@ -1124,7 +1127,7 @@ export class WineEngineService {
       backend = 'wined3d_zink';
     } else if (mode === 'virgl' || mode === APP_OPENGL_SOFTPIPE || isVirglOpenGLCompatibility(mode)) {
       backend = 'wined3d';
-    } else if (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26()) {
+    } else if (mode === APP_OPENGL_MOBILEGL_VENUS || (mode === 'dxvk_2_6' && this.gpuSupportsDxvk26())) {
       backend = 'dxvk_modern_2_6';
     }
     AppStorage.setOrCreate<string>('winehua.render.resolved', backend);
@@ -1176,12 +1179,12 @@ export class WineEngineService {
     }
   }
 
-  canSelectMobileGL(): Promise<boolean> {
-    if (!this.hasMobileGLPayload()) return Promise.resolve(false);
+  async canSelectMobileGL(venus: boolean = false): Promise<boolean> {
+    if (!this.hasMobileGLPayload()) return false;
     if (!this.mobileGLCapability) {
       this.mobileGLCapability = this.probeMobileGLCapability();
     }
-    return this.mobileGLCapability;
+    return await this.mobileGLCapability && (venus || await this.ensureProductDirectCapability());
   }
 
   private async probeMobileGLCapability(): Promise<boolean> {
@@ -1189,24 +1192,23 @@ export class WineEngineService {
       const result = await testNapi.runDirectVulkanInlineProbe();
       const vulkanSupported = result.status === 'PASS' && supportsMobileGLVulkan(result.apiVersion) &&
         supportsMobileGLVulkan(result.loaderVersion) && supportsMobileGLVulkan(result.requestedApiVersion);
-      const available = vulkanSupported && await this.ensureProductDirectCapability();
       hilog.info(DOMAIN, TAG,
         'MobileGL Vulkan device=%{public}s api=%{public}d loader=%{public}d instance=%{public}d probe=%{public}s stage=%{public}s available=%{public}s',
         result.deviceName, result.apiVersion, result.loaderVersion, result.requestedApiVersion,
-        result.status, result.stage, available ? 'true' : 'false');
-      return available;
+        result.status, result.stage, vulkanSupported ? 'true' : 'false');
+      return vulkanSupported;
     } catch (_) {
       return false;
     }
   }
 
-  private prepareMobileGLEnvironment(): string[] {
+  private prepareMobileGLEnvironment(venus: boolean): string[] {
     if (!this.context || !this.hasMobileGLPayload()) return [];
     const dll = MOBILEGL_DIRECTORY + '/opengl32.dll';
     const resourceManager = this.context.resourceManager;
     const descriptor = resourceManager.getRawFdSync(MOBILEGL_RAWFILE);
     try {
-      if (!pathExists(dll) || fs.statSync(dll).size !== descriptor.length) {
+      if (!this.mobileGLPayloadReady || !pathExists(dll) || fs.statSync(dll).size !== descriptor.length) {
         ensureDirectory(MOBILEGL_DIRECTORY);
         const bytes = resourceManager.getRawFileContentSync(MOBILEGL_RAWFILE);
         const staging = dll + '.tmp';
@@ -1217,11 +1219,13 @@ export class WineEngineService {
           }
         } finally { fs.closeSync(output); }
         fs.renameSync(staging, dll);
+        this.mobileGLPayloadReady = true;
       }
     } finally {
       resourceManager.closeRawFdSync(MOBILEGL_RAWFILE);
     }
-    return ['WINEHUA_MOBILEGL=1', 'WINEDLLOVERRIDES=opengl32=n,b', 'MOBILEGL_BACKEND_TYPE=DirectVulkan'];
+    return ['WINEHUA_MOBILEGL=1', 'WINEDLLOVERRIDES=opengl32=n,b', 'MOBILEGL_BACKEND_TYPE=DirectVulkan',
+      'MOBILEGL_WINEHUA_VENUS_SHADOW=' + (venus ? '1' : '0')];
   }
 
   private async probeProductDirectCapability(): Promise<boolean> {

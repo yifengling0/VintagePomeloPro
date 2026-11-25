@@ -9,10 +9,14 @@
     "testedPackageSha256": "e2d91b472839e9ab6d309ef0541189a2ed8a3726b2923721f287cf615e9e23b8",
     "scope": "Historical Mini evidence. The 2.0.6 release runtime reuses the audited RC graphics and FEX; the WMP update is host-validated and awaits integrated device retest. The 2.0.7 child working directory change has host broker coverage. World of Warships device retest pending.",
     "mobileGL": {
-      "testedPackageSha256": "5d65c90dd737f09519dcf3f023b6f3239dbaa281d30a1b0a8550a4ef6439f970",
+      "testedPackageSha256": "73353471c1f8fa01d83ca668c166b4bd7f7f642f1c8436d6df1d32e4e0f94d8a",
       "loaderPatch": "patches/wine/0083-ntdll-mobilegl-overlay.patch",
       "loaderSha256": "bcef2eebbdc5b873a8408c715fb56f10a9319565041d14e10147ed4fbf6a8af1",
-      "scope": "Pro S Maleoon 935, direct Vulkan 1.3.309. OpenGL 4.1 request, GLSL 410, window/FBO pixels and 60 swaps passed. Phone Direct and Steam game acceptance pending."
+      "rendererSourceCommit": "9df3600f878b2059012b4057bcb560daba816f06",
+      "rendererPatch": "patches/mobilegl/0001-venus-shadow-memory.patch",
+      "rendererPatchSha256": "8b9e0b6c33a8a6c67bab73fb0ccb4e238d8f53d685b1b9b09f18059c82a971f2",
+      "rendererPayloadSha256": "bf90527f4b9d9b7a6a291d567f25bc9e39e33c52861f2e296aca193d89e97c08",
+      "scope": "Pro S Maleoon 935, PE64 WGL on direct Vulkan 1.3.309 and Venus Vulkan 1.3.269. OpenGL 3.3, 4.1 and 4.6 requests passed window and FBO readback, texture sampling and updates, blend, depth and resize. Phone rendering and game acceptance pending."
     }
   },
   "wine": {

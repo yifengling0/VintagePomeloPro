@@ -1,14 +1,15 @@
 /** Persist intent, resolve inheritance only when launching a game. */
 export const GRAPHICS_BACKEND_DEFAULT = 'default';
 export const APP_OPENGL_MOBILEGL = 'opengl_mobilegl';
+export const APP_OPENGL_MOBILEGL_VENUS = 'opengl_mobilegl_venus';
 export const GRAPHICS_BACKEND_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl', 'dxvk9', 'zink',
-  APP_OPENGL_MOBILEGL];
+  APP_OPENGL_MOBILEGL, APP_OPENGL_MOBILEGL_VENUS];
 export const APP_OPENGL_SOFTPIPE = 'opengl_softpipe';
 export const APP_OPENGL_VIRGL_COMPAT = 'opengl_virgl_compat';
 export const APP_OPENGL_VIRGL_33 = 'opengl_virgl_33';
 export const APP_GRAPHICS_BACKEND_IDS: string[] =
   [GRAPHICS_BACKEND_DEFAULT].concat(
-    GRAPHICS_BACKEND_IDS.filter((backend: string): boolean => backend !== APP_OPENGL_MOBILEGL),
+    GRAPHICS_BACKEND_IDS.filter((backend: string): boolean => !isMobileGLBackend(backend)),
     [APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_SOFTPIPE]);
 
 export function normalizeGraphicsBackend(value: string): string {
@@ -27,6 +28,10 @@ export function supportsMobileGLVulkan(apiVersion: number): boolean {
   return variant === 0 && (major > 1 || (major === 1 && minor >= 3));
 }
 
+export function isMobileGLBackend(backend: string): boolean {
+  return backend === APP_OPENGL_MOBILEGL || backend === APP_OPENGL_MOBILEGL_VENUS;
+}
+
 export function isVirglOpenGLCompatibility(backend: string): boolean {
   return backend === APP_OPENGL_VIRGL_COMPAT || backend === APP_OPENGL_VIRGL_33;
 }
@@ -42,6 +47,7 @@ export function graphicsBackendLabel(value: string): string {
     case APP_OPENGL_VIRGL_COMPAT: return 'VirGL OpenGL 兼容（实验）';
     case APP_OPENGL_VIRGL_33: return 'VirGL OpenGL 3.3（实验）';
     case APP_OPENGL_MOBILEGL: return 'MobileGL OpenGL 4.6（实验）';
+    case APP_OPENGL_MOBILEGL_VENUS: return 'MobileGL OpenGL 4.6 · Venus（实验）';
     case APP_OPENGL_SOFTPIPE: return 'OpenGL 软件渲染（实验）';
     case 'dxvk9': return 'DXVK9（32位实验）';
     case 'zink': return 'Zink（实验）';

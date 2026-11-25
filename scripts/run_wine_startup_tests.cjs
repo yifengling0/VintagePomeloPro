@@ -31,6 +31,7 @@ function fixture() {
   };
   function schedule(fn,ms,repeat) {const id=++next;timers.set(id,{fn,ms,repeat,at:now+ms});return id;}
   const context={exports:{},Date:{now:()=>now},Uint8Array,ArrayBuffer,JSON,Math,Set,Map,Promise,
+    AppStorage:{setOrCreate(){},get:()=>undefined},
     setTimeout:(f,t)=>schedule(f,t,false),setInterval:(f,t)=>schedule(f,t,true),
     clearTimeout:id=>timers.delete(id),clearInterval:id=>timers.delete(id),
     require(name) {
@@ -72,7 +73,7 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
 (async()=>{
   let count=0;
   async function test(name,run){await run();++count;console.log('PASS '+name);}
-  await test('MobileGL requires Vulkan 1.3 on the GPU, loader and instance plus a working Direct transport',async()=>{
+  await test('MobileGL checks Vulkan 1.3 for both transports and requires a Direct probe only for Direct',async()=>{
     const v12 = (1 << 22) | (2 << 12) | 999;
     const v13 = (1 << 22) | (3 << 12);
     const v14 = (1 << 22) | (4 << 12);
@@ -84,16 +85,33 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
       [{...passed,loaderVersion:v12},true,false],
       [{...passed,requestedApiVersion:v12},true,false],
       [{...passed,status:'FAIL'},true,false],
-      [passed,false,false],
+      [passed,false,true],
     ]) {
       const f=fixture();
       f.s.hasMobileGLPayload=()=>true;
       f.s.ensureProductDirectCapability=async()=>direct;
       let probes=0;
       f.napi.runDirectVulkanInlineProbe=async()=>{++probes;return result;};
-      assert.deepEqual(await Promise.all([f.s.canSelectMobileGL(),f.s.canSelectMobileGL()]),[expected,expected]);
+      assert.deepEqual(await Promise.all([f.s.canSelectMobileGL(),f.s.canSelectMobileGL(true)]),
+        [expected && direct,expected]);
       assert.equal(probes,1);
     }
+  });
+  await test('MobileGL Venus selects the Venus host profile when Direct is unavailable',async()=>{
+    const f=fixture();
+    delete f.s.selectedD3DBackend;
+    f.settings.renderMode=graphicsExports.APP_OPENGL_MOBILEGL_VENUS;
+    f.s.ensureProductDirectCapability=async()=>false;
+    f.s.hasMobileGLPayload=()=>true;
+    f.napi.runDirectVulkanInlineProbe=async()=>({status:'PASS',apiVersion:4206592,
+      loaderVersion:4206592,requestedApiVersion:4206592});
+    let backend,shadow;
+    f.napi.setHostGraphicsBackend=value=>{backend=value;return true;};
+    f.s.prepareMobileGLEnvironment=venus=>{shadow=venus;return ['WINEHUA_MOBILEGL=1'];};
+    f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready',phase:'explorer'});return 0;};
+    assert.equal(await f.start(),true);
+    assert.equal(backend,'dxvk_modern_2_6');
+    assert.equal(shadow,true);
   });
   await test('terminal before waiter/native callback is recovered from retained state',async()=>{
     const f=fixture();f.napi.launchClient=()=>{Object.assign(f.snapshot(),{generation:1,active:false,state:'ready',phase:'explorer'});return 0;};
