@@ -2197,9 +2197,9 @@ struct SystemSettingsPage {
           Text('输入与控制').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
           if (this.isManagedWindowsHost()) {
             Column({ space: 6 }) {
-              Text('PC 桌面默认使用实体键盘鼠标')
+              Text('PC 虚拟桌面支持屏幕虚拟输入')
                 .fontSize(14).fontWeight(FontWeight.Medium).fontColor(skinColor('text_primary')).width('100%')
-              Text('桌面模式不会创建屏幕控制层，虚拟输入主要面向平板触屏与手柄使用。')
+              Text('在虚拟桌面中可使用屏幕按键，也可使用实体键盘、鼠标和手柄。')
                 .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
             }
             .width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)

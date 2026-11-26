@@ -380,6 +380,21 @@ function fixture() {
     assert.deepEqual(f.gameTargets, [0], 'Steam retains multiwindow desktop coordinates');
     assert.equal(f.timers.size, 1, 'Normal Steam exit still returns to Game library');
   }
+  { // A managed Steam client can have a window in each native process.
+    const f = fixture(); f.setState(models.EngineState.READY);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset();
+    f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'cef-browser', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    tasks.onEvent(93, 'created', JSON.stringify({ sessionId: 'real-client', clientPid: 82 }));
+    tasks.onEvent(94, 'created', JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 }));
+    let restored = 0;
+    tasks.setActivator(async task => { restored = task.toplevelId; return true; });
+    const client = { ...launched, executable: 'C:/Steam/steam.exe', sessionId: 'real-client', pid: 82, toplevelId: 94,
+      presentationMode: models.WinePresentationMode.MANAGED_WINDOWS, state: models.SessionState.RUNNING };
+    await f.service.resume(client);
+    assert.equal(restored, 94, 'Restore the resolved WebHelper window in managed mode');
+    tasks.setActivator(null);
+  }
   { // Cold launch registers its carrier but never presents an empty desktop.
     const f = fixture(); f.setState(models.EngineState.READY);
     f.service.associateToplevel('desktop', 0, 7);
@@ -404,20 +419,24 @@ function fixture() {
     assert.equal(f.killRequests.length, 0, 'Timeout never kills the imported client');
     assert.equal(f.timers.size, 0, 'No background polling leaks after timeout');
   }
-  { // Bootstrap exits; the real client/window belongs to a new native session.
+  { // Bootstrap exits and a transient login window disappears before the replacement is ready.
     const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
     const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
     let waits = 0, resumed = null;
     f.service.resume = async session => { resumed = session; };
     f.onWait(() => {
-      if (++waits !== 2) return;
-      f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' });
-      tasks.onEvent(91, 'created', JSON.stringify({ sessionId: 'real-client', clientPid: 82 }));
+      ++waits;
+      if (waits === 1) {
+        f.processes.push({ pid: 82, sessionId: 'real-client', path: 'C:/Steam/steam.exe', state: 'running' });
+        tasks.onEvent(91, 'created', JSON.stringify({ sessionId: 'real-client', clientPid: 82 }));
+      }
+      if (waits === 2) tasks.onEvent(91, 'destroyed', '{}');
+      if (waits === 3) tasks.onEvent(95, 'created', JSON.stringify({ sessionId: 'real-client', clientPid: 82 }));
     });
     const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
     assert.equal(ready.pid, 82); assert.equal(ready.sessionId, 'real-client');
-    assert.equal(resumed, ready); assert.equal(ready.toplevelId, 91);
-    assert.equal(waits, 2); assert.equal(ready.automaticForeground, true);
+    assert.equal(resumed, ready); assert.equal(ready.toplevelId, 95);
+    assert.equal(waits, 11); assert.equal(ready.automaticForeground, true);
   }
   { // The managed CEF window belongs to another native session than steam.exe.
     const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
@@ -450,7 +469,7 @@ function fixture() {
       if (elapsed === 60000) tasks.onEvent(96, 'created', JSON.stringify({ sessionId: 'slow-cef', clientPid: 83 }));
     });
     const ready = await f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial());
-    assert.equal(elapsed, 60000); assert.equal(ready.toplevelId, 96); assert.equal(resumed, ready);
+    assert.equal(elapsed, 62000); assert.equal(ready.toplevelId, 96); assert.equal(resumed, ready);
     assert.equal(ready.sessionId, 'slow-client');
     assert.equal(f.killRequests.length, 0);
   }
@@ -519,6 +538,29 @@ function fixture() {
     tasks.onEvent(93, 'created', JSON.stringify({ sessionId: 'sender', clientPid: 42 }));
     await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
     assert.equal(f.starts.length, 0);
+  }
+  { // Warm play waits for the confirmation window beside the existing library.
+    const f = fixture(); f.setState(models.EngineState.READY);
+    const game = { id: 'steam-default-123', available: true, steam: { appId: '123', state: 'installed' },
+      launchTarget: { kind: models.LaunchKind.WINE_EXE, executable: 'C:/Steam/game.exe',
+        arguments: [], workingDirectory: 'C:/Steam' } };
+    f.steamCards.push(steamApp, game);
+    f.service.associateToplevel('desktop', 0, 7);
+    const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
+    f.processes.push({ pid: 82, sessionId: 'warm-client', path: 'C:/Steam/steam.exe', state: 'running' },
+      { pid: 83, sessionId: 'cef-browser', path: 'C:/Steam/bin/cef/cef.win7x64/steamwebhelper.exe', state: 'running' });
+    const owner = JSON.stringify({ sessionId: 'cef-browser', clientPid: 83 });
+    tasks.onEvent(94, 'created', owner);
+    const resumed = [];
+    f.service.resume = async session => { resumed.push(session.toplevelId); };
+    f.onWait(() => tasks.onEvent(96, 'created', owner));
+    const navigation = tasks.navigationSerial();
+    await f.service.launchReady(game, f.globalSettings, models.DisplayMode.DESKTOP,
+      models.WinePresentationMode.DESKTOP, '/games', navigation);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(resumed, [96], 'Restore only the new, Steam-owned window');
+    assert.equal(tasks.navigationSerial(), navigation, 'The game can still take over the foreground');
+    tasks.reset();
   }
   {
     const game = { id: 'steam-default-123', available: true, steam: { appId: '123', state: 'installed' },

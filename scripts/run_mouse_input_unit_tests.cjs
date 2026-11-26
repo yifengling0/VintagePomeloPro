@@ -371,7 +371,8 @@ console.log('two_finger_scroll: initial target, panel change, fixed anchor, term
 
 // The direct touch/mouse surface uses the same slots as the visible toolbar.
 const Toolbar = compile('export class Toolbar {\n' +
-  ['rectContains', 'toolbarActionAt'].map(name => method('components/VirtualInputOverlay.ets', name)).join('\n') +
+  ['rectContains', 'toolbarActions', 'toolbarActionAt', 'toolbarWidth', 'toolbarHeight']
+    .map(name => method('components/VirtualInputOverlay.ets', name)).join('\n') +
   '\n}', () => {}).Toolbar;
 const toolbar = new Toolbar();
 Object.assign(toolbar, { toolbarExpanded: true, toolbarAutoHidden: false,
@@ -380,12 +381,20 @@ for (const floating of [false, true]) {
   toolbar.desktopFloatingFullscreen = floating;
   for (const vertical of [false, true]) {
     toolbar.resolveToolbarVertical = () => vertical;
-    const actions = ['toolbar', floating ? 'home' : 'launcher', 'editor', 'controls', 'mouse', 'keyboard'];
-    for (let slot = 0; slot < actions.length; slot++) {
-      const x = 100 + (vertical ? 22 : 22 + slot * 44);
-      const y = 200 + (vertical ? (slot === 0 ? 20 : 40 + (slot - 1) * 44 + 22) : 26);
-      assert.equal(toolbar.toolbarActionAt(x, y), actions[slot], `toolbar slot ${slot} vertical=${vertical} floating=${floating}`);
+    for (const showDesktopFullscreen of [false, true]) {
+      toolbar.showDesktopFullscreen = showDesktopFullscreen;
+      const actions = ['toolbar', floating ? 'home' : 'launcher', 'editor', 'controls', 'mouse', 'keyboard', 'clipboard'];
+      for (let slot = 0; slot < actions.length; slot++) {
+        const x = 100 + (vertical ? 22 : 22 + slot * 44);
+        const y = 200 + (vertical ? (slot === 0 ? 20 : 40 + (slot - 1) * 44 + 22) : 26);
+        assert.equal(toolbar.toolbarActionAt(x, y), actions[slot],
+          `toolbar slot ${slot} vertical=${vertical} floating=${floating}`);
+      }
+      const x = 100 + (vertical ? 22 : 330);
+      const y = 200 + (vertical ? 326 : 26);
+      assert.equal(toolbar.toolbarActionAt(x, y), showDesktopFullscreen ? 'fullscreen' : null);
+      assert.equal(vertical ? toolbar.toolbarHeight() : toolbar.toolbarWidth(), showDesktopFullscreen ? 352 : 308);
     }
   }
 }
-console.log('Toolbar: native/embedded launcher, horizontal/vertical action slots PASS');
+console.log('Toolbar: native/embedded launcher, horizontal/vertical action slots and PC-only fullscreen PASS');

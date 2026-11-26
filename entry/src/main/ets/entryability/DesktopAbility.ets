@@ -32,6 +32,7 @@ export default class DesktopAbility extends UIAbility {
   private immersiveMaximized: boolean = false;
   private vdStatusAttached: boolean = false;
   private pcModeListener: () => void = () => {
+    if (this.foreground) this.attachInputOverlay();
     if (this.mainWindow) void this.applyDesktopWindowMode(this.mainWindow).catch((error: Error) => {
       hilog.warn(DOMAIN, TAG, 'PC mode window update failed: %{public}s', JSON.stringify(error));
     });
@@ -55,7 +56,9 @@ export default class DesktopAbility extends UIAbility {
           ?? ScreenOrientationSetting.SENSOR_LANDSCAPE;
       }
       AppStorage.setOrCreate('desktopToplevelId', this.toplevelId);
-      WineWindowManager.getInstance().registerDesktopAbility(this.context);
+      WineWindowManager.getInstance().registerDesktopAbility(this.context, (): void => {
+        void this.toggleDesktopFullscreen();
+      });
       hilog.info(DOMAIN, TAG, '[DWA] onCreate: tl=%{public}d orientation=%{public}s',
         this.toplevelId, this.desktopOrientation);
     } catch (e) {
@@ -154,17 +157,14 @@ export default class DesktopAbility extends UIAbility {
     // 默认浮动 (可拖动/缩放/最小化/关闭), 与上游 VirtualDesktopAbility 同语义。
     // 用户可自行最大化 → 沉浸全屏 (maximize 时系统隐藏标题栏, renderer letterbox
     // 等比呈现, 无需 ArkTS 额外动作)。全屏布局/安全区仅 tablet 桌面生效。
-    if (DeviceCapabilityPolicy.usesManagedWineWindows() &&
-      WineWindowManager.getInstance().isDesktopMode) {
+    if (this.isPcVirtualDesktop()) {
       try {
         await target.setWindowLayoutFullScreen(false);
         try {
           target.setWindowTitle('Wine 桌面');
         } catch (_) {
         }
-        // 保留系统标题栏: 沉浸全屏由 maximize(DISABLE_HOVER) 隐藏, 还原后
-        // 标题栏回来供关闭/最小化。不要 setWindowDecorVisible(false),
-        // 也不要用 resize(屏幕) 冒充全屏 (会和 immersive 抢几何、弄歪鼠标)。
+        // 保留系统标题栏，收起或关闭虚拟输入栏时可从系统顶边热区还原。
         await Promise.all([
           target.setSpecificSystemBarEnabled('status', false),
           target.setSpecificSystemBarEnabled('navigationIndicator', false)
@@ -300,6 +300,7 @@ export default class DesktopAbility extends UIAbility {
       InputRouter.getInstance().releaseAllKeys();
       WineWindowManager.getInstance().markDesktopAbilityStopped(this.toplevelId);
       WineWindowManager.getInstance().unregisterDesktopAbility();
+      AppStorage.setOrCreate('pcDesktopWindowControls', false);
       // 关闭 ArkTS 宿主并不等于关闭 Wine explorer。保留 desktop root 后，
       // 应用库中的“Wine 桌面”卡片可以重新拉起同一会话和渲染 surface。
       WineWindowManager.getInstance().unregisterAbility(this.toplevelId);
@@ -313,7 +314,7 @@ export default class DesktopAbility extends UIAbility {
   }
 
   /**
-   * PC 虚拟桌面: 最大化 → 沉浸全屏 (DISABLE_HOVER), 还原后标题栏回归。
+   * PC 虚拟桌面最大化后进入沉浸全屏，系统状态驱动工具栏图标。
    * WindowStatusType: 1=FULL_SCREEN 2=MAXIMIZE 4=FLOATING。
    */
   private attachVirtualDesktopStatus(target: window.Window): void {
@@ -343,10 +344,30 @@ export default class DesktopAbility extends UIAbility {
   private async requestImmersive(target: window.Window): Promise<void> {
     if (this.immersiveMaximized) return;
     this.immersiveMaximized = true; // in flight; the system FULL_SCREEN event publishes success
-    const accepted = await WineWindowManager.getInstance().enterImmersiveFullscreen(target, 0);
+    const accepted = await WineWindowManager.getInstance().enterImmersiveFullscreen(target, 0, true);
     if (!accepted) {
       this.immersiveMaximized = false;
       AppStorage.setOrCreate('vdImmersive', false);
+    }
+  }
+
+  private isPcVirtualDesktop(): boolean {
+    return DeviceCapabilityPolicy.usesManagedWineWindows() && WineWindowManager.getInstance().isDesktopMode;
+  }
+
+  private async toggleDesktopFullscreen(): Promise<void> {
+    const target = this.mainWindow;
+    if (!target || !this.foreground || !AppStorage.get<boolean>('pcDesktopWindowControls') ||
+      AppStorage.get<boolean>('vdRestoring')) return;
+    if (!AppStorage.get<boolean>('vdImmersive')) {
+      await this.requestImmersive(target);
+      return;
+    }
+    AppStorage.setOrCreate('vdRestoring', true);
+    try {
+      await WineWindowManager.getInstance().exitImmersiveFullscreen(target, true);
+    } finally {
+      AppStorage.setOrCreate('vdRestoring', false);
     }
   }
 
@@ -364,10 +385,10 @@ export default class DesktopAbility extends UIAbility {
   }
 
   private attachInputOverlay(): void {
-    // PC/2-in-1 desktop mode is a multiton collection of native Harmony
-    // windows. It relies on physical input and must not create a screen
-    // overlay for every Wine window.
-    if (AppSettingsStore.getInstance().usesManagedWineWindows()) {
+    const pcVirtualDesktop = this.isPcVirtualDesktop();
+    AppStorage.setOrCreate('pcDesktopWindowControls', pcVirtualDesktop && !DeviceCapabilityPolicy.isTabletDevice());
+    // 独立 Wine 窗口继续由各自的窗口宿主处理输入。
+    if (DeviceCapabilityPolicy.usesManagedWineWindows() && !pcVirtualDesktop) {
       InputOverlayWindowCoordinator.getInstance().detach('pc-desktop-uses-physical-input').catch(() => {});
       return;
     }

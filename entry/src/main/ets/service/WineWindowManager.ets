@@ -99,6 +99,7 @@ export class WineWindowManager {
   private desktopAbilityRootId: number = 0;
   private desktopAbilityRequest: Promise<void> | null = null;
   private desktopAbilityCtx: common.UIAbilityContext | null = null;
+  private desktopFullscreenToggle: (() => void) | null = null;
   // 主窗口 windowStage (ARGB 异型子窗口/popup 回退宿主)
   private mainWindowStage: window.WindowStage | null = null;
 
@@ -1094,15 +1095,18 @@ export class WineWindowManager {
    * PC 沉浸全屏: 铺满屏幕并禁用顶/底边 hover 标题栏、关闭条和 Dock。
    * 默认无参 maximize() 是 ENTER_IMMERSIVE, 会弹出关闭条抢走边缘鼠标。
    */
-  async enterImmersiveFullscreen(win: window.Window, logId: number = 0): Promise<boolean> {
+  async enterImmersiveFullscreen(win: window.Window, logId: number = 0,
+    allowTitleAndDockHover: boolean = false): Promise<boolean> {
     const label = logId > 0 ? '#' + logId.toString() : 'desktop';
+    const presentation = allowTitleAndDockHover ? window.MaximizePresentation.ENTER_IMMERSIVE :
+      window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER;
     try {
-      await win.maximize(window.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER);
-      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s accepted (DISABLE_HOVER)', label);
+      await win.maximize(presentation);
+      hilog.info(DOMAIN, TAG, '[MW] fullscreen %{public}s accepted presentation=%{public}d', label, presentation);
       return true;
     } catch (err) {
-      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s DISABLE_HOVER failed, fallback: %{public}s',
-        label, JSON.stringify(err));
+      hilog.warn(DOMAIN, TAG, '[MW] fullscreen %{public}s presentation=%{public}d failed, fallback: %{public}s',
+        label, presentation, JSON.stringify(err));
     }
     try {
       await win.maximize();
@@ -1823,14 +1827,20 @@ export class WineWindowManager {
     }
   }
 
-  registerDesktopAbility(ctx: common.UIAbilityContext): void {
+  registerDesktopAbility(ctx: common.UIAbilityContext, toggleFullscreen: () => void): void {
     hilog.info(DOMAIN, TAG, '[MW] registerDesktopAbility');
     this.desktopAbilityCtx = ctx;
+    this.desktopFullscreenToggle = toggleFullscreen;
   }
 
   unregisterDesktopAbility(): void {
     hilog.info(DOMAIN, TAG, '[MW] unregisterDesktopAbility');
     this.desktopAbilityCtx = null;
+    this.desktopFullscreenToggle = null;
+  }
+
+  toggleDesktopFullscreen(): void {
+    this.desktopFullscreenToggle?.();
   }
   /** 与 native 启动路径相同的 Wine 逻辑尺寸，用于重建 explorer desktop shell。 */
   getDesktopShellArgument(): string {

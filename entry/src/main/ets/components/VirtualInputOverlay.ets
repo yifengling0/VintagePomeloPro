@@ -25,7 +25,8 @@ import { mapMouseButton } from '../common/MouseMap';
 import { display } from '@kit.ArkUI';
 import testNapi from 'libentry.so';
 
-type ToolbarAction = 'toolbar' | 'editor' | 'mapping' | 'controls' | 'mouse' | 'keyboard' | 'clipboard' | 'home' | 'launcher' | 'wake';
+type ToolbarAction = 'toolbar' | 'editor' | 'mapping' | 'controls' | 'mouse' | 'keyboard' | 'clipboard' |
+  'home' | 'launcher' | 'fullscreen' | 'wake';
 
 interface KeyboardShieldRect {
   left: number;
@@ -87,6 +88,8 @@ export struct VirtualInputOverlay {
   @Prop @Watch('onControlBarDirectionChanged') controlBarDirection: ControlBarDirection = ControlBarDirection.AUTO;
   @Prop @Watch('onControlBarPositionChanged') controlBarPositionX: number = 1;
   @Prop @Watch('onControlBarPositionChanged') controlBarPositionY: number = 0;
+  @Prop @Watch('onControlBarPositionChanged') showDesktopFullscreen: boolean = false;
+  @StorageProp('vdImmersive') private desktopFullscreen: boolean = false;
   @Prop @Watch('onTouchpadModeChanged') touchpadMode: boolean = false;
   /** 触摸板箭头指针；关闭后仍移动与点击，只是不画光标。 */
   @Prop showCursor: boolean = true;
@@ -2002,21 +2005,24 @@ export struct VirtualInputOverlay {
     return Math.round(Math.max(16, Math.min(24, shortSide * 0.048)));
   }
 
+  private toolbarActions(): ToolbarAction[] {
+    const actions: ToolbarAction[] = [
+      this.desktopFloatingFullscreen ? 'home' : 'launcher', 'editor', 'controls', 'mouse', 'keyboard', 'clipboard'
+    ];
+    if (this.showDesktopFullscreen) actions.push('fullscreen');
+    return actions;
+  }
+
   private toolbarWidth(): number {
     if (!this.toolbarExpanded) return 44;
     if (this.resolveToolbarVertical()) return 52;
-    // 展开宽度按实际按钮数动态计算 (toggle 28 + 各 36 按钮 + spacing + padding),
-    // 否则加 home 按钮后固定 220 会溢出屏幕边缘。
-    const expandedButtons = 6;
-    return 44 * (expandedButtons + 1);
+    return 44 * (this.toolbarActions().length + 1);
   }
 
   private toolbarHeight(): number {
     if (!this.toolbarExpanded) return 44;
     if (!this.resolveToolbarVertical()) return 52;
-    // Match the rendered 36vp buttons, 8vp gaps and 28vp toggle + padding.
-    const expandedButtons = 6;
-    return 44 * (expandedButtons + 1);
+    return 44 * (this.toolbarActions().length + 1);
   }
 
   private toolbarOriginX(): number {
@@ -2069,23 +2075,18 @@ export struct VirtualInputOverlay {
     if (!this.toolbarExpanded) {
       return this.rectContains(x, y, originX, originY, 44, 44) ? 'toolbar' : null;
     }
-    if (this.resolveToolbarVertical()) {
-      if (this.rectContains(x, y, originX, originY, 44, 40)) return 'toolbar';
-      if (this.rectContains(x, y, originX, originY + 40, 44, 44)) return this.desktopFloatingFullscreen ? 'home' : 'launcher';
-      if (this.rectContains(x, y, originX, originY + 84, 44, 44)) return 'editor';
-      if (this.rectContains(x, y, originX, originY + 128, 44, 44)) return 'controls';
-      if (this.rectContains(x, y, originX, originY + 172, 44, 44)) return 'mouse';
-      if (this.rectContains(x, y, originX, originY + 216, 44, 44)) return 'keyboard';
-      if (this.rectContains(x, y, originX, originY + 260, 44, 44)) return 'clipboard';
-      return null;
+    const vertical = this.resolveToolbarVertical();
+    const toggleLength = vertical ? 40 : 44;
+    const hitHeight = vertical ? 44 : 52;
+    if (this.rectContains(x, y, originX, originY, 44, vertical ? toggleLength : hitHeight)) return 'toolbar';
+
+    const actions = this.toolbarActions();
+    for (let index = 0; index < actions.length; index++) {
+      const offset = toggleLength + index * 44;
+      const left = vertical ? originX : originX + offset;
+      const top = vertical ? originY + offset : originY;
+      if (this.rectContains(x, y, left, top, 44, hitHeight)) return actions[index];
     }
-    if (this.rectContains(x, y, originX, originY, 44, 52)) return 'toolbar';
-    if (this.rectContains(x, y, originX + 44, originY, 44, 52)) return this.desktopFloatingFullscreen ? 'home' : 'launcher';
-    if (this.rectContains(x, y, originX + 88, originY, 44, 52)) return 'editor';
-    if (this.rectContains(x, y, originX + 132, originY, 44, 52)) return 'controls';
-    if (this.rectContains(x, y, originX + 176, originY, 44, 52)) return 'mouse';
-    if (this.rectContains(x, y, originX + 220, originY, 44, 52)) return 'keyboard';
-    if (this.rectContains(x, y, originX + 264, originY, 44, 52)) return 'clipboard';
     return null;
   }
 
@@ -2119,6 +2120,10 @@ export struct VirtualInputOverlay {
     if (action === 'clipboard') {
       this.onOpenClipboard(this.toolbarOriginX() + (this.resolveToolbarVertical() ? this.toolbarWidth() + 8 : 0),
         this.toolbarOriginY() + (this.resolveToolbarVertical() ? 0 : this.toolbarHeight() + 8));
+      return;
+    }
+    if (action === 'fullscreen') {
+      WineWindowManager.getInstance().toggleDesktopFullscreen();
       return;
     }
     if (action === 'launcher') {
@@ -2265,7 +2270,7 @@ export struct VirtualInputOverlay {
   @Builder
   private ControlBarButton(icon: Resource, id: string, highlighted: boolean = false,
     tint: string = '#FFFFFFFF', highlightedBackground: string = '#44FFFFFF', stateful: boolean = false,
-    action: () => void = (): void => {}) {
+    action: () => void = (): void => {}, accessibilityLabel: string = '') {
     Button({ type: ButtonType.Circle }) {
       Stack({ alignContent: Alignment.Center }) {
         SymbolGlyph(icon).fontSize(stateful ? 14 : 16)
@@ -2285,6 +2290,7 @@ export struct VirtualInputOverlay {
     .border({ width: 1, color: this.toolbarBorderColor() })
     .shadow({ radius: 8, color: '#66000000', offsetX: 0, offsetY: 2 })
     .id(id)
+    .accessibilityText(accessibilityLabel)
     .hitTestBehavior(HitTestMode.Block)
     .onTouch((event: TouchEvent): void => this.handleToolbarButtonTouch(event, action))
     .onMouse((event: MouseEvent): void => this.handleToolbarButtonMouse(event, action))
@@ -2384,6 +2390,12 @@ export struct VirtualInputOverlay {
     this.HostKeyboardButton()
     this.ControlBarButton($r('sys.symbol.text_clipboard'), 'wine-input-clipboard', false,
       '#FFFFFFFF', '#44FFFFFF', false, (): void => this.runToolbarAction('clipboard'))
+    if (this.showDesktopFullscreen) {
+      this.ControlBarButton(this.desktopFullscreen ? $r('sys.symbol.arrow_down_right_and_arrow_up_left') :
+        $r('sys.symbol.full_screen_fill'), 'wine-desktop-fullscreen-toggle', false,
+        '#FFFFFFFF', '#44FFFFFF', false, (): void => this.runToolbarAction('fullscreen'),
+        this.desktopFullscreen ? '退出全屏' : '进入全屏')
+    }
   }
 
   @Builder

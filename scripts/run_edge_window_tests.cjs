@@ -8,6 +8,7 @@ const values = new Map();
 const AppStorage = {get:key=>values.get(key), setOrCreate:(key,value)=>values.set(key,value)};
 const hilog = {info(){},warn(){},error(){}};
 const models = {DesktopWindowMode:{FLOATING:'floating',FULLSCREEN:'fullscreen',SAFE_AREA:'safe_area'},
+  DisplayMode:{DESKTOP:'desktop'},
   ScreenOrientationSetting:{PORTRAIT:'portrait',LANDSCAPE:'landscape',SENSOR_LANDSCAPE:'sensor-landscape'},
   WinePresentationMode:{DESKTOP:'desktop',MANAGED_WINDOWS:'managed-windows'}};
 function load(name,deps,globals={}) {
@@ -19,7 +20,7 @@ function load(name,deps,globals={}) {
   return exports;
 }
 const status={FULL_SCREEN:1,MAXIMIZE:2,FLOATING:4};
-const windowApi={WindowStatusType:status,MaximizePresentation:{ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER:2},Orientation:{},RectChangeReason:{DRAG:4,DRAG_START:5,DRAG_END:6}};
+const windowApi={WindowStatusType:status,MaximizePresentation:{ENTER_IMMERSIVE:2,ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER:3},Orientation:{},RectChangeReason:{DRAG:4,DRAG_START:5,DRAG_END:6}};
 let device={deviceType:'tablet'},setting='unknown',observer=null,reads=0,registered=0,unregistered=0;
 const ctx={};let failRead=false;
 const policy=load('common/DeviceCapabilityPolicy.ets',{
@@ -58,14 +59,31 @@ console.log('Edge tablet/PC switch, legacy fallback, non-latching policy and obs
 
 async function fullscreenTests(){
   let mode='fullscreen',requestCount=0,finish;
-  const wm={isDesktopMode:true,enterImmersiveFullscreen:()=>{requestCount++;return new Promise(resolve=>finish=resolve);}};
+  const attached = [], detached = [], exited = [];
+  const settings = {desktopWindowMode:mode, desktopInputProfileId:'pc-layout',
+    virtualInputEnabled:true, showVirtualControls:true, controlOpacity:72};
+  const wm={isDesktopMode:true, getDesktopRootId:()=>7,
+    enterImmersiveFullscreen:(_target, _id, allowHover)=>{
+      assert.equal(allowHover,true,'virtual desktop retains the system title-bar hot zone');
+      requestCount++;
+      return new Promise(resolve=>finish=resolve);
+    },
+    exitImmersiveFullscreen:async (target, recoverWindowed)=>{
+      assert.equal(values.get('vdRestoring'),true);
+      exited.push([target, recoverWindowed]);
+    }};
   const DWA=load('entryability/DesktopAbility.ets',{
     '../service/AppReviewService':{AppReviewService:{foreground(){},background(){}}},
     '../service/X11ClipboardService':{X11ClipboardService:{foreground(){},background(){}}},
     '@kit.AbilityKit':{UIAbility:class{}},'@kit.ArkUI':{window:windowApi},'libentry.so':{},
     '../service/LogService':{hilog},'../service/WineWindowManager':{WineWindowManager:{getInstance:()=>wm}},
     '../service/WineImeCoordinator':{},'../service/GamepadManager':{},'../service/InputRouter':{},'../service/InputDispatcher':{},
-    '../service/InputOverlayWindowCoordinator':{},'../service/AppSettingsStore':{AppSettingsStore:{getInstance:()=>({getGlobalSettings:()=>({desktopWindowMode:mode})})}},
+    '../service/InputOverlayWindowCoordinator':{InputOverlayWindowCoordinator:{getInstance:()=>({
+      attach:async (...args)=>attached.push(args), detach:async reason=>detached.push(reason)
+    })}},
+    '../service/AppSettingsStore':{AppSettingsStore:{getInstance:()=>({
+      getGlobalSettings:()=>({...settings,desktopWindowMode:mode})
+    })}},
     '../model/AppModels':models,'../service/WineEngineService':{},'../common/DeviceCapabilityPolicy':{DeviceCapabilityPolicy:policy}
   }).default;
   const ability=new DWA(),events={};
@@ -93,6 +111,39 @@ async function fullscreenTests(){
   finish(true);await applied;
   assert.equal(ability.lastAppliedWindowMode,'pc-fullscreen');
   console.log('Fullscreen system confirmation, duplicate requests, failure, restore and windowed preference PASS');
+
+  const stage = {};
+  device.deviceType = 'pc';
+  ability.stage = stage;
+  ability.mainWindow = win;
+  ability.foreground = true;
+  ability.attachInputOverlay();
+  assert.deepEqual(attached[0], [stage, win, 'desktop-7', 'desktop', 7, 'pc-layout', true, 72, true, true]);
+  assert.equal(values.get('pcDesktopWindowControls'),true);
+
+  settings.virtualInputEnabled = false;
+  ability.attachInputOverlay();
+  assert.equal(attached[1][8],false,'PC virtual desktop honors the screen input setting');
+  events.windowStatusChange(status.FULL_SCREEN);
+  await ability.toggleDesktopFullscreen();
+  assert.deepEqual(exited,[[win,true]],'fullscreen restore targets the parent, not the input overlay');
+  assert.equal(values.get('vdRestoring'),false);
+  events.windowStatusChange(status.FLOATING);
+  const entering = ability.toggleDesktopFullscreen();
+  assert.equal(requestCount,4,'windowed toggle requests immersion');
+  finish(true);await entering;
+
+  device.deviceType = 'tablet';
+  ability.attachInputOverlay();
+  assert.equal(values.get('pcDesktopWindowControls'),false,'tablets hide the button even in the PC workspace');
+  assert.equal(attached.length,3,'tablet PC workspace can still use the virtual input overlay');
+
+  wm.isDesktopMode = false;
+  ability.attachInputOverlay();
+  assert.equal(values.get('pcDesktopWindowControls'),false);
+  assert.equal(attached.length,3,'independent Wine windows do not use the desktop overlay');
+  assert.equal(detached.length,1);
+  console.log('PC virtual desktop overlay, settings, and fullscreen toggle target PASS');
 }
 
 async function sceneIdentityTests(){
@@ -151,6 +202,12 @@ async function carrierTests(){
   assert.equal(values.get('desktopEmbeddedHost'),false,'dedicated root must not appear in the launcher too');
   let n=0;assert.equal(await wm.enterImmersiveFullscreen({maximize:async mode=>{n++;if(mode!==undefined)throw Error('unsupported');}}),true);
   assert.equal(n,2);assert.equal(await wm.enterImmersiveFullscreen({maximize:async()=>{throw Error('rejected');}}),false);
+  const presentations=[];
+  const recordPresentation={maximize:async mode=>presentations.push(mode)};
+  await wm.enterImmersiveFullscreen(recordPresentation,0,true);
+  await wm.enterImmersiveFullscreen(recordPresentation,7);
+  assert.deepEqual(presentations,[windowApi.MaximizePresentation.ENTER_IMMERSIVE,
+    windowApi.MaximizePresentation.ENTER_IMMERSIVE_DISABLE_TITLE_AND_DOCK_HOVER]);
   console.log('Session carrier pinning, desktop single ownership and fullscreen API fallbacks PASS');
   const windowSizes=[];
   wm.isDesktopMode=false;wm.displayScale=2;wm.scaleBoost=1;wm.fusionUsesSubWindow=()=>false;

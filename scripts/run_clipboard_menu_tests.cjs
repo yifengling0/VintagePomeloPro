@@ -81,7 +81,7 @@ function fixture() {
     assert.equal(f.keys.length, 0); assert.equal(f.toasts.length, 1);
   }
   const geometry = methods('components/VirtualInputOverlay.ets', ['resolveToolbarVertical', 'isAutoHideMode',
-    'toolbarWidth', 'toolbarHeight', 'toolbarOriginX', 'toolbarOriginY', 'clampToolbarX', 'clampToolbarY',
+    'toolbarActions', 'toolbarWidth', 'toolbarHeight', 'toolbarOriginX', 'toolbarOriginY', 'clampToolbarX', 'clampToolbarY',
     'applyConfiguredToolbarPosition', 'toolbarActionAt', 'rectContains']);
   for (const [w,h] of [[320,640], [360,800], [800,360], [1280,800]]) for (const edge of [0,1]) {
     const bar = load(geometry, { ControlBarDirection: models.ControlBarDirection });

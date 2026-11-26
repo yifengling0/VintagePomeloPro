@@ -36,7 +36,7 @@ import { gpuBcUploadEnvironment, resolveAppOpenGLEnvironment,
 import { isWineInfrastructurePath } from '../model/AppCatalogRules';
 import { WineEngineService } from './WineEngineService';
 import { WineWindowManager } from './WineWindowManager';
-import { HostWindowTasks } from './HostWindowTasks';
+import { HostWindowTask, HostWindowTasks } from './HostWindowTasks';
 import { InputOverlayWindowCoordinator } from './InputOverlayWindowCoordinator';
 import { AppSettingsStore } from './AppSettingsStore';
 import { AppCatalogService } from './AppCatalogService';
@@ -409,7 +409,8 @@ export class AppSessionService {
       }
     }
     let launchExecutable = app.launchTarget.executable;
-    let coldSteamClient: AppDescriptor | null = null;
+    let pendingSteamClient: AppDescriptor | null = null;
+    let existingSteamWindowKeys: Set<string> | undefined;
     if (app.steam) {
       const steam = SteamLocalService.getInstance();
       if (!steam.canLaunch()) throw new Error('Steam 正在更新，请稍候');
@@ -418,8 +419,11 @@ export class AppSessionService {
       const action = app.steam.state === 'install-request' || app.steam.state === 'installing' ? 'install' :
         app.steam.appId ? 'play' : 'open';
       if (action === 'play' && app.steam.state === 'installed' && presentationMode === WinePresentationMode.DESKTOP) {
-        const client = steam.clientCard();
-        if (steam.processesFor(client, this.getNativeProcesses()).length === 0) coldSteamClient = client;
+        pendingSteamClient = steam.clientCard();
+        // A warm play request can create a confirmation window alongside the
+        // library. Keep already mapped windows out of that handoff.
+        existingSteamWindowKeys = new Set<string>(HostWindowTasks.getInstance().snapshot().map(
+          (task: HostWindowTask): string => task.key));
       }
       launchArguments = steamLaunchArguments(action, app.steam.appId,
         steam.isCompatibility(), action === 'play' ? launchArguments : [],
@@ -466,10 +470,10 @@ export class AppSessionService {
       if (app.steam.state === 'installed') {
         session.steamLaunchNavigation = steamLaunchNavigation;
         this.pendingSteamGames.set(app.id, session);
-        if (coldSteamClient && steamLaunchNavigation !== undefined) {
-          // Cold -applaunch may open a sign-in or update window while Steam
-          // queues the game. Make it usable until the game maps its own window.
-          void this.waitForSteamClientWindow(coldSteamClient, session, steamLaunchNavigation, session)
+        if (pendingSteamClient && steamLaunchNavigation !== undefined) {
+          // Sign-in, updates and play confirmations may appear before the game.
+          void this.waitForSteamClientWindow(pendingSteamClient, session, steamLaunchNavigation, session,
+            existingSteamWindowKeys)
             .catch((error: Error): void => {
               hilog.info(DOMAIN, '[SESS]', 'Steam game startup window: %{public}s', error.message);
             });
@@ -523,7 +527,7 @@ export class AppSessionService {
   }
 
   async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
-    navigation: number, pendingGame?: RuntimeSession): Promise<RuntimeSession | null> {
+    navigation: number, pendingGame?: RuntimeSession, existingWindowKeys?: Set<string>): Promise<RuntimeSession | null> {
     // On translated ARM64 cold starts, CEF can create its first real window
     // after 45 seconds. Keep the launch feedback alive through that startup
     // rather than reporting failure immediately before the window arrives.
@@ -531,10 +535,13 @@ export class AppSessionService {
     const tasks = HostWindowTasks.getInstance();
     const steam = SteamLocalService.getInstance();
     let webHelperSeen = false;
+    let windowKey = '';
+    let windowSeenAt = 0;
     while (Date.now() < deadline) {
       if (pendingGame && (this.pendingSteamGames.get(pendingGame.appId) !== pendingGame ||
         tasks.navigationSerial() !== navigation)) return null;
       let ready: RuntimeSession | null = null;
+      let currentWindowKey = '';
       const state = WineEngineService.getInstance().getState();
       if (state === EngineState.ERROR || state === EngineState.STOPPED) {
         throw new Error('Windows 会话已停止，Steam 未能启动，请重试');
@@ -556,7 +563,7 @@ export class AppSessionService {
               Date.now() - launched.startedAt);
           }
           const window = tasks.snapshot().find((task): boolean => !task.minimized &&
-            task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
+            task.toplevelId > 0 && !existingWindowKeys?.has(task.key) && owners.some((process: NativeProcessInfo): boolean =>
               (task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)) ||
               (!!task.sessionId && task.sessionId === process.sessionId) ||
               (!!task.sessionId && task.sessionId === launched.sessionId && process.pid === launched.pid &&
@@ -566,14 +573,23 @@ export class AppSessionService {
               item.appId === app.id && clients.some((process: NativeProcessInfo): boolean =>
                 item.pid === process.pid && (!process.sessionId || item.sessionId === process.sessionId)));
             if (client) {
-              client.toplevelId = window.toplevelId;
-              ready = client;
+              currentWindowKey = window.key;
+              // A restarting WebHelper can publish a login window and destroy
+              // it before the desktop carrier reaches the foreground.
+              if (pendingGame || (windowKey === currentWindowKey && Date.now() - windowSeenAt >= 2000)) {
+                client.toplevelId = window.toplevelId;
+                ready = client;
+              }
             }
           }
         }
       } catch (error) {
         // Query failures are not proof of process exit.
         hilog.warn(DOMAIN, '[SESS]', 'Steam window pending: %{public}s', (error as Error).message);
+      }
+      if (windowKey !== currentWindowKey) {
+        windowKey = currentWindowKey;
+        windowSeenAt = Date.now();
       }
       if (ready) {
         hilog.info(DOMAIN, '[SESS]', 'Steam window observed after dispatch ms=%{public}d',
@@ -647,20 +663,26 @@ export class AppSessionService {
 
   async resume(session: RuntimeSession): Promise<void> {
     if (!this.context) return;
+    const tasks = HostWindowTasks.getInstance();
+    let steamWindow: HostWindowTask | undefined;
     if (session.appId === STEAM_CLIENT_ID) {
       // Login, the library and Big Picture can replace CEF windows while the
       // real steam.exe keeps running. Resolve live ownership again on return.
       const steam = SteamLocalService.getInstance();
       const owners = steam.processesFor(steam.clientCard(), this.getNativeProcesses(), true);
-      const windows = HostWindowTasks.getInstance().snapshot().filter((task): boolean =>
+      const windows = tasks.snapshot().filter((task): boolean =>
         !task.minimized && task.toplevelId > 0 && owners.some((process: NativeProcessInfo): boolean =>
           task.clientPid === process.pid && (!task.sessionId || !process.sessionId || task.sessionId === process.sessionId)));
-      const window = windows.find((task): boolean => task.toplevelId === session.toplevelId) ?? windows[0];
-      if (window) session.toplevelId = window.toplevelId;
+      steamWindow = windows.find((task): boolean => task.toplevelId === session.toplevelId) ?? windows[0];
+      if (steamWindow) session.toplevelId = steamWindow.toplevelId;
     }
     if (session.presentationMode === WinePresentationMode.MANAGED_WINDOWS) {
-      const task = HostWindowTasks.getInstance().snapshot().find((item): boolean => item.sessionId === session.sessionId);
-      if (task && await HostWindowTasks.getInstance().activate(task.key)) return;
+      const task = steamWindow ?? tasks.snapshot().find((item): boolean => item.sessionId === session.sessionId);
+      if (task) {
+        const activation = tasks.activate(task.key);
+        const navigation = tasks.navigationSerial();
+        if (await activation || tasks.navigationSerial() !== navigation) return;
+      }
     }
     try { testNapi.activateWineSession(session.sessionId); } catch (_) {}
     if (session.toplevelId <= 0) {
