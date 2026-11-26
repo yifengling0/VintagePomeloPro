@@ -335,9 +335,6 @@ with open('$module_json', 'w') as f:
     fi
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
-    if [ "$mode" = unsigned ]; then
-        python3 "$SCRIPT_DIR/normalize_unsigned_hap.py" "$unsigned_hap"
-    fi
     python3 "$SCRIPT_DIR/prepare_windows_steam_runtime.py" --hap "$unsigned_hap"
     python3 "$SCRIPT_DIR/v2_product_contract.py" --hap "$unsigned_hap"
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
@@ -352,6 +349,7 @@ with open('$module_json', 'w') as f:
     fi
     python3 "$SCRIPT_DIR/check_runtime_components.py" --hap "$unsigned_hap" "${candidate_args[@]}"
     if [ "$mode" = unsigned ]; then
+        python3 "$SCRIPT_DIR/normalize_unsigned_hap.py" "$unsigned_hap"
         ls -lh "$unsigned_hap"
         log "HAP 构建完成 (unsigned, $NATIVE_ARCH); 安装前必须自行签名"
         return 0

@@ -254,7 +254,7 @@ class PackagingTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="winehua-package-test-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ("package.sh", "env.sh"):
+        for name in ("package.sh", "env.sh", "normalize_unsigned_hap.py"):
             write(self.root / "scripts" / name, (ROOT / "scripts" / name).read_text(encoding="utf-8"))
         # These tests isolate unsigned/signing behavior. Runtime byte validation
         # has dedicated component tests, and the fake hvigor below emits no ELF.
@@ -272,7 +272,17 @@ class PackagingTests(unittest.TestCase):
         write(self.root / "build-profile.json5", json.dumps(self.profile))
         write(self.root / "sign.py", 'raise SystemExit("unexpected signing invocation")')
         self.hvigor = self.root / "tools/bin/hvigorw"
-        write(self.hvigor, '#!/bin/bash\nprintf "%s\\n" "$@" > hvigor-arguments.txt\nmkdir -p entry/build/default/outputs/default\nprintf fixture > entry/build/default/outputs/default/entry-default-unsigned.hap\n')
+        write(self.hvigor, '''#!/bin/bash
+printf "%s\\n" "$@" > hvigor-arguments.txt
+mkdir -p entry/build/default/outputs/default
+python3 - <<'PY'
+from pathlib import Path
+from zipfile import ZipFile
+with ZipFile("entry/build/default/outputs/default/entry-default-unsigned.hap", "w") as hap:
+    hap.writestr("resources/rawfile/coffee_config.json", "{}")
+    hap.writestr("module.json", Path("AppScope/app.json5").read_text())
+PY
+''')
         self.hvigor.chmod(0o755)
         # No compiler runs in this fixture. Satisfy env.sh's toolchain identity
         # probe without downloading a toolchain into every TemporaryDirectory.
@@ -299,6 +309,9 @@ class PackagingTests(unittest.TestCase):
         self.assertFalse((self.root / "entry/build/default/outputs/default/entry-default-signed.hap").exists())
         self.assertEqual(json.loads((self.root / "build-profile.json5").read_text()), self.profile)
         self.assertIn('buildMode=release', (self.root / 'hvigor-arguments.txt').read_text().splitlines())
+        with zipfile.ZipFile(self.root / "entry/build/default/outputs/default/entry-default-unsigned.hap") as hap:
+            self.assertEqual(hap.namelist()[0], "module.json")
+            self.assertEqual(json.loads(hap.read("module.json"))["app"], APP)
 
     def test_signed_default_still_requires_signing(self):
         result = self.run_package("hap")
