@@ -311,6 +311,7 @@ jobs:
           out_dir=entry/build/default/outputs/default
           ls -lh "$out_dir"
           if [ -f "$out_dir/entry-default-unsigned.hap" ]; then
+            python3 scripts/normalize_unsigned_hap.py "$out_dir/entry-default-unsigned.hap"
             echo "hap=$out_dir/entry-default-unsigned.hap" >> "$GITHUB_OUTPUT"
           else
             echo "hap=$out_dir/entry-default-signed.hap" >> "$GITHUB_OUTPUT"

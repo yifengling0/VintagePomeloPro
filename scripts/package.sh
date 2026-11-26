@@ -335,6 +335,9 @@ with open('$module_json', 'w') as f:
     fi
 
     [ -s "$unsigned_hap" ] || err "unsigned HAP missing after assembleHap"
+    if [ "$mode" = unsigned ]; then
+        python3 "$SCRIPT_DIR/normalize_unsigned_hap.py" "$unsigned_hap"
+    fi
     python3 "$SCRIPT_DIR/prepare_windows_steam_runtime.py" --hap "$unsigned_hap"
     python3 "$SCRIPT_DIR/v2_product_contract.py" --hap "$unsigned_hap"
     python3 "$SCRIPT_DIR/runtime_library_guard.py" "$unsigned_hap"
@@ -370,6 +373,10 @@ package_app() {
     package_hap "$mode"
     hvigorw --mode project -p product=default -p buildMode=release assembleApp || \
         { err "hvigorw assembleApp 失败"; return 1; }
+    if [ "$mode" = unsigned ]; then
+        python3 "$SCRIPT_DIR/normalize_unsigned_hap.py" \
+            "$WINEHUA/entry/build/default/outputs/default/entry-default-unsigned.hap"
+    fi
     local apps=() app
     mapfile -d '' apps < <(find "$WINEHUA/build/outputs/default" -maxdepth 1 -type f -name '*.app' -print0)
     [ "${#apps[@]}" -gt 0 ] || err "App missing after assembleApp"

@@ -447,6 +447,7 @@ jobs:
           ls -lh "$out_dir"
           hap="$out_dir/entry-default-unsigned.hap"
           test -s "$hap"
+          python3 scripts/normalize_unsigned_hap.py --check "$hap"
           python3 scripts/verify_ci_release.py artifact --manifest ci-artifacts/ci-source.json \
             --hap "$hap" --output ci-artifacts/ci-artifact.json
           python3 scripts/v2_product_contract.py --hap "$hap"

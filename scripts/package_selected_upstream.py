@@ -57,6 +57,8 @@ def main():
     run('hvigorw', '--mode', 'project' if target == 'assembleApp' else 'module',
         '-p', 'product=' + args.product, '-p', 'buildMode=release', target, '--no-daemon')
     hap = ROOT / 'entry/build' / args.product / 'outputs/default/entry-default-unsigned.hap'
+    if args.mode.endswith('-unsigned'):
+        run('python3', str(script / 'normalize_unsigned_hap.py'), str(hap))
     verify_hap(hap, lock)
     run('python3', str(script / 'verify_ci_release.py'), 'artifact', '--manifest', str(source_path),
         '--hap', str(hap), '--output', str(ROOT / 'build/selected-app-artifact.json'))

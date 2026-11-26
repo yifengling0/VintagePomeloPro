@@ -15,6 +15,7 @@ SUITES = (
     'host_tests/ci_submodule_checkout_test.py',
     'host_tests/ci_preflight_test.py',
     'host_tests/ci_release_test.py',
+    'host_tests/unsigned_hap_manifest_order_test.py',
     'host_tests/v2_product_contract_test.py',
     'host_tests/local_source_receipt_test.py',
     'host_tests/wine_audio_downmix_test.py',
