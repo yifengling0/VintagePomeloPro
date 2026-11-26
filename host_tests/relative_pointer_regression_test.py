@@ -101,7 +101,8 @@ struct Manager {
     static constexpr int ACT_MOVE=3;
     void Move([[maybe_unused]] uint32_t tl,[[maybe_unused]] wl_resource* targetSurf,
               double x,double y,double rawDx=0,double rawDy=0,
-              [[maybe_unused]] FitRect inputFit={},[[maybe_unused]] FitRect displayFit={}) {
+              [[maybe_unused]] FitRect inputFit={},[[maybe_unused]] FitRect displayFit={},
+              [[maybe_unused]] int relativeContentWidth=0) {
         int action=ACT_MOVE;
         auto wx=wl_fixed_from_double(x),wy=wl_fixed_from_double(y);
         MOTION_BLOCK
@@ -179,6 +180,21 @@ int main() {
     m.Move(12,&gameSurf,901,901,1000,-1000,fit,display);
     CHECK(m.queue_.events.size()==1 && m.queue_.events[0].x==512 && m.queue_.events[0].y==-512,
           "the existing abnormal raw delta clamp remains in effect");
+    for (const auto& [width, gain] : std::vector<std::pair<int, double>>{
+            {0, 1}, {640, 1}, {1280, 1}, {1920, 1.5}, {2560, 2}, {3120, 2.4375}, {7680, 3}}) {
+        m.queue_.events.clear();
+        m.Move(12,&gameSurf,910,911,2.5,-.625,fit,display,width);
+        CHECK(m.queue_.events.size()==1 && std::abs(m.queue_.events[0].x - 2.5 * gain) < 1.0/256
+              && std::abs(m.queue_.events[0].y + .625 * gain) < 1.0/256,
+              "relative hardware gain follows target width in both axes");
+    }
+    m.queue_.events.clear();
+    m.Move(12,&gameSurf,914,909,0,0,fit,display,3120);
+    CHECK(m.queue_.events.size()==1 && m.queue_.events[0].x==4 && m.queue_.events[0].y==-2,
+          "the fitted local-pixel differential needs no second scaling");
+    m.queue_.events.clear();
+    m.Move(13,&otherSurf,914,909,2.5,-.625,fit,display,3120);
+    CHECK(m.queue_.events.empty(),"hardware motion in an absolute-only window bypasses relative gain");
     std::printf("relative_pointer_regression: %d checks / %d failures\n",checks,failures);
     return failures ? 1 : 0;
 }

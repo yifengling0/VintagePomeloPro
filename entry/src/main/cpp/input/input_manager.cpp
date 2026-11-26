@@ -259,6 +259,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
     // 6A: 策略/rootId 经装配注入的共享引用直读 (与 WaylandServer getter 同值)
     wl_resource* targetSurf = nullptr;
     FitRect inputFit, displayFit;
+    int relativeContentWidth = 0;
     if (sourceLocal) {
         targetSurf = tmgr_->GetSurfaceForToplevel(tl);
         if (!targetSurf) return;
@@ -317,6 +318,7 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
             }
             tl = target.toplevelId;
             targetSurf = target.surface;
+            relativeContentWidth = target.relativeContentWidth;
             inputFit.srcW = target.contentW;
             inputFit.srcH = target.contentH;
             inputFit.srcX = target.contentX; inputFit.srcY = target.contentY;
@@ -358,6 +360,8 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         FitRect lb{};
         CoordTransform(px, py, tl, &wx, &wy, &lb);
         displayFit = lb;
+        if (!policy_->CompositorRoutesInput() || tl != *desktopRootToplevelId_)
+            relativeContentWidth = lb.srcW;
         // 钳到内容区 (全屏 letterbox 黑边 / 拖出窗口边缘的越界坐标):
         // 与可见光标位置对齐, 防相对增量差分累积幽灵位移 (见 ClampToContent)
         if (lb.srcW > 0 && lb.srcH > 0) {
@@ -397,10 +401,13 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
         if (relativeActive) {
             double dx = 0.0, dy = 0.0;
             if (rawDx != 0.0 || rawDy != 0.0) {
-                // 相对模式视角: rawDelta 已由 ArkTS 按设备类型缩放 (鼠标
-                // 2.5 / 触控板 0.625, 见 InputDeviceMapper.ets), C++ 直接使用。
-                dx = std::clamp(rawDx, -512.0, 512.0);
-                dy = std::clamp(rawDy, -512.0, 512.0);
+                // ArkTS supplies the device calibration measured at 1280x800.
+                // Use a single width ratio to keep diagonal motion consistent.
+                // Legacy small clients retain their original gain. Bound the
+                // new gain to the 4K ratio for larger virtual desktops.
+                const double gain = std::clamp(relativeContentWidth / 1280.0, 1.0, 3.0);
+                dx = std::clamp(rawDx * gain, -512.0, 512.0);
+                dy = std::clamp(rawDy * gain, -512.0, 512.0);
             } else {
                 dx = diffDx;
                 dy = diffDy;
@@ -411,8 +418,9 @@ void InputManager::SendPointerEvent(uint32_t tl, int action, double px, double p
                 static uint32_t sRelLogN = 0;
                 if (++sRelLogN % 120 == 0)
                     OH_LOG_INFO(LOG_APP, "[Input] REL d=(%{public}.1f,%{public}.1f) raw=(%{public}.1f,%{public}.1f)"
-                                " base=(%{public}.1f,%{public}.1f)",
-                                dx, dy, rawDx, rawDy, tracker_.LastLocalX(), tracker_.LastLocalY());
+                                " clientW=%{public}d base=(%{public}.1f,%{public}.1f)",
+                                dx, dy, rawDx, rawDy, relativeContentWidth,
+                                tracker_.LastLocalX(), tracker_.LastLocalY());
             }
             tracker_.TrackRelativeSpace(tl, relativeSurface, spaceEpoch, inputFit, displayFit);
         } else {

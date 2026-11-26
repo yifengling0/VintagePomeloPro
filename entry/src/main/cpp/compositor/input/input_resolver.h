@@ -41,6 +41,9 @@ struct InputTarget {
     double scale = 1.0;
     // Coordinate-space identity for relative-motion baselines.
     int contentW = 0, contentH = 0;
+    // Width in guest coordinates for hardware relative motion. A popup hit
+    // still uses its owner's client width for pointer speed.
+    int relativeContentWidth = 0;
 };
 
 // 输入命中裁决 (依赖 ToplevelManager + DesktopCompositor)

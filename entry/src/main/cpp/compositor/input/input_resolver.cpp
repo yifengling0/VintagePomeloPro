@@ -66,6 +66,11 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
     const int x = static_cast<int>(lround(logicalX));
     const int y = static_cast<int>(lround(logicalY));
 
+    const auto* zst = fullscreenId ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
+    FitRect transform;
+    const bool fsOk = zst &&
+        compositor_.ComputeFullscreenFitLocked(fullscreenId, rootW, rootH, transform);
+
     // 终态产出 (逆映射 + 内容区钳制 — 4A 自调用方 input_manager.cpp :437-441
     // 收内): 各命中分支在 origin/scale/content 就位后调用, 一次性把
     // localX/localY 算完, 调用方只做注入。
@@ -77,6 +82,16 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
         out.contentW = contentW;
         out.contentH = contentH;
         out.contentX = contentX; out.contentY = contentY;
+        if (out.toplevelId != rootId) {
+            if (fsOk && out.toplevelId == fullscreenId) {
+                out.relativeContentWidth = transform.srcW;
+            } else if (contentW > 0) {
+                out.relativeContentWidth = contentW;
+            } else if (const auto* window = tmgr_.FindToplevelLocked(out.toplevelId)) {
+                out.relativeContentWidth = window->ClientContentW() > 0
+                    ? window->ClientContentW() : window->Width();
+            }
+        }
         ComputeLocalPoint(logicalX, logicalY, out.originX, out.originY, out.scale,
                           contentW, contentH, out.localX, out.localY);
         out.localX += contentX; out.localY += contentY;
@@ -87,11 +102,6 @@ bool InputResolver::FindInputTargetInLayersLocked(double logicalX, double logica
     // 全屏窗口作为普通层参与 Z 序, 命中几何用 fit (与渲染 blitToplevel/
     // blitSubsurface 同一变换); "盖在游戏之上的层优先命中"由逆序天然
     // 保证, 不再有独立的前置命中循环。
-    const ToplevelManager::ToplevelState* zst =
-        fullscreenId ? tmgr_.FindToplevelLocked(fullscreenId) : nullptr;
-    FitRect transform;
-    const bool fsOk = zst &&
-        compositor_.ComputeFullscreenFitLocked(fullscreenId, rootW, rootH, transform);
     if (fsOk) {
         // 诊断: 全屏输入目标选取 (仅目标变化时输出 — 多窗口同时全屏时
         // 选错窗口的点击路由问题靠它定位, 例如旧窗口被连带标记压在游戏上)
