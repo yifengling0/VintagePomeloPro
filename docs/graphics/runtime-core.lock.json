@@ -124,7 +124,7 @@
     "libs/arm64-v8a/ntdll.so": "2d362ae1028c4c1b84c11555ec2a4280723989a0f562363d03d53905f411783a"
   },
   "payload": {
-    "vkd3d/limited-500k/x64/d3d12.dll": "3a1e7447ffdd92acd21492a6773327072116995a1c931367398ed95699360b72",
+    "vkd3d/limited-500k/x64/d3d12.dll": "9a8f7211a67ac3b9a5feb0c90f4ab1d2d99a78c3a217572256aa036d24c2d3be",
     "bin/aarch64-windows/msxml6.dll": "a63ec520782c2c16b94f0dbe9ddd429464a223ffe49236c8eb46ab2f7a5ca04e",
     "bin/aarch64-windows/avifil32.dll": "59067e8afe72d8ff648867fe14cefc77d0c266bd8fbc9c06769f0f3bec8fde5a",
     "bin/aarch64-windows/d3dx10_43.dll": "b25389168f9820abfffb2c23fc4e644eced61fd8441246933f9743063a798772",
@@ -505,7 +505,7 @@
     "bin/aarch64-windows/cryptui.dll": "337062f2648172f72ce5fc85a81fde83e0e0c1aa09814423ab64402996c1387b",
     "bin/aarch64-windows/wldap32.dll": "763f132695bf71e5ac71e05ce4cbb0c32c9dd091775fe8002c3c26653ac04d72",
     "bin/aarch64-windows/xactengine3_4.dll": "ddf7933cfdd3fd92aa0af09a2a068d0f43fb3981c44c13ba507dff896b5f5703",
-    "bin/aarch64-windows/ntdll.dll": "bcef2eebbdc5b873a8408c715fb56f10a9319565041d14e10147ed4fbf6a8af1",
+    "bin/aarch64-windows/ntdll.dll": "d52f53b8ba4fcc27f00933e72aa826b6311616b6ca51fa70d00a70268c20fa4a",
     "bin/aarch64-windows/atlthunk.dll": "f24948420f8506a50fcb5d75b64f3776e1860c9eab26bdb3552fdb844b31e6cd",
     "bin/aarch64-windows/rtutils.dll": "33ca04d6ba60b25bbab7e47440f9c7561b14d5af5e89d04917b41ff805311c26",
     "bin/aarch64-windows/msctfp.dll": "d54d26570c8c50f9470ccf27dfee31ba852ba83b76e6925c3f5c21235362034b",
@@ -1206,7 +1206,7 @@
     "bin/i386-windows/wldap32.dll": "b2114f59b12deae12383d803fe722261682e9c1f787e46f57b54e5aaafe08e56",
     "bin/i386-windows/where.exe": "cdcce1cc36fd1b4c6196220468d91fbc9e073c363758b56af9e6fa78dc2dd2ab",
     "bin/i386-windows/xactengine3_4.dll": "25573edabd1c11632b04461dd6d032ff1bbb46c5ea94dac593d6d53f1f061478",
-    "bin/i386-windows/ntdll.dll": "80ebbe76a75190b793d74f2a066b77cd6671ed171138fff9198b046ab5f9765c",
+    "bin/i386-windows/ntdll.dll": "67c80f37ec5a57186c3f1e5ad022484b771ddd9d3cef002c08e50d715d162d14",
     "bin/i386-windows/atlthunk.dll": "3eee90eb22c50a817e563b1b382f522202221011b9e9e1bddd30d4d1232f0d57",
     "bin/i386-windows/rtutils.dll": "14c3f193f3845caf59b0071dd19b22984f481a14dd34bba6bd14a47e14c94d21",
     "bin/i386-windows/msctfp.dll": "ed3b6ece78e5d485c8b8f3296bef55e291f0b591a9660f8064b148e9098f0e27",
