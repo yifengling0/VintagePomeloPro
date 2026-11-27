@@ -94,9 +94,9 @@
       "title": "VKD3D 三角形测试",
       "launchKind": "wine-system",
       "launchParams": {
-        "executable": "/data/storage/el2/base/files/wine/smoke/x64/triangle.exe",
+        "executable": "/data/storage/el2/base/files/wine/vkd3d/demos/triangle.exe",
         "arguments": [],
-        "workingDirectory": "/data/storage/el2/base/files/wine/smoke/x64"
+        "workingDirectory": "/data/storage/el2/base/files/wine/vkd3d/demos"
       },
       "cover": ""
     },
@@ -106,9 +106,9 @@
       "title": "VKD3D 齿轮测试",
       "launchKind": "wine-system",
       "launchParams": {
-        "executable": "/data/storage/el2/base/files/wine/smoke/x64/gears.exe",
+        "executable": "/data/storage/el2/base/files/wine/vkd3d/demos/gears.exe",
         "arguments": [],
-        "workingDirectory": "/data/storage/el2/base/files/wine/smoke/x64"
+        "workingDirectory": "/data/storage/el2/base/files/wine/vkd3d/demos"
       },
       "cover": ""
     }

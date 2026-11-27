@@ -717,18 +717,6 @@ EOF
         done
     done
 
-    # venus shader assets: 随 guest_vulkan bundle 打包 (aarch64/x86_64 源驱动; 无 bundle 则跳过)
-    # 载荷本体由 automation/smoke.py 产出 (见 assemble 尾部), 这里只补 Vulkan 探针
-    # 需要的 SPIR-V 资产 —— 它们来自 guest Vulkan bundle, 不在 smoke.py 的输入里。
-    local guest_shader_root="$BUILD_DIR/guest_vulkan/$guest_arch/share/winehua"
-    if [ -d "$guest_shader_root" ]; then
-        local smoke_shader
-        mkdir -p "$wine_data/smoke/assets"
-        for smoke_shader in venus_storage_write venus_storage_read venus_image_fetch venus_combined_sample venus_separated_sample; do
-            [ -f "$guest_shader_root/$smoke_shader.spv" ] || err "Wine Vulkan sampled-image shader missing: $guest_shader_root/$smoke_shader.spv"
-            cp "$guest_shader_root/$smoke_shader.spv" "$wine_data/smoke/assets/$smoke_shader.spv"
-        done
-    fi
     local dxvk_root="$DXVK_BUILD_ROOT"
     [ -f "$dxvk_root/x86/bin/d3d11.dll" ] || err "DXVK Legacy x86 d3d11.dll missing: $dxvk_root/x86/bin/d3d11.dll"
     [ -f "$dxvk_root/x86/bin/dxgi.dll" ] || err "DXVK Legacy x86 dxgi.dll missing: $dxvk_root/x86/bin/dxgi.dll"
@@ -844,9 +832,8 @@ EOF
     mkdir -p "$wine_data/vkd3d/limited-500k/x64"
     cp "$vkd3d_root/x64/d3d12.dll" "$wine_data/vkd3d/limited-500k/x64/d3d12.dll"
     cp "$vkd3d_root/manifest.json" "$wine_data/vkd3d/manifest.json"
-    install -D -m 0644 "$vkd3d_root/x64/triangle.exe" "$wine_data/smoke/x64/triangle.exe"
-    install -D -m 0644 "$vkd3d_root/x64/gears.exe" "$wine_data/smoke/x64/gears.exe"
-    install -D -m 0644 "$vkd3d_root/x64/winehua-d3d12-smoke.exe" "$wine_data/smoke/x64/winehua_d3d12_smoke.exe"
+    install -D -m 0644 "$vkd3d_root/x64/triangle.exe" "$wine_data/vkd3d/demos/triangle.exe"
+    install -D -m 0644 "$vkd3d_root/x64/gears.exe" "$wine_data/vkd3d/demos/gears.exe"
     # DXVK/VKD3D 二进制是 runtime overlay: 由 SpawnWineProgram 按选定后端经
     # WINEDLLPATH 暴露, 不作为 C:\smoke 载荷的一部分。
     local vkd3d64_d3d12_sha
