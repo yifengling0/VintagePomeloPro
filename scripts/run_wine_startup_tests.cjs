@@ -47,7 +47,8 @@ function fixture() {
       if(name.includes('WineUpgradeGuard'))return {WineUpgradeGuard:class {needsReset(){return false;}}};
       if(name.includes('GraphicsBackendSettings'))return graphicsExports;
       if(name.includes('AppSettingsStore'))return {AppSettingsStore:{getInstance:()=>({getGlobalSettings:()=>settings,
-        getRenderMode:()=>settings.renderMode,getDxvkDepthD32:()=>true})}};
+        getRenderMode:()=>settings.renderMode,getDxvkDepthD32:()=>true,
+        getOpenGLBackend:()=>graphicsExports.OPENGL_BACKEND_AUTO})}};
       if(name.includes('WineWindowManager'))return {WineWindowManager:{getInstance:()=>wm}};
       return {};
     }
@@ -113,7 +114,7 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
     assert.equal(backend,'dxvk_modern_2_6');
     let launch;
     f.napi.runWineExe=(...args)=>{launch=args[8];return {pid:42,sessionId:'test',reused:false};};
-    f.s.launchExecutable('C:/game.exe');
+    f.s.launchExecutable('C:/game.exe', [], '', await f.s.resolveOpenGLLaunchEnvironment('C:/game.exe'));
     assert(launch.includes('WINEHUA_MOBILEGL_X86=1'));
     assert(launch.includes('WINEHUA_MOBILEGL=0'));
     assert(launch.includes('MESA_GL_VERSION_OVERRIDE=3.2FC'));
@@ -127,11 +128,12 @@ const watchdog=setTimeout(()=>{console.error("Unresolved startup test");process.
     let launch;
     f.napi.runWineExe=(...args)=>{launch=args[8];return {pid:42,sessionId:'test',reused:false};};
     assert.equal(await f.start(),true);
-    f.s.launchExecutable('C:/game.exe');
+    const autoOpenGL = await f.s.resolveOpenGLLaunchEnvironment('C:/game.exe');
+    f.s.launchExecutable('C:/game.exe', [], '', autoOpenGL);
     assert(launch.includes('MESA_GL_VERSION_OVERRIDE=3.2FC'));
     assert(!launch.some(line=>line.startsWith('WINEHUA_MOBILEGL')));
-    f.s.launchExecutable('C:/game.exe', [], '', graphicsExports.resolveAppOpenGLEnvironment(
-      graphicsExports.APP_OPENGL_VIRGL_33));
+    f.s.launchExecutable('C:/game.exe', [], '', autoOpenGL.concat(graphicsExports.resolveAppOpenGLEnvironment(
+      graphicsExports.APP_OPENGL_VIRGL_33)));
     assert.equal(launch.filter(line=>line.startsWith('MESA_GL_VERSION_OVERRIDE=')).at(-1),
       'MESA_GL_VERSION_OVERRIDE=3.3FC');
   });

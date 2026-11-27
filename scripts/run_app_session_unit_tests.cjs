@@ -45,6 +45,7 @@ function fixture() {
   const engine = {
     selectHostGraphicsBackendForExecutable: () => 'product-vulkan',
     needsHostGraphicsRestart: () => false,
+    resolveOpenGLLaunchEnvironment: async () => [],
     launchExecutable(...args) { launches.push(args);return {pid:42,sessionId:'cpu-test',reused:false}; },
     getState: () => state,
     isReady: () => state === models.EngineState.READY,

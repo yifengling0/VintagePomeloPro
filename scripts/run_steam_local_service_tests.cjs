@@ -21,6 +21,7 @@ let local, models;
 const engine={getState:()=>models.EngineState.READY,isReady:()=>true,
  getPresentationMode:()=>models.WinePresentationMode.MANAGED_WINDOWS,
  selectHostGraphicsBackendForExecutable:()=>'',needsHostGraphicsRestart:()=>false,
+ resolveOpenGLLaunchEnvironment:async()=>[],
  launchExecutable:(exe,args)=>{launches.push({exe,args});return {pid:99,sessionId:'command'};}};
 const mocks={
  '../service/ConfigurationFiles':{ConfigurationFiles:{}},
