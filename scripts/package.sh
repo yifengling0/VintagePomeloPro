@@ -4,13 +4,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
 
-# This branch ships the qualified full upstream pair. The old component build
-# remains available as an independent baseline, but may never become a release
-# merely because a legacy assemble/cache was reused.
+# Source builds carry a per-module receipt from assemble.sh. The unsigned CI
+# path below finalizes that receipt with the Hvigor outputs. Distribution
+# builds without a source manifest use the selected component locks.
 if [ -f "$SCRIPT_DIR/../docs/upstream-sync/release-runtime.lock.json" ] && \
    [ "$NATIVE_ARCH" = arm64-v8a ] && [ "$WINE_ARCH" = aarch64 ]; then
     case "${1:-}" in
-        hap|hap-unsigned|app|app-unsigned)
+        hap-unsigned)
+            if [ -z "${SOURCE_BUILD_MANIFEST:-}" ]; then
+                exec python3 "$SCRIPT_DIR/package_selected_upstream.py" "$1"
+            fi
+            ;;
+        hap|app|app-unsigned)
             exec python3 "$SCRIPT_DIR/package_selected_upstream.py" "$1"
             ;;
     esac

@@ -326,6 +326,22 @@ PY
         self.assertIn("signingConfigs is empty", result.stdout)
         self.assertFalse((self.root / "entry/build").exists())
 
+    def test_ci_unsigned_finalizes_source_build_with_selected_lock_present(self):
+        write(self.root / 'docs/upstream-sync/release-runtime.lock.json', '{}')
+        write(self.root / 'scripts/package_selected_upstream.py', 'print("selected runtime")\n')
+        write(self.root / 'scripts/source_build_contract.py', 'print("finalize source build")\n')
+        selected = self.run_package('hap-unsigned')
+        self.assertEqual(selected.returncode, 0, selected.stdout)
+        self.assertIn('selected runtime', selected.stdout)
+
+        manifest = self.root / 'ci-source.json'
+        write(manifest, '{}')
+        self.env['SOURCE_BUILD_MANIFEST'] = str(manifest)
+        candidate = self.run_package('hap-unsigned')
+        self.assertEqual(candidate.returncode, 0, candidate.stdout)
+        self.assertIn('finalize source build', candidate.stdout)
+        self.assertNotIn('selected runtime', candidate.stdout)
+
     def test_unsigned_rejects_signing_profile(self):
         self.profile["app"]["signingConfigs"] = [{"name": "private"}]
         write(self.root / "build-profile.json5", json.dumps(self.profile))
