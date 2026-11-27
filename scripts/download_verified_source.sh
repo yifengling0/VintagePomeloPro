@@ -15,6 +15,8 @@ download_verified_source() {
         https://github.com/dottedmag/libsha1/archive/*.tar.gz)
             mirror="${url#https://github.com/dottedmag/libsha1/archive/}"
             mirror="https://codeload.github.com/dottedmag/libsha1/tar.gz/${mirror%.tar.gz}" ;;
+        https://github.com/madler/zlib/releases/download/*/zlib-*.tar.gz)
+            mirror="https://zlib.net/fossils/${url##*/}" ;;
     esac
     for candidate in "$url" "$mirror"; do
         [ -n "$candidate" ] || continue

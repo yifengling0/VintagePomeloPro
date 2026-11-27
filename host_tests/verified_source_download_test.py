@@ -34,6 +34,7 @@ curl() {
     echo "$last" >> "$CALLS"
     if [ "$MODE" = fail ]; then printf broken > "$output"; return 7; fi
     if [[ "$last" == https://xorg.freedesktop.org/* || "$last" == https://github.com/dottedmag/* ]]; then printf broken > "$output"; return 7; fi
+    if [[ "$MODE" == wrong_zlib_body && "$last" == https://github.com/madler/zlib/* ]]; then printf invalid > "$output"; return 0; fi
     if [ "$MODE" = bad ]; then printf invalid > "$output"; else printf verified > "$output"; fi
 }
 download_verified_source "$URL" "$CHECKSUM" "$TARGET"
@@ -72,6 +73,12 @@ download_verified_source "$URL" "$CHECKSUM" "$TARGET"
         code, data, calls, parts = self.run_download('good', url='https://github.com/dottedmag/libsha1/archive/abc.tar.gz')
         self.assertEqual((code, data, parts), (0, b'verified', []))
         self.assertEqual(calls[1], 'https://codeload.github.com/dottedmag/libsha1/tar.gz/abc')
+
+    def test_successful_response_with_wrong_zlib_bytes_uses_mirror(self):
+        url = 'https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz'
+        code, data, calls, parts = self.run_download('wrong_zlib_body', url=url)
+        self.assertEqual((code, data, parts), (0, b'verified', []))
+        self.assertEqual(calls, [url, 'https://zlib.net/fossils/zlib-1.3.1.tar.gz'])
 
     def test_network_or_checksum_failure_never_publish_partial(self):
         for mode in ('fail', 'bad'):

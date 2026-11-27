@@ -3,19 +3,19 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/env.sh"
+source "$SCRIPT_DIR/download_verified_source.sh"
 guest_arch="${GUEST_ARCH:-$WINE_ARCH}"
 case "$guest_arch" in aarch64|x86_64) ;; *) err "unsupported zlib guest arch: $guest_arch" ;; esac
 archive="${ZLIB_SOURCE_ARCHIVE:-$BUILD_DIR/downloads/zlib-1.3.1.tar.gz}"
 # Same upstream archive pin as thirdparty/mesa/subprojects/zlib.wrap.
 expected=9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23
 mkdir -p "$(dirname "$archive")" "$BUILD_DIR/zlib-runtime/$guest_arch"
-if [ ! -f "$archive" ]; then
-    curl -fL --connect-timeout 20 --max-time 60 \
-        https://zlib.net/fossils/zlib-1.3.1.tar.gz -o "$archive.part"
-    printf '%s  %s\n' "$expected" "$archive.part" | sha256sum -c -
-    mv "$archive.part" "$archive"
+if [ -n "${ZLIB_SOURCE_ARCHIVE:-}" ]; then
+    printf '%s  %s\n' "$expected" "$archive" | sha256sum -c -
+else
+    download_verified_source \
+        https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz "$expected" "$archive"
 fi
-printf '%s  %s\n' "$expected" "$archive" | sha256sum -c -
 output="$BUILD_DIR/zlib-runtime/$guest_arch/lib"
 identity="$(printf '%s\n' "$expected" "$guest_arch" "$CLANG" "$SYSROOT" \
     "$(sha256sum "$SCRIPT_DIR/build_zlib_runtime.sh" "$CLANG")" | sha256sum | cut -d' ' -f1)"
