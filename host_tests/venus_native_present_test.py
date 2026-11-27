@@ -40,6 +40,7 @@ const char* NativeWindowVkBeginResultName(NativeWindowVkBeginResult) {return "be
 #define OH_LOG_INFO(...) ((void)0)
 #define LOG_APP 0
 std::string events; int fail=0, aborted=0, closed=0, destroyed=0, abandoned=0; bool pending=false;
+void VppHarmonyWineFrameDestroyGame(void* state, bool abandon) {assert(state && abandon);events+='G';}
 uint64_t clockNs=100000000;
 uint64_t clockStepNs=1000;
 uint64_t NowNs(){return clockNs+=clockStepNs;}
@@ -73,6 +74,9 @@ struct Harness {
  uint64_t throttled_=0,totalPresentUs_=0,maxPresentUs_=0,firstPresentedNs_=0;
  uint64_t totalAcquireUs_=0,totalSubmitUs_=0,totalQueuePresentUs_=0,totalWaitFenceUs_=0;
  bool deviceReleasing_=true,surfaceAttached_=true;uint64_t surfaceKey_=123;
+ int frameGenerationState_=42;
+ void* frameGeneration_=&frameGenerationState_;
+ void ResetFrameGenerationLocked(){assert(!frameGeneration_);events+='T';}
  bool MatchesDeviceLocked(uint32_t context,uintptr_t device){return context==1&&device==1;}
  void DestroyVulkanLocked(){assert(!pending);++destroyed;}
  void ClearVulkanStateLocked(){events+='X';}
@@ -113,6 +117,7 @@ int main(){
   reset(0);Harness h;pending=true;h.surfaceAttached_=false;
   assert(h.FinishDeviceRelease(1,1,result));
   assert(destroyed==0&&abandoned==1&&aborted==0&&!h.deviceReleasing_&&h.surfaceKey_==0);
+  assert(!h.frameGeneration_&&events=="GTXW");
  }
  {reset(0);Harness h;assert(!h.FinishDeviceRelease(2,1,VK_SUCCESS));assert(destroyed==0&&abandoned==0&&h.deviceReleasing_);}
  puts("Production Venus native present: asynchronous success, faults, deferred ownership and device retirement PASS");
