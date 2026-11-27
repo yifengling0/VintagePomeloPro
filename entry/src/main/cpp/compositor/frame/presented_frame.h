@@ -1,4 +1,5 @@
 #pragma once
+#include "pixel_damage.h"
 #include <cstdint>
 
 // ============================================================================
@@ -37,4 +38,20 @@ struct PresentedFrame {
     // 产出规则 = 交付帧所属 toplevel 的 wl_shm 格式为 XRGB; 直传帧同理
     // (直传门控要求 root XRGB, 渲染器对直传帧强制不透明呈现)。
     bool opaque = false;
+
+    // A partial upload requires this exact predecessor in the same texture.
+    // Zero serial or baseSerial means no reusable identity or predecessor.
+    enum class PixelSource { Untracked, Toplevel, DesktopComposite };
+    PixelSource pixelSource = PixelSource::Untracked;
+    uint64_t serial = 0, baseSerial = 0;
+    PixelDamage damage;
+
+    void SetToplevelDamage(uint64_t contentSerial, const PixelDamage& contentDamage) {
+        pixelSource = PixelSource::Toplevel;
+        serial = contentSerial;
+        if (serial > 1 && !contentDamage.Empty()) {
+            baseSerial = serial - 1;
+            damage = contentDamage;
+        }
+    }
 };

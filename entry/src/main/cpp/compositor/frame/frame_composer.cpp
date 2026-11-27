@@ -81,6 +81,7 @@ bool WindowFrameComposer::Compose(uint32_t id, std::vector<uint8_t>& out,
     if (winW <= 0 || winH <= 0) return false;
 
     const auto layers = comp_.BuildWindowLayerListLocked(id, winW, winH);
+    bool hasShmSubsurface = false;
     out = st->Pixels();
     for (const auto& layer : layers) {
         switch (layer.type) {
@@ -90,6 +91,7 @@ bool WindowFrameComposer::Compose(uint32_t id, std::vector<uint8_t>& out,
                 break;  // 窗口内 ZC 整窗口层: GPU 自绘, CPU 帧跳过
             case CompositorLayer::Type::Subsurface:
                 if (layer.ShouldSkipCpu()) break;  // ZC 子表面 (GPU 自绘) / 不可见: 同上
+                hasShmSubsurface = true;
                 FrameBlitter::BlitWindowSubsurface(layer, winW, winH, out);
                 break;
         }
@@ -102,6 +104,7 @@ bool WindowFrameComposer::Compose(uint32_t id, std::vector<uint8_t>& out,
     frame.contentW = winW;
     frame.contentH = winH;
     frame.opaque = (st->ShmFormat() != 0);
+    if (!hasShmSubsurface) frame.SetToplevelDamage(st->FrameSerial(), st->FrameDamage());
     frame.pixels = out.data();
     st->ClearDirty();
     lk.unlock();  // ── 锁到此为止, 以下日志/返回不持锁 ──

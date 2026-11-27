@@ -67,8 +67,9 @@ struct SurfaceData {
     int32_t subsurfaceX = 0, subsurfaceY = 0; // wl_subsurface.set_position
     bool isSubsurface = false;
 
-    // surface_damage 累积包围盒 (buffer 坐标), 用于裁剪 subsurface 渲染
-    int32_t damageX = 0, damageY = 0, damageW = 0, damageH = 0;
+    PixelDamage pendingSurfaceDamage, pendingBufferDamage;
+    ShmDamageLayout lastShmDamageLayout;
+    bool zeroAttachOffset = true;
 
     // wp_viewport destination (实际显示尺寸, -1=未设置/使用 buffer 尺寸)
     int32_t vpDstW = -1, vpDstH = -1;

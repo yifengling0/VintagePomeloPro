@@ -89,6 +89,8 @@ bool DesktopCompositor::RemoveSubsurfaceLayer(wl_resource* surface, uint32_t& ou
     if (it == subsurfaceLayers_.end()) return false;
     outParentToplevel = it->parentToplevel;
     outRoute = it->route;
+    if (it->route == DisplayPolicy::SubsurfaceRoute::DesktopLayer)
+        desktopOutputInitialized_ = false;
     subsurfaceLayers_.erase(it);
     return true;
 }
@@ -1099,6 +1101,7 @@ void DesktopCompositor::ResolveSubsurfaceLayerPositionLocked(
 
 bool DesktopCompositor::TakeToplevelFrame(uint32_t id, std::vector<uint8_t>& out,
                                           PresentedFrame& frame) {
+    frame = {};
     // 帧级诊断统一门控 (perf_utils.h): 关闭时跳过 breakdown 累加与 [MW-TAKE] 输出
     const bool frameTrace = winehua::FrameTraceEnabled();
 

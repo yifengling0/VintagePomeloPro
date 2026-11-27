@@ -40,7 +40,6 @@ struct BlitSource {
     uint32_t shmFormat = 1;  // 0=ARGB8888 1=XRGB8888
     bool opaque = false;     // sub: 不透明标记
     int vpDstW = 0, vpDstH = 0;           // sub: viewport 目标尺寸
-    int dmgX = 0, dmgY = 0, dmgW = 0, dmgH = 0;  // sub: damage 矩形
     bool skip = false;       // 预计算: 本帧不参与合成/快照 (见 Planner 赋值注释)
 };
 
@@ -66,6 +65,8 @@ struct FramePlan {
     bool rebuildBase = false;
     // -- 本帧重绘矩形 (局部合成范围) --
     DesktopCompositor::DamageRect dmg;
+    PixelDamage outputDamage;
+    bool useRootDamage = false;
     // -- 日志计数 + 分段计时点 (锁内捕获, 锁外 [GL-TAKE]/[MW-TAKE] 用) --
     size_t nZOrder = 0;
     size_t nSubLayers = 0;

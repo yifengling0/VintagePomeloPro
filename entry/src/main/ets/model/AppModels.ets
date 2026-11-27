@@ -1,7 +1,7 @@
 import { GameModeOverride, GameModeSettings, normalizeGameModeOverride, normalizeGameModeSettings } from './GameModeSettings';
 import { bindingToEvdevName, evdevNameToBinding } from '../common/EvdevKeyNames';
 import { PerformanceHudSettings, normalizePerformanceHud } from './PerformanceHudSettings';
-import { normalizeAppGraphicsBackend, resolveGraphicsBackend } from './GraphicsBackendSettings';
+import { normalizeAppGraphicsBackend, normalizeAppOpenGLBackend, resolveGraphicsBackend } from './GraphicsBackendSettings';
 export enum AppSource {
   BUILTIN = 'builtin',
   DOWNLOAD = 'download'
@@ -557,6 +557,7 @@ export interface AppSettings {
   graphicsLaunchPreset: string;
   /** default inherits the system renderer when launching. */
   graphicsBackend?: string;
+  openGLBackend?: string;
   steamOpenGL33?: boolean;
   gpuBcUpload?: boolean;
   gameModeOverride?: GameModeOverride;
@@ -608,6 +609,7 @@ export function cloneAppSettings(value: AppSettings): AppSettings {
     box64Preset: value.box64Preset,
     graphicsLaunchPreset: normalizeGraphicsLaunchPreset(value.graphicsLaunchPreset ?? GRAPHICS_LAUNCH_PRESET_DEFAULT),
     graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+    openGLBackend: normalizeAppOpenGLBackend(value.openGLBackend),
     steamOpenGL33: value.steamOpenGL33 === true,
     gpuBcUpload: value.gpuBcUpload === true,
     gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),
@@ -1346,6 +1348,7 @@ export function createDefaultAppSettings(appId: string): AppSettings {
     box64Preset: BOX64_PRESET_DEFAULT,
     graphicsLaunchPreset: GRAPHICS_LAUNCH_PRESET_DEFAULT,
     graphicsBackend: 'default',
+    openGLBackend: 'default',
     steamOpenGL33: false,
     gpuBcUpload: false,
     gameModeOverride: 'follow',

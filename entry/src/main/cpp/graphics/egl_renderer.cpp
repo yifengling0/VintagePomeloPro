@@ -5,6 +5,7 @@
 #include "display_cadence.h"
 #include "common/perf_utils.h"
 #include "shader_utils.h"
+#include "shm_texture_upload.h"
 #include "compositor/toplevel/desktop_compositor.h"  // DesktopCompositor (6A 构造注入: 取帧/ZC 直连)
 #include "common/fps_counter.h"
 #include "common/frame_loop_diagnostics.h"
@@ -1049,12 +1050,14 @@ void EglRenderer::RenderLoop() {
     uint32_t directScope = 0;
 
     bool wasPaused = false;
+    winehua::ShmTextureUpload shmTexture;
     uint32_t lastIdentity = GetToplevelId();
     while (running_) {
         const uint64_t repaintRequest = repaint_.CaptureRequest();
         const uint32_t identity = GetToplevelId();
         if (identity != lastIdentity) {
             rendered = false;
+            shmTexture.serial = 0;
             lastDrawW_ = lastDrawH_ = 0;
             previousZeroCopyScene = {};
             compositor_.RequestFullRedraw(identity);
@@ -1080,6 +1083,7 @@ void EglRenderer::RenderLoop() {
                 winehua::GraphicsBroker::GetInstance().SetZeroCopyFramePeriod(consumer->surfaceKey, winehua::game::ProducerPeriodNs(period));
             if (!paused) {
                 rendered = false;
+                shmTexture.serial = 0;
                 lastDrawW_ = lastDrawH_ = 0;
                 previousZeroCopyScene = {};
                 compositor_.RequestFullRedraw(
@@ -1157,12 +1161,14 @@ void EglRenderer::RenderLoop() {
         }
         const bool zeroCopySceneReady = SnapshotZeroCopyScene();
         if (zeroCopySceneReady) {
+            shmTexture.serial = 0;
             cpuFrame = !SameGpuDesktopScene(zeroCopyScene_, previousZeroCopyScene);
             previousZeroCopyScene = zeroCopyScene_;
             fw = frameW_ = contentW_ = zeroCopyScene_.width;
             fh = frameH_ = contentH_ = zeroCopyScene_.height;
             frameArgb_ = false;
         } else previousZeroCopyScene = {};
+        PresentedFrame frame;
         if (!zeroCopySceneReady && useToplevel != 0) {
             // 帧交付契约 (presented_frame.h): TakeToplevelFrame 返回 PresentedFrame。
             // fw/fh 从帧 buffer 尺寸 (frame.w/h) 取 — 直传帧是游戏内容尺寸
@@ -1170,7 +1176,6 @@ void EglRenderer::RenderLoop() {
             // letterbox 用它们 (frameW_/frameH_)。alpha 语义取 frame.opaque —
             // 产出侧 opaque = ShmFormat != 0, 故 !opaque == 旧 (ShmFormat==0) 等价。
             // contentW/H (逻辑内容尺寸) 缓存供 GetInputLetterbox 输入逆映射锚。
-            PresentedFrame frame;
             cpuFrame = compositor_.TakeToplevelFrame(useToplevel, px, frame);
             if (cpuFrame) {
                 fw = frame.w;
@@ -1199,26 +1204,18 @@ void EglRenderer::RenderLoop() {
                 firstFrameLogged = true;
             }
             glBindTexture(GL_TEXTURE_2D, texture_);
-            int rowLen = (int)px.size() / fh / 4;
-            if (rowLen != fw) {
-                OH_LOG_WARN(LOG_APP, "[MW-RNDR] UNPACK_ROW_LENGTH rowLen=%{public}d fw=%{public}d px=%{public}zu fh=%{public}d",
-                            rowLen, fw, px.size(), fh);
-                glPixelStorei(GL_UNPACK_ROW_LENGTH, rowLen);
-            }
-            // 首帧/尺寸变化: glTexImage2D (分配 GPU 内存)
-            // 同尺寸: glTexSubImage2D (复用, 仅 memcpy → GPU)
+            const int rowLen = static_cast<int>(px.size() / fh / 4);
             const uint64_t uploadStartedUs = uploads.timeEnabled ? PerfNowUs() : 0;
-            if (fw != texW_ || fh != texH_) {
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, fw, fh, 0,
-                             GL_RGBA, GL_UNSIGNED_BYTE, px.data());
-                texW_ = fw; texH_ = fh;
-            } else {
-                glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, fw, fh,
-                                GL_RGBA, GL_UNSIGNED_BYTE, px.data());
-            }
-            uploads.Issued(fw, fh, uploads.timeEnabled ? PerfNowUs() - uploadStartedUs : 0);
-            if (rowLen != fw) {
-                glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+            const GLenum uploadError = shmTexture.Upload(useToplevel, frame, rowLen, uploads);
+            if (uploads.timeEnabled) uploads.cpuUs += PerfNowUs() - uploadStartedUs;
+            if (uploadError != GL_NO_ERROR) {
+                if (FrameTraceEnabled()) {
+                    OH_LOG_WARN(LOG_APP, "[MW-RNDR] SHM upload failed tl=%{public}u GL=%{public}x",
+                                useToplevel, uploadError);
+                }
+                compositor_.RequestFullRedraw(useToplevel);
+                if (!waitForFrameTick()) break;
+                continue;
             }
             rendered = true;
             // [PIX-SAMPLE] 帧内容白度采样: 区分"帧本身是白的" (guest/wine

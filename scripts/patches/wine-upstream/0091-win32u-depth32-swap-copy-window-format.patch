@@ -1,0 +1,441 @@
+diff --git a/dlls/win32u/opengl.c b/dlls/win32u/opengl.c
+index e0ee9d3817864b4b2e10f330ebb274d3c1109482..9500d1770f0c9b65862a159140cb18604672955a 100644
+--- a/dlls/win32u/opengl.c
++++ b/dlls/win32u/opengl.c
+@@ -60,6 +60,7 @@ struct wgl_pbuffer
+ static const struct opengl_driver_funcs nulldrv_funcs, *driver_funcs = &nulldrv_funcs;
+ static struct list devices_egl = LIST_INIT( devices_egl );
+ static struct egl_platform display_egl;
++static UINT egl_swap_copy_config;
+ static struct opengl_funcs display_funcs;
+ static int fshack_enabled = -1;
+ 
+@@ -67,6 +68,11 @@ static struct wgl_pixel_format *pixel_formats;
+ static UINT formats_count, onscreen_count;
+ static char wgl_extensions[4096];
+ 
++static BOOL is_swap_copy_format( int format )
++{
++    return egl_swap_copy_config && format > 0 && format == onscreen_count;
++}
++
+ static BOOL has_extension( const char *list, const char *ext )
+ {
+     size_t len = strlen( ext );
+@@ -282,7 +288,7 @@ static GLenum format_from_pfd( const struct wgl_pixel_format *desc )
+     return 0;
+ }
+ 
+-static GLenum depth_format_from_pfd( const struct wgl_pixel_format *desc )
++static GLenum depth_format_from_pfd( const struct wgl_pixel_format *desc, BOOL swap_copy )
+ {
+     TRACE( "format bits %u/%u\n", desc->pfd.cStencilBits, desc->pfd.cDepthBits );
+ 
+@@ -293,7 +299,8 @@ static GLenum depth_format_from_pfd( const struct wgl_pixel_format *desc )
+     }
+     else
+     {
+-        if (desc->pfd.cDepthBits == 32) return GL_DEPTH_COMPONENT32;
++        if (desc->pfd.cDepthBits == 32)
++            return swap_copy ? GL_DEPTH_COMPONENT32F : GL_DEPTH_COMPONENT32;
+         if (desc->pfd.cDepthBits == 24) return GL_DEPTH_COMPONENT24;
+         if (desc->pfd.cDepthBits == 16) return GL_DEPTH_COMPONENT16;
+     }
+@@ -348,7 +355,16 @@ static GLuint create_framebuffer( struct opengl_drawable *drawable, const struct
+         {
+             name = framebuffer_textures[i];
+             resize_texture( name, desc, width, height );
+-            funcs->p_glNamedFramebufferTexture( fbo, GL_COLOR_ATTACHMENT0 + i, name, 0 );
++            if (is_swap_copy_format( drawable->format ))
++            {
++                GLint previous;
++                funcs->p_glGetIntegerv( GL_DRAW_FRAMEBUFFER_BINDING, &previous );
++                funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, fbo );
++                funcs->p_glFramebufferTexture2D( GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i,
++                                                GL_TEXTURE_2D, name, 0 );
++                funcs->p_glBindFramebuffer( GL_DRAW_FRAMEBUFFER, previous );
++            }
++            else funcs->p_glNamedFramebufferTexture( fbo, GL_COLOR_ATTACHMENT0 + i, name, 0 );
+         }
+         TRACE( "drawable %p/%u created color buffer %#x/%u, %dx%d\n", drawable, fbo, GL_COLOR_ATTACHMENT0 + i, name, width, height );
+     }
+@@ -356,7 +372,9 @@ static GLuint create_framebuffer( struct opengl_drawable *drawable, const struct
+     if (desc->pfd.cDepthBits)
+     {
+         funcs->p_glCreateRenderbuffers( 1, &name );
+-        funcs->p_glNamedRenderbufferStorageMultisample( name, desc->samples, depth_format_from_pfd( desc ), width, height );
++        funcs->p_glNamedRenderbufferStorageMultisample( name, desc->samples,
++                                                      depth_format_from_pfd( desc, is_swap_copy_format( drawable->format ) ),
++                                                      width, height );
+         funcs->p_glNamedFramebufferRenderbuffer( fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, name );
+         if (desc->pfd.cStencilBits) funcs->p_glNamedFramebufferRenderbuffer( fbo, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, name );
+         TRACE( "drawable %p/%u created depth buffer %u, %dx%d\n", drawable, fbo, name, width, height );
+@@ -392,7 +410,9 @@ static void resize_framebuffer( struct opengl_drawable *drawable, const struct w
+     if (desc->pfd.cDepthBits)
+     {
+         funcs->p_glGetNamedFramebufferAttachmentParameteriv( fbo, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint *)&name );
+-        funcs->p_glNamedRenderbufferStorageMultisample( name, desc->samples, depth_format_from_pfd( desc ), width, height );
++        funcs->p_glNamedRenderbufferStorageMultisample( name, desc->samples,
++                                                      depth_format_from_pfd( desc, is_swap_copy_format( drawable->format ) ),
++                                                      width, height );
+         TRACE( "drawable %p/%u resized depth buffer %u to %d,%d\n", drawable, fbo, name, width, height );
+     }
+ 
+@@ -511,7 +531,7 @@ static void framebuffer_surface_set_context( struct opengl_drawable *drawable, v
+         if (surface->base.format == ctx->share->fbo_drawable_format)
+         {
+             surface->width = ctx->share->fbo_surface_width;
+-            surface->height = ctx->share->fbo_surface_width;
++            surface->height = ctx->share->fbo_surface_height;
+         }
+         else
+         {
+@@ -799,7 +819,10 @@ static void blit_framebuffer_surface( struct framebuffer_surface *surface )
+     TRACE( "hwnd %p src %s dst %s fbo %u\n", client->hwnd, wine_dbgstr_rect(&src), wine_dbgstr_rect(&dst), surface->base.read_fbo );
+ 
+     if (!ctx->gamma_program || !ctx->gamma_ramp)
+-        ERR( "gamma shader is not initialized.\n" );
++    {
++        if (is_swap_copy_format( surface->base.format )) needs_gamma = FALSE;
++        else ERR( "gamma shader is not initialized.\n" );
++    }
+ 
+     for (int i = 0; i < ARRAY_SIZE(general_state_handlers); i++)
+         general_state_handlers[i]( SET, ctx, &state );
+@@ -893,7 +916,21 @@ static BOOL framebuffer_surface_swap( struct opengl_drawable *drawable )
+ 
+     TRACE( "%s\n", debugstr_opengl_drawable( drawable ) );
+ 
+-    if (surface->base.doublebuffer)
++    if (is_swap_copy_format( drawable->format ))
++    {
++        GLuint front = 0, back = 0;
++
++        if (!drawable->draw_fbo || drawable->draw_fbo != drawable->read_fbo) return FALSE;
++        funcs->p_glGetNamedFramebufferAttachmentParameteriv( drawable->draw_fbo, GL_COLOR_ATTACHMENT0,
++                                                             GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint *)&front );
++        funcs->p_glGetNamedFramebufferAttachmentParameteriv( drawable->draw_fbo, GL_COLOR_ATTACHMENT1,
++                                                             GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, (GLint *)&back );
++        if (!front || !back) return FALSE;
++
++        funcs->p_glCopyImageSubData( back, GL_TEXTURE_2D, 0, 0, 0, 0, front, GL_TEXTURE_2D,
++                                     0, 0, 0, 0, surface->width, surface->height, 1 );
++    }
++    else if (surface->base.doublebuffer)
+     {
+         GLint name1, name2;
+ 
+@@ -920,11 +957,15 @@ static BOOL framebuffer_surface_swap( struct opengl_drawable *drawable )
+         }
+     }
+ 
+-    if (surface->target)
++    if (!surface->target) return TRUE;
++    blit_framebuffer_surface( surface );
++    if (is_swap_copy_format( drawable->format ))
+     {
+-        blit_framebuffer_surface( surface );
+-        opengl_drawable_swap( surface->target );
++        if (!opengl_drawable_swap( surface->target )) return FALSE;
++        set_window_pixel_format( drawable->client->hwnd, drawable->format, TRUE );
++        return TRUE;
+     }
++    opengl_drawable_swap( surface->target );
+     return TRUE;
+ }
+ 
+@@ -966,12 +1007,14 @@ static struct opengl_drawable *framebuffer_surface_create( int format, struct cl
+     return &surface->base;
+ }
+ 
+-static BOOL needs_framebuffer_surface( HWND hwnd, struct wgl_context *context )
++static BOOL needs_framebuffer_surface( HWND hwnd, int format, struct wgl_context *context )
+ {
+     static int xwayland_nv_cached = -1;
+     float gamma_ramp[GAMMA_RAMP_SIZE * 4];
+     LONG gamma_serial;
+ 
++    if (is_swap_copy_format( format )) return TRUE;
++
+     if (!fshack_enabled) return FALSE;
+ #ifdef __OHOS__
+     /* A proc address may be a Mesa unsupported-function stub. Bootstrap on
+@@ -1008,6 +1051,8 @@ static const struct opengl_drawable_funcs egldrv_pbuffer_funcs;
+ 
+ static EGLConfig egl_config_for_format( const struct egl_platform *egl, int format )
+ {
++    if (is_swap_copy_format( format )) return egl->configs[egl_swap_copy_config - 1];
++    if (egl_swap_copy_config && format > onscreen_count) --format;
+     return egl->configs[(format - 1) % egl->config_count];
+ }
+ 
+@@ -1142,6 +1187,93 @@ static void winehua_guest_egl_probe( const struct opengl_funcs *funcs, EGLDispla
+     }
+ }
+ 
++#ifdef __OHOS__
++static BOOL egldrv_test_swap_copy( const struct opengl_funcs *egl_funcs )
++{
++    const char *extensions;
++    GLuint textures[2] = {0}, fbo = 0, depth = 0;
++    BOOL supported;
++
++#define LOAD_GL(name) \
++    PFN_##name name = (void *)egl_funcs->p_eglGetProcAddress( #name )
++    LOAD_GL(glGetString);
++    LOAD_GL(glGetError);
++    LOAD_GL(glCreateTextures);
++    LOAD_GL(glTextureStorage2D);
++    LOAD_GL(glCreateFramebuffers);
++    LOAD_GL(glCreateRenderbuffers);
++    LOAD_GL(glNamedRenderbufferStorageMultisample);
++    LOAD_GL(glNamedFramebufferRenderbuffer);
++    LOAD_GL(glBindFramebuffer);
++    LOAD_GL(glFramebufferTexture2D);
++    LOAD_GL(glCheckNamedFramebufferStatus);
++    LOAD_GL(glCopyImageSubData);
++    LOAD_GL(glDeleteFramebuffers);
++    LOAD_GL(glDeleteRenderbuffers);
++    LOAD_GL(glDeleteTextures);
++#undef LOAD_GL
++
++    if (!glGetString || !glGetError || !glCreateTextures || !glTextureStorage2D ||
++        !glCreateFramebuffers || !glCreateRenderbuffers || !glNamedRenderbufferStorageMultisample ||
++        !glNamedFramebufferRenderbuffer || !glBindFramebuffer || !glFramebufferTexture2D ||
++        !glCheckNamedFramebufferStatus || !glCopyImageSubData || !glDeleteFramebuffers ||
++        !glDeleteRenderbuffers || !glDeleteTextures) return FALSE;
++
++    extensions = (const char *)glGetString( GL_EXTENSIONS );
++    if (!extensions || !has_extension( extensions, "GL_ARB_direct_state_access" ) ||
++        !has_extension( extensions, "GL_ARB_copy_image" ) ||
++        !has_extension( extensions, "GL_ARB_depth_buffer_float" )) return FALSE;
++
++    /* Validate the same two color attachments and depth format used by the window. */
++    glCreateTextures( GL_TEXTURE_2D, ARRAY_SIZE(textures), textures );
++    glTextureStorage2D( textures[0], 1, GL_RGBA8, 4, 4 );
++    glTextureStorage2D( textures[1], 1, GL_RGBA8, 4, 4 );
++    glCreateRenderbuffers( 1, &depth );
++    glNamedRenderbufferStorageMultisample( depth, 0, GL_DEPTH_COMPONENT32F, 4, 4 );
++    glCreateFramebuffers( 1, &fbo );
++    glBindFramebuffer( GL_DRAW_FRAMEBUFFER, fbo );
++    glFramebufferTexture2D( GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[0], 0 );
++    glFramebufferTexture2D( GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, textures[1], 0 );
++    glNamedFramebufferRenderbuffer( fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth );
++    supported = glCheckNamedFramebufferStatus( fbo, GL_FRAMEBUFFER ) == GL_FRAMEBUFFER_COMPLETE;
++    if (supported)
++        glCopyImageSubData( textures[1], GL_TEXTURE_2D, 0, 0, 0, 0, textures[0], GL_TEXTURE_2D,
++                                 0, 0, 0, 0, 4, 4, 1 );
++    supported = glGetError() == GL_NO_ERROR && supported;
++
++    glDeleteFramebuffers( 1, &fbo );
++    glDeleteRenderbuffers( 1, &depth );
++    glDeleteTextures( ARRAY_SIZE(textures), textures );
++    return supported;
++}
++
++static BOOL egldrv_probe_swap_copy( struct egl_platform *egl )
++{
++    const struct opengl_funcs *funcs = &display_funcs;
++    EGLenum previous_api = funcs->p_eglQueryAPI();
++    EGLContext context;
++    BOOL supported = FALSE;
++
++    if (funcs->p_eglGetCurrentContext() != EGL_NO_CONTEXT || !funcs->p_eglBindAPI( EGL_OPENGL_API ))
++        return FALSE;
++
++    context = funcs->p_eglCreateContext( egl->display, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, NULL );
++    if (context != EGL_NO_CONTEXT)
++    {
++        if (funcs->p_eglMakeCurrent( egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, context ))
++        {
++            supported = egldrv_test_swap_copy( funcs );
++            funcs->p_eglMakeCurrent( egl->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT );
++        }
++        funcs->p_eglDestroyContext( egl->display, context );
++    }
++    funcs->p_eglBindAPI( previous_api );
++    return supported;
++}
++
++static BOOL describe_egl_config( EGLConfig config, struct wgl_pixel_format *fmt, UINT flags );
++#endif
++
+ static UINT egldrv_init_pixel_formats( UINT *onscreen_count )
+ {
+     const struct opengl_funcs *funcs = &display_funcs;
+@@ -1205,8 +1337,29 @@ static UINT egldrv_init_pixel_formats( UINT *onscreen_count )
+     egl->configs = configs;
+     egl->config_count = count;
+ 
+-    *onscreen_count = (ARRAY_SIZE(pixel_format_flags) - 1) * count;
+-    return ARRAY_SIZE(pixel_format_flags) * count;
++#ifdef __OHOS__
++    if (egl->type == EGL_PLATFORM_SURFACELESS_MESA)
++    {
++        for (i = 0; i < count; ++i)
++        {
++            struct wgl_pixel_format desc;
++            const PIXELFORMATDESCRIPTOR *pfd = &desc.pfd;
++
++            if (describe_egl_config( configs[i], &desc, PFD_DOUBLEBUFFER ) &&
++                (pfd->dwFlags & PFD_DRAW_TO_WINDOW) && desc.pixel_type == WGL_TYPE_RGBA_ARB &&
++                !desc.samples && pfd->cRedBits == 8 && pfd->cGreenBits == 8 &&
++                pfd->cBlueBits == 8 && pfd->cAlphaBits == 8)
++            {
++                if (egldrv_probe_swap_copy( egl )) egl_swap_copy_config = i + 1;
++                break;
++            }
++        }
++    }
++#endif
++
++    /* Append the window-only format before the offscreen formats. */
++    *onscreen_count = (ARRAY_SIZE(pixel_format_flags) - 1) * count + !!egl_swap_copy_config;
++    return ARRAY_SIZE(pixel_format_flags) * count + !!egl_swap_copy_config;
+ }
+ 
+ static BOOL describe_egl_config( EGLConfig config, struct wgl_pixel_format *fmt, UINT flags )
+@@ -1345,7 +1498,22 @@ static BOOL egldrv_describe_pixel_format( int format, struct wgl_pixel_format *d
+     struct egl_platform *egl = &display_egl;
+     int count = egl->config_count;
+ 
+-    if (--format < 0 || format > ARRAY_SIZE(pixel_format_flags) * count) return FALSE;
++    if (is_swap_copy_format( format ))
++    {
++        if (!describe_egl_config( egl_config_for_format( egl, format ), desc, PFD_DOUBLEBUFFER | PFD_SWAP_COPY ))
++            return FALSE;
++        desc->pfd.dwFlags &= ~PFD_DRAW_TO_BITMAP;
++        desc->pfd.cDepthBits = 32;
++        desc->pfd.cStencilBits = 0;
++        desc->swap_method = WGL_SWAP_COPY_ARB;
++        desc->draw_to_pbuffer = FALSE;
++        desc->bind_to_texture_rgb = desc->bind_to_texture_rgba = FALSE;
++        desc->bind_to_texture_rectangle_rgb = desc->bind_to_texture_rectangle_rgba = FALSE;
++        return TRUE;
++    }
++
++    if (egl_swap_copy_config && format > onscreen_count) --format;
++    if (--format < 0 || format >= ARRAY_SIZE(pixel_format_flags) * count) return FALSE;
+     return describe_egl_config( egl->configs[format % count], desc, pixel_format_flags[format / count] );
+ }
+ 
+@@ -2106,7 +2274,7 @@ static struct opengl_drawable *get_window_current_drawable( HWND hwnd )
+ 
+ static struct opengl_drawable *get_window_unused_drawable( HWND hwnd, int format, struct wgl_context *context )
+ {
+-    BOOL raw = needs_framebuffer_surface( hwnd, context );
++    BOOL raw = needs_framebuffer_surface( hwnd, format, context );
+     struct opengl_drawable *drawable = NULL;
+     WND *win;
+ 
+@@ -2285,6 +2453,8 @@ static BOOL win32u_wglSetPixelFormat( HDC hdc, int new_format, const PIXELFORMAT
+         set_window_opengl_drawable( hwnd, drawable, FALSE );
+         opengl_drawable_release( drawable );
+ 
++        if (is_swap_copy_format( new_format ))
++            return set_window_pixel_format_ex( hwnd, new_format, FALSE, FALSE );
+         return set_window_pixel_format( hwnd, new_format, FALSE );
+     }
+ 
+@@ -2342,7 +2512,7 @@ static BOOL win32u_wglSetPixelFormatWINE( HDC hdc, int format )
+         opengl_drawable_release( drawable );
+         drawable = NULL;
+     }
+-    if (drawable && (drawable->funcs == &framebuffer_surface_funcs) != needs_framebuffer_surface( hwnd, NtCurrentTeb()->glContext ))
++    if (drawable && (drawable->funcs == &framebuffer_surface_funcs) != needs_framebuffer_surface( hwnd, format, NtCurrentTeb()->glContext ))
+     {
+         opengl_drawable_release( drawable );
+         drawable = NULL;
+@@ -2402,7 +2572,7 @@ static BOOL context_unset_current( struct wgl_context *context )
+ 
+ static BOOL needs_framebuffer_update( HWND hwnd, struct opengl_drawable *drawable, struct wgl_context *context )
+ {
+-    return drawable && (drawable->funcs == &framebuffer_surface_funcs) != needs_framebuffer_surface( hwnd, context );
++    return drawable && (drawable->funcs == &framebuffer_surface_funcs) != needs_framebuffer_surface( hwnd, drawable->format, context );
+ }
+ 
+ /* return an updated drawable, recreating one if the window drawables have been invalidated (mostly wineandroid) */
+@@ -2493,15 +2663,19 @@ static BOOL context_sync_drawables( struct wgl_context *context, HDC draw_hdc, H
+ 
+         if (!context->share->reserved_textures
+ #ifdef __OHOS__
+-            && context->fshack_capable
++            && (context->fshack_capable || is_swap_copy_format( new_draw->format ) ||
++                is_swap_copy_format( new_read->format ))
+ #endif
+            )
+         {
+-            int profile, i, prev_texture;
+-
+-            /* context->is_core exists but it may be not initialized yet. */
+-            funcs->p_glGetIntegerv( GL_CONTEXT_PROFILE_MASK, &profile );
+-            if (profile & GL_CONTEXT_CORE_PROFILE_BIT)
++            int profile = 0, i, prev_texture;
++            BOOL swap_copy = is_swap_copy_format( new_draw->format ) || is_swap_copy_format( new_read->format );
++
++            if (!swap_copy) funcs->p_glGetIntegerv( GL_CONTEXT_PROFILE_MASK, &profile );
++            if (swap_copy)
++                funcs->p_glCreateTextures( GL_TEXTURE_2D, ARRAY_SIZE(context->share->framebuffer_textures),
++                                           context->share->framebuffer_textures );
++            else if (profile & GL_CONTEXT_CORE_PROFILE_BIT)
+             {
+                 /* Binding texture names without allocation is not allowed on core profile,
+                  * so just allocate the reserved textures. */
+@@ -3495,6 +3669,11 @@ static void display_funcs_init(void)
+     if (!display_funcs.p_##func && !(display_funcs.p_##func = driver_funcs->p_get_proc_address( #func ))) \
+         WARN( "%s not found.\n", #func );
+     ALL_GL_FUNCS
++    if (egl_swap_copy_config)
++    {
++        USE_GL_FUNC(glCopyImageSubData)
++        USE_GL_FUNC(glFramebufferTexture2D)
++    }
+     USE_GL_FUNC(glActiveTexture)
+     USE_GL_FUNC(glAttachShader)
+     USE_GL_FUNC(glBindBuffer)
+diff --git a/dlls/win32u/win32u_private.h b/dlls/win32u/win32u_private.h
+index 2f7771867c4b8fcc89168c23a0638dd369834726..8b57e201f81dac36a9623ef61799c06a67b4b93b 100644
+--- a/dlls/win32u/win32u_private.h
++++ b/dlls/win32u/win32u_private.h
+@@ -302,6 +302,7 @@ extern BOOL is_window_unicode( HWND hwnd );
+ extern BOOL is_window_visible( HWND hwnd );
+ extern BOOL is_zoomed( HWND hwnd );
+ extern BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal );
++extern BOOL set_window_pixel_format_ex( HWND hwnd, int format, BOOL internal, BOOL clip );
+ extern int get_window_pixel_format( HWND hwnd );
+ extern DWORD get_window_long( HWND hwnd, INT offset );
+ extern ULONG_PTR get_window_long_ptr( HWND hwnd, INT offset, BOOL ansi );
+diff --git a/dlls/win32u/window.c b/dlls/win32u/window.c
+index 2803d9ebf76471ab2d8691ac9967a83728728cb4..195e8ac09a22ca186a9eba81323f05af2a649868 100644
+--- a/dlls/win32u/window.c
++++ b/dlls/win32u/window.c
+@@ -1614,7 +1614,7 @@ LONG_PTR WINAPI NtUserSetWindowLongPtr( HWND hwnd, INT offset, LONG_PTR newval,
+     return set_window_long( hwnd, offset, sizeof(LONG_PTR), newval, ansi );
+ }
+ 
+-BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal )
++BOOL set_window_pixel_format_ex( HWND hwnd, int format, BOOL internal, BOOL clip )
+ {
+     WND *win = get_win_ptr( hwnd );
+     BOOL changed = FALSE;
+@@ -1626,13 +1626,19 @@ BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal )
+         return FALSE;
+     }
+     if (!internal) win->pixel_format = format;
+-    if (format && !win->clip_clients) changed = win->clip_clients = TRUE;
++    /* Keep GDI visible until a swap-copy drawable actually presents. */
++    if (clip && format && !win->clip_clients) changed = win->clip_clients = TRUE;
+     release_win_ptr( win );
+ 
+     if (changed) update_window_state( hwnd );
+     return TRUE;
+ }
+ 
++BOOL set_window_pixel_format( HWND hwnd, int format, BOOL internal )
++{
++    return set_window_pixel_format_ex( hwnd, format, internal, TRUE );
++}
++
+ int get_window_pixel_format( HWND hwnd )
+ {
+     WND *win = get_win_ptr( hwnd );

@@ -45,7 +45,8 @@ import {
 } from '../model/AppModels';
 import { ThemeSettingsService } from '../service/ThemeSettingsService';
 import { EngineStateListener, WineEngineService } from '../service/WineEngineService';
-import { graphicsBackendLabel, graphicsProfileButton, normalizeGraphicsBackend, VKD3D_DIRECT } from '../model/GraphicsBackendSettings';
+import { graphicsBackendLabel, graphicsProfileButton, normalizeGraphicsBackend, openGLBackendLabel,
+  OPENGL_BACKEND_AUTO, OPENGL_BACKEND_CHOICES, VKD3D_DIRECT } from '../model/GraphicsBackendSettings';
 import { GamepadManager } from '../service/GamepadManager';
 import { HostWindowTasks } from '../service/HostWindowTasks';
 import { SteamClientService } from '../service/SteamClientService';
@@ -303,6 +304,8 @@ struct SystemSettingsPage {
   @State private gpuSupportDxvk26: boolean = true;
   // 渲染模式 (dxvk_1_10/dxvk_2_6/virgl): @State 保证按钮选中态即时刷新
   @State private renderMode: string = 'dxvk_1_10';
+  @State private openGLBackend: string = OPENGL_BACKEND_AUTO;
+  @State private savingOpenGLBackend: boolean = false;
   @State private dxvkDepthD32: boolean = false;
   @State private fontImporting: boolean = false;
   @State private sgdbKeyDraft: string = '';
@@ -406,6 +409,7 @@ struct SystemSettingsPage {
     this.renderMode = AppSettingsStore.getInstance().getRenderMode()
       || AppStorage.get<string>('winehua.render.mode')
       || 'dxvk_1_10';
+    this.openGLBackend = AppSettingsStore.getInstance().getOpenGLBackend();
     this.startHubPoll();
   }
 
@@ -1088,6 +1092,20 @@ struct SystemSettingsPage {
     });
   }
 
+  private async updateOpenGLBackend(value: string): Promise<void> {
+    if (value === this.openGLBackend || this.savingOpenGLBackend) return;
+    this.savingOpenGLBackend = true;
+    try {
+      await AppSettingsStore.getInstance().setOpenGLBackend(value);
+      this.openGLBackend = value;
+      promptAction.showToast({ message: '已保存，重新启动程序后生效' });
+    } catch (_) {
+      promptAction.showToast({ message: '保存失败，请稍后重试' });
+    } finally {
+      this.savingOpenGLBackend = false;
+    }
+  }
+
   /** DXVK 版本芯片与渲染模式共用同一持久化项。 */
   private updateDxvkVersion(version: string): void {
     this.updateRenderMode(version === 'dxvk_modern_2_6' ? 'dxvk_2_6' : 'dxvk_1_10');
@@ -1678,6 +1696,18 @@ struct SystemSettingsPage {
     const effective = (this.renderMode === 'dxvk_2_6' && !this.gpuSupportDxvk26)
       ? 'dxvk_1_10' : graphicsProfileButton(this.renderMode);
     return effective === mode;
+  }
+
+  @Builder
+  private EngineOption(label: string, selected: boolean, optionId: string, action: () => void) {
+    Button(label)
+      .layoutWeight(1).height(44).borderRadius(14)
+      .fontSize(13).fontWeight(selected ? FontWeight.Medium : FontWeight.Regular)
+      .backgroundColor(selected ? skinColor('selected_background') : skinColor('search_background'))
+      .fontColor(skinColor('text_primary'))
+      .border({ width: 1, color: selected ? skinColor('accent') : Color.Transparent })
+      .id(optionId)
+      .onClick(action)
   }
 
   @Builder
@@ -2400,6 +2430,17 @@ struct SystemSettingsPage {
           Text('游戏卡片可覆盖默认设置。切换渲染组合需要重启 Wine，会关闭运行中的 Windows 程序。')
             .fontSize(11).fontColor('#C47A20').width('100%')
 
+          Text('默认 OpenGL 后端').fontSize(12).fontWeight(FontWeight.Medium)
+            .fontColor(skinColor('text_secondary')).width('100%')
+          Row({ space: 8 }) {
+            ForEach(OPENGL_BACKEND_CHOICES, (backend: string) => {
+              this.EngineOption(openGLBackendLabel(backend), this.openGLBackend === backend,
+                'wine-opengl-' + backend, (): void => { void this.updateOpenGLBackend(backend); })
+            }, (backend: string): string => backend)
+          }.width('100%')
+          Text('MobileGL 不可用时使用 Wine 内建 OpenGL。Zink 和旧版 OpenGL 兼容配置使用各自的后端。')
+            .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
+
           if (graphicsProfileButton(this.renderMode) === 'dxvk_1_10' || this.renderMode === 'virgl') {
             Row({ space: 8 }) {
               Text('深度画面兼容').fontSize(12).layoutWeight(1)
@@ -2433,12 +2474,14 @@ struct SystemSettingsPage {
           Text('窗口后端').fontSize(12).fontWeight(FontWeight.Medium)
             .fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 8 }) {
-            Button('Wayland').layoutWeight(1).height(44).borderRadius(14)
-              .backgroundColor(this.settings.wineDisplayRoute !== 'x11' ? skinColor('accent') : skinColor('search_background'))
-              .onClick((): void => { this.settings.wineDisplayRoute = 'wayland'; void ThemeSettingsService.getInstance().update(this.settings); })
-            Button('X11（实验）').layoutWeight(1).height(44).borderRadius(14)
-              .backgroundColor(this.settings.wineDisplayRoute === 'x11' ? skinColor('accent') : skinColor('search_background'))
-              .onClick((): void => { this.settings.wineDisplayRoute = 'x11'; void ThemeSettingsService.getInstance().update(this.settings); })
+            this.EngineOption('Wayland', this.settings.wineDisplayRoute !== 'x11', 'wine-display-wayland', (): void => {
+              this.settings.wineDisplayRoute = 'wayland';
+              void ThemeSettingsService.getInstance().update(this.settings);
+            })
+            this.EngineOption('X11（实验）', this.settings.wineDisplayRoute === 'x11', 'wine-display-x11', (): void => {
+              this.settings.wineDisplayRoute = 'x11';
+              void ThemeSettingsService.getInstance().update(this.settings);
+            })
           }.width('100%')
           Text('完整退出 Wine 后下次启动生效。Windows Steam 和本地 Windows 程序使用此设置。')
             .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')

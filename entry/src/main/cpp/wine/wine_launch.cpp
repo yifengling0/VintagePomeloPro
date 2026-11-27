@@ -682,7 +682,11 @@ static bool LaunchPadMode(LaunchParams* p, int audioBootstrapFd) {
          * 暖 prefix 下子进程仍需数秒连接 wineserver 并提交 desktop
          * surface。等待桌面根 toplevel 就绪后再发 state:ready,
          * 否则自动化游戏可能抢跑而死于 DXGI 初始化。 */
-        if (!WaitForLaunch(p, [ws]() { return ws->GetDesktopRootToplevelId() != 0 || winehua_x11_desktop_id() != 0; }, 20000)) {
+        // A cold shell may still be waiting for Wine services after wineboot
+        // exits. Keep checking the real desktop surface until the bounded
+        // startup deadline and let an explicit stop cancel the wait.
+        constexpr int desktopReadyTimeoutMs = 60000;
+        if (!WaitForLaunch(p, [ws]() { return ws->GetDesktopRootToplevelId() != 0 || winehua_x11_desktop_id() != 0; }, desktopReadyTimeoutMs)) {
             EmitLaunchState(p, "state:failed:explorer-root-timeout");
             return false;
         }

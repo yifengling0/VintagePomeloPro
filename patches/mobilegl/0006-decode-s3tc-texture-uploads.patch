@@ -1,0 +1,163 @@
+--- a/MobileGL/MG_Util/Converters/GLToMG/TextureEnumConverter.cpp
++++ b/MobileGL/MG_Util/Converters/GLToMG/TextureEnumConverter.cpp
+@@ -303,8 +303,18 @@
+             // are specific formats core GL requires (BPTC from 4.2, ETC2/EAC from 4.3) that this
+             // stack has no compressor for. INVALID_ENUM was never a legal answer for them, and
+             // uncompressed storage is the same trade the RGTC formats already take.
++            case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
++                return TextureInternalFormat::RGB8;
++            case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
++                return TextureInternalFormat::SRGB8;
++            case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
++            case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
++            case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
+             case GL_COMPRESSED_RGBA_BPTC_UNORM:
+                 return TextureInternalFormat::RGBA8;
++            case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
++            case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
++            case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
+             case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM:
+                 return TextureInternalFormat::SRGB8Alpha8;
+             case GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT:
+--- a/MobileGL/MG_Util/Metrics/TextureMetrics.cpp
++++ b/MobileGL/MG_Util/Metrics/TextureMetrics.cpp
+@@ -535,6 +535,10 @@
+             // ConvertGLEnumToTextureInternalFormat can back with uncompressed storage, so this call
+             // can never accept a format whose texel shadow cannot be allocated.
+             switch (internalFormat) {
++            case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
++            case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
++            case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
++            case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
+             case GL_COMPRESSED_RED_RGTC1:
+             case GL_COMPRESSED_SIGNED_RED_RGTC1:
+             case GL_COMPRESSED_RGB8_ETC2:
+@@ -544,6 +548,10 @@
+             case GL_COMPRESSED_R11_EAC:
+             case GL_COMPRESSED_SIGNED_R11_EAC:
+                 return {4, 4, 8};
++            case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
++            case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
++            case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
++            case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
+             case GL_COMPRESSED_RG_RGTC2:
+             case GL_COMPRESSED_SIGNED_RG_RGTC2:
+             case GL_COMPRESSED_RGBA_BPTC_UNORM:
+--- a/MobileGL/MG_Impl/GLImpl/Texture/GL_Texture.cpp
++++ b/MobileGL/MG_Impl/GLImpl/Texture/GL_Texture.cpp
+@@ -818,6 +818,7 @@
+             break;
+         }
+         return (internalformat >= 0x83F0 && internalformat <= 0x83F3) || // S3TC / DXT
++               (internalformat >= 0x8C4C && internalformat <= 0x8C4F) || // sRGB S3TC
+                (internalformat >= 0x8DBB && internalformat <= 0x8DBE) || // RGTC
+                (internalformat >= 0x8E8C && internalformat <= 0x8E8F) || // BPTC
+                (internalformat >= 0x9270 && internalformat <= 0x9279) || // ETC2 / EAC
+--- a/MobileGL/MG_Util/Texture/BlockTextureDecoder.cpp
++++ b/MobileGL/MG_Util/Texture/BlockTextureDecoder.cpp
+@@ -292,9 +292,17 @@
+ 
+     SizeT DecodedTexelBytes(GLenum compressedFormat) {
+         switch (compressedFormat) {
++        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
++        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
+         case GL_COMPRESSED_RGB8_ETC2:
+         case GL_COMPRESSED_SRGB8_ETC2:
+             return 3;
++        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
++        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
++        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
++        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
++        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
++        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
+         case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+         case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_ETC2:
+         case GL_COMPRESSED_RGBA8_ETC2_EAC:
+@@ -317,8 +325,35 @@
+     }
+ 
+     Bool DecodeBlock(GLenum compressedFormat, const Uint8* block, Uint8* out) {
+-        Uint8 rgba[16][4];
++        alignas(Uint32) Uint8 rgba[16][4];
+         switch (compressedFormat) {
++        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
++        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
++        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
++        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT: {
++            // Client and PBO source addresses may be unaligned.
++            Uint64 encoded;
++            std::memcpy(&encoded, block, sizeof(encoded));
++            bcdec_bc1(&encoded, rgba, 16);
++            const SizeT channels = DecodedTexelBytes(compressedFormat);
++            for (Int i = 0; i < 16; ++i)
++                std::memcpy(out + i * channels, rgba[i], channels);
++            return true;
++        }
++        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
++        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
++        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
++        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT: {
++            Uint64 encoded[2];
++            std::memcpy(encoded, block, sizeof(encoded));
++            if (compressedFormat == GL_COMPRESSED_RGBA_S3TC_DXT3_EXT ||
++                compressedFormat == GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT)
++                bcdec_bc2(encoded, rgba, 16);
++            else
++                bcdec_bc3(encoded, rgba, 16);
++            std::memcpy(out, rgba, sizeof(rgba));
++            return true;
++        }
+         case GL_COMPRESSED_RGBA_BPTC_UNORM:
+         case GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM:
+         case GL_COMPRESSED_RGB_BPTC_SIGNED_FLOAT:
+--- a/MobileGL/MG_Test/Texture/TextureTest.cpp
++++ b/MobileGL/MG_Test/Texture/TextureTest.cpp
+@@ -7138,3 +7138,48 @@
+     }
+     MG_Impl::GLImpl::DeleteTextures(1, &texture);
+ }
++
++TEST_F(TextureTest, S3tcSubImagesPreserveAlphaAndClipTheLastBlock) {
++    constexpr Uint8 bc1[] = {0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
++    constexpr Uint8 bc2[] = {0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0, 0xf8, 0, 0, 0, 0, 0, 0};
++    constexpr Uint8 bc3[] = {96, 0, 0, 0, 0, 0, 0, 0, 0, 0xf8, 0, 0, 0, 0, 0, 0};
++    struct Sample {
++        GLenum format;
++        const Uint8* block;
++        GLsizei size;
++        Uint8 red, alpha;
++    };
++    const Sample samples[] = {
++        {GL_COMPRESSED_RGB_S3TC_DXT1_EXT, bc1, sizeof(bc1), 0, 255},
++        {GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, bc1, sizeof(bc1), 0, 0},
++        {GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, bc2, sizeof(bc2), 255, 136},
++        {GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, bc3, sizeof(bc3), 255, 96},
++        {GL_COMPRESSED_SRGB_S3TC_DXT1_EXT, bc1, sizeof(bc1), 0, 255},
++        {GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT, bc1, sizeof(bc1), 0, 0},
++        {GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT, bc2, sizeof(bc2), 255, 136},
++        {GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT, bc3, sizeof(bc3), 255, 96},
++    };
++    for (const auto& sample : samples) {
++        SCOPED_TRACE(sample.format);
++        GLuint texture = 0;
++        MG_Impl::GLImpl::GenTextures(1, &texture);
++        MG_Impl::GLImpl::BindTexture(GL_TEXTURE_2D, texture);
++        MG_Impl::GLImpl::TexStorage2D(GL_TEXTURE_2D, 1, sample.format, 5, 3);
++        MG_Impl::GLImpl::CompressedTexSubImage2D(GL_TEXTURE_2D, 0, 4, 0, 1, 3, sample.format, sample.size, sample.block);
++        ASSERT_EQ(MG_Impl::GLImpl::GetError(), GL_NO_ERROR);
++        const auto& object = MG_State::pGLContext->GetTextureObject(texture);
++        auto* mip = MG_State::GLState::AsMipmapTexture(object.get());
++        const auto* data = static_cast<const Uint8*>(mip->MapMipmapData(TextureUploadTarget::Texture2D, 0));
++        ASSERT_NE(data, nullptr);
++        bool rgb = sample.format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT || sample.format == GL_COMPRESSED_SRGB_S3TC_DXT1_EXT;
++        const Uint8* edge = data + (2 * 5 + 4) * (rgb ? 3 : 4);
++        EXPECT_EQ(edge[0], sample.red);
++        EXPECT_EQ(edge[1], 0);
++        EXPECT_EQ(edge[2], 0);
++        if (!rgb) EXPECT_EQ(edge[3], sample.alpha);
++        Uint8 encoded[32]{};
++        MG_Impl::GLImpl::GetCompressedTexImage(GL_TEXTURE_2D, 0, encoded);
++        EXPECT_EQ(std::memcmp(encoded + sample.size, sample.block, sample.size), 0);
++        MG_Impl::GLImpl::DeleteTextures(1, &texture);
++    }
++}

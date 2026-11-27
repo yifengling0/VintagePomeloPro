@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "compositor/toplevel/zorder_policy.h"
+#include "compositor/frame/pixel_damage.h"
 
 // WaylandServer 中 toplevel 聚合状态的集中存储 (PC popup 的帧状态复用
 // ToplevelState — popup 登记表本身已迁至 PopupManager, 见 popup_manager.h)。
@@ -68,7 +69,11 @@ public:
         // 判定"该层像素是否变化" — 变化的可见层矩形构成当帧重绘范围; 几何/
         // 层序/显隐变化由合成签名 (compositionSignature) 覆盖, 不 bump。
         uint64_t FrameSerial() const { return frameSerial_; }
-        void BumpFrameSerial() { ++frameSerial_; }
+        void BumpFrameSerial(const PixelDamage& damage = {}) {
+            ++frameSerial_;
+            frameDamage_ = damage;
+        }
+        const PixelDamage& FrameDamage() const { return frameDamage_; }
         int Width() const { return w_; }       // content 尺寸 (popup 为显示尺寸)
         int Height() const { return h_; }
         uint32_t ShmFormat() const { return shmFormat_; }  // 0=ARGB8888, 1=XRGB8888
@@ -156,6 +161,7 @@ public:
         int clientW_ = 0, clientH_ = 0;
         bool dirty_ = false;
         uint64_t frameSerial_ = 0;      // 帧内容序列号 (见 FrameSerial 注释)
+        PixelDamage frameDamage_;
         uint32_t shmFormat_ = 1;        // wl_shm format (0=ARGB8888, 1=XRGB8888)
         bool hasPosition_ = false;      // 首次 commit 置位 (isFirstCommit 判定 / 移动守卫)
         int x_ = 0, y_ = 0;             // compositor 桌面位置 (含 move grab 偏移)

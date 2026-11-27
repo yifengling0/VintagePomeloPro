@@ -193,7 +193,7 @@ public:
     static void surface_set_input_region(wl_client*, wl_resource*, wl_resource*);
     static void surface_set_buffer_transform(wl_client*, wl_resource*, int32_t);
     static void surface_set_buffer_scale(wl_client*, wl_resource*, int32_t);
-    static void surface_damage_buffer(wl_client*, wl_resource*, int32_t, int32_t, int32_t, int32_t) {}
+    static void surface_damage_buffer(wl_client*, wl_resource*, int32_t, int32_t, int32_t, int32_t);
     static void surface_offset(wl_client*, wl_resource*, int32_t, int32_t) {}
 
     static void region_destroy(wl_client*, wl_resource* r) { wl_resource_destroy(r); }
@@ -277,10 +277,10 @@ private:
     void ComputeContentArea(SurfaceData* sd, ShmCommitInfo& fi);
     // CommittedSurface 快照产出 (重构第 5A2 步): commit 管线与旧字段同源并行
     // 填充 sd->committed (命名快照), 供消费端切换 (见 committed_surface.h)
-    void BuildCommittedSurface(SurfaceData* sd, ShmCommitInfo& fi);
+    void BuildCommittedSurface(SurfaceData* sd, ShmCommitInfo& fi, const PixelDamage& damage);
 
     void UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* surfRes,
-                                     ShmCommitInfo& fi, bool& outFirstCommit);
+                                     ShmCommitInfo& fi, const PixelDamage& damage, bool& outFirstCommit);
     void CheckDesktopRootOnCommit(SurfaceData* sd, bool recognitionOpportunity);
     void UpdateSubsurfaceOnCommit(SurfaceData* sd, wl_resource* surfRes, ShmCommitInfo& fi);
     void UpdateSubsurfaceLayerOnCommit(SurfaceData* sd, wl_resource* surfRes,

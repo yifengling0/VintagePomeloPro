@@ -14,7 +14,7 @@ export interface ConfigurationRegistration { name: string; schemaVersion: number
 interface PortableIndexValidation { directory: string; appId: string; executable: string; executableSha256: string; game: PortableGame; blocked: boolean; }
 // Credentials, purchase verdicts, sync journals, generated catalog and Wine prefix are deliberately unregistered.
 export const CONFIGURATION_REGISTRY: ConfigurationRegistration[] = [
-  { name: 'settings', schemaVersion: 1, store: 'vintage_pomelo_pro', keys: ['global_settings_v1', 'winehua_render_mode_v1', 'platform_defaults_v7'] },
+  { name: 'settings', schemaVersion: 1, store: 'vintage_pomelo_pro', keys: ['global_settings_v1', 'winehua_render_mode_v1', 'winehua_opengl_backend_v1', 'platform_defaults_v7'] },
   { name: 'settings', schemaVersion: 1, store: 'input_settings', keys: ['touchpadEnabled', 'gamepadEnabled', 'keyboardEnabled', 'cursorSpeed', 'padButtons', 'padZones', 'keyboardPos', 'layoutEditIntroShown'] },
   { name: 'settings', schemaVersion: 1, store: 'desktop_mode', keys: ['mode'] },
   { name: 'settings', schemaVersion: 1, store: 'wine_settings', keys: ['lang'] },

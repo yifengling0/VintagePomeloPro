@@ -1,7 +1,8 @@
 import { normalizeGameModeOverride, normalizeGameModeSettings } from '../model/GameModeSettings';
 import preferences from '@ohos.data.preferences';
 import { normalizePerformanceHud } from '../model/PerformanceHudSettings';
-import { normalizeAppGraphicsBackend, normalizeGraphicsBackend } from '../model/GraphicsBackendSettings';
+import { normalizeAppGraphicsBackend, normalizeAppOpenGLBackend, normalizeGraphicsBackend,
+  normalizeOpenGLBackend, OPENGL_BACKEND_AUTO } from '../model/GraphicsBackendSettings';
 import { common } from '@kit.AbilityKit';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
 import {
@@ -41,6 +42,7 @@ const DECK_MOTION_KEY = 'deck_motion_v1';
 const BENTO_STATE_KEY = 'console_bento_state_v1';
 const DXVK_DEPTH_STORAGE_KEY = 'winehua_dxvk_depth_d32_v1';
 const RENDER_MODE_KEY = 'winehua_render_mode_v1';
+const OPENGL_BACKEND_KEY = 'winehua_opengl_backend_v1';
 // v6 briefly selected single-app on tablets.  Keep the product's desktop
 // workflow as the default and migrate only those tablet installations back.
 const PLATFORM_DEFAULTS_KEY = 'platform_defaults_v7';
@@ -94,6 +96,7 @@ export class AppSettingsStore {
   private bentoWriteChain: Promise<void> = Promise.resolve();
   private libraryPath: string = '';
   private renderMode: string = 'dxvk_1_10';
+  private openGLBackend: string = OPENGL_BACKEND_AUTO;
   private dxvkDepthD32: boolean = false;
   private gpuBcUploadBuilt: boolean = false;
 
@@ -214,6 +217,7 @@ export class AppSettingsStore {
       this.publishRenderMode(this.renderMode);
       return;
     }
+    this.openGLBackend = normalizeOpenGLBackend(this.store.getSync(OPENGL_BACKEND_KEY, OPENGL_BACKEND_AUTO) as string);
     const raw = this.store.getSync(RENDER_MODE_KEY, 'dxvk_1_10') as string;
     this.renderMode = this.normalizeRenderMode(raw);
     this.publishRenderMode(this.renderMode);
@@ -244,6 +248,18 @@ export class AppSettingsStore {
     if (!this.store) return;
     await this.store.put(RENDER_MODE_KEY, selected);
     await this.store.flush();
+  }
+
+  getOpenGLBackend(): string {
+    return this.openGLBackend;
+  }
+
+  async setOpenGLBackend(value: string): Promise<void> {
+    const selected = normalizeOpenGLBackend(value);
+    if (!this.store) throw new Error('设置尚未加载，请稍后重试');
+    await this.store.put(OPENGL_BACKEND_KEY, selected);
+    await this.store.flush();
+    this.openGLBackend = selected;
   }
 
   /** Restore the v6 tablet default without overwriting other device preferences. */
@@ -408,6 +424,7 @@ export class AppSettingsStore {
       graphicsLaunchPreset: normalizeGraphicsLaunchPreset(
         value.graphicsLaunchPreset ?? defaults.graphicsLaunchPreset),
       graphicsBackend: normalizeAppGraphicsBackend(value.graphicsBackend ?? 'default'),
+      openGLBackend: normalizeAppOpenGLBackend(value.openGLBackend),
       steamOpenGL33: value.steamOpenGL33 === true,
       gpuBcUpload: value.gpuBcUpload === true,
       gameModeOverride: normalizeGameModeOverride(value.gameModeOverride),

@@ -136,13 +136,11 @@ export struct WineEngineBlockingOverlay {
         .border({ width: 1, color: skinColor('selected_background') })
         .borderRadius(20)
         .shadow({ radius: 24, color: '#66000000', offsetX: 0, offsetY: 10 })
-        .hitTestBehavior(HitTestMode.Block)
         .id('wine-engine-progress-panel')
       }
       .width('100%').height('100%')
       .alignContent(Alignment.Center)
       .zIndex(1000)
-      .hitTestBehavior(HitTestMode.Block)
       .id('wine-engine-blocking-overlay')
     }
   }

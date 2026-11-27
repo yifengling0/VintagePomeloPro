@@ -47,6 +47,8 @@ struct WaylandServer {
     void PostToplevelEvent(uint32_t, int, int) {}
     void TryBeginSessionFirstFrame(uint32_t, wl_resource*) { firstFrames++; }
     static void surface_attach(wl_client*, wl_resource*, wl_resource*, int32_t, int32_t);
+    static void surface_damage(wl_client*, wl_resource*, int32_t, int32_t, int32_t, int32_t);
+    static void surface_damage_buffer(wl_client*, wl_resource*, int32_t, int32_t, int32_t, int32_t);
     bool HandleNullBufferCommit(SurfaceData*, wl_resource*);
     void FinishCommit(SurfaceData*, wl_resource*);
 };
@@ -55,12 +57,17 @@ main = r'''
 int main() {
     WaylandServer server; SurfaceData data; data.isSubsurface=true;
     wl_resource surface{&data}, buffer, first;
+    WaylandServer::surface_damage(nullptr,&surface,-2,3,6,7);
     WaylandServer::surface_attach(nullptr,&surface,&buffer,0,0);
+    WaylandServer::surface_damage_buffer(nullptr,&surface,25,30,6,7);
+    assert(data.pendingSurfaceDamage.Bounds().left==-2);
+    assert(data.pendingBufferDamage.Bounds().left==25);
     data.frameCallbacks.push_back(&first);
     assert(!server.HandleNullBufferCommit(&data,&surface));
     server.FinishCommit(&data,&surface);
     assert(buffer.released==1 && first.done==1 && first.destroyed==1);
     assert(!data.pendingBufferAttached && server.firstFrames==1);
+    assert(data.pendingSurfaceDamage.Empty() && data.pendingBufferDamage.Empty());
     // GPU swaps have no new pixel buffer: acknowledge each commit and preserve
     // the current layer. Never re-release the previous SHM geometry buffer.
     for(unsigned n=0;n<240;n++) {
@@ -72,6 +79,10 @@ int main() {
     }
     // Explicit attach(NULL) still unmaps exactly once; a later state-only
     // commit must not unmap again or manufacture a new buffer release.
+    data.lastShmDamageLayout.valid=true;
+    WaylandServer::surface_damage_buffer(nullptr,&surface,1,2,3,4);
+    assert(server.HandleNullBufferCommit(&data,&surface));
+    assert(!data.lastShmDamageLayout.valid && data.pendingBufferDamage.Empty());
     WaylandServer::surface_attach(nullptr,&surface,nullptr,0,0);
     assert(server.HandleNullBufferCommit(&data,&surface));
     assert(!server.desktopCompositor_.layer && server.desktopCompositor_.removals==1);
@@ -91,10 +102,13 @@ with tempfile.TemporaryDirectory(prefix='vp-state-commit-') as directory:
     binary = Path(directory) / 'test'
     cpp.write_text(stub + '\n'.join(handler(signature) for signature in [
         'void WaylandServer::surface_attach(',
+        'void WaylandServer::surface_damage(',
+        'void WaylandServer::surface_damage_buffer(',
         'bool WaylandServer::HandleNullBufferCommit(',
         'void WaylandServer::FinishCommit(']) + main)
     subprocess.run(['g++', '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                    '-fsanitize=address,undefined', '-fno-omit-frame-pointer',
-                    '-I', str(root / 'entry/src/main/cpp'), str(cpp), '-o', str(binary)], check=True)
+                    '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-no-pie',
+                    '-I', str(root / 'entry/src/main/cpp'), str(cpp),
+                    '-lwayland-server', '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True, timeout=15,
                    env={**os.environ, 'ASAN_OPTIONS': 'detect_leaks=0'})

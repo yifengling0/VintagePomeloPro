@@ -1,4 +1,6 @@
 #pragma once
+#include "direct_viewport.h"
+#include "pixel_damage.h"
 #include <cstdint>
 #include <vector>
 
@@ -32,6 +34,26 @@ struct ShmCommitInfo {
     int screenX = 0, screenY = 0;      // 桌面模式: 虚拟桌面屏幕位置
     uint64_t shmCommitSerial = 0;      // 本次 commit 的序号 (zero-copy 回退判定)
 };
+
+// Only layouts whose surface damage can be mapped to the legacy SHM snapshot
+// enter the partial path. Equality also guards against damage across a recrop.
+struct ShmDamageLayout {
+    int bufW = 0, bufH = 0, stride = 0;
+    uint32_t format = 0;
+    int cropX = 0, cropY = 0, cropW = 0, cropH = 0;
+    int surfaceSourceW = 0, surfaceSourceH = 0;
+    int surfaceW = 0, surfaceH = 0;
+    int outputW = 0, outputH = 0;
+    bool valid = false;
+
+    bool Matches(const ShmDamageLayout& other) const;
+};
+
+ShmDamageLayout GetShmDamageLayout(const ShmCommitInfo& fi,
+                                   const DirectViewportState& viewport,
+                                   bool toplevel, bool zeroAttachOffset);
+PixelDamage MapShmDamage(const ShmDamageLayout& layout,
+                          const PixelDamage& surface, const PixelDamage& buffer);
 
 // 紧凑拷贝 content 区 (去 stride padding, 裁剪 window_geometry 后的区域)
 void CopyShmContentTight(const ShmCommitInfo& fi, std::vector<uint8_t>& dst);

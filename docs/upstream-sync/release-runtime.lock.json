@@ -20,7 +20,7 @@
     }
   },
   "wine": {
-    "lockFile": "docs/upstream-sync/wine-candidate.lock.json",
+    "lockFile": "docs/upstream-sync/validation/wine-2.1.1-source.lock.json",
     "lockSha256": "f817b0538b94e23365d41708e052d0208515c6c550d71c98d13e5d361608794a",
     "adaptedCommit": "03599dac79e61834514c651d87f8be5f72d304da",
     "upstreamCommit": "e8ca5806eec488f5916e83d655ffc5349b6b1702"

@@ -2,6 +2,86 @@
 #include "compositor/frame/geometry.h"  // DisplaySizeAfterViewport (不 clamp 变体)
 #include <algorithm>
 #include <cstring>
+#include <tuple>
+
+bool ShmDamageLayout::Matches(const ShmDamageLayout& other) const {
+    return valid && other.valid &&
+        std::tie(bufW, bufH, stride, format, cropX, cropY, cropW, cropH,
+                 surfaceSourceW, surfaceSourceH, surfaceW, surfaceH, outputW, outputH) ==
+        std::tie(other.bufW, other.bufH, other.stride, other.format,
+                 other.cropX, other.cropY, other.cropW, other.cropH,
+                 other.surfaceSourceW, other.surfaceSourceH, other.surfaceW, other.surfaceH,
+                 other.outputW, other.outputH);
+}
+
+ShmDamageLayout GetShmDamageLayout(const ShmCommitInfo& fi,
+                                   const DirectViewportState& viewport,
+                                   bool toplevel, bool zeroAttachOffset) {
+    // SHM currently copies raw orientation. A transformed/scaled buffer or
+    // nonzero attach offset uses the complete snapshot and redraw.
+    if (!zeroAttachOffset || viewport.transform != 0 || viewport.scale != 1 ||
+        fi.bufW <= 0 || fi.bufH <= 0 || fi.contentW <= 0 || fi.contentH <= 0 ||
+        fi.stride < static_cast<int64_t>(fi.bufW) * 4 || fi.shmFormat > 1)
+        return {};
+
+    const bool explicitSource = viewport.width != -1 || viewport.height != -1;
+    const int cropX = toplevel ? fi.contentOffX : 0;
+    const int cropY = toplevel ? fi.contentOffY : 0;
+    if (cropX < 0 || cropY < 0 || static_cast<int64_t>(cropX) + fi.contentW > fi.bufW ||
+        static_cast<int64_t>(cropY) + fi.contentH > fi.bufH)
+        return {};
+    const int surfaceSourceW = explicitSource ? fi.contentW : fi.bufW;
+    const int surfaceSourceH = explicitSource ? fi.contentH : fi.bufH;
+    // An explicit source is supported when it names the same rectangle as
+    // the snapshot. Subs use full-buffer pixels with the legacy tight stride.
+    if (explicitSource &&
+        (viewport.x != cropX || viewport.y != cropY ||
+         viewport.width != fi.contentW || viewport.height != fi.contentH))
+        return {};
+    const int surfaceW = DisplaySizeAfterViewport(viewport.destinationW, surfaceSourceW);
+    const int surfaceH = DisplaySizeAfterViewport(viewport.destinationH, surfaceSourceH);
+    const int outputW = toplevel ? DisplaySizeAfterViewport(viewport.destinationW, fi.contentW) : fi.contentW;
+    const int outputH = toplevel ? DisplaySizeAfterViewport(viewport.destinationH, fi.contentH) : fi.contentH;
+    if (!toplevel && (fi.contentW != fi.bufW || fi.contentH != fi.bufH ||
+                      surfaceW != fi.bufW || surfaceH != fi.bufH))
+        return {};
+    // With an explicit source, the surface origin is at the crop. Otherwise
+    // the surface origin is the buffer origin and may include cropped pixels.
+    if (explicitSource && (cropX != 0 || cropY != 0)) return {};
+    return {fi.bufW, fi.bufH, fi.stride, fi.shmFormat, cropX, cropY, fi.contentW, fi.contentH,
+            surfaceSourceW, surfaceSourceH, surfaceW, surfaceH, outputW, outputH, true};
+}
+
+PixelDamage MapShmDamage(const ShmDamageLayout& layout,
+                          const PixelDamage& surface, const PixelDamage& buffer) {
+    PixelDamage result;
+    if (!layout.valid) return result;
+    const PixelRect crop{layout.cropX, layout.cropY,
+                         static_cast<int64_t>(layout.cropX) + layout.cropW,
+                         static_cast<int64_t>(layout.cropY) + layout.cropH};
+    const auto ceilScale = [](int64_t value, int numerator, int denominator) {
+        return (value * numerator + denominator - 1) / denominator;
+    };
+    const auto addBufferRect = [&](PixelRect rect) {
+        rect = rect.Intersect(crop);
+        if (rect.Empty()) return;
+        // CopyToplevelContent samples floor(output * crop / outputSize).
+        result.Add({ceilScale(rect.left - crop.left, layout.outputW, layout.cropW),
+                    ceilScale(rect.top - crop.top, layout.outputH, layout.cropH),
+                    ceilScale(rect.right - crop.left, layout.outputW, layout.cropW),
+                    ceilScale(rect.bottom - crop.top, layout.outputH, layout.cropH)});
+    };
+    for (const auto& rect : buffer) addBufferRect(rect);
+    for (const auto& request : surface) {
+        const auto rect = request.Intersect({0, 0, layout.surfaceW, layout.surfaceH});
+        if (rect.Empty()) continue;
+        addBufferRect({rect.left * layout.surfaceSourceW / layout.surfaceW,
+                       rect.top * layout.surfaceSourceH / layout.surfaceH,
+                       ceilScale(rect.right, layout.surfaceSourceW, layout.surfaceW),
+                       ceilScale(rect.bottom, layout.surfaceSourceH, layout.surfaceH)});
+    }
+    return result;
+}
 
 // ============================================================================
 // ShmFrameSource 实现 — wl_core.cpp 原 file-static 纯函数逐字搬移

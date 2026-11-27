@@ -2,6 +2,11 @@
 export const GRAPHICS_BACKEND_DEFAULT = 'default';
 export const APP_OPENGL_MOBILEGL = 'opengl_mobilegl';
 export const APP_OPENGL_MOBILEGL_VENUS = 'opengl_mobilegl_venus';
+export const OPENGL_BACKEND_AUTO = 'auto';
+export const OPENGL_BACKEND_MOBILEGL = 'mobilegl';
+export const OPENGL_BACKEND_VIRGL = 'virgl';
+export const OPENGL_BACKEND_CHOICES: string[] = [OPENGL_BACKEND_AUTO, OPENGL_BACKEND_MOBILEGL, OPENGL_BACKEND_VIRGL];
+export const APP_OPENGL_BACKEND_CHOICES: string[] = [GRAPHICS_BACKEND_DEFAULT].concat(OPENGL_BACKEND_CHOICES);
 export const VKD3D_VENUS = 'vkd3d_limited_500k';
 export const VKD3D_DIRECT = 'vkd3d_limited_500k_direct';
 export const GRAPHICS_BACKEND_IDS: string[] = ['dxvk_1_10', 'dxvk_2_6', 'virgl', 'dxvk9', 'zink',
@@ -34,6 +39,31 @@ export function normalizeAppGraphicsBackend(value: string): string {
   return value === GRAPHICS_BACKEND_DEFAULT || value === APP_OPENGL_SOFTPIPE ||
     isVirglOpenGLCompatibility(value) || GRAPHICS_BACKEND_IDS.includes(value)
     ? value : GRAPHICS_BACKEND_DEFAULT;
+}
+
+export function normalizeOpenGLBackend(value: string | undefined): string {
+  return value && OPENGL_BACKEND_CHOICES.includes(value) ? value : OPENGL_BACKEND_AUTO;
+}
+
+export function normalizeAppOpenGLBackend(value: string | undefined): string {
+  return value && APP_OPENGL_BACKEND_CHOICES.includes(value) ? value : GRAPHICS_BACKEND_DEFAULT;
+}
+
+export function openGLBackendLabel(value: string): string {
+  switch (value) {
+    case OPENGL_BACKEND_MOBILEGL: return 'MobileGL';
+    case OPENGL_BACKEND_VIRGL: return 'VirGL';
+    case OPENGL_BACKEND_AUTO: return '自动';
+    default: return '跟随系统';
+  }
+}
+
+export function resolveOpenGLBackend(system: string, app: string | undefined, graphicsMode: string): string {
+  if (graphicsMode === 'zink' || graphicsMode === APP_OPENGL_SOFTPIPE || isVirglOpenGLCompatibility(graphicsMode)) {
+    return GRAPHICS_BACKEND_DEFAULT;
+  }
+  const selected = normalizeAppOpenGLBackend(app);
+  return selected === GRAPHICS_BACKEND_DEFAULT ? normalizeOpenGLBackend(system) : selected;
 }
 
 export function supportsMobileGLVulkan(apiVersion: number): boolean {

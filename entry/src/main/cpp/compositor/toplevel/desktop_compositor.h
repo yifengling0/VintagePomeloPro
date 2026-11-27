@@ -284,6 +284,7 @@ private:
     bool ExternalWindowLiveLocked(const ExternalWindow& binding) const;
     uint64_t desktopCompositionSignature_ = 0;
     uint64_t desktopOutputRootFrameSerial_ = 0;
+    uint64_t desktopOutputSerial_ = 0;  // Version of the composed output in the renderer's CPU buffer.
     bool desktopOutputInitialized_ = false;
     // Tracks a scene already produced from child buffers, including a direct
     // pass. Removing its last child must still clear the old image once.

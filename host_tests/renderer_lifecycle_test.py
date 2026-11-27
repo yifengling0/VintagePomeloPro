@@ -288,7 +288,7 @@ with tempfile.TemporaryDirectory(prefix='renderer-lifecycle-') as d:
 # Pause gating must occur after draining, before any output snapshot/upload.
 egl=(R/'entry/src/main/cpp/graphics/egl_renderer.cpp').read_text()
 loop=egl[egl.index('    bool wasPaused = false;'):]
-assert loop.index('UpdateZeroCopyFrame(consumer') < loop.index('        if (paused) {\n            std::unique_lock') < loop.index('SnapshotZeroCopyScene()') < loop.index('glTexSubImage2D')
+assert loop.index('UpdateZeroCopyFrame(consumer') < loop.index('        if (paused) {\n            std::unique_lock') < loop.index('SnapshotZeroCopyScene()') < loop.index('shmTexture.Upload(')
 paused=block(vk,'        if (paused) {')
 assert 'UpdateSources()' in paused and 'UpdateGlSources()' in paused and 'DrainBackgroundBuffers()' in paused
 assert all(x not in paused for x in ['vkAcquireNextImageKHR','vkQueuePresentKHR','UploadUi','vkDeviceWaitIdle'])

@@ -45,8 +45,18 @@ for (const backend of policy.GRAPHICS_BACKEND_IDS.concat(['default'])) {
 const old = models.createDefaultAppSettings('old');
 delete old.graphicsBackend;
 delete old.steamOpenGL33;
+delete old.openGLBackend;
 assert.equal(models.cloneAppSettings(old).graphicsBackend, 'default');
 assert.equal(models.cloneAppSettings(old).steamOpenGL33, false);
+assert.equal(models.cloneAppSettings(old).openGLBackend, 'default');
+old.openGLBackend = 'virgl';
+assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(old))).openGLBackend, 'virgl');
+old.openGLBackend = 'invalid';
+assert.equal(models.cloneAppSettings(old).openGLBackend, 'default');
+assert.equal(policy.resolveOpenGLBackend('invalid', undefined, 'dxvk_1_10'), 'auto');
+assert.equal(policy.resolveOpenGLBackend('virgl', 'auto', 'dxvk_1_10'), 'auto');
+assert.equal(policy.resolveOpenGLBackend('mobilegl', 'default', 'zink'), 'default');
+assert.equal(policy.resolveOpenGLBackend('mobilegl', 'auto', policy.APP_OPENGL_VIRGL_33), 'default');
 old.steamOpenGL33 = true;
 old.graphicsBackend = 'virgl';
 const restored = models.cloneAppSettings(JSON.parse(JSON.stringify(old)));
@@ -76,8 +86,15 @@ const compiled = ts.transpileModule(program, {
 });
 assert.equal(compiled.diagnostics.length, 0);
 let system = 'dxvk_1_10';
+let openGL = 'auto';
+let displayRoute = 'wayland';
 const context = {exports: {}, ...policy, DOMAIN: 0, TAG: 'test',
-  AppSettingsStore: {getInstance: () => ({getRenderMode: () => system})},
+  AppSettingsStore: {getInstance: () => ({
+    getRenderMode: () => system,
+    getOpenGLBackend: () => openGL,
+    getGlobalSettings: () => ({wineDisplayRoute: displayRoute})
+  })},
+  isWineDesktopProgram: executable => executable === 'explorer',
   AppStorage: {get: () => undefined, setOrCreate: () => {}},
   testNapi: {getHostGpuName: () => 'Maleoon 910'},
   hilog: {info: () => {}},
@@ -115,6 +132,46 @@ assert.equal(engine.selectHostGraphicsBackendForExecutable('game-b.exe'), 'dxvk_
 for (const backend of ['dxvk9', 'zink', policy.APP_OPENGL_VIRGL_COMPAT, policy.APP_OPENGL_VIRGL_33]) {
   old.graphicsBackend = backend;
   assert.equal(models.cloneAppSettings(JSON.parse(JSON.stringify(old))).graphicsBackend, backend);
+}
+async function checkOpenGLLaunch() {
+  const native = ['WINEHUA_MOBILEGL=1', 'WINEHUA_MOBILEGL_X86=1', 'WINEDLLOVERRIDES=opengl32=n,b'];
+  const builtin = ['WINEHUA_MOBILEGL=0', 'WINEHUA_MOBILEGL_X86=0', 'WINEDLLOVERRIDES=opengl32=b'];
+  const compat = Array.from(policy.resolveAppOpenGLEnvironment(policy.APP_OPENGL_VIRGL_COMPAT));
+  let available = true;
+  engine.canSelectMobileGL = async () => available;
+  engine.prepareMobileGLEnvironment = () => native;
+  const resolve = async (backend, executable = 'cad.exe') =>
+    Array.from(await engine.resolveOpenGLLaunchEnvironment(executable, backend));
+
+  system = 'dxvk_2_6';
+  openGL = 'auto';
+  assert.equal(engine.selectHostGraphicsBackendForExecutable('cad.exe'), 'dxvk_modern_2_6');
+  assert.deepEqual(await resolve(), compat.concat(native));
+  assert.deepEqual(await resolve('virgl'), builtin);
+  assert.equal(engine.selectedD3DBackend(), 'dxvk_modern_2_6');
+  assert.deepEqual(await resolve(), compat.concat(native));
+
+  openGL = 'virgl';
+  assert.deepEqual(await resolve(), builtin);
+  assert.deepEqual(await resolve('auto'), compat.concat(native));
+  assert.deepEqual(await resolve('mobilegl', 'explorer'), []);
+
+  displayRoute = 'x11';
+  assert.deepEqual(await resolve('mobilegl'), builtin);
+  assert.deepEqual(await resolve('auto'), compat);
+  displayRoute = 'wayland';
+  available = false;
+  assert.deepEqual(await resolve('mobilegl'), builtin);
+  assert.deepEqual(await resolve('auto'), compat);
+
+  available = true;
+  openGL = 'mobilegl';
+  system = 'virgl';
+  assert.equal(engine.selectHostGraphicsBackendForExecutable('cad.exe'), 'dxvk_legacy');
+  assert.deepEqual(await resolve(), native);
+  assert.deepEqual(await resolve('auto'), []);
+  assert.equal(engine.selectHostGraphicsBackendForExecutable('cad.exe', 'zink'), 'wined3d_zink');
+  assert.deepEqual(await resolve(), []);
 }
 async function checkLaunchQueue() {
   const session = fs.readFileSync(path.join(root, 'service/AppSessionService.ets'), 'utf8');
@@ -157,6 +214,6 @@ async function checkLaunchQueue() {
   assert.equal(await later, 'later');
   assert.deepEqual(entered, ['game-a', 'game-b', 'broken', 'later']);
 }
-checkLaunchQueue().then(() => {
-  console.log('PASS: inheritance, persistence, old settings, device fallback, cross-game reset and serialized launches');
+checkOpenGLLaunch().then(checkLaunchQueue).then(() => {
+  console.log('PASS: profile inheritance, OpenGL overrides, persistence, device fallback, cross-game reset and serialized launches');
 }).catch(error => { console.error(error); process.exitCode = 1; });

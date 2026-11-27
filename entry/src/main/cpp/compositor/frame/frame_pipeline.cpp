@@ -84,21 +84,9 @@ void FillBlackRect(std::vector<uint8_t>& composited, int rootW,
                     static_cast<size_t>(row) * rootW + fx, fw, 0xFF000000u);
 }
 
-// 重绘矩形并集 (局部合成 R): 新矩形先裁剪到 root 再并入
-void UnionDamageRect(DamageRect& dmg, int rootW, int rootH,
-                     int ux, int uy, int uw, int uh)
-{
-    if (uw <= 0 || uh <= 0) return;
-    const int l = std::max(ux, 0), t = std::max(uy, 0);
-    const int r = std::min(ux + uw, rootW), b = std::min(uy + uh, rootH);
-    if (r <= l || b <= t) return;
-    if (dmg.w <= 0 || dmg.h <= 0) {
-        dmg.x = l; dmg.y = t; dmg.w = r - l; dmg.h = b - t;
-    } else {
-        const int nl = std::min(dmg.x, l), nt = std::min(dmg.y, t);
-        const int nr = std::max(dmg.x + dmg.w, r), nb = std::max(dmg.y + dmg.h, b);
-        dmg.x = nl; dmg.y = nt; dmg.w = nr - nl; dmg.h = nb - nt;
-    }
+void AddOutputDamage(FramePlan& plan, PixelRect rect, int x, int y) {
+    plan.outputDamage.Add(PixelRect{rect.left + x, rect.top + y, rect.right + x, rect.bottom + y}
+                              .Intersect({0, 0, plan.rootW, plan.rootH}));
 }
 
 } // namespace
@@ -138,9 +126,14 @@ FramePlanOutcome FramePlanner::PlanDesktopLocked(uint32_t id,
     // 阶段 5: 合成签名 FNV 哈希 + rebuildBase 判定
     plan.compositionSignature = ComputeCompositionSignatureLocked(id, plan);
     const size_t rootBytes = static_cast<size_t>(plan.rootW) * plan.rootH * 4;
+    const uint64_t rootSerial = comp_.desktopRootFrameSerial_;
+    const bool rootChanged = rootSerial != comp_.desktopOutputRootFrameSerial_;
+    plan.useRootDamage = rootChanged && plan.rootHasPixels && !plan.isZcGame &&
+                         comp_.desktopOutputRootFrameSerial_ + 1 == rootSerial &&
+                         !rst->FrameDamage().Empty();
     plan.rebuildBase = !comp_.desktopOutputInitialized_ ||
         out.size() != rootBytes ||
-        comp_.desktopOutputRootFrameSerial_ != comp_.desktopRootFrameSerial_ ||
+        (rootChanged && !plan.useRootDamage) ||
         comp_.desktopCompositionSignature_ != plan.compositionSignature;
     // 阶段 6: 局部合成重绘矩形 R 计算 (空 R = 无内容变化, 本帧不产出)
     if (!ComputeDamageRectLocked(rst, plan)) return FramePlanOutcome::kNoFrame;
@@ -160,6 +153,12 @@ FramePlanOutcome FramePlanner::PlanDesktopLocked(uint32_t id,
     frame.contentW = plan.rootW;
     frame.contentH = plan.rootH;
     frame.opaque = !plan.rootHasPixels || (rst->ShmFormat() != 0);
+    frame.pixelSource = PresentedFrame::PixelSource::DesktopComposite;
+    if (!plan.dmg.full) {
+        frame.baseSerial = comp_.desktopOutputSerial_;
+        frame.damage = plan.outputDamage;
+    }
+    frame.serial = ++comp_.desktopOutputSerial_;
     return FramePlanOutcome::kCompose;
 }
 
@@ -234,6 +233,7 @@ FramePlanOutcome FramePlanner::GateDesktopDirtyLocked(uint32_t id, FramePlan& pl
         frame.contentW = plan.rootW;
         frame.contentH = plan.rootH;
         frame.opaque = (rst->ShmFormat() != 0);
+        frame.SetToplevelDamage(rst->FrameSerial(), rst->FrameDamage());
         rst->ClearDirty();
         return FramePlanOutcome::kFastPath;
     }
@@ -521,6 +521,7 @@ uint64_t FramePlanner::ComputeCompositionSignatureLocked(uint32_t id,
             mixSignature(static_cast<uint32_t>(layer.h));
             mixSignature(layer.fullscreen ? 1 : 0);
         } else if (layer.type == CompositorLayer::Type::Subsurface) {
+            mixSignature(layer.sub->surfaceKey);
             mixSignature(reinterpret_cast<uintptr_t>(layer.sub->surface));
             mixSignature(layer.zcActive ? 1 : 0);
             mixSignature(layer.toplevelId);
@@ -575,7 +576,9 @@ bool FramePlanner::ComputeDamageRectLocked(ToplevelManager::ToplevelState* rst,
         plan.dmg.full = true;
     } else {
         plan.dmg.full = false;
-        plan.dmg.x = plan.dmg.y = 0; plan.dmg.w = plan.dmg.h = 0;
+        if (plan.useRootDamage) {
+            for (const auto& rect : rst->FrameDamage()) AddOutputDamage(plan, rect, 0, 0);
+        }
         for (size_t li = 0; li < plan.layers.size(); ++li) {
             const auto& layer = plan.layers[li];
             if (plan.srcs[li].skip) continue;
@@ -598,12 +601,15 @@ bool FramePlanner::ComputeDamageRectLocked(ToplevelManager::ToplevelState* rst,
                     ux = layer.x; uy = layer.y; uw = layer.w; uh = layer.h;
                     // 与 blitSubsurface 同规则的 dmg 包围盒裁剪 (显示内容
                     // 更窄时重绘范围随之收窄; 无效/为空用全层矩形兜底)
-                    if (sl.dmgW > 0 && sl.dmgH > 0) {
-                        const int dl = std::max(ux, layer.x + sl.dmgX);
-                        const int dt = std::max(uy, layer.y + sl.dmgY);
-                        const int dr = std::min(ux + uw, layer.x + sl.dmgX + sl.dmgW);
-                        const int db = std::min(uy + uh, layer.y + sl.dmgY + sl.dmgH);
-                        if (dr > dl && db > dt) { ux = dl; uy = dt; uw = dr - dl; uh = db - dt; }
+                    if (it != comp_.lastSubSerial_.end() && it->second + 1 == sl.shmCommitSerial &&
+                        sl.dmgW > 0 && sl.dmgH > 0) {
+                        const auto rect = PixelRect{sl.dmgX, sl.dmgY,
+                            static_cast<int64_t>(sl.dmgX) + sl.dmgW,
+                            static_cast<int64_t>(sl.dmgY) + sl.dmgH}.Intersect({0, 0, uw, uh});
+                        if (!rect.Empty()) {
+                            AddOutputDamage(plan, rect, ux, uy);
+                            continue;
+                        }
                     }
                 }
             } else if (layer.type == CompositorLayer::Type::Toplevel) {
@@ -627,18 +633,30 @@ bool FramePlanner::ComputeDamageRectLocked(ToplevelManager::ToplevelState* rst,
                                     ux, uy, uw, uh);
                 } else {
                     ux = layer.x; uy = layer.y; uw = layer.w; uh = layer.h;
+                    if (it != comp_.lastTopSerial_.end() && it->second + 1 == cst->FrameSerial() &&
+                        !cst->FrameDamage().Empty()) {
+                        for (const auto& rect : cst->FrameDamage())
+                            AddOutputDamage(plan, rect.Intersect({0, 0, uw, uh}), ux, uy);
+                        continue;
+                    }
                 }
             }
-            if (uw <= 0 || uh <= 0) continue;
-            UnionDamageRect(plan.dmg, plan.rootW, plan.rootH, ux, uy, uw, uh);
+            AddOutputDamage(plan, {0, 0, uw, uh}, ux, uy);
         }
-        if (plan.dmg.empty()) {
+        const auto bounds = plan.outputDamage.Bounds();
+        if (bounds.Empty()) {
             // 无内容变化 (commit 未重写像素, 如空帧): 本帧不产出新帧,
             // 渲染器保留上一帧纹理 — 等价"没取到帧"。上帧输出保持: R 外
             // (全部) 内容仍有效。
             rst->ClearDirty();
             return false;
         }
+        // The blitter replays one bounding rectangle. The texture only needs
+        // pixels within the original regions as the rest was replayed unchanged.
+        plan.dmg.x = bounds.left;
+        plan.dmg.y = bounds.top;
+        plan.dmg.w = bounds.Width();
+        plan.dmg.h = bounds.Height();
     }
     return true;
 }
@@ -646,6 +664,7 @@ bool FramePlanner::ComputeDamageRectLocked(ToplevelManager::ToplevelState* rst,
 void FramePlanner::CopyBaseToOutputLocked(const ToplevelManager::ToplevelState* rst,
                                           FramePlan& plan,
                                           std::vector<uint8_t>& out) {
+    comp_.desktopOutputRootFrameSerial_ = comp_.desktopRootFrameSerial_;
     if (plan.rebuildBase) {
         if (plan.rootHasPixels) {
             out = rst->Pixels();
@@ -654,7 +673,6 @@ void FramePlanner::CopyBaseToOutputLocked(const ToplevelManager::ToplevelState* 
             FillBlackRect(out, plan.rootW, plan.dmg, 0, 0, plan.rootW, plan.rootH);
         }
         comp_.desktopOutputInitialized_ = true;
-        comp_.desktopOutputRootFrameSerial_ = comp_.desktopRootFrameSerial_;
         comp_.desktopCompositionSignature_ = plan.compositionSignature;
     } else if (!plan.dmg.full) {
         if (!plan.rootHasPixels) {
@@ -728,7 +746,6 @@ void FramePlanner::SnapshotBlitSourcesLocked(ToplevelManager::ToplevelState* rst
             bs.w = sl.w; bs.h = sl.h;
             bs.shmFormat = sl.shmFormat; bs.opaque = sl.opaque;
             bs.vpDstW = sl.vpDstW; bs.vpDstH = sl.vpDstH;
-            bs.dmgX = sl.dmgX; bs.dmgY = sl.dmgY; bs.dmgW = sl.dmgW; bs.dmgH = sl.dmgH;
             comp_.lastSubSerial_[sl.surfaceKey] = sl.shmCommitSerial;  // 局部合成基准
             auto& buf = comp_.snapPool_[li];
             if (sl.shmFormat == 0) {

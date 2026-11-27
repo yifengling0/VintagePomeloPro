@@ -417,6 +417,8 @@ void WaylandServer::viewport_destroy(wl_client*, wl_resource* resource) {
     auto* surface = data ? data->surface : nullptr;
     auto* sd = surface ? static_cast<SurfaceData*>(wl_resource_get_user_data(surface)) : nullptr;
     if (sd) {
+        sd->vpSrcX = sd->vpSrcY = 0;
+        sd->vpSrcW = sd->vpSrcH = sd->vpDstW = sd->vpDstH = -1;
         sd->directViewportPending.x = sd->directViewportPending.y = 0;
         sd->directViewportPending.width = sd->directViewportPending.height = -1;
         sd->directViewportPending.destinationW = sd->directViewportPending.destinationH = -1;
@@ -514,31 +516,23 @@ void WaylandServer::surface_destroy(wl_client*, wl_resource* r) {
     wl_resource_destroy(r);
 }
 
-void WaylandServer::surface_attach(wl_client*, wl_resource* surfRes, wl_resource* buffer, int32_t, int32_t) {
+void WaylandServer::surface_attach(wl_client*, wl_resource* surfRes, wl_resource* buffer, int32_t x, int32_t y) {
     auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(surfRes));
     sd->pendingBuffer = buffer;
     sd->pendingBufferAttached = true;
-    // 新 buffer → 重置 damage
-    sd->damageX = 0; sd->damageY = 0;
-    sd->damageW = 0; sd->damageH = 0;
+    sd->zeroAttachOffset = x == 0 && y == 0;
 }
 
 void WaylandServer::surface_damage(wl_client*, wl_resource* surfRes,
                                     int32_t x, int32_t y, int32_t w, int32_t h) {
     auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(surfRes));
-    if (!sd) return;
-    // 累积 damage 包围盒 (union)
-    if (sd->damageW == 0 || sd->damageH == 0) {
-        sd->damageX = x; sd->damageY = y;
-        sd->damageW = w; sd->damageH = h;
-    } else {
-        int32_t rx = std::min(sd->damageX, x);
-        int32_t ry = std::min(sd->damageY, y);
-        int32_t rr = std::max(sd->damageX + sd->damageW, x + w);
-        int32_t rb = std::max(sd->damageY + sd->damageH, y + h);
-        sd->damageX = rx; sd->damageY = ry;
-        sd->damageW = rr - rx; sd->damageH = rb - ry;
-    }
+    if (sd) sd->pendingSurfaceDamage.AddRequest(x, y, w, h);
+}
+
+void WaylandServer::surface_damage_buffer(wl_client*, wl_resource* surfRes,
+                                         int32_t x, int32_t y, int32_t w, int32_t h) {
+    auto* sd = static_cast<SurfaceData*>(wl_resource_get_user_data(surfRes));
+    if (sd) sd->pendingBufferDamage.AddRequest(x, y, w, h);
 }
 
 void WaylandServer::surface_set_input_region(wl_client*, wl_resource* surfRes, wl_resource* region) {
@@ -576,6 +570,10 @@ void WaylandServer::surface_frame(wl_client* client, wl_resource* surfRes, uint3
 // 返回 true = 本次 commit 已处理完 (无 buffer, 无后续流程)。
 bool WaylandServer::HandleNullBufferCommit(SurfaceData* sd, wl_resource* surfRes) {
     if (sd->pendingBuffer) return false;
+    if (sd->pendingBufferAttached || !sd->pendingSurfaceDamage.Empty() || !sd->pendingBufferDamage.Empty())
+        sd->lastShmDamageLayout = {};
+    sd->pendingSurfaceDamage.Clear();
+    sd->pendingBufferDamage.Clear();
     if (!sd->pendingBufferAttached) {
         // A GPU-backed client commits callbacks/state without uploading a new
         // SHM buffer. Keep its existing layer and acknowledge the commit.
@@ -665,7 +663,7 @@ void WaylandServer::ComputeContentArea(SurfaceData* sd, ShmCommitInfo& fi) {
 // 调用点: surface_commit (BeginShmAccess 成功后、角色分发前), 单次 commit
 // 一份快照; NULL buffer commit (HandleNullBufferCommit 提前 return) 不更新
 // — 与旧字段行为一致。锁: 无 (wl 事件循环线程, 与 SurfaceData 同域)。
-void WaylandServer::BuildCommittedSurface(SurfaceData* sd, ShmCommitInfo& fi) {
+void WaylandServer::BuildCommittedSurface(SurfaceData* sd, ShmCommitInfo& fi, const PixelDamage& damage) {
     auto& c = sd->committed;
     // screenPos: 与 ComputeContentArea 计算出的 ShmCommitInfo::screenX/Y
     // 同值 (toplevel 虚拟桌面屏幕位置, 即旧 geoX/geoY 的义 1; 非 toplevel
@@ -680,17 +678,19 @@ void WaylandServer::BuildCommittedSurface(SurfaceData* sd, ShmCommitInfo& fi) {
     c.h = sd->h;
     c.shmCommitSerial = fi.shmCommitSerial;
     c.shmFormat = fi.shmFormat;
-    c.damageX = sd->damageX;
-    c.damageY = sd->damageY;
-    c.damageW = sd->damageW;
-    c.damageH = sd->damageH;
+    const auto bounds = damage.Bounds();
+    c.damageX = bounds.left;
+    c.damageY = bounds.top;
+    c.damageW = bounds.Width();
+    c.damageH = bounds.Height();
 }
 
 // toplevel 帧更新: 内容裁剪拷贝进 ToplevelState, 建档/首帧事件/格式事件/
 // ARGB 掩码/z-order/尺寸上报。协议上 xdg_toplevel 的首个 attach+commit
 // 完成 initial show window 语义, 首帧判定靠 hasPosition。
 void WaylandServer::UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* surfRes,
-                                                ShmCommitInfo& fi, bool& outFirstCommit) {
+                                                ShmCommitInfo& fi, const PixelDamage& damage,
+                                                bool& outFirstCommit) {
     outFirstCommit = false;
     if (!sd->hasToplevel) return;
     // Register surface mapping for input focus lookup
@@ -758,7 +758,7 @@ void WaylandServer::UpdateToplevelFrameOnCommit(SurfaceData* sd, wl_resource* su
     st.MarkDirty();
     // 帧内容序列号: 像素每次 commit 重写时递增 — 桌面局部合成
     // (TakeToplevelFrame damage 裁剪) 以此判定层内容变化
-    st.BumpFrameSerial();
+    st.BumpFrameSerial(damage);
     // 记录 shm 格式 (ARGB8888=layered/shaped 有意义 alpha), 变化时通知
     // ArkTS 切换窗口背景 (PC 模式透明背景才能透过 per-pixel alpha)
     // 注意: 首帧必发 argb 事件 (即使首帧就是默认的 XRGB), 与旧的
@@ -981,8 +981,8 @@ void WaylandServer::UpdateSubsurfaceLayerOnCommit(SurfaceData* sd, wl_resource* 
     layer.opaque = opaque;
     layer.vpDstW = sd->vpDstW; layer.vpDstH = sd->vpDstH;
     layer.viewport = sd->directViewport;
-    layer.dmgX = sd->damageX; layer.dmgY = sd->damageY;
-    layer.dmgW = sd->damageW; layer.dmgH = sd->damageH;
+    layer.dmgX = sd->committed.damageX; layer.dmgY = sd->committed.damageY;
+    layer.dmgW = sd->committed.damageW; layer.dmgH = sd->committed.damageH;
     layer.route = DisplayPolicy::SubsurfaceRoute::DesktopLayer;
     // Upsert layer (pixel buffer rotation handled internally)
     sd->pixels = desktopCompositor_.UpsertSubsurfaceLayer(
@@ -1024,6 +1024,7 @@ void WaylandServer::UpdateInlineSubsurfaceOnCommit(SurfaceData* sd, wl_resource*
                                                  parentSd->committed.contentRect.y);
     layer.localX = offX;
     layer.localY = offY;
+    layer.shmCommitSerial = fi.shmCommitSerial;
     // x/y 与 localX/localY 同值 (窗口局部坐标; route 已区分消费方, 不与
     // DesktopLayer 的桌面坐标混用), 保持容器内自洽。
     layer.x = offX;
@@ -1033,8 +1034,6 @@ void WaylandServer::UpdateInlineSubsurfaceOnCommit(SurfaceData* sd, wl_resource*
     layer.opaque = opaque;
     layer.vpDstW = sd->vpDstW; layer.vpDstH = sd->vpDstH;
     layer.viewport = sd->directViewport;
-    layer.dmgX = sd->damageX; layer.dmgY = sd->damageY;
-    layer.dmgW = sd->damageW; layer.dmgH = sd->damageH;
     layer.route = DisplayPolicy::SubsurfaceRoute::InlineClient;
     sd->pixels = desktopCompositor_.UpsertSubsurfaceLayer(
         std::move(layer), std::move(sd->pixels));
@@ -1066,6 +1065,8 @@ void WaylandServer::FinishCommit(SurfaceData* sd, wl_resource* surfRes) {
     sd->frameCallbacks.clear();
     sd->pendingBuffer = nullptr;
     sd->pendingBufferAttached = false;
+    sd->pendingSurfaceDamage.Clear();
+    sd->pendingBufferDamage.Clear();
 
     // 首帧通知 + 预设 pointer/keyboard focus: 会话焦点策略 (session_.firstFrame
     // CAS 判定 + active 事件 + enter 预注入, 条件/顺序逐字) 收口于
@@ -1101,6 +1102,12 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
     const bool shmCommit = self->BeginShmAccess(sd, fi);
     if (shmCommit) {
         self->ComputeContentArea(sd, fi);
+        const auto layout = GetShmDamageLayout(fi, sd->directViewport, sd->hasToplevel,
+                                               sd->zeroAttachOffset);
+        PixelDamage damage;
+        if (layout.Matches(sd->lastShmDamageLayout))
+            damage = MapShmDamage(layout, sd->pendingSurfaceDamage, sd->pendingBufferDamage);
+        sd->lastShmDamageLayout = layout;
         // sd->pixels 的消费方全部是 subsurface 路径 (desktop layer 合成 / PC popup /
         // ARGB 检测); toplevel 的帧走 UpdateToplevelFrameOnCommit 的内容裁剪拷贝,
         // 这里不再为 toplevel 做全量拷贝 (每次 commit 省一整帧 memcpy)
@@ -1119,14 +1126,14 @@ void WaylandServer::surface_commit(wl_client*, wl_resource* surfRes) {
         // CommittedSurface 快照产出 (重构第 5A2 步): 填入 commit 时点可观察值
         // (screenPos/parentOffset/frame; role 与几何已随协议设置点直写)。
         // 消费端已全部切换到该快照 (geoX/geoY 三义消亡, 见 committed_surface.h)
-        self->BuildCommittedSurface(sd, fi);
+        self->BuildCommittedSurface(sd, fi, damage);
 
         bool isFirstCommit = false;
-        self->UpdateToplevelFrameOnCommit(sd, surfRes, fi, isFirstCommit);
+        self->UpdateToplevelFrameOnCommit(sd, surfRes, fi, damage, isFirstCommit);
         self->CheckDesktopRootOnCommit(sd, isFirstCommit);
         self->UpdateSubsurfaceOnCommit(sd, surfRes, fi);
         wl_shm_buffer_end_access(fi.shm);
-    }
+    } else sd->lastShmDamageLayout = {};
 
     const size_t diagnosticCallbacks = loopDiagnostics ? sd->frameCallbacks.size() : 0;
     self->FinishCommit(sd, surfRes);

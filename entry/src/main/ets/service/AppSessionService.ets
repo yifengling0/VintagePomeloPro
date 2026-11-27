@@ -440,9 +440,11 @@ export class AppSessionService {
       hilog.info(DOMAIN, '[SESS]', 'Steam prepared action=%{public}s ms=%{public}d', action, Date.now() - preparationStarted);
     }
     if (app.steam && !SteamLocalService.getInstance().canLaunch()) throw new Error('Steam 正在更新，请稍候');
-    const result = WineEngineService.getInstance().launchExecutable(
+    const openGLEnvironment = await engine.resolveOpenGLLaunchEnvironment(
+      launchExecutable, app.steam ? undefined : appSettings.openGLBackend);
+    const result = engine.launchExecutable(
       launchExecutable, launchArguments,
-      this.launchWorkingDirectory(app), envOverrides) as NativeLaunchResult;
+      this.launchWorkingDirectory(app), openGLEnvironment.concat(envOverrides)) as NativeLaunchResult;
     if (!result || result.pid <= 0) {
       hilog.error(DOMAIN, '[SESS]', 'launch: runWineExe FAILED app=%{public}s exe=%{public}s state=%{public}s',
         app.id, launchExecutable, engine.getState());

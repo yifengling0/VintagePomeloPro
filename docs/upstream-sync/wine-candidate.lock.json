@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "harmony-frame-generation-experimental",
+  "status": "ohos-wgl-swap-copy-candidate",
   "upstream": {
     "repository": "ValveSoftware/wine",
     "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "03599dac79e61834514c651d87f8be5f72d304da",
-  "adaptedTree": "4c7e692a7525531bb23ca6dc10b6f0c313e07700",
+  "adaptedCommit": "d60ce754c9cfeeb819f4f5673f8e415d71dce20a",
+  "adaptedTree": "67d79da314abb058c81f3667f3a464669759747c",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -562,11 +562,17 @@
       "commit": "03599dac79e61834514c651d87f8be5f72d304da",
       "subject": "ntdll: forward the CreateProcess working directory to OHOS children",
       "sha256": "9b34a2770db6bd7f8174794db45ca88aa726bf2700e9da0f10bb03842184461f"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0091-win32u-depth32-swap-copy-window-format.patch",
+      "sha256": "5f6f8e601b8f6083a5cb14372f44ea84f56c627c654dba443d0c8b56371182d8",
+      "commit": "d60ce754c9cfeeb819f4f5673f8e415d71dce20a",
+      "subject": "win32u: Add a depth32 swap-copy window format on OHOS"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "00cdbd3ea1cac6f69b50f50fb47650e5ee999c903cdf7bac0dd6e4b9c8031bed"
+    "sha256": "492954067d41def73444cffda75fe6c59203ef503ef99c78b10b9efbc3a1d95d"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",

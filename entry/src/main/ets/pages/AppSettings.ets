@@ -37,10 +37,10 @@ import { SteamLocalService, supportsSteamGameOpenGL } from '../steam/SteamLocalS
 import { AppSettingsStore } from '../service/AppSettingsStore';
 import { WineEngineService } from '../service/WineEngineService';
 import testNapi from 'libentry.so';
-import { APP_GRAPHICS_BACKEND_IDS, APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_VIRGL_33, normalizeAppGraphicsBackend,
+import { APP_GRAPHICS_BACKEND_IDS, APP_OPENGL_BACKEND_CHOICES, APP_OPENGL_VIRGL_COMPAT, APP_OPENGL_VIRGL_33, normalizeAppGraphicsBackend,
   isVirglOpenGLCompatibility, resolveGraphicsBackend, graphicsBackendLabel, graphicsProfileButton,
   showVirglOpenGLCompatibility,
-  supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
+  normalizeAppOpenGLBackend, openGLBackendLabel, supportsGpuBcUpload } from '../model/GraphicsBackendSettings';
 import { InputProfileService } from '../service/InputProfileService';
 import { GameArtworkService } from '../service/GameArtworkService';
 import { BreakpointSystem, BreakpointType, isWideBreakpoint } from '../common/BreakpointSystem';
@@ -744,6 +744,14 @@ struct AppSettingsPage {
     void this.persist();
   }
 
+  private setOpenGLBackend(value: string): void {
+    if (value === this.value.openGLBackend) return;
+    const next = cloneAppSettings(this.value);
+    next.openGLBackend = value;
+    this.value = next;
+    void this.persist();
+  }
+
   private async setSteamOpenGL33(enabled: boolean): Promise<void> {
     if (enabled === (this.value.steamOpenGL33 === true)) return;
     const next = cloneAppSettings(this.value);
@@ -914,6 +922,23 @@ struct AppSettingsPage {
                   })
               }, (backend: string): string => backend)
             }.width('100%')
+            if (this.app?.launchTarget.kind === LaunchKind.WINE_EXE && !this.app?.steam &&
+              this.value.graphicsBackend !== 'zink' && !isVirglOpenGLCompatibility(this.value.graphicsBackend ?? 'default')) {
+              Text('OpenGL 后端').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
+                ForEach(APP_OPENGL_BACKEND_CHOICES, (backend: string) => {
+                  Button(openGLBackendLabel(backend))
+                    .height(42).padding({ left: 14, right: 14 }).margin({ right: 8, bottom: 8 })
+                    .borderRadius(14).fontSize(13).fontColor(skinColor('text_primary'))
+                    .backgroundColor(normalizeAppOpenGLBackend(this.value.openGLBackend) === backend ?
+                      skinColor('selected_background') : skinColor('search_background'))
+                    .border({ width: 1, color: normalizeAppOpenGLBackend(this.value.openGLBackend) === backend ?
+                      skinColor('accent') : Color.Transparent })
+                    .id('app-settings-opengl-' + backend)
+                    .onClick((): void => this.setOpenGLBackend(backend))
+                }, (backend: string): string => backend)
+              }.width('100%')
+            }
             if (this.app?.launchTarget.kind === LaunchKind.WINE_EXE && !this.app?.steam &&
               isVirglOpenGLCompatibility(this.value.graphicsBackend ?? 'default')) {
               Row({ space: 8 }) {

@@ -438,6 +438,42 @@ int main() {
                 "ambiguous clients retain whole-window fallback"); }
         s.tm.UnregisterSurfaceResource(99);
     }
+    {
+        Scene s(120, 100);
+        s.setWindow(2, 30, 24, 0xffcccccc);
+        CHECK(s.take() && s.frame.baseSerial == 0, "initial composition has no baseline");
+        const auto firstSerial = s.frame.serial;
+        const auto commitPixel = [&](uint32_t id, int x, int y, uint32_t value) {
+            auto lock = s.tm.Lock();
+            auto& state = s.tm.EnsureToplevelLocked(id);
+            std::memcpy(state.FrameData().data() + (x + y * state.Width()) * 4, &value, 4);
+            PixelDamage damage;
+            damage.AddRequest(x, y, 1, 1);
+            state.BumpFrameSerial(damage);
+            if (id == s.root) s.comp.IncrementDesktopRootFrameSerial();
+            s.comp.MarkDesktopRootDirtyLocked();
+        };
+        commitPixel(2, 5, 4, 0xff123456);
+        commitPixel(1, 50, 41, 0xffabcdef);
+        CHECK(s.take() && s.frame.baseSerial == firstSerial && s.frame.damage.Bounds().left == 5 &&
+              s.frame.damage.Bounds().right == 51 && s.frame.damage.end() - s.frame.damage.begin() == 2,
+              "desktop upload keeps child and backdrop updates in disjoint regions");
+        CHECK(s.pixel(5, 4) == 0xff123456 && s.pixel(50, 41) == 0xffabcdef,
+              "the composition reflects both updated sources");
+
+        commitPixel(2, 5, 4, 0xff123457);
+        commitPixel(2, 8, 14, 0xff123458);
+        CHECK(s.take() && s.frame.damage.Bounds().Width() == 30 &&
+              s.pixel(5, 4) == 0xff123457 && s.pixel(8, 14) == 0xff123458,
+              "skipped child commits cause a full child repaint");
+        {
+            auto lock = s.tm.Lock();
+            s.tm.EnsureToplevelLocked(2).SetPosition(20, 25);
+            s.comp.MarkDesktopRootDirtyLocked();
+        }
+        CHECK(s.take() && s.frame.baseSerial == 0 && s.pixel(5, 4) == 0xff111111 &&
+              s.pixel(25, 29) == 0xff123457, "moving a layer clears its old pixels");
+    }
     std::printf("compositor migration: %d checks, %d failures\n",checks,failures);
     return failures ? 1 : 0;
 }
