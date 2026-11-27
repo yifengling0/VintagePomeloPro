@@ -113,7 +113,7 @@ def source_identity(manifest):
     dxvk = {}
     for profile, pin in texture['runtimes'].items():
         name = 'thirdparty/' + ('dxvk' if profile == 'legacy' else 'dxvk-modern')
-        expected_source = pin['sourceSha256']
+        expected_source = pin.get('patchedSourceSha256', pin['sourceSha256'])
         if profile == 'legacy':
             from apply_dxvk_compat_patches import apply
             expected_source = apply(ROOT / name, verify_only=True)

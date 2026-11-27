@@ -86,6 +86,13 @@ class SourceTests(unittest.TestCase):
         result = release.verify_source(self.root, self.sha, "dev-winsteam-2.0-p0")
         self.assertEqual(result["app"], APP)
 
+    def test_version_tag_must_match_the_app(self):
+        git(self.root, "tag", "v1.3.3")
+        self.assertEqual(release.verify_source(self.root, self.sha, "v1.3.3")["app"], APP)
+        git(self.root, "tag", "v1.3.4")
+        with self.assertRaisesRegex(ValueError, "versionName"):
+            release.verify_source(self.root, self.sha, "v1.3.4")
+
     def test_fetch_annotated_tag_preserves_checkout_lightweight_ref(self):
         git(self.root, "tag", "-am", "RC", "rc-1.3.3")
         checkout = Path(self.temp.name) / "checkout"

@@ -28,7 +28,7 @@ def verify_source(root, expected_sha, release_tag):
         raise ValueError(f"checkout SHA mismatch: expected {expected_sha}, got {sha}")
     app = load_app(root)
     if release_tag:
-        if not re.fullmatch(r"(?:rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*", release_tag):
+        if not re.fullmatch(r"(?:(?:rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*|v[0-9]+\.[0-9]+\.[0-9]+)", release_tag):
             raise ValueError("invalid release tag")
         try:
             tag_sha = git(root, "rev-parse", f"refs/tags/{release_tag}^{{commit}}")
@@ -36,6 +36,8 @@ def verify_source(root, expected_sha, release_tag):
             raise ValueError(f"release tag not in checkout: {release_tag}") from error
         if tag_sha != sha:
             raise ValueError("release tag points to a different commit")
+        if release_tag.startswith("v") and release_tag != "v" + app["versionName"]:
+            raise ValueError("release tag does not match AppScope versionName")
         if release_tag.startswith("rc-"):
             # A final snapshot keeps the numeric app version. Accept only this
             # explicit qualifier; a wrong version or arbitrary suffix fails.

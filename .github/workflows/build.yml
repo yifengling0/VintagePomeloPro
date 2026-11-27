@@ -7,6 +7,7 @@ on:
     tags:
       - 'dev-*'                 # 开发版 (直接发布, 不占 Latest 徽章)
       - 'rc-*'                  # RC 版 (占 Latest 徽章)
+      - 'v[0-9]+.[0-9]+.[0-9]+' # 正式版本
     paths-ignore:
       - '**.md'
       - '.gitignore'
@@ -16,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag (dev-xx / rc-xx, 留空则只构建不发布)'
+        description: 'Release tag (vX.Y.Z / dev-xx / rc-xx, 留空则只构建不发布)'
         required: false
         type: string
 
@@ -178,7 +179,7 @@ jobs:
           set -euo pipefail
           expected_sha="$GITHUB_SHA"
           if [ -n "$RELEASE_TAG" ]; then
-            [[ "$RELEASE_TAG" =~ ^(rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*$ ]] || exit 1
+            [[ "$RELEASE_TAG" =~ ^((rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*|v[0-9]+\.[0-9]+\.[0-9]+)$ ]] || exit 1
             # checkout@v4 with ref=github.sha does not create refs/tags/*.
             # Fetch the annotated tag into FETCH_HEAD only; never overwrite a
             # local or remote tag. Recreate the lightweight local ref the
@@ -507,7 +508,7 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-26.04
-    if: startsWith(github.ref, 'refs/tags/dev-') || startsWith(github.ref, 'refs/tags/rc-') || github.event.inputs.release_tag != ''
+    if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_tag != ''
 
     steps:
       - name: Checkout (for changelog)
@@ -528,7 +529,7 @@ jobs:
           else
             tag="${GITHUB_REF#refs/tags/}"
           fi
-          [[ "$tag" =~ ^(rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*$ ]] || exit 1
+          [[ "$tag" =~ ^((rc|dev)-[0-9A-Za-z][0-9A-Za-z._-]*|v[0-9]+\.[0-9]+\.[0-9]+)$ ]] || exit 1
           if ! git rev-parse -q --verify "refs/tags/$tag^{commit}" >/dev/null; then
             git fetch --depth=1 --no-tags origin "refs/tags/$tag"
             git update-ref "refs/tags/$tag" FETCH_HEAD
