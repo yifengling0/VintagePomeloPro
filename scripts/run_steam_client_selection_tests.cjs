@@ -19,6 +19,9 @@ const windows = {isInstalled: () => state.installed, isImporting: () => state.im
   clientCard: () => ({steam: {state: 'client'}, launchTarget: {
     executable: '/download/Steam/steam.exe', workingDirectory: '/download/Steam'}})};
 const deps = {
+  './DeckLaunchFeedbackService': {DeckLaunchFeedbackService: singleton({
+    begin: () => 1, update() {}, finish() {}
+  })},
   '../steam/SteamLocalService': {SteamLocalService: singleton(windows)},
   './AppCatalogService': {AppCatalogService: singleton({getWineHomeDirectory: () => '/download'})},
   './AppSettingsStore': {AppSettingsStore: singleton({getGlobalSettings: () => ({displayMode: 'desktop'})})},
@@ -44,7 +47,7 @@ const out = {};
 const file = path.resolve(__dirname, '../entry/src/main/ets/service/SteamClientService.ets');
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
   compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2021}
-}).outputText, {exports: out, Promise, Error, require(name) {
+}).outputText, {exports: out, Promise, Error, setTimeout, clearTimeout, require(name) {
   assert.ok(name in deps, `unexpected runtime dependency ${name}`); return deps[name];
 }});
 const service = new out.SteamClientService();
