@@ -1,0 +1,183 @@
+Subject: [PATCH] input queue and provider enumeration
+
+Upstream commits
+
+dinput/tests: Add some tests for message queue behavior with devices.
+  Connor McAdams <cmcadams@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/70e9baac27824e425e538fe79960d485a6ecbcf1
+dinput: Use SendMessageTimeout() with SMTO_BLOCK when sending messages to the input thread in most cases.
+  Connor McAdams <cmcadams@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/9e6034969eaa1eb44a157746778b415a83cf7872
+windows.gaming.input: Reset index before enumeration in initialize_providers().
+  Paul Gofman <pgofman@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/0190b49e4eb47921281e5d36aea272be60d66353
+
+diff --git a/dlls/dinput/dinput_main.c b/dlls/dinput/dinput_main.c
+index 593d9a8..74aefb7 100644
+--- a/dlls/dinput/dinput_main.c
++++ b/dlls/dinput/dinput_main.c
+@@ -457,7 +457,7 @@ void dinput_hooks_acquire_device( IDirectInputDevice8W *iface )
+     list_add_tail( &acquired_device_list, &impl->entry );
+     LeaveCriticalSection( &dinput_hook_crit );
+ 
+-    SendMessageW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_REFRESH_DEVICES, 0 );
++    SendMessageTimeoutW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_REFRESH_DEVICES, 0, SMTO_BLOCK, INFINITE, NULL );
+ }
+ 
+ void dinput_hooks_unacquire_device( IDirectInputDevice8W *iface )
+@@ -468,7 +468,7 @@ void dinput_hooks_unacquire_device( IDirectInputDevice8W *iface )
+     list_remove( &impl->entry );
+     LeaveCriticalSection( &dinput_hook_crit );
+ 
+-    SendMessageW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_REFRESH_DEVICES, 0 );
++    SendMessageTimeoutW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_REFRESH_DEVICES, 0, SMTO_BLOCK, INFINITE, NULL );
+ }
+ 
+ void input_thread_add_user(void)
+@@ -490,7 +490,7 @@ void input_thread_remove_user(void)
+ 
+         if (!(stop_event = CreateEventW( NULL, FALSE, FALSE, NULL )))
+             ERR( "Failed to create stop event, error %lu\n", GetLastError() );
+-        SendMessageW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_THREAD_STOP, 0 );
++        SendMessageTimeoutW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_THREAD_STOP, 0, SMTO_BLOCK, INFINITE, NULL );
+         WaitForSingleObject( stop_event, INFINITE );
+         CloseHandle( stop_event );
+         CloseHandle( dinput_thread );
+diff --git a/dlls/dinput/tests/device8.c b/dlls/dinput/tests/device8.c
+index 8df9a4e..95d06f0 100644
+--- a/dlls/dinput/tests/device8.c
++++ b/dlls/dinput/tests/device8.c
+@@ -2875,6 +2875,110 @@ static void test_scan_codes( IDirectInputDevice8W *device, HANDLE event, HWND hw
+     ok( hr == DI_OK, "Unacquire returned %#lx\n", hr );
+ }
+ 
++struct test_thread_data
++{
++    HWND hwnd;
++    HANDLE msg_sent_event;
++};
++
++static BOOL msg_received;
++static LRESULT CALLBACK test_wndproc( HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam )
++{
++    if (msg == (WM_USER + 1))
++    {
++        msg_received = TRUE;
++        return 0;
++    }
++
++    return DefWindowProcA( hwnd, msg, wparam, lparam );
++}
++
++static DWORD WINAPI dinput_device_thread( void *data )
++{
++    struct test_thread_data *thread_data = data;
++
++    SendNotifyMessageA( thread_data->hwnd, WM_USER + 1, 0, 0 );
++    SetEvent( thread_data->msg_sent_event );
++    return 0;
++}
++
++static void test_device_acquire_behavior( DWORD version )
++{
++    WNDCLASSA cls = { .lpfnWndProc = test_wndproc, .lpszClassName = "Test Window Class" };
++    IDirectInputDevice8W *device, *device2;
++    struct test_thread_data data;
++    HANDLE thread;
++    HRESULT hr;
++    MSG msg;
++
++    if (FAILED(create_dinput_device( version, &GUID_SysKeyboard, &device ))) return;
++    if (FAILED(hr = create_dinput_device( version, &GUID_SysMouse, &device2 )))
++    {
++        IDirectInputDevice8_Release( device );
++        return;
++    }
++
++    winetest_push_context( "%#lx", version );
++    cls.hInstance = GetModuleHandleA( NULL );
++    RegisterClassA( &cls );
++    data.hwnd = CreateWindowA( "Test Window Class", "Test window", WS_OVERLAPPEDWINDOW,
++            0, 0, 100, 100, NULL, NULL, NULL, NULL );
++    data.msg_sent_event = CreateEventA( NULL, FALSE, FALSE, NULL );
++
++    hr = IDirectInputDevice8_Initialize( device, instance, version, &GUID_SysKeyboard );
++    ok( hr == DI_OK, "Initialize returned %#lx.\n", hr );
++    hr = IDirectInputDevice8_SetCooperativeLevel( device, NULL, DISCL_NONEXCLUSIVE | DISCL_BACKGROUND );
++    ok( hr == DI_OK, "SetCooperativeLevel returned %#lx.\n", hr );
++    hr = IDirectInputDevice8_SetDataFormat( device, &c_dfDIKeyboard );
++    ok( hr == DI_OK, "SetDataFormat returned %#lx.\n", hr );
++
++    hr = IDirectInputDevice8_Initialize( device2, instance, version, &GUID_SysMouseEm );
++    ok( hr == DI_OK, "Initialize returned %#lx.\n", hr );
++    hr = IDirectInputDevice8_SetCooperativeLevel( device2, NULL, DISCL_NONEXCLUSIVE | DISCL_BACKGROUND );
++    ok( hr == DI_OK, "SetCooperativeLevel returned %#lx.\n", hr );
++    hr = IDirectInputDevice8_SetDataFormat( device2, &c_dfDIMouse );
++    ok( hr == DI_OK, "SetDataFormat returned %#lx.\n", hr );
++
++    msg_received = FALSE;
++    thread = CreateThread( NULL, 0, dinput_device_thread, &data, 0, NULL );
++    ok( !!thread, "CreateThread failed, error %lu.\n", GetLastError() );
++    WaitForSingleObject( data.msg_sent_event, 1000 );
++
++    /* A call to acquire/unacquire/release should not process non-queued messages. */
++    hr = IDirectInputDevice8_Acquire( device );
++    ok( hr == DI_OK, "Acquire returned %#lx.\n", hr );
++    ok( !msg_received, "Received message.\n" );
++    hr = IDirectInputDevice8_Acquire( device2 );
++    ok( hr == DI_OK, "Acquire returned %#lx.\n", hr );
++    ok( !msg_received, "Received message.\n" );
++
++    hr = IDirectInputDevice8_Unacquire( device );
++    ok( hr == DI_OK, "Acquire returned %#lx.\n", hr );
++    ok( !msg_received, "Received message.\n" );
++    hr = IDirectInputDevice8_Unacquire( device2 );
++    ok( hr == DI_OK, "Acquire returned %#lx.\n", hr );
++    ok( !msg_received, "Received message.\n" );
++
++    IDirectInputDevice8_Release( device );
++    ok( !msg_received, "Received message.\n" );
++    IDirectInputDevice8_Release( device2 );
++    ok( !msg_received, "Received message.\n" );
++
++    while (PeekMessageW( &msg, 0, 0, 0, PM_REMOVE ))
++    {
++        TranslateMessage( &msg );
++        DispatchMessageW( &msg );
++    }
++    ok( msg_received, "Did not receive message.\n" );
++
++
++    CloseHandle( data.msg_sent_event );
++    CloseHandle( thread );
++    DestroyWindow( data.hwnd );
++    UnregisterClassA( "Test Window Class", NULL );
++    winetest_pop_context();
++}
++
+ #define check_member_str_( file, line, val, exp, member )                                         \
+     ok_(file, line)( !strcmp( (val).member, (exp).member ), "got " #member " %s\n",               \
+                      debugstr_a((val).member) )
+@@ -3661,6 +3765,10 @@ START_TEST(device8)
+     test_sys_keyboard( 0x700 );
+     test_sys_keyboard( 0x800 );
+ 
++    test_device_acquire_behavior( 0x500 );
++    test_device_acquire_behavior( 0x700 );
++    test_device_acquire_behavior( 0x800 );
++
+     test_sys_keyboard_action_format();
+ 
+     test_mouse_keyboard();
+diff --git a/dlls/windows.gaming.input/main.c b/dlls/windows.gaming.input/main.c
+index 7b0a68f..e69c401 100644
+--- a/dlls/windows.gaming.input/main.c
++++ b/dlls/windows.gaming.input/main.c
+@@ -87,6 +87,7 @@ static void initialize_providers( void )
+ 
+     HidD_GetHidGuid( &guid );
+ 
++    i = 0;
+     while (SetupDiEnumDeviceInterfaces( set, NULL, &guid, i++, &iface ))
+     {
+         detail->cbSize = sizeof(*detail);

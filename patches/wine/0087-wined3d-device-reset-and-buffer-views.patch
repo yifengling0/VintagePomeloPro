@@ -1,0 +1,386 @@
+Subject: [PATCH] wined3d device reset and buffer views
+
+Upstream commits
+
+wined3d: Remove cached Vulkan graphics pipelines when destroying shader modules.
+  Ali Milhim <alimilhim5@gmail.com>
+  https://github.com/wine-mirror/wine/commit/fd6168770c0f2637a1a8a1624704094bd3e04261
+wined3d: Don't add buffer views to the buffer object users list when buffer textures are unsupported.
+  Doug Logan <10822557+securityvoid@users.noreply.github.com>
+  https://github.com/wine-mirror/wine/commit/a0eb3b8e532dd8c3cc8a5fe34dffbd3c7bed9aa1
+wined3d: Mark the buffer location valid after clearing a buffer UAV.
+  Doug Logan <10822557+securityvoid@users.noreply.github.com>
+  https://github.com/wine-mirror/wine/commit/7b6affa3bcec0d0c2a818485e466fc5672ef7302
+wined3d: Don't tear down 3D state on device reset.
+  Ali Milhim <alimilhim5@gmail.com>
+  https://github.com/wine-mirror/wine/commit/837eaae305222b6158b145373602820bcda1a256
+d3d9/tests: Test using shaders after a device reset.
+  Ali Milhim <alimilhim5@gmail.com>
+  https://github.com/wine-mirror/wine/commit/a197662bbb7d7ca99f2154fd5cc0b3db86c3b3b7
+
+The upstream regression is registered in the corresponding local test runner.
+
+diff --git a/dlls/d3d9/tests/visual.c b/dlls/d3d9/tests/visual.c
+index ade80fb..fcf9b3a 100644
+--- a/dlls/d3d9/tests/visual.c
++++ b/dlls/d3d9/tests/visual.c
+@@ -27464,6 +27464,104 @@ static void test_managed_reset(void)
+     release_test_context(&context);
+ }
+ 
++static void test_shader_reset(void)
++{
++    static const struct vec4 colours[] = {{0.0f, 1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
++    static const unsigned int expected[] = {0x0000ff00, 0x000000ff};
++    struct d3d9_test_context context;
++    IDirect3DVertexShader9 *vs;
++    IDirect3DPixelShader9 *ps;
++    IDirect3DDevice9 *device;
++    D3DCAPS9 caps;
++    unsigned int i;
++    HRESULT hr;
++
++    static const DWORD vs_code[] =
++    {
++        0xfffe0200,                                         /* vs_2_0               */
++        0x0200001f, 0x80000000, 0x900f0000,                 /* dcl_position v0      */
++        0x0200001f, 0x8000000a, 0x900f0001,                 /* dcl_color0 v1        */
++        0x02000001, 0xc00f0000, 0x90e40000,                 /* mov oPos, v0         */
++        0x02000001, 0xd00f0000, 0x90e40001,                 /* mov oD0, v1          */
++        0x0000ffff                                          /* end                  */
++    };
++    static const DWORD ps_code[] =
++    {
++        0xffff0101,                                         /* ps_1_1               */
++        0x00000001, 0x800f0000, 0xa0e40000,                 /* mov r0, c0           */
++        0x0000ffff                                          /* end                  */
++    };
++    static const struct
++    {
++        struct vec3 position;
++        DWORD diffuse;
++    }
++    quad[] =
++    {
++        {{-1.0f, -1.0f, 0.0f}, 0xff00ff00},
++        {{-1.0f,  1.0f, 0.0f}, 0xff00ff00},
++        {{ 1.0f, -1.0f, 0.0f}, 0xff00ff00},
++        {{ 1.0f,  1.0f, 0.0f}, 0xff00ff00},
++    };
++
++    if (!init_test_context(&context))
++        return;
++    device = context.device;
++
++    hr = IDirect3DDevice9_GetDeviceCaps(device, &caps);
++    ok(hr == S_OK, "Got hr %#lx.\n", hr);
++    if (caps.VertexShaderVersion < D3DVS_VERSION(2, 0) || caps.PixelShaderVersion < D3DPS_VERSION(1, 1))
++    {
++        skip("No vs_2_0 or ps_1_1 support, skipping tests.\n");
++        release_test_context(&context);
++        return;
++    }
++
++    hr = IDirect3DDevice9_CreateVertexShader(device, vs_code, &vs);
++    ok(hr == S_OK, "Got hr %#lx.\n", hr);
++    hr = IDirect3DDevice9_CreatePixelShader(device, ps_code, &ps);
++    ok(hr == S_OK, "Got hr %#lx.\n", hr);
++
++    /* Shaders survive a device reset, and should still be usable afterwards,
++     * including with new constants. */
++    for (i = 0; i < 2; ++i)
++    {
++        if (i)
++        {
++            hr = reset_device(&context);
++            ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        }
++
++        hr = IDirect3DDevice9_Clear(device, 0, NULL, D3DCLEAR_TARGET, 0xffff0000, 0.0f, 0);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, FALSE);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_SetRenderState(device, D3DRS_LIGHTING, FALSE);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_SetFVF(device, D3DFVF_XYZ | D3DFVF_DIFFUSE);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_SetVertexShader(device, vs);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_SetPixelShader(device, ps);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_SetPixelShaderConstantF(device, 0, &colours[i].x, 1);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++
++        hr = IDirect3DDevice9_BeginScene(device);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_DrawPrimitiveUP(device, D3DPT_TRIANGLESTRIP, 2, quad, sizeof(*quad));
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++        hr = IDirect3DDevice9_EndScene(device);
++        ok(hr == S_OK, "Got hr %#lx.\n", hr);
++
++        check_rt_color(context.backbuffer, expected[i]);
++    }
++
++    IDirect3DVertexShader9_Release(vs);
++    IDirect3DPixelShader9_Release(ps);
++    release_test_context(&context);
++}
++
+ static void test_managed_generate_mipmap(void)
+ {
+     struct d3d9_test_context context;
+@@ -29167,6 +29265,7 @@ START_TEST(visual)
+     test_dynamic_map_synchronization();
+     test_filling_convention();
+     test_managed_reset();
++    test_shader_reset();
+     test_managed_generate_mipmap();
+     test_mipmap_upload();
+     test_default_diffuse();
+diff --git a/dlls/wined3d/context_vk.c b/dlls/wined3d/context_vk.c
+index 7fea48d..85e033e 100644
+--- a/dlls/wined3d/context_vk.c
++++ b/dlls/wined3d/context_vk.c
+@@ -3710,6 +3710,42 @@ fail:
+     return NULL;
+ }
+ 
++static bool wined3d_graphics_pipeline_vk_uses_module(const struct wined3d_graphics_pipeline_vk *pipeline_vk,
++        VkShaderModule vk_module)
++{
++    unsigned int i;
++
++    for (i = 0; i < pipeline_vk->key.pipeline_desc.stageCount; ++i)
++    {
++        if (pipeline_vk->key.stages[i].module == vk_module)
++            return true;
++    }
++
++    return false;
++}
++
++void wined3d_context_vk_remove_graphics_pipelines(struct wined3d_context_vk *context_vk, VkShaderModule vk_module)
++{
++    struct wined3d_graphics_pipeline_vk *pipeline_vk;
++    struct wine_rb_entry *entry, *next;
++
++    for (entry = rb_head(context_vk->graphics_pipelines.root); entry; entry = next)
++    {
++        next = rb_next(entry);
++        pipeline_vk = WINE_RB_ENTRY_VALUE(entry, struct wined3d_graphics_pipeline_vk, entry);
++
++        if (!wined3d_graphics_pipeline_vk_uses_module(pipeline_vk, vk_module))
++            continue;
++
++        if (context_vk->graphics.vk_pipeline == pipeline_vk->vk_pipeline)
++            context_vk->graphics.vk_pipeline = VK_NULL_HANDLE;
++        wine_rb_remove(&context_vk->graphics_pipelines, entry);
++        wined3d_context_vk_destroy_vk_pipeline(context_vk, pipeline_vk->vk_pipeline,
++                context_vk->current_command_buffer.id);
++        free(pipeline_vk);
++    }
++}
++
+ static VkPipeline wined3d_context_vk_get_graphics_pipeline(struct wined3d_context_vk *context_vk)
+ {
+     struct wined3d_device_vk *device_vk = wined3d_device_vk(context_vk->c.device);
+diff --git a/dlls/wined3d/device.c b/dlls/wined3d/device.c
+index feff69e..eda3f36 100644
+--- a/dlls/wined3d/device.c
++++ b/dlls/wined3d/device.c
+@@ -5329,37 +5329,18 @@ HRESULT CDECL wined3d_device_reset(struct wined3d_device *device,
+         }
+     }
+ 
+-    wine_rb_destroy(&device->samplers, device_free_sampler, NULL);
+-    wine_rb_destroy(&device->rasterizer_states, device_free_rasterizer_state, NULL);
+-    wine_rb_destroy(&device->blend_states, device_free_blend_state, NULL);
+-    wine_rb_destroy(&device->depth_stencil_states, device_free_depth_stencil_state, NULL);
+-
+     if (reset_state)
+     {
+         TRACE("Resetting state.\n");
+         if (device->inScene)
+             wined3d_device_end_scene(device);
+-        wined3d_device_context_emit_reset_state(&device->cs->c, false);
++        wined3d_device_context_emit_reset_state(&device->cs->c, true);
+         state_cleanup(state);
+-
+-        LIST_FOR_EACH_ENTRY_SAFE(resource, cursor, &device->resources, struct wined3d_resource, resource_list_entry)
+-        {
+-            TRACE("Unloading resource %p.\n", resource);
+-            wined3d_cs_emit_unload_resource(device->cs, resource);
+-
+-            if (resource->usage & WINED3DUSAGE_MANAGED)
+-                mark_managed_resource_dirty(resource);
+-        }
+-
+-        device->adapter->adapter_ops->adapter_uninit_3d(device);
+-
+         wined3d_state_reset(state, &device->adapter->d3d_info);
+ 
+         device_init_swapchain_state(device, swapchain);
+         if (wined3d_settings.logo)
+             device_load_logo(device, wined3d_settings.logo);
+-
+-        hr = device->adapter->adapter_ops->adapter_init_3d(device);
+     }
+     else
+     {
+diff --git a/dlls/wined3d/shader_spirv.c b/dlls/wined3d/shader_spirv.c
+index d5fa401..5440cee 100644
+--- a/dlls/wined3d/shader_spirv.c
++++ b/dlls/wined3d/shader_spirv.c
+@@ -1039,6 +1039,8 @@ static void shader_spirv_invalidate_graphics_program_variant(struct wined3d_cont
+ {
+     enum wined3d_shader_type shader_type;
+ 
++    wined3d_context_vk_remove_graphics_pipelines(context_vk, variant->vk_module);
++
+     for (shader_type = 0; shader_type < WINED3D_SHADER_TYPE_GRAPHICS_COUNT; ++shader_type)
+     {
+         if (context_vk->graphics.vk_modules[shader_type] != variant->vk_module)
+diff --git a/dlls/wined3d/view.c b/dlls/wined3d/view.c
+index a506b0c..3542bd9 100644
+--- a/dlls/wined3d/view.c
++++ b/dlls/wined3d/view.c
+@@ -273,7 +273,9 @@ static void create_texture_view(struct wined3d_gl_view *view, GLenum view_target
+     context_release(context);
+ }
+ 
+-static void create_buffer_texture(struct wined3d_gl_view *view, struct wined3d_context_gl *context_gl,
++/* Returns false if the view can't be created, in which case the caller must
++ * not add it to buffer->buffer_object->users. */
++static bool create_buffer_texture(struct wined3d_gl_view *view, struct wined3d_context_gl *context_gl,
+         struct wined3d_buffer *buffer, const struct wined3d_format_gl *view_format_gl,
+         unsigned int offset, unsigned int size)
+ {
+@@ -283,7 +285,7 @@ static void create_buffer_texture(struct wined3d_gl_view *view, struct wined3d_c
+     if (!gl_info->supported[ARB_TEXTURE_BUFFER_OBJECT])
+     {
+         FIXME("OpenGL implementation does not support buffer textures.\n");
+-        return;
++        return false;
+     }
+ 
+     wined3d_buffer_load_location(buffer, &context_gl->c, WINED3D_LOCATION_BUFFER);
+@@ -294,7 +296,7 @@ static void create_buffer_texture(struct wined3d_gl_view *view, struct wined3d_c
+     {
+         FIXME("Buffer offset %u is not %u byte aligned.\n",
+                 offset, gl_info->limits.texture_buffer_offset_alignment);
+-        return;
++        return true;
+     }
+ 
+     view->target = GL_TEXTURE_BUFFER;
+@@ -318,6 +320,7 @@ static void create_buffer_texture(struct wined3d_gl_view *view, struct wined3d_c
+ 
+     context_invalidate_compute_state(&context_gl->c, STATE_COMPUTE_SHADER_RESOURCE_BINDING);
+     context_invalidate_state(&context_gl->c, STATE_GRAPHICS_SHADER_RESOURCE_BINDING);
++    return true;
+ }
+ 
+ static void get_buffer_view_range(const struct wined3d_buffer *buffer,
+@@ -336,14 +339,15 @@ static void get_buffer_view_range(const struct wined3d_buffer *buffer,
+     }
+ }
+ 
+-static void create_buffer_view(struct wined3d_gl_view *view, struct wined3d_context *context,
++static bool create_buffer_view(struct wined3d_gl_view *view, struct wined3d_context *context,
+         const struct wined3d_view_desc *desc, struct wined3d_buffer *buffer,
+         const struct wined3d_format *view_format)
+ {
+     unsigned int offset, size;
+ 
+     get_buffer_view_range(buffer, desc, view_format, &offset, &size);
+-    create_buffer_texture(view, wined3d_context_gl(context), buffer, wined3d_format_gl(view_format), offset, size);
++    return create_buffer_texture(view, wined3d_context_gl(context), buffer,
++            wined3d_format_gl(view_format), offset, size);
+ }
+ 
+ static void wined3d_view_invalidate_location(struct wined3d_resource *resource,
+@@ -1063,12 +1067,14 @@ void wined3d_shader_resource_view_gl_update(struct wined3d_shader_resource_view_
+         struct wined3d_context_gl *context_gl)
+ {
+     struct wined3d_buffer *buffer = buffer_from_resource(srv_gl->v.resource);
++    bool created;
+ 
+     assert(!srv_gl->bo_user.valid);
+ 
+-    create_buffer_view(&srv_gl->gl_view, &context_gl->c, &srv_gl->v.desc, buffer, srv_gl->v.format);
++    created = create_buffer_view(&srv_gl->gl_view, &context_gl->c, &srv_gl->v.desc, buffer, srv_gl->v.format);
+     srv_gl->bo_user.valid = true;
+-    list_add_head(&buffer->buffer_object->users, &srv_gl->bo_user.entry);
++    if (created)
++        list_add_head(&buffer->buffer_object->users, &srv_gl->bo_user.entry);
+ }
+ 
+ static void wined3d_shader_resource_view_gl_cs_init(void *object)
+@@ -1090,11 +1096,13 @@ static void wined3d_shader_resource_view_gl_cs_init(void *object)
+     {
+         struct wined3d_buffer *buffer = buffer_from_resource(resource);
+         struct wined3d_context *context;
++        bool created;
+ 
+         context = context_acquire(resource->device, NULL, 0);
+-        create_buffer_view(&view_gl->gl_view, context, desc, buffer, view_format);
++        created = create_buffer_view(&view_gl->gl_view, context, desc, buffer, view_format);
+         view_gl->bo_user.valid = true;
+-        list_add_head(&buffer->buffer_object->users, &view_gl->bo_user.entry);
++        if (created)
++            list_add_head(&buffer->buffer_object->users, &view_gl->bo_user.entry);
+         context_release(context);
+     }
+     else
+@@ -1740,6 +1748,7 @@ void wined3d_unordered_access_view_gl_clear(struct wined3d_unordered_access_view
+         wined3d_buffer_acquire_bo_for_write(buffer, &context_gl->c);
+         wined3d_buffer_load_location(buffer, &context_gl->c, WINED3D_LOCATION_BUFFER);
+     }
++    wined3d_buffer_validate_location(buffer, WINED3D_LOCATION_BUFFER);
+     wined3d_unordered_access_view_invalidate_location(&view_gl->v, ~WINED3D_LOCATION_BUFFER);
+ 
+     bo_gl = wined3d_bo_gl(buffer->buffer_object);
+@@ -1793,11 +1802,13 @@ void wined3d_unordered_access_view_gl_update(struct wined3d_unordered_access_vie
+         struct wined3d_context_gl *context_gl)
+ {
+     struct wined3d_buffer *buffer = buffer_from_resource(uav_gl->v.resource);
++    bool created;
+ 
+     assert(!uav_gl->bo_user.valid);
+-    create_buffer_view(&uav_gl->gl_view, &context_gl->c, &uav_gl->v.desc, buffer, uav_gl->v.format);
++    created = create_buffer_view(&uav_gl->gl_view, &context_gl->c, &uav_gl->v.desc, buffer, uav_gl->v.format);
+     uav_gl->bo_user.valid = true;
+-    list_add_head(&buffer->buffer_object->users, &uav_gl->bo_user.entry);
++    if (created)
++        list_add_head(&buffer->buffer_object->users, &uav_gl->bo_user.entry);
+ }
+ 
+ static void wined3d_unordered_access_view_gl_cs_init(void *object)
+@@ -1816,11 +1827,13 @@ static void wined3d_unordered_access_view_gl_cs_init(void *object)
+         struct wined3d_device_gl *device_gl = wined3d_device_gl(resource->device);
+         struct wined3d_buffer *buffer = buffer_from_resource(resource);
+         struct wined3d_context_gl *context_gl;
++        bool created;
+ 
+         context_gl = wined3d_context_gl(context_acquire(&device_gl->d, NULL, 0));
+-        create_buffer_view(&view_gl->gl_view, &context_gl->c, desc, buffer, view_gl->v.format);
++        created = create_buffer_view(&view_gl->gl_view, &context_gl->c, desc, buffer, view_gl->v.format);
+         view_gl->bo_user.valid = true;
+-        list_add_head(&buffer->buffer_object->users, &view_gl->bo_user.entry);
++        if (created)
++            list_add_head(&buffer->buffer_object->users, &view_gl->bo_user.entry);
+         if (desc->flags & (WINED3D_VIEW_BUFFER_COUNTER | WINED3D_VIEW_BUFFER_APPEND))
+         {
+             struct wined3d_bo_gl *bo = &view_gl->counter_bo;
+diff --git a/dlls/wined3d/wined3d_vk.h b/dlls/wined3d/wined3d_vk.h
+index 6fcfe2a..7b1f7c2 100644
+--- a/dlls/wined3d/wined3d_vk.h
++++ b/dlls/wined3d/wined3d_vk.h
+@@ -789,6 +789,7 @@ void wined3d_context_vk_image_barrier(struct wined3d_context_vk *context_vk,
+         VkImageLayout new_layout, VkImage image, const VkImageSubresourceRange *range);
+ HRESULT wined3d_context_vk_init(struct wined3d_context_vk *context_vk,
+         struct wined3d_swapchain *swapchain);
++void wined3d_context_vk_remove_graphics_pipelines(struct wined3d_context_vk *context_vk, VkShaderModule vk_module);
+ void wined3d_context_vk_submit_command_buffer(struct wined3d_context_vk *context_vk,
+         unsigned int wait_semaphore_count, const VkSemaphore *wait_semaphores, const VkPipelineStageFlags *wait_stages,
+         unsigned int signal_semaphore_count, const VkSemaphore *signal_semaphores);

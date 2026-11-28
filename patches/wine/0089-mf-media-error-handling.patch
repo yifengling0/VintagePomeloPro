@@ -1,0 +1,158 @@
+Subject: [PATCH] mf media error handling
+
+Upstream commits
+
+mfplat: Fix a typo in the async write stream callback.
+  Nikolay Sivov <nsivov@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/14ce5342a4221b48030d3aece2812ceefb65ad15
+mfplat: Return the error code on failure of presentation_descriptor_init().
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/005e6677c7618728753d23eca573d79f14b296a6
+mfplat: Fix new collection size in InsertElementAt().
+  Nikolay Sivov <nsivov@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/26b318f8265ece961ae4271841d1b198299b1331
+mfreadwrite/reader: Fix async command objects leak.
+  Nikolay Sivov <nsivov@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/2f73d9efc2a060b56cde465e3d3cac523823ef5d
+winegstreamer: Fix GstCaps reference leak in wg_parser_stream.
+  Akihiro Sagawa <sagawa.aki@gmail.com>
+  https://github.com/wine-mirror/wine/commit/fba078c81af70b7efc6bc0f9651adcbbcf1f420a
+winegstreamer: Fix a copy-paste mistake in internal video type mapping helper.
+  Nikolay Sivov <nsivov@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/29ca3c92357255447b45ab068b9ac077a20d818f
+winegstreamer: Avoid using uninitialised count in media_source_start().
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/774cb470c50c17fd46d84b6d72b8f309d88f0f4b
+winegstreamer: Check for allocation failure in media_object_GetOutputType().
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/90e98d3d9426fb4bb65d70bc257f51fb1daa022f
+
+diff --git a/dlls/mfplat/main.c b/dlls/mfplat/main.c
+index 42cdf05..a687a60 100644
+--- a/dlls/mfplat/main.c
++++ b/dlls/mfplat/main.c
+@@ -4438,7 +4438,7 @@ static HRESULT WINAPI bytestream_read_callback_Invoke(IRtwqAsyncCallback *iface,
+ 
+ static HRESULT WINAPI bytestream_write_callback_Invoke(IRtwqAsyncCallback *iface, IRtwqAsyncResult *result)
+ {
+-    struct bytestream *stream = impl_from_read_callback_IRtwqAsyncCallback(iface);
++    struct bytestream *stream = impl_from_write_callback_IRtwqAsyncCallback(iface);
+     struct async_stream_op *op;
+     IUnknown *object;
+     HRESULT hr;
+@@ -7837,12 +7837,12 @@ static HRESULT WINAPI collection_RemoveElement(IMFCollection *iface, DWORD idx,
+ static HRESULT WINAPI collection_InsertElementAt(IMFCollection *iface, DWORD idx, IUnknown *element)
+ {
+     struct collection *collection = impl_from_IMFCollection(iface);
+-    size_t i;
++    size_t i, count;
+ 
+     TRACE("%p, %lu, %p.\n", iface, idx, element);
+ 
+-    if (!mf_array_reserve((void **)&collection->elements, &collection->capacity, idx + 1,
+-            sizeof(*collection->elements)))
++    count = max(idx + 1, collection->count + 1);
++    if (!mf_array_reserve((void **)&collection->elements, &collection->capacity, count, sizeof(*collection->elements)))
+         return E_OUTOFMEMORY;
+ 
+     if (idx < collection->count)
+diff --git a/dlls/mfplat/mediatype.c b/dlls/mfplat/mediatype.c
+index 10a92ad..dd3a4b4 100644
+--- a/dlls/mfplat/mediatype.c
++++ b/dlls/mfplat/mediatype.c
+@@ -2564,13 +2564,18 @@ static HRESULT WINAPI presentation_descriptor_Clone(IMFPresentationDescriptor *i
+     struct presentation_desc *presentation_desc = impl_from_IMFPresentationDescriptor(iface);
+     struct presentation_desc *object;
+     unsigned int i;
++    HRESULT hr;
+ 
+     TRACE("%p, %p.\n", iface, descriptor);
+ 
+     if (!(object = calloc(1, sizeof(*object))))
+         return E_OUTOFMEMORY;
+ 
+-    presentation_descriptor_init(object, presentation_desc->count);
++    if (FAILED(hr = presentation_descriptor_init(object, presentation_desc->count)))
++    {
++        free(object);
++        return hr;
++    }
+ 
+     EnterCriticalSection(&presentation_desc->attributes.cs);
+ 
+diff --git a/dlls/mfreadwrite/reader.c b/dlls/mfreadwrite/reader.c
+index 34215c3..1a3ad68 100644
+--- a/dlls/mfreadwrite/reader.c
++++ b/dlls/mfreadwrite/reader.c
+@@ -290,7 +290,7 @@ static ULONG WINAPI source_reader_async_command_AddRef(IUnknown *iface)
+ static ULONG WINAPI source_reader_async_command_Release(IUnknown *iface)
+ {
+     struct source_reader_async_command *command = impl_from_async_command_IUnknown(iface);
+-    ULONG refcount = InterlockedIncrement(&command->refcount);
++    ULONG refcount = InterlockedDecrement(&command->refcount);
+ 
+     if (!refcount)
+     {
+diff --git a/dlls/winegstreamer/media_source.c b/dlls/winegstreamer/media_source.c
+index 3dcb181..665407b 100644
+--- a/dlls/winegstreamer/media_source.c
++++ b/dlls/winegstreamer/media_source.c
+@@ -607,7 +607,11 @@ static HRESULT media_source_start(struct media_source *source, IMFPresentationDe
+         return E_OUTOFMEMORY;
+ 
+     if (FAILED(hr = IMFPresentationDescriptor_GetStreamDescriptorCount(descriptor, &count)))
++    {
+         WARN("Failed to get presentation descriptor stream count, hr %#lx\n", hr);
++        free(descriptors);
++        return hr;
++    }
+ 
+     for (i = 0; i < count; i++)
+     {
+diff --git a/dlls/winegstreamer/quartz_parser.c b/dlls/winegstreamer/quartz_parser.c
+index 0b77b97..586f9ca 100644
+--- a/dlls/winegstreamer/quartz_parser.c
++++ b/dlls/winegstreamer/quartz_parser.c
+@@ -1080,7 +1080,7 @@ static bool amt_to_wg_format_video_indeo(const AM_MEDIA_TYPE *mt, struct wg_form
+         return false;
+     }
+ 
+-    format->major_type = WG_MAJOR_TYPE_VIDEO_CINEPAK;
++    format->major_type = WG_MAJOR_TYPE_VIDEO_INDEO;
+     if (IsEqualGUID(&mt->subtype, &MEDIASUBTYPE_IV50))
+         format->u.video.version = 5;
+     format->u.video.width = video_format->bmiHeader.biWidth;
+diff --git a/dlls/winegstreamer/video_decoder.c b/dlls/winegstreamer/video_decoder.c
+index 4728020..7761081 100644
+--- a/dlls/winegstreamer/video_decoder.c
++++ b/dlls/winegstreamer/video_decoder.c
+@@ -1199,7 +1199,11 @@ static HRESULT WINAPI media_object_GetOutputType(IMediaObject *iface, DWORD inde
+     type->lSampleSize = image_size;
+     type->formattype = FORMAT_VideoInfo;
+     type->cbFormat = sizeof(VIDEOINFOHEADER);
+-    type->pbFormat = CoTaskMemAlloc(type->cbFormat);
++    if (!(type->pbFormat = CoTaskMemAlloc(type->cbFormat)))
++    {
++        IMFMediaType_Release(media_type);
++        return E_OUTOFMEMORY;
++    }
+     memset(type->pbFormat, 0, type->cbFormat);
+ 
+     info = (VIDEOINFOHEADER *)type->pbFormat;
+diff --git a/dlls/winegstreamer/wg_parser.c b/dlls/winegstreamer/wg_parser.c
+index c85f638..8d4d4e6 100644
+--- a/dlls/winegstreamer/wg_parser.c
++++ b/dlls/winegstreamer/wg_parser.c
+@@ -1113,6 +1113,12 @@ static void free_stream(struct wg_parser_stream *stream)
+         if (stream->tags[i])
+             g_free(stream->tags[i]);
+     }
++
++    if (stream->codec_caps)
++        gst_caps_unref(stream->codec_caps);
++    if (stream->current_caps)
++        gst_caps_unref(stream->current_caps);
++
+     free(stream);
+ }
+ 

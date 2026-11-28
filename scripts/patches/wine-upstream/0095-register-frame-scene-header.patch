@@ -1,0 +1,17 @@
+Subject: [PATCH] Register the VPP frame scene header with makedep
+
+The header already belongs to the Vulkan overlay. Wine discovers its
+shared headers from include/Makefile.in during config.status.
+
+diff --git a/include/Makefile.in b/include/Makefile.in
+index 285035a5..4bfd8053 100644
+--- a/include/Makefile.in
++++ b/include/Makefile.in
+@@ -994,6 +994,7 @@ SOURCES = \
+ 	wine/svcctl.idl \
+ 	wine/test.h \
+ 	wine/unixlib.h \
++	wine/vpp_frame_scene.h \
+ 	wine/vulkan.h \
+ 	wine/vulkan_driver.h \
+ 	wine/wgl.h \

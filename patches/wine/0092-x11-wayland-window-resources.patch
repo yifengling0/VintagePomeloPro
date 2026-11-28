@@ -1,0 +1,150 @@
+Subject: [PATCH] x11 wayland window resources
+
+Upstream commits
+
+winex11: Fix use-after-free in GL_EXTENSIONS string.
+  Hugo Osvaldo Barrera <hugo@whynothugo.nl>
+  https://github.com/wine-mirror/wine/commit/f68eb9e43d0ed71bc465d836f81bfdd2ebcf2ab3
+winex11: Return unshifted characters as is with MAPVK_VK_TO_CHAR.
+  Valentin Bernard <28561-vbernard@users.noreply.gitlab.winehq.org>
+  https://github.com/wine-mirror/wine/commit/4550e85c8d32022f151c0e1837f85973ed16f153
+winewayland: Fix dummy buffer leak.
+  Brian Carbone <brian@briancarbone.com>
+  https://github.com/wine-mirror/wine/commit/ef6eccbddf9d6c1a2f78aa11a3eab9dbfb921432
+win32u: Avoid leaking GDI handles when setting window icons.
+  =?UTF-8?q?R=C3=A9mi=20Bernon?= <rbernon@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/e93c13bec0813d37907ab6cfd27f7d113de9718f
+
+diff --git a/dlls/win32u/defwnd.c b/dlls/win32u/defwnd.c
+index 86a9747..7c862e3 100644
+--- a/dlls/win32u/defwnd.c
++++ b/dlls/win32u/defwnd.c
+@@ -446,6 +446,13 @@ static HICON set_window_icon( HWND hwnd, WPARAM type, HICON icon )
+     {
+         icon_small = get_window_icon_info( hwnd, ICON_SMALL, icon_small, &ii_small );
+         user_driver->pSetWindowIcons( hwnd, icon, &ii, icon_small, &ii_small );
++        if (icon_small)
++        {
++            NtGdiDeleteObjectApp( ii_small.hbmColor );
++            NtGdiDeleteObjectApp( ii_small.hbmMask );
++        }
++        NtGdiDeleteObjectApp( ii.hbmColor );
++        NtGdiDeleteObjectApp( ii.hbmMask );
+     }
+ 
+     return ret;
+diff --git a/dlls/win32u/window.c b/dlls/win32u/window.c
+index 195e8ac..a6a2ce8 100644
+--- a/dlls/win32u/window.c
++++ b/dlls/win32u/window.c
+@@ -2436,6 +2436,13 @@ static BOOL apply_window_pos( HWND hwnd, HWND insert_after, UINT swp_flags, stru
+         {
+             icon_small = get_window_icon_info( hwnd, ICON_SMALL, icon_small, &ii_small );
+             user_driver->pSetWindowIcons( hwnd, icon, &ii, icon_small, &ii_small );
++            if (icon_small)
++            {
++                NtGdiDeleteObjectApp( ii_small.hbmColor );
++                NtGdiDeleteObjectApp( ii_small.hbmMask );
++            }
++            NtGdiDeleteObjectApp( ii.hbmColor );
++            NtGdiDeleteObjectApp( ii.hbmMask );
+         }
+ 
+         owner_hint = NtUserGetWindowRelative(hwnd, GW_OWNER);
+diff --git a/dlls/winewayland.drv/wayland_surface.c b/dlls/winewayland.drv/wayland_surface.c
+index b33586c..a735d89 100644
+--- a/dlls/winewayland.drv/wayland_surface.c
++++ b/dlls/winewayland.drv/wayland_surface.c
+@@ -1489,11 +1489,8 @@ void wayland_surface_ensure_contents(struct wayland_surface *surface,
+         wayland_surface_attach_shm(surface, dummy_shm_buffer, damage);
+         wl_surface_commit(surface->wl_surface);
+     }
+-    else
+-    {
+-        wayland_shm_buffer_unref(dummy_shm_buffer);
+-    }
+ 
++    wayland_shm_buffer_unref(dummy_shm_buffer);
+     if (damage) NtGdiDeleteObjectApp(damage);
+ }
+ 
+diff --git a/dlls/winex11.drv/keyboard.c b/dlls/winex11.drv/keyboard.c
+index 3907828..21fc4eb 100644
+--- a/dlls/winex11.drv/keyboard.c
++++ b/dlls/winex11.drv/keyboard.c
+@@ -2039,18 +2039,19 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
+ 
+         case MAPVK_VK_TO_CHAR: /* vkey-code to unshifted ANSI code */
+         {
+-            /* we still don't know what "unshifted" means. in windows VK_W (0x57)
+-             * returns 0x57, which is uppercase 'W'. So we have to return the uppercase
+-             * key.. Looks like something is wrong with the MS docs?
+-             * This is only true for letters, for example VK_0 returns '0' not ')'.
+-             * - hence we use the lock mask to ensure this happens.
+-             */
+             /* let's do vkey -> keycode -> (XLookupString) ansi char */
+             XKeyEvent e;
+             KeySym keysym;
+             int len;
+             char s[10];
+ 
++            /* VK_A to VK_Z just return the uppercase letter regardless of the layout */
++            if (wCode >= 'A' && wCode <= 'Z')
++            {
++                ret = wCode;
++                break;
++            }
++
+             e.display = display;
+             e.state = 0;
+             e.keycode = 0;
+@@ -2094,7 +2095,7 @@ UINT X11DRV_MapVirtualKeyEx( UINT wCode, UINT wMapType, HKL hkl )
+             if (len)
+             {
+                 WCHAR wch;
+-                if (ntdll_umbstowcs( s, len, &wch, 1 )) ret = RtlUpcaseUnicodeChar( wch );
++                if (ntdll_umbstowcs( s, len, &wch, 1 )) ret = wch;
+             }
+             break;
+         }
+diff --git a/dlls/winex11.drv/opengl.c b/dlls/winex11.drv/opengl.c
+index 06754a0..8fbb689 100644
+--- a/dlls/winex11.drv/opengl.c
++++ b/dlls/winex11.drv/opengl.c
+@@ -355,6 +355,7 @@ static BOOL X11DRV_WineGL_InitOpenglInfo(void)
+     Window win = 0, root = 0;
+     const char *gl_version;
+     const char *gl_renderer;
++    const char *gl_extensions;
+     BOOL glx_direct;
+     XVisualInfo *vis;
+     GLXContext ctx = NULL;
+@@ -404,7 +405,8 @@ static BOOL X11DRV_WineGL_InitOpenglInfo(void)
+     }
+     gl_renderer = (const char *)pglGetString(GL_RENDERER);
+     gl_version  = (const char *)pglGetString(GL_VERSION);
+-    glExtensions = (const char *) pglGetString(GL_EXTENSIONS);
++    gl_extensions = (const char *)pglGetString(GL_EXTENSIONS);
++    glExtensions = gl_extensions ? strdup( gl_extensions ) : NULL;
+ 
+     /* Get the common GLX version supported by GLX client and server ( major/minor) */
+     pglXQueryVersion(gdi_display, &glxVersion[0], &glxVersion[1]);
+diff --git a/dlls/winex11.drv/window.c b/dlls/winex11.drv/window.c
+index 307710a..de8a753 100644
+--- a/dlls/winex11.drv/window.c
++++ b/dlls/winex11.drv/window.c
+@@ -989,14 +989,8 @@ static void set_window_icon_data( struct x11drv_win_data *data, HICON icon, cons
+             }
+         }
+         free( bits_small );
+-        NtGdiDeleteObjectApp( ii_small->hbmColor );
+-        NtGdiDeleteObjectApp( ii_small->hbmMask );
+     }
+-
+     if (!create_icon_pixmaps( hDC, ii, &icon_pixmap, &mask_pixmap )) icon_pixmap = mask_pixmap = 0;
+-
+-    NtGdiDeleteObjectApp( ii->hbmColor );
+-    NtGdiDeleteObjectApp( ii->hbmMask );
+     NtGdiDeleteObjectApp( hDC );
+ 
+     if (data->icon_pixmap) XFreePixmap( gdi_display, data->icon_pixmap );

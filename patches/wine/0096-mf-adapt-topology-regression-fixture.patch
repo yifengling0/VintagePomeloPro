@@ -1,0 +1,143 @@
+Subject: [PATCH] Adapt the MF topology regression to the current test sinks
+
+Count delivery in the test sink and provide the characteristics and marker
+event the upstream test expects. Keep existing test sink behavior by
+making sample counting opt-in for the topology reuse regression.
+
+diff --git a/dlls/mf/tests/mf.c b/dlls/mf/tests/mf.c
+index cce0d50e..ea32f335 100644
+--- a/dlls/mf/tests/mf.c
++++ b/dlls/mf/tests/mf.c
+@@ -761,6 +761,7 @@ struct test_media_sink
+     IMFMediaTypeHandler *handler;
+     IMFPresentationClock *clock;
+     IMFStreamSink *stream;
++    DWORD characteristics;
+     BOOL shutdown;
+ };
+ 
+@@ -807,7 +808,7 @@ static ULONG WINAPI test_media_sink_Release(IMFMediaSink *iface)
+ 
+ static HRESULT WINAPI test_media_sink_GetCharacteristics(IMFMediaSink *iface, DWORD *characteristics)
+ {
+-    *characteristics = 0;
++    *characteristics = impl_from_IMFMediaSink(iface)->characteristics;
+     return S_OK;
+ }
+ 
+@@ -995,6 +996,8 @@ struct test_stream_sink
+     IUnknown *device_manager;
+ 
+     IMFMediaEventQueue *event_queue;
++    HANDLE sample_event;
++    LONG sample_count;
+ };
+ 
+ static struct test_stream_sink *impl_from_IMFStreamSink(IMFStreamSink *iface)
+@@ -1053,6 +1056,8 @@ static ULONG WINAPI test_stream_sink_Release(IMFStreamSink *iface)
+             IMFMediaEventQueue_Shutdown(sink->event_queue);
+             IMFMediaEventQueue_Release(sink->event_queue);
+         }
++        if (sink->sample_event)
++            CloseHandle(sink->sample_event);
+         free(sink);
+     }
+ 
+@@ -1140,8 +1145,16 @@ DEFINE_EXPECT(test_stream_sink_Flush);
+ 
+ static HRESULT WINAPI test_stream_sink_ProcessSample(IMFStreamSink *iface, IMFSample *sample)
+ {
++    struct test_stream_sink *sink = impl_from_IMFStreamSink(iface);
+     HRESULT hr;
+ 
++    if (sink->sample_event)
++    {
++        InterlockedIncrement(&sink->sample_count);
++        SetEvent(sink->sample_event);
++        return S_OK;
++    }
++
+     if (expect_test_stream_sink_ProcessSample)
+         hr = S_OK;
+     else
+@@ -1156,6 +1169,9 @@ static HRESULT WINAPI test_stream_sink_ProcessSample(IMFStreamSink *iface, IMFSa
+ static HRESULT WINAPI test_stream_sink_PlaceMarker(IMFStreamSink *iface, MFSTREAMSINK_MARKER_TYPE marker_type,
+         const PROPVARIANT *marker_value, const PROPVARIANT *context)
+ {
++    if (impl_from_IMFStreamSink(iface)->sample_event)
++        return IMFStreamSink_QueueEvent(iface, MEStreamSinkMarker, &GUID_NULL, S_OK, context);
++
+     ok(0, "Unexpected call.\n");
+     return E_NOTIMPL;
+ }
+@@ -9190,7 +9206,7 @@ static void test_topology_reuse(void)
+     IMFTopoLoader *topo_loader;
+     IMFMediaType *output_type;
+     IMFMediaSession *session;
+-    DWORD samples_count = 0;
++    LONG samples_count;
+     IMFMediaSource *source;
+     PROPVARIANT propvar;
+     HRESULT hr;
+@@ -9217,7 +9233,9 @@ static void test_topology_reuse(void)
+     media_sink = create_test_media_sink(&handler->IMFMediaTypeHandler_iface);
+     IMFMediaTypeHandler_Release(&handler->IMFMediaTypeHandler_iface);
+     media_sink->characteristics = MEDIASINK_FIXED_STREAMS;
+-    stream_sink = media_sink->stream;
++    stream_sink = impl_from_IMFStreamSink(media_sink->stream);
++    stream_sink->sample_event = CreateEventW(NULL, FALSE, FALSE, NULL);
++    ok(!!stream_sink->sample_event, "Failed to create sample event, error %lu.\n", GetLastError());
+ 
+     raw_topology = create_test_topology_unk(source, (IUnknown *)stream_sink, NULL, NULL);
+     hr = MFCreateTopoLoader(&topo_loader);
+@@ -9240,7 +9258,6 @@ static void test_topology_reuse(void)
+     SET_EXPECT(test_media_sink_GetPresentationClock);
+     SET_EXPECT(test_media_sink_SetPresentationClock);
+     SET_EXPECT(test_media_sink_GetStreamSinkCount);
+-    SET_EXPECT(test_stream_sink_ProcessSample);
+ 
+     propvar.vt = VT_EMPTY;
+     hr = IMFMediaSession_Start(session, &GUID_NULL, &propvar);
+@@ -9252,10 +9269,11 @@ static void test_topology_reuse(void)
+     IMFStreamSink_QueueEvent(&stream_sink->IMFStreamSink_iface, MEStreamSinkRequestSample, &GUID_NULL, S_OK, NULL);
+     IMFStreamSink_QueueEvent(&stream_sink->IMFStreamSink_iface, MEStreamSinkRequestSample, &GUID_NULL, S_OK, NULL);
+ 
+-    while (hr == WAIT_OBJECT_0 && SUCCEEDED(hr = IMFCollection_GetElementCount(stream_sink->samples, &samples_count)) && samples_count < 2)
++    while ((samples_count = InterlockedCompareExchange(&stream_sink->sample_count, 0, 0)) < 2)
+     {
+         hr = WaitForSingleObject(stream_sink->sample_event, 1000);
+         ok(hr == WAIT_OBJECT_0, "Unexpected hr %#lx.\n", hr);
++        if (hr != WAIT_OBJECT_0) break;
+     }
+     ok(samples_count == 2, "Unexpected samples count %ld.\n", samples_count);
+ 
+@@ -9271,13 +9289,11 @@ static void test_topology_reuse(void)
+     ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
+     PropVariantClear(&propvar);
+ 
+-    IMFCollection_RemoveAllElements(stream_sink->samples);
++    InterlockedExchange(&stream_sink->sample_count, 0);
+ 
+     SET_EXPECT(test_media_sink_GetPresentationClock);
+     SET_EXPECT(test_media_sink_SetPresentationClock);
+     SET_EXPECT(test_media_sink_GetStreamSinkCount);
+-    SET_EXPECT(test_stream_sink_ProcessSample);
+-    SET_EXPECT(test_stream_sink_PlaceMarker);
+ 
+     /* Request samples before starting. Reusing the topology means the sink may still be subscribed to events. */
+     IMFStreamSink_QueueEvent(&stream_sink->IMFStreamSink_iface, MEStreamSinkRequestSample, &GUID_NULL, S_OK, NULL);
+@@ -9294,12 +9310,12 @@ static void test_topology_reuse(void)
+     IMFStreamSink_QueueEvent(&stream_sink->IMFStreamSink_iface, MEStreamSinkRequestSample, &GUID_NULL, S_OK, NULL);
+     IMFStreamSink_QueueEvent(&stream_sink->IMFStreamSink_iface, MEStreamSinkRequestSample, &GUID_NULL, S_OK, NULL);
+ 
+-    samples_count = 0;
+-    while (hr == WAIT_OBJECT_0 && SUCCEEDED(hr = IMFCollection_GetElementCount(stream_sink->samples, &samples_count)) && samples_count < 4)
++    while ((samples_count = InterlockedCompareExchange(&stream_sink->sample_count, 0, 0)) < 4)
+     {
+         SET_EXPECT(test_media_sink_GetStreamSinkCount);
+         hr = WaitForSingleObject(stream_sink->sample_event, 1000);
+         ok(hr == WAIT_OBJECT_0, "Unexpected hr %#lx.\n", hr);
++        if (hr != WAIT_OBJECT_0) break;
+     }
+     ok(samples_count == 4, "Unexpected samples count %ld.\n", samples_count);
+ 

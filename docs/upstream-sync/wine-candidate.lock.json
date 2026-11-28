@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "ohos-wgl-swap-copy-candidate",
+  "status": "ohos-wine-proton-backports-candidate",
   "upstream": {
     "repository": "ValveSoftware/wine",
     "commit": "e8ca5806eec488f5916e83d655ffc5349b6b1702",
@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "d60ce754c9cfeeb819f4f5673f8e415d71dce20a",
-  "adaptedTree": "67d79da314abb058c81f3667f3a464669759747c",
+  "adaptedCommit": "90f803c08f9ebd114f6fcb65b71a89eef3770a30",
+  "adaptedTree": "fcd50351baa067da18246fbcc9cdced31eecd07d",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -568,11 +568,71 @@
       "sha256": "5f6f8e601b8f6083a5cb14372f44ea84f56c627c654dba443d0c8b56371182d8",
       "commit": "d60ce754c9cfeeb819f4f5673f8e415d71dce20a",
       "subject": "win32u: Add a depth32 swap-copy window format on OHOS"
+    },
+    {
+      "path": "patches/wine/0087-wined3d-device-reset-and-buffer-views.patch",
+      "sha256": "fb7a3305d4f7f1883af9a2fbb14274527cfa0d1805cb3bfdbdd0972bf5313c8e",
+      "commit": "f82dbef1b2ff512d509c6da03c489a40db98a57e",
+      "subject": "Wine backport: wined3d device reset and buffer views"
+    },
+    {
+      "path": "patches/wine/0088-mf-session-defer-sample-requests.patch",
+      "sha256": "12fcb7ea5281279c952120911319d94cbc00fe8381f3299777ca107abe9c18c9",
+      "commit": "e9e4e1490bc3a9d6731b54212f963fa91090a3ac",
+      "subject": "Wine backport: mf session defer sample requests"
+    },
+    {
+      "path": "patches/wine/0089-mf-media-error-handling.patch",
+      "sha256": "98a03045b32346fa4d418e779a485daca245d725f1e591d5c2d4c68dd8d824f2",
+      "commit": "bb271510e74055c88382e2af672fce9917e88ec1",
+      "subject": "Wine backport: mf media error handling"
+    },
+    {
+      "path": "patches/wine/0090-mfreadwrite-media-sink-writer.patch",
+      "sha256": "cb35de659a8535c4bccd520d81aa0085e89317dcf5b8744c855ea672e2394dec",
+      "commit": "a6b8a3f49e2cb0704a37f069632635250e0a3a89",
+      "subject": "Wine backport: mfreadwrite media sink writer"
+    },
+    {
+      "path": "patches/wine/0091-input-queue-and-provider-enumeration.patch",
+      "sha256": "f3fb86af49fb06db7400058f003bdbc7543f551b5b1aeb8092eb951e99cdb348",
+      "commit": "5f5a60b9dcc7b5678817f412b4eba55d019681d7",
+      "subject": "Wine backport: input queue and provider enumeration"
+    },
+    {
+      "path": "patches/wine/0092-x11-wayland-window-resources.patch",
+      "sha256": "0e84eddcf8ebab92072fd69a189bc3f92970c92da87355882c2ee48760109394",
+      "commit": "e1c772be41746458a71ec41f9f90ed909406962f",
+      "subject": "Wine backport: x11 wayland window resources"
+    },
+    {
+      "path": "patches/wine/0093-wow64-and-msi-file-compatibility.patch",
+      "sha256": "3cd8c6e7300b08d003ee271a81c6b36f4ec9dcf4bde9cf96f8a347d511eb3c33",
+      "commit": "31f5bddcc9ef8ee3bfd84c75a20cf040ddb3fd19",
+      "subject": "Wine backport: wow64 and msi file compatibility"
+    },
+    {
+      "path": "patches/wine/0094-dwrite-cmap-format10.patch",
+      "sha256": "71a213068b6a3e5924545ffde018bc3d803377e4c141586940bbb607161c23a4",
+      "commit": "0f1eba06c1e1c5c2cbd63f976b0ce566540e7b41",
+      "subject": "Wine backport: dwrite cmap format10"
+    },
+    {
+      "path": "scripts/patches/wine-upstream/0095-register-frame-scene-header.patch",
+      "sha256": "6729f83ae4884f597f9ed7476f18730fc408ebdbd5e1b6cf18ef18febe86ed03",
+      "commit": "8758b515d9a119ace91becafce24f05b98a28da2",
+      "subject": "makedep: Register the VPP frame scene header"
+    },
+    {
+      "path": "patches/wine/0096-mf-adapt-topology-regression-fixture.patch",
+      "sha256": "dc3593811b89d71882bf7730e5ebcc801379d692572e3950abb8f7b1872e1f58",
+      "commit": "90f803c08f9ebd114f6fcb65b71a89eef3770a30",
+      "subject": "mf/tests: Adapt the topology reuse regression fixture"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "492954067d41def73444cffda75fe6c59203ef503ef99c78b10b9efbc3a1d95d"
+    "sha256": "b7874bd018f5b45226c7e0f00bbccbb936e724527669d7de782700fe8b3ded5f"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",

@@ -1,0 +1,337 @@
+Subject: [PATCH] wine ci compatibility backfills
+
+Upstream commits
+
+winegstreamer: Preserve sign of stride from 2D buffer.
+  Brendan McGrath <bmcgrath@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/069ed0297ae2caec91e0fd7ef4704a5e1a41615d
+xaudio2: Release the correct lock on failure in CreateSourceVoice().
+  Elizabeth Figura <zfigura@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/b68ea3b878e2b8c609b62d0e69b9fbff058a9918
+winex11.drv: Flush display in acquire_selection().
+  Paul Gofman <pgofman@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/a33000a6a0fec3cf295fe20821aa62779ddaea8c
+dinput: Only wait for the input thread to complete cleanup.
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/9eb4614ad7a021758af39656bc68d88fa5cfbdb3
+dinput/tests: Test setting two actions with the same control identifier.
+  Zhiyi Zhang <zzhang@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/4fd4ab8185a642442c84630c9e98fc9d8d3a8f7b
+dinput: Check device GUID in init_object_app_data().
+  Zhiyi Zhang <zzhang@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/0a77c2f4c636cead102bacdf53436d59c49101fa
+windows.gaming.input: Allow gamepad added callback to be registered before initializing providers.
+  Brendan McGrath <bmcgrath@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/40760f8c8043944bf7d4eeef3a167de2a6108537
+mf/sar: Move audio renderer flush actions inside the conditional code block for active state.
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/53b53452519549240dbca2db69faa20e6627fae8
+mf/sar: Check for null audio client before resetting during flush.
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/wine-mirror/wine/commit/37fd158bfc4692183c4583cb8af43b0447dd885d
+
+diff --git a/dlls/dinput/device.c b/dlls/dinput/device.c
+index 6748ec6..0d8589b 100644
+--- a/dlls/dinput/device.c
++++ b/dlls/dinput/device.c
+@@ -1966,6 +1966,7 @@ static BOOL init_object_app_data( struct dinput_device *device, UINT index, stru
+     while (action-- > format->rgoAction)
+     {
+         if (action->dwObjID != instance->dwType) continue;
++        if (!IsEqualGUID( &action->guidInstance, &device->guid )) continue;
+         properties->app_data = action->uAppData;
+         break;
+     }
+diff --git a/dlls/dinput/dinput_main.c b/dlls/dinput/dinput_main.c
+index 9220ad2..593d9a8 100644
+--- a/dlls/dinput/dinput_main.c
++++ b/dlls/dinput/dinput_main.c
+@@ -73,6 +73,7 @@ static HWND di_em_win;
+ static HANDLE dinput_thread;
+ static UINT input_thread_user_count;
+ static struct input_thread_state *input_thread_state;
++static HANDLE stop_event;
+ 
+ static CRITICAL_SECTION dinput_hook_crit;
+ static CRITICAL_SECTION_DEBUG dinput_critsect_debug =
+@@ -424,6 +425,8 @@ static DWORD WINAPI dinput_thread_proc( void *params )
+     DestroyWindow( di_em_win );
+     di_em_win = NULL;
+ 
++    if (stop_event) SetEvent( stop_event );
++
+     if (this_module != NULL) FreeLibraryAndExitThread( this_module, 0 );
+     return 0;
+ }
+@@ -485,8 +488,11 @@ void input_thread_remove_user(void)
+     {
+         TRACE( "Stopping input thread.\n" );
+ 
++        if (!(stop_event = CreateEventW( NULL, FALSE, FALSE, NULL )))
++            ERR( "Failed to create stop event, error %lu\n", GetLastError() );
+         SendMessageW( di_em_win, INPUT_THREAD_NOTIFY, NOTIFY_THREAD_STOP, 0 );
+-        WaitForSingleObject( dinput_thread, INFINITE );
++        WaitForSingleObject( stop_event, INFINITE );
++        CloseHandle( stop_event );
+         CloseHandle( dinput_thread );
+         dinput_thread = NULL;
+     }
+diff --git a/dlls/dinput/tests/joystick8.c b/dlls/dinput/tests/joystick8.c
+index 30a23be..0cde14f 100644
+--- a/dlls/dinput/tests/joystick8.c
++++ b/dlls/dinput/tests/joystick8.c
+@@ -1012,6 +1012,27 @@ static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE e
+             .uAppData = 11,
+         },
+     };
++    DIACTIONW filled_actions_3[] =
++    {
++        {
++            .dwSemantic = DIMOUSE_BUTTON0,
++            .lptszActionName = L"Button 0",
++            .guidInstance = GUID_SysMouse,
++            .dwObjID = DIDFT_PSHBUTTON | DIDFT_MAKEINSTANCE( 3 ),
++            .dwFlags = DIA_APPMAPPED | DIA_APPFIXED,
++            .dwHow = DIAH_DEFAULT,
++            .uAppData = 1,
++        },
++        {
++            .dwSemantic = DIKEYBOARD_2,
++            .lptszActionName = L"Key",
++            .guidInstance = GUID_SysKeyboard,
++            .dwObjID = DIDFT_PSHBUTTON | DIDFT_MAKEINSTANCE( 3 ),
++            .dwFlags = DIA_APPMAPPED | DIA_APPFIXED,
++            .dwHow = DIAH_DEFAULT,
++            .uAppData = 2,
++        }
++    };
+     DIACTIONFORMATW action_format_2_filled =
+     {
+         .dwSize = sizeof(DIACTIONFORMATW),
+@@ -1026,6 +1047,18 @@ static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE e
+         .lAxisMax = +128,
+         .tszActionMap = L"Action Map Filled",
+     };
++    DIACTIONFORMATW action_format_3_filled =
++    {
++        .dwSize = sizeof(DIACTIONFORMATW),
++        .dwActionSize = sizeof(*default_actions),
++        .dwNumActions = ARRAY_SIZE(filled_actions_3),
++        .dwDataSize = 4 * ARRAY_SIZE(filled_actions_3),
++        .rgoAction = filled_actions_3,
++        .dwGenre = DIVIRTUAL_DRIVING_RACE,
++        .guidActionMap = GUID_action_mapping_2,
++        .dwBufferSize = 32,
++        .tszActionMap = L"Action Map Filled",
++    };
+     DIPROPRANGE prop_range =
+     {
+         .diph =
+@@ -1456,6 +1489,28 @@ static void test_action_map( IDirectInputDevice8W *device, HANDLE file, HANDLE e
+     ok( hr == DI_OK, "BuildActionMap returned %#lx\n", hr );
+     check_diactionformatw( &action_format, &expect_action_format_4 );
+ 
++    /* Test setting two actions with the same control identifier/dwObjID */
++    hr = IDirectInputDevice8_SetActionMap( mouse, &action_format_3_filled, L"username", DIDSAM_DEFAULT );
++    todo_wine
++    ok( hr == DI_SETTINGSNOTSAVED, "SetActionMap returned %#lx\n", hr );
++    hr = IDirectInputDevice8_SetActionMap( keyboard, &action_format_3_filled, L"username", DIDSAM_DEFAULT );
++    todo_wine
++    ok( hr == DI_SETTINGSNOTSAVED, "SetActionMap returned %#lx\n", hr );
++
++    prop_pointer.diph.dwHow = DIPH_BYID;
++    prop_pointer.diph.dwObj = DIDFT_PSHBUTTON | DIDFT_MAKEINSTANCE( 3 );
++    prop_pointer.uData = 0;
++    hr = IDirectInputDevice8_GetProperty( mouse, DIPROP_APPDATA, &prop_pointer.diph );
++    ok( hr == DI_OK, "GetProperty returned %#lx\n", hr );
++    ok( prop_pointer.uData == 1, "got uData %#Ix\n", prop_pointer.uData );
++
++    prop_pointer.diph.dwHow = DIPH_BYID;
++    prop_pointer.diph.dwObj = DIDFT_PSHBUTTON | DIDFT_MAKEINSTANCE( 3 );
++    prop_pointer.uData = 0;
++    hr = IDirectInputDevice8_GetProperty( keyboard, DIPROP_APPDATA, &prop_pointer.diph );
++    ok( hr == DI_OK, "GetProperty returned %#lx\n", hr );
++    ok( prop_pointer.uData == 2, "got uData %#Ix\n", prop_pointer.uData );
++
+     IDirectInputDevice8_Release( keyboard );
+     IDirectInputDevice8_Release( mouse );
+ 
+diff --git a/dlls/mf/sar.c b/dlls/mf/sar.c
+index 63739a1..e756989 100644
+--- a/dlls/mf/sar.c
++++ b/dlls/mf/sar.c
+@@ -1664,15 +1664,18 @@ static HRESULT WINAPI audio_renderer_stream_Flush(IMFStreamSink *iface)
+             }
+             release_pending_object(obj);
+         }
++        renderer->queued_frames = 0;
++        if (renderer->audio_client)
++        {
++            if (SUCCEEDED(hr = IAudioClient_Reset(renderer->audio_client)))
++            {
++                renderer->position = 0;
++                renderer->pts = 0;
++            }
++            else
++                WARN("Failed to reset audio client, hr %#lx.\n", hr);
++        }
+     }
+-    renderer->queued_frames = 0;
+-    if (SUCCEEDED(hr = IAudioClient_Reset(renderer->audio_client)))
+-    {
+-        renderer->position = 0;
+-        renderer->pts = 0;
+-    }
+-    else
+-        WARN("Failed to reset audio client, hr %#lx.\n", hr);
+     LeaveCriticalSection(&renderer->cs);
+ 
+     return hr;
+diff --git a/dlls/mf/tests/transform.c b/dlls/mf/tests/transform.c
+index 5b9c9fc..d9e2c92 100644
+--- a/dlls/mf/tests/transform.c
++++ b/dlls/mf/tests/transform.c
+@@ -7258,7 +7258,6 @@ static void test_wmv_decoder(BOOL use_2d_buffer)
+             .output_sample_desc = &output_sample_desc_rgb,
+             .result_bitmap = use_2d_buffer ? L"rgb32frame.bmp" : L"rgb32frame-flip.bmp",
+             .delta = 5,
+-            .todo = use_2d_buffer,
+         },
+ 
+         {
+@@ -7281,7 +7280,6 @@ static void test_wmv_decoder(BOOL use_2d_buffer)
+             .output_sample_desc = &output_sample_desc_rgb,
+             .result_bitmap = use_2d_buffer ? L"rgb32frame.bmp" : L"rgb32frame-flip.bmp",
+             .delta = 5,
+-            .todo = use_2d_buffer,
+         },
+ 
+         {
+@@ -7305,7 +7303,6 @@ static void test_wmv_decoder(BOOL use_2d_buffer)
+             .output_sample_desc = &output_sample_desc_rgb,
+             .result_bitmap = use_2d_buffer ? L"rgb32frame-flip.bmp" : L"rgb32frame.bmp",
+             .delta = 5,
+-            .todo = use_2d_buffer,
+         },
+ 
+         {
+diff --git a/dlls/windows.gaming.input/main.c b/dlls/windows.gaming.input/main.c
+index 39c0540..7b0a68f 100644
+--- a/dlls/windows.gaming.input/main.c
++++ b/dlls/windows.gaming.input/main.c
+@@ -122,8 +122,8 @@ static DWORD WINAPI monitor_thread_proc( void *param )
+     RegisterClassExW( &wndclass );
+     hwnd = CreateWindowExW( 0, wndclass.lpszClassName, NULL, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, NULL, NULL );
+     devnotify = RegisterDeviceNotificationW( hwnd, &filter, DEVICE_NOTIFY_ALL_INTERFACE_CLASSES );
+-    initialize_providers();
+     SetEvent( start_event );
++    initialize_providers();
+ 
+     do
+     {
+diff --git a/dlls/winegstreamer/unixlib.h b/dlls/winegstreamer/unixlib.h
+index 70201ea..bca4acc 100644
+--- a/dlls/winegstreamer/unixlib.h
++++ b/dlls/winegstreamer/unixlib.h
+@@ -193,7 +193,7 @@ struct wg_sample
+     UINT32 flags;
+     UINT32 max_size;
+     UINT32 size;
+-    UINT32 stride;
++    INT32 stride;
+     UINT64 data; /* pointer to user memory */
+ };
+ 
+@@ -337,7 +337,7 @@ struct wg_parser_stream_seek_params
+ struct wg_transform_attrs
+ {
+     UINT32 output_plane_align;
+-    UINT32 output_plane_stride;
++    INT32 output_plane_stride;
+     UINT32 input_queue_length;
+     BOOL allow_format_change;
+     BOOL low_latency;
+diff --git a/dlls/winegstreamer/wg_sample.c b/dlls/winegstreamer/wg_sample.c
+index 05a9425..5865df6 100644
+--- a/dlls/winegstreamer/wg_sample.c
++++ b/dlls/winegstreamer/wg_sample.c
+@@ -125,8 +125,6 @@ HRESULT wg_sample_create_mf(IMFSample *mf_sample, struct wg_sample **out)
+             sample->u.mf.buffer = NULL;
+             sample->u.mf.buffer2d = buffer2d;
+             IMF2DBuffer2_GetContiguousLength(buffer2d, &current_length);
+-            if (pitch < 0)
+-                pitch = -pitch;
+         }
+         else
+         {
+diff --git a/dlls/winegstreamer/wg_transform.c b/dlls/winegstreamer/wg_transform.c
+index 934c1e3..e93e69d 100644
+--- a/dlls/winegstreamer/wg_transform.c
++++ b/dlls/winegstreamer/wg_transform.c
+@@ -105,10 +105,11 @@ static struct wg_transform *get_transform(wg_transform_t trans)
+     return (struct wg_transform *)(ULONG_PTR)trans;
+ }
+ 
+-static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align, guint stride,
++static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align, gint stride,
+         GstVideoInfo *info, GstVideoAlignment *align)
+ {
+     bool fix_nv12 = !plane_align && info->finfo->format == GST_VIDEO_FORMAT_NV12 && (info->width & 3) && (info->width & 3) != 3;
++    bool bottom_up = video_info->VideoFlags & MFVideoFlag_BottomUpLinearRep;
+     const MFVideoArea *aperture = &video_info->MinimumDisplayAperture;
+ 
+     gst_video_alignment_reset(align);
+@@ -135,6 +136,10 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align,
+         gst_video_format_info_component(finfo, 0, comp);
+         pixel_stride = finfo->pixel_stride[comp[0]];
+ 
++        bottom_up = stride < 0;
++        if (bottom_up)
++            stride = -stride;
++
+         if (stride % pixel_stride)
+             GST_ERROR("Stride %u not aligned to pixel size", stride);
+         stride /= pixel_stride;
+@@ -145,7 +150,7 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align,
+             align->padding_right += stride - width;
+     }
+ 
+-    if (video_info->VideoFlags & MFVideoFlag_BottomUpLinearRep)
++    if (bottom_up)
+     {
+         gsize top = align->padding_top;
+         align->padding_top = align->padding_bottom;
+@@ -171,7 +176,7 @@ static void align_video_info_planes(MFVideoInfo *video_info, gsize plane_align,
+         gst_video_info_align(info, align);
+     }
+ 
+-    if (video_info->VideoFlags & MFVideoFlag_BottomUpLinearRep)
++    if (bottom_up)
+     {
+         for (guint i = 0; i < ARRAY_SIZE(info->offset); ++i)
+         {
+diff --git a/dlls/winex11.drv/clipboard.c b/dlls/winex11.drv/clipboard.c
+index 1ec7d00..cb1534b 100644
+--- a/dlls/winex11.drv/clipboard.c
++++ b/dlls/winex11.drv/clipboard.c
+@@ -1922,6 +1922,7 @@ static void acquire_selection( Display *display )
+ 
+     XSetSelectionOwner( display, x11drv_atom(CLIPBOARD), selection_window, CurrentTime );
+     if (use_primary_selection) XSetSelectionOwner( display, XA_PRIMARY, selection_window, CurrentTime );
++    XFlush( display );
+     TRACE( "win %lx\n", selection_window );
+ }
+ 
+diff --git a/dlls/xaudio2_7/xaudio_dll.c b/dlls/xaudio2_7/xaudio_dll.c
+index fe9351e..2c42a99 100644
+--- a/dlls/xaudio2_7/xaudio_dll.c
++++ b/dlls/xaudio2_7/xaudio_dll.c
+@@ -1655,7 +1655,7 @@ static HRESULT WINAPI IXAudio2Impl_CreateSourceVoice(IXAudio2 *iface,
+             src->effect_chain);
+     free_voice_sends(faudio_sends);
+     if(FAILED(hr)){
+-        LeaveCriticalSection(&This->lock);
++        LeaveCriticalSection(&src->lock);
+         free_effect_chain(src->effect_chain);
+         return hr;
+     }

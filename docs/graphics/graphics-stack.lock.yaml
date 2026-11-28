@@ -389,6 +389,46 @@
       {
         "path": "patches/wine/0083-winebus-multiple-gamepads.patch",
         "sha256": "c828169b7551d402f1fb748025fc992be92ae5edb54b0be3dbc8aae260c39c37"
+      },
+      {
+        "path": "patches/wine/0086-wine-ci-compatibility-backfills.patch",
+        "sha256": "1ae2afcf4785ac6b39034e5f1ba724602669a7fbd5ada3891a0e92891ed6e245"
+      },
+      {
+        "path": "patches/wine/0087-wined3d-device-reset-and-buffer-views.patch",
+        "sha256": "fb7a3305d4f7f1883af9a2fbb14274527cfa0d1805cb3bfdbdd0972bf5313c8e"
+      },
+      {
+        "path": "patches/wine/0088-mf-session-defer-sample-requests.patch",
+        "sha256": "12fcb7ea5281279c952120911319d94cbc00fe8381f3299777ca107abe9c18c9"
+      },
+      {
+        "path": "patches/wine/0089-mf-media-error-handling.patch",
+        "sha256": "98a03045b32346fa4d418e779a485daca245d725f1e591d5c2d4c68dd8d824f2"
+      },
+      {
+        "path": "patches/wine/0090-mfreadwrite-media-sink-writer.patch",
+        "sha256": "cb35de659a8535c4bccd520d81aa0085e89317dcf5b8744c855ea672e2394dec"
+      },
+      {
+        "path": "patches/wine/0091-input-queue-and-provider-enumeration.patch",
+        "sha256": "f3fb86af49fb06db7400058f003bdbc7543f551b5b1aeb8092eb951e99cdb348"
+      },
+      {
+        "path": "patches/wine/0092-x11-wayland-window-resources.patch",
+        "sha256": "0e84eddcf8ebab92072fd69a189bc3f92970c92da87355882c2ee48760109394"
+      },
+      {
+        "path": "patches/wine/0093-wow64-and-msi-file-compatibility.patch",
+        "sha256": "3cd8c6e7300b08d003ee271a81c6b36f4ec9dcf4bde9cf96f8a347d511eb3c33"
+      },
+      {
+        "path": "patches/wine/0094-dwrite-cmap-format10.patch",
+        "sha256": "71a213068b6a3e5924545ffde018bc3d803377e4c141586940bbb607161c23a4"
+      },
+      {
+        "path": "patches/wine/0096-mf-adapt-topology-regression-fixture.patch",
+        "sha256": "dc3593811b89d71882bf7730e5ebcc801379d692572e3950abb8f7b1872e1f58"
       }
     ],
     "virglrenderer": [
@@ -859,7 +899,7 @@
   "effective_files": {
     "wine-valve": {
       "dlls/iphlpapi/iphlpapi_main.c": "26a8e749f4cf1e27fdd0aa1ae086e81dd812b0ea6c09fb1856a12944db05dd27",
-      "dlls/mfplat/main.c": "b0983ec3c9eba51d74b0a6e120929c5702060851bd35c94b7865b76e596333f0",
+      "dlls/mfplat/main.c": "8ab35ca95ce3b92e8b367588c0f0c34f2a8647b78037120769b1caa9d0c408f0",
       "dlls/mfplat/sample.c": "e14961096c9b0270656ae4ca68997240bf26cab3f02b193ad84f85d61f1a8ec0",
       "dlls/nsiproxy.sys/Makefile.in": "1d30305b0f1b8a63a8e207ee28647c29031928a6f5bc65c50c59f7c530dadde4",
       "dlls/nsiproxy.sys/ip.c": "f998132421746fb5764560d11741b749466df5fb9d8590ea5dfb4e8c7ef0a84c",
@@ -889,7 +929,7 @@
       "dlls/win32u/opengl.c": "1787688407d96c8cbee48cfe0327b0be32f7ce46050e220c83cade298e7d28ec",
       "dlls/win32u/vulkan.c": "91f53506a3b581f53ffde7672b5f6ae1d1db71189a3be62d916af9c47184d611",
       "dlls/win32u/win32u_private.h": "49ceaca0721fc28a9ea98242209a92d4c42dd8a496d40aba3ceffc09be765797",
-      "dlls/win32u/window.c": "b5bb628f3837a8db7507637ee477de15bc592a023f5a99df8be60f8c6771449e",
+      "dlls/win32u/window.c": "a2d73fe1c338824b0666823c47f0b2e847f45b1fb9e3da29a861b781c8ecbe5e",
       "dlls/win32u/winstation.c": "5e188f7244499c155891f9054b1b2736606d4d541c1470861f84f864bdc76d13",
       "dlls/winebus.sys/bus_ohos.c": "f86fdb380a31b4eb917d652cb510b79989775cc37d5739e0dea957cba4f63abd",
       "dlls/winebus.sys/winehua_gamepad_protocol.h": "0ca4750c41c05bc54f0d8584c490d9bb75cf9aa566f4137446a6ba58cc80667c",
@@ -906,7 +946,7 @@
       "dlls/winewayland.drv/wayland.c": "77ca29788d343dbe924b7fa0a21ef2166041bd1f86a42a691de6cf10d9d8fa72",
       "dlls/winewayland.drv/wayland_keyboard.c": "b3f66989c6beb5b024781fd75a7cff10e0f2f77b90e07b8f22b7475df4ebc6f6",
       "dlls/winewayland.drv/wayland_pointer.c": "053ca7125a1b517f5e354abdd094a9a0165c6738f630ae983606b7abfb199903",
-      "dlls/winewayland.drv/wayland_surface.c": "fa50cce7cfe5b0d6507e208ab0a6eabac7c28dec0efeaf8336b58c1daa2be6c4",
+      "dlls/winewayland.drv/wayland_surface.c": "6845e5ce73711140bdbc063f77541418752ee29061de7fd5c4f50a59e0d27b63",
       "dlls/winewayland.drv/waylanddrv.h": "75335fc354778bae5b44763aa56220d3870ee4dfe7e17f47570fb5af1371953e",
       "dlls/winewayland.drv/window.c": "a26b268e03b4828136eca6824af486d6e353f8a6b5d732ff397b392b27a32e59",
       "dlls/winewayland.drv/winehua-toplevel.xml": "1d70ec851cdd41e44634f496ac51a2ce962710fa29e9364504ab51f0ad31e960",
@@ -926,16 +966,16 @@
       "dlls/win32u/winehua_present.c": "a47bd9e506b6942276a2f8eb58b318542f0b4a27a2324d1030f828e047897f76",
       "dlls/winex11.drv/Makefile.in": "bc88815812285be06d61706288ccb5174332ff4a2f2fcfb636620b7e3b0bd70c",
       "dlls/winex11.drv/mouse.c": "88f2cfb578626a2689e09db88025d7558495b66b28efab52f12b4726758148e8",
-      "dlls/winex11.drv/opengl.c": "3cdb5d04d693a348f2960c4ca6f922a59dd2b8c678f770241405cad0985dfd3f",
+      "dlls/winex11.drv/opengl.c": "7d89ca52f411c385c4b4a9d7ef1998956efb37e74b82b11507c09602a7c0d2f0",
       "dlls/winex11.drv/opengl_winehua.c": "7b6db8d8a2592a69a8d97cfe30a5bada8179aef625052a4fc94dab73ce04c4c7",
       "dlls/winex11.drv/vulkan.c": "328af6f05f3d2a7d2e496635c7f11adca7f150a063e859ded16a285241637c37",
-      "dlls/winex11.drv/window.c": "b540fdc09206b4f5ed7dc0b1a4bf88ce81491a6248483476a5fa2f232039ff1b",
+      "dlls/winex11.drv/window.c": "9be410f287f595932c0e0da891465bc2ea00ad99b73068e0d7d490acad5750dc",
       "dlls/winex11.drv/x11drv.h": "2235ba387fb9a2732c7c8e897678eada910a003c134bb844e1726714b33a4955",
       "dlls/winex11.drv/x11drv_main.c": "b8771b96bf199758870d1738cf90d64885477e57342b7b45d783f6e7d72b5591",
       "include/Makefile.in": "9a83adcb193b2468741682355b9e5916bf8c760dd7b6330edd0f22440505f969",
       "include/wine/winehua_present.h": "5d793ac345bfb7a2b00010525c90166b9e0079322c9084f67042b148dd78d862",
       "include/wine/winehua_vulkan.h": "dbd825300c13664db7f26e8e4f39e0702e5449160ff15d2e814c61f8c62135a1",
-      "dlls/win32u/defwnd.c": "01907307b6d196c3f2d607512086c11f148298b9633f25ea6fdfe6178ba10941",
+      "dlls/win32u/defwnd.c": "8cd42f5c62f856065979d4efe3eaf1ac4475639f29ee8b8632e565c4fc2ee0c4",
       "dlls/wineohos.drv/ohos_audio_mix.h": "9c127f769482afd53df47bdde58c1be3477161acedb46a896677d392a9c8ba6c",
       "dlls/ntdll/loader.c": "3ca13810996ea595ff67c066159f09a618f874eb4e693329eb3d0bb9f9cb0b73"
     },

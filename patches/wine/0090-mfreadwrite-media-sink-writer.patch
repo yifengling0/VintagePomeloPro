@@ -1,0 +1,372 @@
+Subject: [PATCH] mfreadwrite media sink writer
+
+Upstream commits
+
+mfreadwrite/tests: Test sink writer creation from an audio renderer.
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/cc1461307155a64b9577f41689d725618d916fa1
+mfreadwrite: Initialise the media sink writer current media type on creation if not set.
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/a922bd352f5c3d77829d5347a198d2eaed7ce58e
+mfreadwrite: Forward media sink writer input media type change to the media sink if current type is default.
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/76ff8f883fd7b4919f70d997f60daa5a85143bdd
+mfreadwrite: Handle audio categories in GetTransformForStream().
+  Conor McCarthy <cmccarthy@codeweavers.com>
+  https://github.com/ValveSoftware/wine/commit/9915eef2ca97860df157427d50d3aa88eacc133c
+
+diff --git a/dlls/mfreadwrite/tests/mfplat.c b/dlls/mfreadwrite/tests/mfplat.c
+index f9ef4c0..38f51ca 100644
+--- a/dlls/mfreadwrite/tests/mfplat.c
++++ b/dlls/mfreadwrite/tests/mfplat.c
+@@ -1595,12 +1595,43 @@ done:
+ 
+ static void test_sink_writer_create(void)
+ {
++    IMFMediaType *media_type, *first_media_type, *input_type, *pcm_audio_type;
+     WCHAR temp_path[MAX_PATH], temp_file[MAX_PATH];
++    IMFSinkWriterEx *writer_ex = NULL;
++    IMFMediaTypeHandler *handler;
++    IMFStreamSink *stream_sink;
++    IMFTransform *transform;
+     IMFSinkWriter *writer;
+     IMFByteStream *stream;
+     IMFAttributes *attr;
++    IMFMediaSink *sink;
++    GUID guid = {0};
++    DWORD flags;
+     HRESULT hr;
+ 
++    static const struct attribute_desc pcm_audio_type_desc[] =
++    {
++        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
++        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_PCM),
++        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
++        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 48000),
++        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 4 * 48000),
++        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 4),
++        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 16),
++        {0},
++    };
++    static const struct attribute_desc float_audio_type_desc[] =
++    {
++        ATTR_GUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio),
++        ATTR_GUID(MF_MT_SUBTYPE, MFAudioFormat_Float),
++        ATTR_UINT32(MF_MT_AUDIO_NUM_CHANNELS, 2),
++        ATTR_UINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 48000),
++        ATTR_UINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 8 * 48000),
++        ATTR_UINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 8),
++        ATTR_UINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32),
++        {0},
++    };
++
+     GetTempPathW(ARRAY_SIZE(temp_path), temp_path);
+     GetTempFileNameW(temp_path, L"mf", 0, temp_file);
+     wcscat(temp_file, L".mp4");
+@@ -1661,6 +1692,149 @@ static void test_sink_writer_create(void)
+     ok(hr == E_INVALIDARG, "Unexpected hr %#lx.\n", hr);
+     ok(!writer, "Unexpected pointer %p.\n", writer);
+ 
++    hr = MFCreateAudioRenderer(NULL, &sink);
++    if (hr == MF_E_NO_AUDIO_PLAYBACK_DEVICE)
++    {
++        skip("No audio playback device available.\n");
++        goto done;
++    }
++    ok(hr == S_OK, "Failed to create renderer, hr %#lx.\n", hr);
++    hr = IMFMediaSink_GetStreamSinkByIndex(sink, 0, &stream_sink);
++    ok(hr == S_OK, "Failed to get a stream, hr %#lx.\n", hr);
++    hr = IMFStreamSink_GetMediaTypeHandler(stream_sink, &handler);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++
++    hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
++    ok(hr == MF_E_NOT_INITIALIZED, "Unexpected hr %#lx.\n", hr);
++    hr = IMFMediaTypeHandler_GetMediaTypeByIndex(handler, 0, &first_media_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++
++    hr = MFCreateSinkWriterFromMediaSink(sink, NULL, &writer);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFSinkWriter_QueryInterface(writer, &IID_IMFSinkWriterEx, (void **)&writer_ex);
++    ok(hr == S_OK, "QueryInterface returned %#lx.\n", hr);
++
++    /* Creating a sink writer on the media sink sets its type to the first available. */
++    hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFMediaType_IsEqual(media_type, first_media_type, &flags);
++    ok(flags & MF_MEDIATYPE_EQUAL_MAJOR_TYPES, "Mismatching major types.\n");
++    ok(flags & MF_MEDIATYPE_EQUAL_FORMAT_TYPES, "Mismatching format types.\n");
++    ok(flags & MF_MEDIATYPE_EQUAL_FORMAT_DATA, "Mismatching format data.\n");
++    IMFMediaType_Release(media_type);
++
++    IMFMediaType_Release(first_media_type);
++
++    /* SetInputMediaType() overwrites the stream sink current type
++     * if not initialised before writer creation. */
++    hr = MFCreateMediaType(&input_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    init_media_type(input_type, float_audio_type_desc, -1);
++    hr = IMFSinkWriter_SetInputMediaType(writer, 0, input_type, NULL);
++    /* Not all Windows machines succeed here. */
++    flaky
++    ok(hr == S_OK, "SetInputMediaType returned %#lx.\n", hr);
++    if (FAILED(hr))
++    {
++        skip("SetInputMediaType failed, skipping tests.\n");
++        goto skipped;
++    }
++
++    hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFMediaType_IsEqual(media_type, input_type, &flags);
++    ok(flags & MF_MEDIATYPE_EQUAL_MAJOR_TYPES, "Mismatching major types.\n");
++    ok(flags & MF_MEDIATYPE_EQUAL_FORMAT_TYPES, "Mismatching format types.\n");
++    ok(flags & MF_MEDIATYPE_EQUAL_FORMAT_DATA, "Mismatching format data.\n");
++    IMFMediaType_Release(media_type);
++
++    hr = IMFSinkWriterEx_GetTransformForStream(writer_ex, 0, 0, &guid, &transform);
++    ok(hr == MF_E_INVALIDINDEX, "GetTransformForStream returned %#lx.\n", hr);
++
++    /* Setting the same type is a no-op. */
++    hr = IMFSinkWriter_SetInputMediaType(writer, 0, input_type, NULL);
++    ok(hr == S_OK, "SetInputMediaType returned %#lx.\n", hr);
++
++    hr = IMFSinkWriterEx_GetTransformForStream(writer_ex, 0, 0, &guid, &transform);
++    ok(hr == MF_E_INVALIDINDEX, "GetTransformForStream returned %#lx.\n", hr);
++
++    /* SetInputMediaType() does not overwrite the stream sink current type
++     * a second time. A transform is inserted. */
++    hr = MFCreateMediaType(&pcm_audio_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    init_media_type(pcm_audio_type, pcm_audio_type_desc, -1);
++    hr = IMFSinkWriter_SetInputMediaType(writer, 0, pcm_audio_type, NULL);
++    todo_wine
++    ok(hr == S_OK, "SetInputMediaType returned %#lx.\n", hr);
++
++    hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFMediaType_IsEqual(media_type, pcm_audio_type, &flags);
++    ok(flags & MF_MEDIATYPE_EQUAL_MAJOR_TYPES, "Mismatching major types.\n");
++    ok(!(flags & MF_MEDIATYPE_EQUAL_FORMAT_TYPES), "Matching format types.\n");
++    IMFMediaType_Release(media_type);
++
++    hr = IMFSinkWriterEx_GetTransformForStream(writer_ex, 0, 0, &guid, &transform);
++    todo_wine
++    ok(hr == S_OK, "GetTransformForStream returned %#lx.\n", hr);
++    if (hr == S_OK)
++    IMFTransform_Release(transform);
++    ok(IsEqualGUID(&guid, &MFT_CATEGORY_AUDIO_EFFECT), "Unexpected guid %s.\n", debugstr_guid(&guid));
++
++    IMFMediaTypeHandler_Release(handler);
++    IMFStreamSink_Release(stream_sink);
++    IMFSinkWriterEx_Release(writer_ex);
++    IMFSinkWriter_Release(writer);
++    IMFMediaSink_Release(sink);
++
++    hr = MFCreateAudioRenderer(NULL, &sink);
++    ok(hr == S_OK, "Failed to create renderer, hr %#lx.\n", hr);
++    hr = IMFMediaSink_GetStreamSinkByIndex(sink, 0, &stream_sink);
++    ok(hr == S_OK, "Failed to get a stream, hr %#lx.\n", hr);
++
++    /* SetInputMediaType() does not overwrite the stream sink current type
++     * if it was initialised. A transform is inserted. */
++    hr = IMFStreamSink_GetMediaTypeHandler(stream_sink, &handler);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFMediaTypeHandler_SetCurrentMediaType(handler, input_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++
++    hr = MFCreateSinkWriterFromMediaSink(sink, NULL, &writer);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFSinkWriter_QueryInterface(writer, &IID_IMFSinkWriterEx, (void **)&writer_ex);
++    ok(hr == S_OK, "QueryInterface returned %#lx.\n", hr);
++
++    hr = IMFSinkWriterEx_GetTransformForStream(writer_ex, 0, 0, &guid, &transform);
++    ok(hr == MF_E_INVALIDINDEX, "GetTransformForStream returned %#lx.\n", hr);
++
++    hr = IMFSinkWriter_SetInputMediaType(writer, 0, pcm_audio_type, NULL);
++    todo_wine
++    ok(hr == S_OK, "SetInputMediaType returned %#lx.\n", hr);
++    hr = IMFMediaTypeHandler_GetCurrentMediaType(handler, &media_type);
++    ok(hr == S_OK, "Unexpected hr %#lx.\n", hr);
++    hr = IMFMediaType_IsEqual(media_type, pcm_audio_type, &flags);
++    ok(flags & MF_MEDIATYPE_EQUAL_MAJOR_TYPES, "Mismatching major types.\n");
++    ok(!(flags & MF_MEDIATYPE_EQUAL_FORMAT_TYPES), "Matching format types.\n");
++    IMFMediaType_Release(media_type);
++
++    hr = IMFSinkWriterEx_GetTransformForStream(writer_ex, 0, 0, &guid, &transform);
++    todo_wine
++    ok(hr == S_OK, "GetTransformForStream returned %#lx.\n", hr);
++    if (hr == S_OK)
++    IMFTransform_Release(transform);
++    ok(IsEqualGUID(&guid, &MFT_CATEGORY_AUDIO_EFFECT), "Unexpected guid %s.\n", debugstr_guid(&guid));
++
++    IMFSinkWriterEx_Release(writer_ex);
++    IMFMediaType_Release(pcm_audio_type);
++
++skipped:
++    IMFMediaType_Release(input_type);
++    IMFMediaTypeHandler_Release(handler);
++    IMFStreamSink_Release(stream_sink);
++    IMFSinkWriter_Release(writer);
++    IMFMediaSink_Release(sink);
++
++done:
+     IMFByteStream_Release(stream);
+     IMFAttributes_Release(attr);
+ }
+diff --git a/dlls/mfreadwrite/writer.c b/dlls/mfreadwrite/writer.c
+index e57bf47..ba9cdb2 100644
+--- a/dlls/mfreadwrite/writer.c
++++ b/dlls/mfreadwrite/writer.c
+@@ -60,6 +60,7 @@ struct stream
+     IMFStreamSink *stream_sink;
+     IMFTransform *converter, *encoder;
+     MF_SINK_WRITER_STATISTICS stats;
++    BOOL type_is_default;
+     struct list queue; /* struct pending_item. */
+ };
+ 
+@@ -279,6 +280,8 @@ static ULONG WINAPI sink_writer_Release(IMFSinkWriterEx *iface)
+ 
+ static HRESULT sink_writer_add_stream(struct sink_writer *writer, IMFStreamSink *stream_sink, DWORD *index)
+ {
++    IMFMediaTypeHandler *type_handler;
++    IMFMediaType *media_type;
+     struct stream *stream;
+     DWORD id = 0;
+     HRESULT hr;
+@@ -302,6 +305,21 @@ static HRESULT sink_writer_add_stream(struct sink_writer *writer, IMFStreamSink
+ 
+     writer->streams.next_id = max(writer->streams.next_id, id);
+ 
++    if (FAILED(hr = IMFStreamSink_GetMediaTypeHandler(stream_sink, &type_handler))) return hr;
++
++    if (SUCCEEDED(hr = IMFMediaTypeHandler_GetCurrentMediaType(type_handler, &media_type)))
++        IMFMediaType_Release(media_type);
++    else
++    {
++        if (SUCCEEDED(hr = IMFMediaTypeHandler_GetMediaTypeByIndex(type_handler, 0, &media_type)))
++        {
++            hr = IMFMediaTypeHandler_SetCurrentMediaType(type_handler, media_type);
++            IMFMediaType_Release(media_type);
++        }
++        stream->type_is_default = TRUE;
++    }
++    IMFMediaTypeHandler_Release(type_handler);
++
+     return hr;
+ }
+ 
+@@ -341,10 +359,10 @@ static HRESULT WINAPI sink_writer_SetInputMediaType(IMFSinkWriterEx *iface, DWOR
+         IMFAttributes *parameters)
+ {
+     struct sink_writer *writer = impl_from_IMFSinkWriterEx(iface);
++    HRESULT hr = MF_E_INVALIDMEDIATYPE;
+     IMFMediaType *stream_type = NULL;
+     struct stream *stream;
+     DWORD flags;
+-    HRESULT hr;
+ 
+     TRACE("%p, %lu, %p, %p.\n", iface, index, type, parameters);
+ 
+@@ -359,22 +377,40 @@ static HRESULT WINAPI sink_writer_SetInputMediaType(IMFSinkWriterEx *iface, DWOR
+         goto done;
+     }
+ 
+-    if (FAILED(hr = stream_get_type(stream, &stream_type))
+-            || FAILED(hr = IMFMediaType_IsEqual(type, stream_type, &flags)))
+-        goto done;
+-
+-    if (!(flags & MF_MEDIATYPE_EQUAL_MAJOR_TYPES))
++    /* Stream media type may be set once only, if the sink supports the type. If the stream
++     * sink had a type when the stream was added, that counts and type_is_default is false.
++     * Subsequent type changes will add transform(s) as required. */
++    if (stream->type_is_default)
+     {
+-        hr = MF_E_INVALIDMEDIATYPE;
+-        goto done;
++        IMFMediaTypeHandler *type_handler;
++
++        if (FAILED(hr = IMFStreamSink_GetMediaTypeHandler(stream->stream_sink, &type_handler)))
++            goto done;
++        if (FAILED(hr = IMFMediaTypeHandler_SetCurrentMediaType(type_handler, type)))
++            FIXME("Type not supported (which may not match native), inserting a transform.\n");
++        IMFMediaTypeHandler_Release(type_handler);
++        stream->type_is_default = FALSE;
+     }
+ 
+-    /* Types are not compatible, create transforms. */
+-    if (!(flags & MF_MEDIATYPE_EQUAL_FORMAT_DATA))
++    if (FAILED(hr))
+     {
+-        /* TODO: Try only using converter first, then try again with encoder. */
+-        FIXME("Not implemented.\n");
+-        hr = E_NOTIMPL;
++        if (FAILED(hr = stream_get_type(stream, &stream_type))
++                || FAILED(hr = IMFMediaType_IsEqual(type, stream_type, &flags)))
++            goto done;
++
++        if (!(flags & MF_MEDIATYPE_EQUAL_MAJOR_TYPES))
++        {
++            hr = MF_E_INVALIDMEDIATYPE;
++            goto done;
++        }
++
++        /* Types are not compatible, create transforms. */
++        if (!(flags & MF_MEDIATYPE_EQUAL_FORMAT_DATA))
++        {
++            /* TODO: Try only using converter first, then try again with encoder. */
++            FIXME("Not implemented.\n");
++            hr = E_NOTIMPL;
++        }
+     }
+ 
+ done:
+@@ -858,9 +894,11 @@ static HRESULT WINAPI sink_writer_GetTransformForStream(IMFSinkWriterEx *iface,
+         DWORD stream_index, DWORD transform_index, GUID *out_category, IMFTransform **out_transform)
+ {
+     struct sink_writer *writer = impl_from_IMFSinkWriterEx(iface);
++    GUID major_type = {}, category = {};
+     IMFTransform *transform = NULL;
++    IMFMediaType *stream_type;
+     struct stream *stream;
+-    GUID category = {};
++    BOOL is_audio;
+     HRESULT hr;
+ 
+     TRACE("%p, %#lx, %#lx, %p, %p.\n", iface, stream_index, transform_index, out_category, out_transform);
+@@ -877,16 +915,25 @@ static HRESULT WINAPI sink_writer_GetTransformForStream(IMFSinkWriterEx *iface,
+         return MF_E_INVALIDSTREAMNUMBER;
+     }
+ 
++    if (FAILED(hr = stream_get_type(stream, &stream_type)))
++        goto done;
++    hr = IMFMediaType_GetMajorType(stream_type, &major_type);
++    IMFMediaType_Release(stream_type);
++
++    if (FAILED(hr))
++        goto done;
++
++    is_audio = IsEqualGUID(&major_type, &MFMediaType_Audio);
+     if (stream->converter && transform_index == 0)
+     {
+         transform = stream->converter;
+-        category = MFT_CATEGORY_VIDEO_PROCESSOR;
++        category = is_audio ? MFT_CATEGORY_AUDIO_EFFECT : MFT_CATEGORY_VIDEO_PROCESSOR;
+     }
+     else if ((stream->converter && transform_index == 1)
+             || (!stream->converter && transform_index == 0))
+     {
+         transform = stream->encoder;
+-        category = MFT_CATEGORY_VIDEO_ENCODER;
++        category = is_audio ? MFT_CATEGORY_AUDIO_ENCODER : MFT_CATEGORY_VIDEO_ENCODER;
+     }
+ 
+     hr = MF_E_INVALIDINDEX;
+@@ -898,6 +945,7 @@ static HRESULT WINAPI sink_writer_GetTransformForStream(IMFSinkWriterEx *iface,
+         hr = S_OK;
+     }
+ 
++done:
+     LeaveCriticalSection(&writer->cs);
+     return hr;
+ }

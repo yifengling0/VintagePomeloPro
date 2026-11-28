@@ -363,6 +363,17 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0085-ntdll-mobilegl-x86-overlay.p
 
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0083-winebus-multiple-gamepads.patch" \
     "Route independent WHGP slots and controller hotplug in Winebus"
+
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0086-wine-ci-compatibility-backfills.patch" "wine ci compatibility backfills"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0087-wined3d-device-reset-and-buffer-views.patch" "wined3d device reset and buffer views"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0088-mf-session-defer-sample-requests.patch" "mf session defer sample requests"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0089-mf-media-error-handling.patch" "mf media error handling"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0090-mfreadwrite-media-sink-writer.patch" "mfreadwrite media sink writer"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0091-input-queue-and-provider-enumeration.patch" "input queue and provider enumeration"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0092-x11-wayland-window-resources.patch" "x11 wayland window resources"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0093-wow64-and-msi-file-compatibility.patch" "wow64 and msi file compatibility"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0094-dwrite-cmap-format10.patch" "dwrite cmap format10"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0096-mf-adapt-topology-regression-fixture.patch" "Adapt the MF topology reuse regression fixture"
 if [ "${1:-}" = --check-patches ]; then exit 0; fi
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.
