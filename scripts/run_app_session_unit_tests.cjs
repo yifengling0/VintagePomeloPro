@@ -415,7 +415,7 @@ function fixture() {
     tasks.onEvent(90, 'created', JSON.stringify({ sessionId: 'other', clientPid: 999 }));
     tasks.onEvent(90, 'title', JSON.stringify({ title: 'Steam' }));
     f.processes.push({ pid: 42, sessionId: 'sender', path: 'C:/Steam/steam.exe', state: 'running' });
-    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /等待 Steam 窗口超时/);
     assert.equal(f.starts.length, 0, 'Do not show an empty desktop as successful startup');
     assert.equal(f.killRequests.length, 0, 'Timeout never kills the imported client');
     assert.equal(f.timers.size, 0, 'No background polling leaks after timeout');
@@ -453,10 +453,10 @@ function fixture() {
     assert.equal(f.service.steamClientWindowKey(steamApp), tasks.snapshot().find(task => task.toplevelId === 94).key);
     f.processes[1].sessionId = 'recycled-cef';
     assert.equal(f.service.steamClientWindowKey(steamApp), '', 'A recycled CEF PID cannot restore an old window');
-    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /等待 Steam 窗口超时/);
     f.processes[1].sessionId = 'cef-browser'; f.processes[0].state = 'stopped';
     assert.equal(f.service.steamClientWindowKey(steamApp), '', 'A helper alone does not represent a live Steam client');
-    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /等待 Steam 窗口超时/);
   }
   { // A slow translated CEF start must still bring the real client forward.
     const f = fixture(); f.setState(models.EngineState.READY); f.steamCards.push(steamApp);
@@ -479,7 +479,7 @@ function fixture() {
     const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
     let elapsed = 0;
     f.onWait(() => { elapsed += 250; });
-    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /等待 Steam 窗口超时/);
     assert.ok(elapsed > 60000 && elapsed <= 90000);
     assert.equal(f.starts.length, 0); assert.equal(f.killRequests.length, 0);
     assert.equal(f.timers.size, 0);
@@ -537,7 +537,7 @@ function fixture() {
     const tasks = taskExports.HostWindowTasks.getInstance(); tasks.reset(); tasks.markLauncherForeground();
     f.processes.push({ pid: 42, sessionId: 'new-incarnation', path: 'C:/Steam/steam.exe', state: 'running' });
     tasks.onEvent(93, 'created', JSON.stringify({ sessionId: 'sender', clientPid: 42 }));
-    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /未显示客户端窗口/);
+    await assert.rejects(f.service.waitForSteamClientWindow(steamApp, launched, tasks.navigationSerial()), /等待 Steam 窗口超时/);
     assert.equal(f.starts.length, 0);
   }
   { // Warm play waits for the confirmation window beside the existing library.
