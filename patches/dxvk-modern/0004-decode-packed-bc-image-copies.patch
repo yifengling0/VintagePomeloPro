@@ -1,0 +1,95 @@
+diff --git a/src/d3d11/d3d11_context.cpp b/src/d3d11/d3d11_context.cpp
+--- a/src/d3d11/d3d11_context.cpp
++++ b/src/d3d11/d3d11_context.cpp
+@@ -4355,6 +4355,91 @@
+ 
+     const auto* virtualDst = pDstTexture->GetVirtualBcLayout();
+     const auto* virtualSrc = pSrcTexture->GetVirtualBcLayout();
++    // An application can copy a packed texel into one BC block. When the
++    // destination is emulated, write the compressed bytes to the virtual
++    // atlas or decode them to the destination's physical pixel layout.
++    if (dstFormatInfo->flags.test(DxvkFormatFlag::BlockCompressed)
++     && !srcFormatInfo->flags.test(DxvkFormatFlag::BlockCompressed)
++     && pDstTexture->HasImage()
++     && pSrcTexture->HasImage()
++     && !pDstTexture->GetImage()->formatInfo()->flags.test(DxvkFormatFlag::BlockCompressed)
++     && pSrcTexture->GetImage()->formatInfo()->elementSize == srcFormatInfo->elementSize
++     && pDstTexture->GetVkImageType() == pSrcTexture->GetVkImageType()
++     && pDstLayers->aspectMask == VK_IMAGE_ASPECT_COLOR_BIT
++     && pSrcLayers->aspectMask == VK_IMAGE_ASPECT_COLOR_BIT
++     && pSrcTexture->Desc()->SampleDesc.Count == 1
++     && pDstLayers->layerCount == pSrcLayers->layerCount) {
++      const VkExtent3D pixels = util::snapExtent3D(DstOffset,
++        util::computeBlockExtent(blockCount, dstFormatInfo->blockSize), dstMipExtent);
++      const auto meta = virtualDst ? virtualDst->metadata[pDstLayers->mipLevel + 1] : std::array<uint32_t, 4>();
++      EmitCs([device = m_device, src = pSrcTexture->GetImage(),
++              dst = pDstTexture->GetImage(), source = *pSrcLayers, target = *pDstLayers,
++              srcOffset = SrcOffset, dstOffset = DstOffset, blockCount, pixels,
++              blockBytes = srcFormatInfo->elementSize, packed = pDstTexture->GetPackedFormat(),
++              atlasWidth = virtualDst ? virtualDst->width : 0u, meta] (DxvkContext* ctx) {
++        const VkDeviceSize pitch = VkDeviceSize(blockCount.width) * blockBytes;
++        const VkDeviceSize slicePitch = pitch * blockCount.height;
++        DxvkBufferCreateInfo info = {};
++        info.size = slicePitch * blockCount.depth;
++        info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
++        info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_HOST_BIT;
++        info.access = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT;
++        auto blocks = device->createBuffer(info, atlasWidth ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
++                                                           : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
++        const uint32_t layers = target.layerCount;
++        auto srcLayer = source;
++        auto dstLayer = target;
++        srcLayer.layerCount = dstLayer.layerCount = 1;
++        for (uint32_t i = 0; i < layers; ++i, ++srcLayer.baseArrayLayer, ++dstLayer.baseArrayLayer) {
++          ctx->copyImageToBuffer(blocks, 0, 0, 0, VK_FORMAT_UNDEFINED, src, srcLayer, srcOffset, blockCount);
++          if (atlasWidth) {
++            const VkImageSubresourceLayers atlas = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
++            for (uint32_t y = 0; y < blockCount.height; ++y) {
++              uint32_t pos = meta[2] / 2 + ((dstOffset.y / 4 + y) * meta[3] + dstOffset.x / 4) * (blockBytes / 8);
++              uint32_t remaining = blockCount.width * (blockBytes / 8);
++              VkDeviceSize offset = y * pitch;
++              while (remaining) {
++                const uint32_t count = std::min(remaining, atlasWidth - pos % atlasWidth);
++                ctx->copyBufferToImage(dst, atlas, { int32_t(pos % atlasWidth), int32_t(pos / atlasWidth), 0 },
++                  { count, 1, 1 }, blocks, offset, 0, 0, VK_FORMAT_UNDEFINED);
++                pos += count;
++                offset += count * 8;
++                remaining -= count;
++              }
++            }
++          } else {
++            ctx->flushCommandList(nullptr, nullptr);
++            device->waitForResource(*blocks, DxvkAccess::Write);
++            const auto bytes = blocks->getSliceHandle();
++            D3D11CpuImage decoded;
++            if (!bytes.mapPtr || blocks->invalidateMappedSlice(bytes) != VK_SUCCESS ||
++                !DecodeD3D11BcImage(packed, pixels, bytes.mapPtr, pitch, slicePitch, decoded))
++              throw DxvkError("DXVK: could not decode packed BC copy");
++            DxvkBufferCreateInfo out = {};
++            out.size = decoded.data.size();
++            out.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
++            out.stages = VK_PIPELINE_STAGE_TRANSFER_BIT;
++            out.access = VK_ACCESS_TRANSFER_READ_BIT;
++            auto upload = device->createBuffer(out, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
++            const auto uploadSlice = upload->getSliceHandle();
++            if (!uploadSlice.mapPtr)
++              throw DxvkError("DXVK: could not map decoded BC copy");
++            std::memcpy(uploadSlice.mapPtr, decoded.data.data(), decoded.data.size());
++            if (upload->flushMappedSlice(uploadSlice) != VK_SUCCESS)
++              throw DxvkError("DXVK: could not flush decoded BC copy");
++            ctx->copyBufferToImage(dst, dstLayer, dstOffset, pixels, upload, 0, 0, 0, VK_FORMAT_UNDEFINED);
++          }
++        }
++      });
++      if (pDstTexture->HasSequenceNumber())
++        GetTypedContext()->TrackTextureSequenceNumber(pDstTexture, D3D11CalcSubresource(
++          pDstLayers->mipLevel, pDstLayers->baseArrayLayer, pDstTexture->Desc()->MipLevels));
++      if (pSrcTexture->HasSequenceNumber())
++        GetTypedContext()->TrackTextureSequenceNumber(pSrcTexture, D3D11CalcSubresource(
++          pSrcLayers->mipLevel, pSrcLayers->baseArrayLayer, pSrcTexture->Desc()->MipLevels));
++      return;
++    }
++
+     if (virtualDst || virtualSrc) {
+       const bool stagingDst = pDstTexture->GetMapMode() == D3D11_COMMON_TEXTURE_MAP_MODE_STAGING;
+       const bool stagingSrc = pSrcTexture->GetMapMode() == D3D11_COMMON_TEXTURE_MAP_MODE_STAGING;

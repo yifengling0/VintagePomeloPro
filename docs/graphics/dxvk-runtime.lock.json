@@ -3,11 +3,11 @@
   "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
   "sourceSha256": "6047450311643f2b992fd2154d2563327ffffda7fa587d1713232025917c0c59",
   "files": {
-    "arm64x/d3d11.dll": "12ee6dbb893e6f8780578b0ac80ee4fa67f4799c63a7b8e9f2fe7ae1aff2e7ad",
+    "arm64x/d3d11.dll": "db6d7e19ff0ddc0dcb0af75b81bf87eb265a5fb790d0ba7b8128ab62a452c374",
     "arm64x/dxgi.dll": "62012aad53b9780b5344ee1f7156d32b02d9317615b042d23e3ebde97e18812f",
-    "x64/d3d11.dll": "12ee6dbb893e6f8780578b0ac80ee4fa67f4799c63a7b8e9f2fe7ae1aff2e7ad",
+    "x64/d3d11.dll": "db6d7e19ff0ddc0dcb0af75b81bf87eb265a5fb790d0ba7b8128ab62a452c374",
     "x64/dxgi.dll": "62012aad53b9780b5344ee1f7156d32b02d9317615b042d23e3ebde97e18812f",
-    "x86/d3d11.dll": "605eade97604e1dbe18a4a69bcf366620270b5441210149561f014c3af8b6011",
+    "x86/d3d11.dll": "5ac24e627f96ddcf87b5b5af3dc592a25f3991988200f070758774a8286ffcaa",
     "x86/dxgi.dll": "ea7b0c57a24f5bd23da958c6535085dba9cda5135c2e6f1d869c3bb9d525ea78"
   },
   "patches": [
@@ -22,7 +22,11 @@
     {
       "path": "patches/dxvk-modern/0003-preserve-dxbc-stage-register-width.patch",
       "sha256": "f5cdb811085f077057250fe2dabcca9475c0737a6ba4f56dbbf19354e514d54d"
+    },
+    {
+      "path": "patches/dxvk-modern/0004-decode-packed-bc-image-copies.patch",
+      "sha256": "40ccae898ee920e751bc27fb90830fe8d4515918ccd134a3a7f40169dcfad463"
     }
   ],
-  "patchedSourceSha256": "a8ae9551d595cbf725b3ab7aa58d56a5075e9e2180053994d621c5307ced6a2a"
+  "patchedSourceSha256": "31aed7098c2b926ff2434e22b7caabb366c23b3104ed4d85e1698eee3ae24cfe"
 }
