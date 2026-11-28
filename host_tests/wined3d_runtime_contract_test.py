@@ -12,7 +12,9 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from wined3d_runtime_contract import MODULES, SOURCE_FILES, sha, source_contract, validate_module, validate_runtime
+from wined3d_runtime_contract import (
+    BACKPORT_SOURCE_FILES, MODULES, SOURCE_FILES, sha, source_contract, validate_module, validate_runtime,
+)
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--baseline-hap', required=True, type=Path)
@@ -61,8 +63,11 @@ with tempfile.TemporaryDirectory(prefix='wined3d-contract-') as temporary:
     snapshot = Path(temporary)
     directory = snapshot / 'dlls/wined3d'
     directory.mkdir(parents=True)
-    for name in SOURCE_FILES:
+    for name in SOURCE_FILES + BACKPORT_SOURCE_FILES:
         shutil.copyfile(args.wine_source / 'dlls/wined3d' / name, directory / name)
+    regression = snapshot / 'dlls/d3d9/tests/visual.c'
+    regression.parent.mkdir(parents=True)
+    shutil.copyfile(args.wine_source / 'dlls/d3d9/tests/visual.c', regression)
     source_contract(snapshot)
     patch = ROOT / 'patches/wine/0053-wined3d-restore-legacy-alpha-test-state.patch'
     subprocess.run(['patch', '-d', str(snapshot), '-p1', '--force', '--batch', '--reverse',

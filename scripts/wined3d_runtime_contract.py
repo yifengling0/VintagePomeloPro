@@ -19,6 +19,8 @@ PATCHES = (
     '0068-wined3d-ohos-command-event-wake.patch',
 )
 SOURCE_FILES = ('adapter_gl.c', 'buffer.c', 'cs.c', 'glsl_shader.c', 'resource.c', 'swapchain.c')
+BACKPORT_PATCH = '0087-wined3d-device-reset-and-buffer-views.patch'
+BACKPORT_SOURCE_FILES = ('context_vk.c', 'device.c', 'shader_spirv.c', 'view.c', 'wined3d_vk.h')
 HARMONY_PATCH = ROOT / 'scripts/patches/wine-upstream/0088-virgl-harmony-frame-scene.patch'
 HARMONY_SOURCE_FILES = ('context_gl.c', 'stateblock.c', 'wined3d_private.h')
 
@@ -27,9 +29,9 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def patch_records():
+def patch_records(names=PATCHES):
     return {name: sha((ROOT / 'patches/wine' / name).read_bytes().replace(b'\r\n', b'\n'))
-            for name in PATCHES}
+            for name in names}
 
 
 def source_contract(source):
@@ -37,17 +39,18 @@ def source_contract(source):
     registered = re.findall(r'^ensure_wine_patch "\$SCRIPT_DIR/\.\./patches/wine/([^"\n]+)"',
                            (ROOT / 'scripts/build_wine.sh').read_text(), re.M)
     required = {name for name in registered if '-wined3d-' in name}
-    if required != set(PATCHES):
+    names = PATCHES + (BACKPORT_PATCH,)
+    if required != set(names):
         raise ValueError('WineD3D contract must cover every registered WineD3D overlay')
-    for name in PATCHES:
+    for name in names:
         result = subprocess.run(['patch', '-d', str(source), '-p1', '--batch', '--force',
                                  '--fuzz=0', '--dry-run', '--reverse', '-i',
                                  str(ROOT / 'patches/wine' / name)], capture_output=True, timeout=15)
         if result.returncode:
             raise ValueError('WineD3D effective source is missing overlay: ' + name)
-    return {'patches': patch_records(), 'sourceFiles': {
+    return {'patches': patch_records(names), 'sourceFiles': {
         'dlls/wined3d/' + name: sha((source / 'dlls/wined3d' / name).read_bytes())
-        for name in SOURCE_FILES}}
+        for name in SOURCE_FILES + BACKPORT_SOURCE_FILES}}
 
 
 def validate_module(data, arch):
@@ -73,6 +76,9 @@ def validate_module(data, arch):
 def validate_runtime(record, read):
     patches = patch_records()
     source_names = SOURCE_FILES
+    if BACKPORT_PATCH in record.get('patches', {}):
+        patches.update(patch_records((BACKPORT_PATCH,)))
+        source_names += BACKPORT_SOURCE_FILES
     harmony = HARMONY_PATCH.name in record.get('patches', {})
     if harmony:
         patches[HARMONY_PATCH.name] = sha(HARMONY_PATCH.read_bytes().replace(b'\r\n', b'\n'))
