@@ -1,4 +1,4 @@
-import { resolveOutputScale } from '../model/DisplayScalePolicy';
+import { DEFAULT_WINE_DPI, resolveOutputScale, resolveWineDpi } from '../model/DisplayScalePolicy';
 import { InputRouter } from './InputRouter';
 import { common, Want } from '@kit.AbilityKit';
 import { window, display } from '@kit.ArkUI';
@@ -240,7 +240,6 @@ export class WineWindowManager {
     } catch (_) {
       hilog.warn(DOMAIN, TAG, '[MW] DesktopModeService init failed, fallback policy');
     }
-    testNapi.setWineLogPixels(192);
     this.applyModePolicy();
     hilog.info(DOMAIN, TAG, '[MW] configured presentation mode=%{public}s', this.presentationMode);
 
@@ -313,6 +312,25 @@ export class WineWindowManager {
     testNapi.setDesktopMode(this.isDesktopMode);
     hilog.info(DOMAIN, TAG, '[MW] setPresentationMode=%{public}s nativeDesktop=%{public}s',
       mode, this.isDesktopMode ? 'yes' : 'no');
+  }
+
+  prepareWineDpi(outputScale: number): void {
+    let dpi = DEFAULT_WINE_DPI;
+    try {
+      const current = display.getDefaultDisplaySync();
+      const hasDesktopGeometry = this.isDesktopMode && this.outputHostWidth > 0 && this.outputHostHeight > 0;
+      const width = hasDesktopGeometry ? this.outputHostWidth : current.width;
+      const height = hasDesktopGeometry ? this.outputHostHeight : current.height;
+      const geometry = resolveOutputScale(outputScale, width, height, current.densityPixels);
+      dpi = resolveWineDpi(current.xDPI, current.yDPI, current.densityPixels, geometry.width, geometry.height);
+    } catch (error) {
+      hilog.warn(DOMAIN, TAG, '[MW] display DPI query failed: %{public}s', JSON.stringify(error));
+    }
+    if (testNapi.setWineLogPixels(dpi)) {
+      hilog.info(DOMAIN, TAG, '[MW] Wine session DPI=%{public}d', dpi);
+    } else {
+      hilog.warn(DOMAIN, TAG, '[MW] Wine DPI %{public}d deferred because Wine is still running', dpi);
+    }
   }
 
   setOutputScalePercent(value: number): void {

@@ -20,7 +20,8 @@ def method(signature):
 
 methods = '\n'.join(method(signature) for signature in [
     'setOutputScalePercent(', 'syncOutputSize(', 'prepareOutputForOrientation(',
-    'desktopDisplaySafeSize(', 'private shouldNotifyDesktopToplevelResize('])
+    'desktopDisplaySafeSize(', 'private shouldNotifyDesktopToplevelResize('] +
+    (['prepareWineDpi('] if '  prepareWineDpi(' in source else []))
 scale_policy = (ROOT / 'entry/src/main/ets/model/DisplayScalePolicy.ets').read_text().replace('export ', '')
 fixture = scale_policy + '''\nclass Manager {
 displayScale=1; scaleBoost=1; outputScalePercent=100;
@@ -41,7 +42,9 @@ global.resolveCornerSafeMarginPx=()=>48;
 let screen={width:1280,height:2832,densityPixels:3.5};
 global.display={getDefaultDisplaySync:()=>screen};
 let outputs=[], configures=[];
-global.testNapi={setDisplayScale(){},setOutputSize:(w,h)=>outputs.push([w,h]),notifyToplevelResize:(id,w,h)=>configures.push([id,w,h])};
+const dpis=[];
+global.testNapi={setDisplayScale(){},setOutputSize:(w,h)=>outputs.push([w,h]),notifyToplevelResize:(id,w,h)=>configures.push([id,w,h]),
+  setWineLogPixels:(dpi)=>{ dpis.push(dpi); return true; }};
 eval(ts.transpileModule(FIXTURE,{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText);
 const last=()=>outputs.at(-1);
 const m=new Manager();
@@ -96,6 +99,29 @@ m.setOutputScalePercent(75);
 assert.deepStrictEqual(last(),[3648,1707]);
 m.setOutputScalePercent(150);
 assert.deepStrictEqual(last(),[1824,853]);
+if (m.prepareWineDpi) {
+  settings.desktopWindowMode='fullscreen';
+  phone=false;
+  screen={width:3120,height:2080,densityPixels:1.9,xDPI:264.16,yDPI:264.16};
+  m.setOutputScalePercent(100);
+  m.syncOutputSize(screen.width, screen.height);
+  m.prepareWineDpi(100);
+  assert.strictEqual(dpis.at(-1),264,'Pro S uses its measured physical DPI');
+  assert.deepStrictEqual(last(),[3120,2080],'DPI does not change desktop pixels');
+  screen={width:2560,height:1600,densityPixels:2.375,xDPI:344.406,yDPI:344.042};
+  m.syncOutputSize(screen.width, screen.height);
+  m.prepareWineDpi(100);
+  assert.strictEqual(dpis.at(-1),240,'Mini retains space for Windows dialogs');
+  m.prepareWineDpi(150);
+  assert.strictEqual(dpis.at(-1),160,'startup accounts for stored output scale');
+  screen={width:1920,height:1080,densityPixels:1.25,xDPI:0,yDPI:0};
+  m.syncOutputSize(screen.width, screen.height);
+  m.prepareWineDpi(100);
+  assert.strictEqual(dpis.at(-1),120,'system density is the fallback');
+  global.display.getDefaultDisplaySync=()=>{ throw new Error('display unavailable'); };
+  m.prepareWineDpi(100);
+  assert.strictEqual(dpis.at(-1),192,'the previous default covers absent display metadata');
+}
 console.log('Desktop output orientation PASS: captured startup race, scale updates, transient rotation, portrait, managed/tablet, floating and safe margins');
 '''
 runner = runner.replace('TS_MODULE', json.dumps(args.typescript)).replace('FIXTURE', json.dumps(fixture))

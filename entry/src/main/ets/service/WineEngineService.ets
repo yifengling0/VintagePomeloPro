@@ -923,6 +923,7 @@ export class WineEngineService {
         // Wayland desktop frame from being created at the old orientation.
         WineWindowManager.getInstance().prepareOutputForOrientation(orientation);
       }
+      WineWindowManager.getInstance().prepareWineDpi(settings.outputScale);
       // Display owns presentation capabilities. Select it before resolving
       // the paired Host/Guest transport, including the desktop consumer.
       if (displayRoute.setDisplayRoute(settings.wineDisplayRoute === 'x11' ? 'x11' : 'wayland') === false) {

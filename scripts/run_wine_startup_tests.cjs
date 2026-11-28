@@ -16,16 +16,20 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
 }).outputText, {exports: graphicsExports});
 const State = {STOPPED:'stopped', PREPARING:'preparing', SWITCHING:'switching', READY:'ready', ERROR:'error'};
 function fixture() {
-  let now=1000, next=0, launches=0, stops=0;
+  let now=1000, next=0, launches=0, stops=0, preparedOutputScale;
   const timers=new Map();
   let snapshot={generation:0,active:false,state:'idle',phase:''};
   const settings={wineLanguage:'zh_CN',defaultDisplayMode:'desktop',wineTranslationEngine:'fex',
-    box64Preset:'default',renderMode:'dxvk_1_10'};
-  const wm={presentationMode:'desktop',applyModePolicy(){},setStartupForegroundGuard(){},prepareOutputForOrientation(){}};
+    box64Preset:'default',renderMode:'dxvk_1_10',outputScale:125};
+  const wm={presentationMode:'desktop',applyModePolicy(){},setStartupForegroundGuard(){},prepareOutputForOrientation(){},
+    prepareWineDpi(scale){preparedOutputScale=scale;}};
   const route={setDisplayRoute:()=>true,stopDisplayRouteChain(){},startDisplayRouteChain(){},displayRoutePhase:()=>0};
   const napi={
     getWineStartupState:()=>JSON.stringify(snapshot),getProcessList:()=>[],
-    setHostGraphicsBackend:()=>true,startServer:()=>true,
+    setHostGraphicsBackend:()=>true,startServer(){
+      assert.equal(preparedOutputScale,settings.outputScale,'initialize DPI before starting Wine');
+      return true;
+    },
     launchClient(){++launches;snapshot={generation:snapshot.generation+1,active:true,state:'starting',phase:'wineboot'};return 0;},
     stopAll(){++stops;snapshot.active=false;snapshot.state='cancelled';}
   };
