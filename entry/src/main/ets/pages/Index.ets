@@ -68,6 +68,7 @@ import { ConsoleUiSound } from '../service/ConsoleUiSound';
 import { InputProfileService } from '../service/InputProfileService';
 import { WineEngineBlockingOverlay } from '../components/WineEngineBlockingOverlay';
 import { DeckLaunchFeedbackService } from '../service/DeckLaunchFeedbackService';
+import { DeckLaunchArtwork } from '../model/DeckLaunchArtwork';
 import { builtinCoverResource } from '../model/BuiltinArtwork';
 import { DesktopLayer } from '../components/DesktopLayer';
 import { DeviceCapabilityPolicy } from '../common/DeviceCapabilityPolicy';
@@ -1259,7 +1260,7 @@ struct Index {
     return coverHeight + 71 + 16;
   }
 
-  private launch(app: AppDescriptor): Promise<void> {
+  private launch(app: AppDescriptor, artwork?: DeckLaunchArtwork): Promise<void> {
     if (app.id === STEAM_CLIENT_ID) return this.openSteamClient();
     if (app.steam) {
       try { SteamClientService.getInstance().assertCanOpen(); }
@@ -1278,12 +1279,15 @@ struct Index {
         secondaryButton: {
           value: '关闭并切换',
           fontColor: '#D94848',
-          action: (): void => { this.switchAndLaunch(app); }
+          action: (): void => {
+            const cover: DeckLaunchArtwork | undefined = artwork ? { cover: artwork.cover, builtin: artwork.builtin } : undefined;
+            void this.enqueueLaunch(app, true, cover);
+          }
         }
       });
       return Promise.resolve();
     }
-    return this.enqueueLaunch(app, false);
+    return this.enqueueLaunch(app, false, artwork);
   }
 
   private async openSteamClient(): Promise<void> {
@@ -1294,18 +1298,14 @@ struct Index {
     } catch (error) { promptAction.showToast({ message: (error as Error).message, duration: 5000 }); }
   }
 
-  private switchAndLaunch(app: AppDescriptor): Promise<void> {
-    return this.enqueueLaunch(app, true);
-  }
-
-  private enqueueLaunch(app: AppDescriptor, switchMode: boolean): Promise<void> {
-    const run = this.launchChain.then((): Promise<void> => this.doLaunch(app, switchMode));
+  private enqueueLaunch(app: AppDescriptor, switchMode: boolean, artwork?: DeckLaunchArtwork): Promise<void> {
+    const run = this.launchChain.then((): Promise<void> => this.doLaunch(app, switchMode, artwork));
     // 单次启动失败不能污染队列：后续点击仍按序执行。
     this.launchChain = run.catch((): void => {});
     return run;
   }
 
-  private async doLaunch(app: AppDescriptor, switchMode: boolean): Promise<void> {
+  private async doLaunch(app: AppDescriptor, switchMode: boolean, artwork?: DeckLaunchArtwork): Promise<void> {
     const root = AppCatalogService.getInstance().getWineHomeDirectory();
     if (!root && (app.launchTarget.kind === LaunchKind.WINE_EXE ||
       app.launchTarget.kind === LaunchKind.WINE_SYSTEM ||
@@ -1319,8 +1319,9 @@ struct Index {
     const feedback = DeckLaunchFeedbackService.getInstance();
     const ticket = feedback.begin({
       title: app.title,
-      cover: this.launchFeedbackCover(app),
-      builtin: this.launchFeedbackBuiltin(app),
+      cover: artwork?.cover || this.launchFeedbackCover(app),
+      builtin: artwork?.builtin ?? this.launchFeedbackBuiltin(app),
+      origin: artwork?.origin,
       message: '正在准备游戏窗口…',
       classic: !this.gameBrowsing && this.settings.uiSkin !== UiSkin.DECK
     });
@@ -3301,7 +3302,7 @@ struct Index {
         onBackHandler: (handler: (() => boolean) | null): void => { this.deckBackHandler = handler; },
         onMembership: (): void => this.openMembership(),
         onSupport: (): void => this.openSponsorship(),
-        onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),
+        onLocalLaunch: (app: AppDescriptor, artwork: DeckLaunchArtwork): Promise<void> => this.launch(app, artwork),
         localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
         onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)
       })
@@ -3320,7 +3321,7 @@ struct Index {
         onSettings: (): void => this.openSidebarPage('pages/SystemSettings'),
         onResources: (): void => this.openSidebarPage('pages/SteamComponents'),
         onBackHandler: (handler: (() => boolean) | null): void => { this.gameBackHandler = handler; },
-        onLocalLaunch: (app: AppDescriptor): Promise<void> => this.launch(app),
+        onLocalLaunch: (app: AppDescriptor, artwork: DeckLaunchArtwork): Promise<void> => this.launch(app, artwork),
         localArtwork: (app: AppDescriptor): string => this.consoleBackground(app),
         onLocalSettings: (app: AppDescriptor): void => this.openAppSettings(app)
       })
@@ -3376,7 +3377,7 @@ struct Index {
       if (this.settings.uiSkin === UiSkin.CONSOLE && this.libraryChromeVisible()) {
         this.ConsoleDetailOverlay()
       }
-      WineEngineBlockingOverlay()
+      WineEngineBlockingOverlay({ launcher: true })
     }
     .width('100%').height('100%')
     .backgroundColor(this.gameBrowsing ? '#0A0B0D' : skinColor('page_background'))

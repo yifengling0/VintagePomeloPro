@@ -1,11 +1,10 @@
 import { InputOverlayWindowCoordinator } from './InputOverlayWindowCoordinator';
+import { DeckLaunchArtwork, copyDeckCoverBounds } from '../model/DeckLaunchArtwork';
 
-export interface DeckLaunchFeedback {
+export interface DeckLaunchFeedback extends DeckLaunchArtwork {
   title: string;
-  cover: string;
   message: string;
   hint?: string;
-  builtin?: Resource;
   /** Classic launcher renders an in-theme preparing panel instead of the deck surface. */
   classic?: boolean;
 }
@@ -28,7 +27,8 @@ export class DeckLaunchFeedbackService {
   snapshot(): DeckLaunchFeedback | null {
     if (!this.value) return null;
     return { title: this.value.title, cover: this.value.cover, message: this.value.message,
-      hint: this.value.hint, builtin: this.value.builtin, classic: this.value.classic };
+      hint: this.value.hint, builtin: this.value.builtin, classic: this.value.classic,
+      origin: copyDeckCoverBounds(this.value.origin) };
   }
 
   subscribe(listener: DeckLaunchFeedbackListener): void { this.listeners.add(listener); listener(this.snapshot()); }
@@ -38,7 +38,8 @@ export class DeckLaunchFeedbackService {
   begin(feedback: DeckLaunchFeedback): number {
     const ticket = ++this.ticket;
     this.value = { title: feedback.title, cover: feedback.cover, message: feedback.message,
-      hint: feedback.hint, builtin: feedback.builtin, classic: feedback.classic };
+      hint: feedback.hint, builtin: feedback.builtin, classic: feedback.classic,
+      origin: copyDeckCoverBounds(feedback.origin) };
     this.publish();
     void InputOverlayWindowCoordinator.getInstance().setLaunchBusy(true).catch((): void => {});
     return ticket;

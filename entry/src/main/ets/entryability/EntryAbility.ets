@@ -256,6 +256,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onForeground(): void {
+    AppStorage.setOrCreate<boolean>('vpp.launcher.foreground', true);
     WineWindowManager.getInstance().setEntryPointerHostForeground(true);
     AppReviewService.foreground(this.context);
     X11ClipboardService.foreground(this.context);
@@ -269,6 +270,7 @@ export default class EntryAbility extends UIAbility {
   }
 
   onBackground(): void {
+    AppStorage.setOrCreate<boolean>('vpp.launcher.foreground', false);
     WineWindowManager.getInstance().setEntryPointerHostForeground(false);
     AppReviewService.background(this.context);
     X11ClipboardService.background(this.context);

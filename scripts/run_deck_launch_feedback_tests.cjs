@@ -23,7 +23,8 @@ const { InputOverlayWindowCoordinator } = load('service/InputOverlayWindowCoordi
 });
 const coordinator = InputOverlayWindowCoordinator.getInstance();
 const { DeckLaunchFeedbackService } = load('service/DeckLaunchFeedbackService.ets', {
-  './InputOverlayWindowCoordinator': { InputOverlayWindowCoordinator }
+  './InputOverlayWindowCoordinator': { InputOverlayWindowCoordinator },
+  '../model/DeckLaunchArtwork': load('model/DeckLaunchArtwork.ets', {})
 });
 const feedback = DeckLaunchFeedbackService.getInstance();
 
@@ -45,7 +46,12 @@ async function main() {
   assert.equal(feedback.snapshot().hint, 'Please wait', 'native stages retain the startup hint');
   feedback.update(first, 'Waiting for window', 'Check network');
   assert.equal(observed.at(-1).hint, 'Check network', 'the slow hint repaints the current stage');
-  const second = feedback.begin({ title: 'Game', cover: '/cover.png', message: 'Starting' });
+  const origin = { x: 24, y: 36, width: 120, height: 180 };
+  const second = feedback.begin({ title: 'Game', cover: '/cover.png', message: 'Starting', origin });
+  origin.x = 0;
+  feedback.snapshot().origin.y = 0;
+  assert.equal(feedback.snapshot().origin.x, 24);
+  assert.equal(feedback.snapshot().origin.y, 36, 'window subscribers cannot mutate the measured origin');
   feedback.update(first, 'stale phase'); feedback.finish(first);
   assert.equal(feedback.snapshot().title, 'Game', 'old completion cannot dismiss a newer mask');
   feedback.update(second, 'Opening window');

@@ -66,11 +66,27 @@ async function routes() {
   router.query = 'absent'; assert.equal(router.filtered().length, 0);
   router.query = ''; router.libraryTab = 'local'; assert.equal(router.filtered().length, 0);
   router.onLocalSettings = app => events.push(['settings', app]);
-  router.onLocalLaunch = async app => {if (failed) throw Error('prepare failed'); events.push(['windows', app]);};
+  router.onLocalLaunch = async (app, artwork) => {
+    if (failed) throw Error('prepare failed');
+    events.push(['windows', app, artwork]);
+  };
+  router.cover = game => game.cover;
+  router.localCover = app => app.coverPath;
+  router.localBuiltin = () => undefined;
+  const origin = { x: 15, y: 40, width: 80, height: 120 };
+  router.coverOrigin = id => {
+    assert.equal(id, 'deck-game-' + card.key);
+    return origin;
+  };
   router.dismissForRoute = () => {};
   router.refresh = () => {};
   router.manageComponents = () => events.push(['components']);
-  await router.openGame(card); assert.equal(events.pop()[1], windows, 'Deck preserves the launch descriptor and Wine settings');
+  await router.openGame(card);
+  const [, descriptor, artwork] = events.pop();
+  assert.equal(descriptor, windows, 'Deck preserves the launch descriptor and Wine settings');
+  assert.equal(artwork.cover, card.cover);
+  assert.equal(artwork.origin, origin);
+  assert.equal(router.launchFocus, 'deck-game-' + card.key);
   await router.openLocal({...windows, available: false}); assert.equal(events.pop()[0], 'settings');
   router.busy = true; await router.openGame(card); await router.open('library'); assert.equal(events.length, 0);
   router.busy = false; installed = false; await router.open('library'); assert.equal(events.pop()[0], 'components');

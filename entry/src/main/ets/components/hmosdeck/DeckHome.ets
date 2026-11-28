@@ -14,6 +14,7 @@ import { DeckArtwork } from './DeckArtwork';
 import { DeckMotion } from './DeckMotion';
 import { DeviceCapabilityPolicy } from '../../common/DeviceCapabilityPolicy';
 import { deckLayout, DeckLayout } from '../../model/DeckLayout';
+import { DeckCoverBounds, DeckLaunchArtwork } from '../../model/DeckLaunchArtwork';
 import inputMethod from '@ohos.inputMethod';
 
 // Native ArkUI shell; the official client continues to own Steam account and commerce UI.
@@ -31,7 +32,8 @@ export struct DeckHome {
   onBackHandler: (handler: (() => boolean) | null) => void = (_handler: (() => boolean) | null): void => {};
   onMembership: () => void = (): void => {};
   onSupport: () => void = (): void => {};
-  onLocalLaunch: (game: AppDescriptor) => Promise<void> = async (_game: AppDescriptor): Promise<void> => {};
+  onLocalLaunch: (game: AppDescriptor, artwork: DeckLaunchArtwork) => Promise<void> =
+    async (_game: AppDescriptor, _artwork: DeckLaunchArtwork): Promise<void> => {};
   onLocalSettings: (game: AppDescriptor) => void = (_game: AppDescriptor): void => {};
   localArtwork: (game: AppDescriptor) => string = (game: AppDescriptor): string => game.backgroundPath ?? '';
   @Prop gameMode: boolean = false;
@@ -60,12 +62,15 @@ export struct DeckHome {
   @State private pressed: string = '';
   @State private entered: boolean = false;
   @StorageLink('hmosdeck.motion') @Watch('motionChanged') private motion: boolean = true;
+  @StorageLink('vpp.launcher.foreground') @Watch('launcherForegroundChanged') private launcherForeground: boolean = true;
   private timer: number = -1;
   private sheetTimers: number[] = [];
   private sheetGeneration: number = 0;
   private entryTimer: number = -1;
   private focusTimer: number = -1;
   private returnFocus: string = '';
+  private launchFocus: string = '';
+  private restoreAfterLaunch: boolean = false;
   private artworkListener: SteamArtworkListener | null = null;
   private navigation: GamepadNavigationListener | null = null;
   private navigationActive: boolean = false;
@@ -93,20 +98,7 @@ export struct DeckHome {
     this.cancelFocusRestore();
     if (this.active) {
       this.refresh();
-      // Restore a library control after a game, rather than the search field
-      // that ArkUI may otherwise select automatically and reopen the IME.
-      this.focusTimer = setTimeout((): void => {
-        this.focusTimer = -1;
-        if (!this.active || this.busy || HostWindowTasks.getInstance().hasForegroundTask()) return;
-        const ids = this.focusIds();
-        const target = ids.includes(this.returnFocus) ? this.returnFocus : 'deck-nav-' + this.page;
-        try {
-          if (focusControl.requestFocus(this.scopeId(target))) {
-            this.focus = target;
-            inputMethod.getController().stopInputSession();
-          }
-        } catch (_) {}
-      }, 50);
+      this.scheduleFocusRestore();
       if (this.navigation && !this.navigationActive) {
         GamepadManager.getInstance().releaseAll();
         GamepadManager.getInstance().subscribeNavigation(this.navigation); this.navigationActive = true;
@@ -123,6 +115,33 @@ export struct DeckHome {
       this.cancelMotion(); this.settleSheet(false);
     }
   }
+  private launcherForegroundChanged(): void {
+    if (this.launcherForeground && this.active) this.scheduleFocusRestore();
+    else this.cancelFocusRestore();
+  }
+
+  private scheduleFocusRestore(): void {
+    this.cancelFocusRestore();
+    if (!this.active || !this.launcherForeground) return;
+    // A native game can bring EntryAbility back without remounting the library.
+    this.focusTimer = setTimeout((): void => {
+      this.focusTimer = -1;
+      if (!this.active || !this.launcherForeground || HostWindowTasks.getInstance().hasForegroundTask()) return;
+      if (this.busy) { this.restoreAfterLaunch = true; return; }
+      const ids = this.focusIds();
+      const preferred = this.launchFocus || this.returnFocus;
+      const target = ids.includes(preferred) ? preferred : 'deck-nav-' + (this.page === 'options' ? 'steam' : this.page);
+      try {
+        if (focusControl.requestFocus(this.scopeId(target)) ||
+          focusControl.requestFocus(this.scopeId('deck-nav-' + (this.page === 'options' ? 'steam' : this.page)))) {
+          // onFocus applies the highlight to the control that actually took focus.
+          inputMethod.getController().stopInputSession();
+        }
+      } catch (_) {}
+      this.launchFocus = '';
+    }, 50);
+  }
+
   private cancelFocusRestore(): void {
     if (this.focusTimer >= 0) clearTimeout(this.focusTimer);
     this.focusTimer = -1;
@@ -191,6 +210,7 @@ export struct DeckHome {
   }
   private chooseLibraryTab(tab: string): void {
     HostWindowTasks.getInstance().markLauncherForeground();
+    this.launchFocus = '';
     this.libraryTab = tab; this.error = '';
     this.scroll.scrollTo({ xOffset: 0, yOffset: 0 });
   }
@@ -215,7 +235,10 @@ export struct DeckHome {
   private scopeId(id: string): string { return this.gameMode ? 'game-' + id : id; }
   private hot(id: string): boolean { return this.focus === id || this.hovered === id; }
   private buttonScale(id: string): number { return this.pressed === id ? 0.955 : this.hot(id) ? 1.02 : 1; }
-  private tileScale(id: string): number { return this.pressed === id ? 0.97 : this.hot(id) ? 1.04 : 1; }
+  private tileScale(id: string): number {
+    if (!this.motion) return 1;
+    return this.pressed === id ? 0.97 : this.hot(id) ? 1.04 : 1;
+  }
   private touch(id: string, event: TouchEvent): void {
     if (event.type === TouchType.Down) { HostWindowTasks.getInstance().markLauncherForeground(); this.pressed = id; }
     else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
@@ -226,6 +249,7 @@ export struct DeckHome {
     HostWindowTasks.getInstance().markLauncherForeground();
     this.closeSheet(); this.error = '';
     if (page === this.page) return;
+    this.launchFocus = '';
     this.getUIContext().animateTo({ duration: this.motion ? 240 : 0, curve: DeckMotion.ease }, (): void => { this.page = page; });
   }
   private cancelSheetSteps(): void {
@@ -395,15 +419,46 @@ export struct DeckHome {
       promptAction.showToast({ message: this.error, duration: 5000 });
     } finally {
       this.busy = false; this.refresh();
+      if (this.restoreAfterLaunch) {
+        this.restoreAfterLaunch = false;
+        this.scheduleFocusRestore();
+      }
     }
   }
+  private coverOrigin(id: string): DeckCoverBounds | undefined {
+    if (!this.motion || !this.active || !this.launcherForeground) return undefined;
+    try {
+      const ui = this.getUIContext();
+      const nodes = ui.getComponentUtils();
+      const card = nodes.getRectangleById(this.scopeId(id));
+      const library = nodes.getRectangleById(this.scopeId('deck-library-page'));
+      const left = Math.max(card.windowOffset.x, library.windowOffset.x);
+      const top = Math.max(card.windowOffset.y, library.windowOffset.y);
+      const right = Math.min(card.windowOffset.x + card.size.width, library.windowOffset.x + library.size.width);
+      const bottom = Math.min(card.windowOffset.y + card.size.height, library.windowOffset.y + library.size.height);
+      // A clipped row or a disappearing tab cannot supply a reliable origin.
+      if (left >= right || bottom - top < card.size.height * 0.8) return undefined;
+      return { x: ui.px2vp(card.windowOffset.x), y: ui.px2vp(card.windowOffset.y),
+        width: ui.px2vp(card.size.width), height: ui.px2vp(card.size.height) };
+    } catch (_) { return undefined; }
+  }
+
+  private async launchCard(game: AppDescriptor, id: string, cover: string, builtin?: Resource): Promise<void> {
+    if (this.busy) return;
+    this.launchFocus = id;
+    const artwork: DeckLaunchArtwork = { cover, builtin, origin: cover || builtin ? this.coverOrigin(id) : undefined };
+    await this.runLaunch((): Promise<void> => this.onLocalLaunch(game, artwork));
+  }
+
   private async openLocal(game: AppDescriptor): Promise<void> {
     if (this.busy) return;
     if (!game.available) { this.onLocalSettings(game); return; }
-    await this.runLaunch((): Promise<void> => this.onLocalLaunch(game));
+    await this.launchCard(game, 'deck-local-' + game.id, this.localCover(game), this.localBuiltin(game));
   }
   private async openGame(game: DeckSteamGame): Promise<void> {
-    await this.openLocal(game.windowsCard);
+    if (this.busy) return;
+    if (!game.windowsCard.available) { this.onLocalSettings(game.windowsCard); return; }
+    await this.launchCard(game.windowsCard, 'deck-game-' + game.key, this.cover(game));
   }
   private async open(action: SteamClientAction, restoreWindow: boolean = false): Promise<void> {
     if (this.busy) return;
@@ -653,7 +708,7 @@ export struct DeckHome {
                     .animation({ duration: this.motion ? 300 : 0, curve: DeckMotion.ease })
                     .scale({ x: this.tileScale('deck-game-' + game.key), y: this.tileScale('deck-game-' + game.key), centerY: '90%' })
                     .animation({ duration: 0, curve: this.motion ? DeckMotion.tile : Curve.Linear })
-                    .translate({ y: this.hot('deck-game-' + game.key) ? -5 : 0 })
+                    .translate({ y: this.motion && this.hot('deck-game-' + game.key) ? -5 : 0 })
                     .animation({ duration: 0, curve: this.motion ? DeckMotion.tileLift : Curve.Linear })
                     .onTouch((event: TouchEvent): void => this.touch('deck-game-' + game.key, event))
                     .onHover((hot: boolean): void => { this.hovered = hot ? 'deck-game-' + game.key : ''; })
@@ -679,7 +734,7 @@ export struct DeckHome {
                     .animation({ duration: this.motion ? 300 : 0, curve: DeckMotion.ease })
                     .scale({ x: this.tileScale('deck-local-' + game.id), y: this.tileScale('deck-local-' + game.id), centerY: '90%' })
                     .animation({ duration: 0, curve: this.motion ? DeckMotion.tile : Curve.Linear })
-                    .translate({ y: this.hot('deck-local-' + game.id) ? -5 : 0 })
+                    .translate({ y: this.motion && this.hot('deck-local-' + game.id) ? -5 : 0 })
                     .animation({ duration: 0, curve: this.motion ? DeckMotion.tileLift : Curve.Linear })
                     .onTouch((event: TouchEvent): void => this.touch('deck-local-' + game.id, event))
                     .onHover((hot: boolean): void => { this.hovered = hot ? 'deck-local-' + game.id : ''; })

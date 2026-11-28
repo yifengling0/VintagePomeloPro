@@ -13,6 +13,7 @@ import { DeckLaunchScreen } from './hmosdeck/DeckLaunchScreen';
  */
 @Component
 export struct WineEngineBlockingOverlay {
+  @Prop launcher: boolean = false;
   @State private state: EngineState = WineEngineService.getInstance().getState();
   @State private message: string = WineEngineService.getInstance().getMessage();
   @State private phaseText: string = WineEngineService.getInstance().getPhaseText();
@@ -99,7 +100,8 @@ export struct WineEngineBlockingOverlay {
     if (this.launch && !this.launch.classic && this.state !== EngineState.ERROR) {
       DeckLaunchScreen({ title: this.launch.title, cover: this.launch.cover,
         builtin: this.launch.builtin, message: this.isBusy() ? this.message : this.launch.message,
-        hint: this.launch.hint ?? (this.isBusy() ? this.detail() : '') })
+        hint: this.launch.hint ?? (this.isBusy() ? this.detail() : ''),
+        animate: this.launcher, origin: this.launcher ? this.launch.origin : undefined })
         .width('100%').height('100%').zIndex(1000)
     } else if (this.launch || this.isBusy() || this.state === EngineState.ERROR) {
       Stack() {
