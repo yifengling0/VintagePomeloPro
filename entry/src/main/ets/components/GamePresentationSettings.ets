@@ -1,7 +1,7 @@
 import { GameActionButton } from './GameActionButton';
 import { GameFrameGeneration, GameModeSettings, GameScaling, normalizeGameModeSettings, frameGenerationStateText } from '../model/GameModeSettings';
 import testNapi from 'libentry.so';
-import { skinColor } from '../service/SkinColors';
+import { DECK_COLORS, skinColor } from '../service/SkinColors';
 
 @Component
 export struct GamePresentationSettings {
@@ -14,6 +14,9 @@ export struct GamePresentationSettings {
   private fgTimer: number = -1;
   onChange: (value: GameModeSettings) => void = (_value: GameModeSettings): void => {};
   onHarmonyStatus: (state: number, generated: number) => void = (_state: number, _generated: number): void => {};
+
+  private foreground(): ResourceColor { return this.inGame ? DECK_COLORS.text_primary : skinColor('text_primary'); }
+  private secondary(): ResourceColor { return this.inGame ? DECK_COLORS.text_secondary : skinColor('text_secondary'); }
 
   private change(scaling: GameScaling, frameLimit: number, sharpness: number = this.value.sharpness ?? 10,
     frameGeneration: GameFrameGeneration = this.value.frameGeneration ?? 'off'): void {
@@ -51,7 +54,7 @@ export struct GamePresentationSettings {
   build() {
     Column({ space: 12 }) {
       Text('画面缩放').fontSize(14).fontWeight(FontWeight.Medium)
-        .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary')).width('100%')
+        .fontColor(this.foreground()).width('100%')
       Flex({ wrap: FlexWrap.Wrap }) {
         ForEach(['linear', 'nearest', 'integer', 'fsr'], (mode: GameScaling) => {
           GameActionButton({ label: mode === 'linear' ? '线性' : mode === 'nearest' ? '最近邻' : mode === 'integer' ? '整数缩放' : 'FSR 1.0',
@@ -60,7 +63,7 @@ export struct GamePresentationSettings {
         })
       }.width('100%')
       Text('画面插帧').fontSize(14).fontWeight(FontWeight.Medium)
-        .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary')).width('100%')
+        .fontColor(this.foreground()).width('100%')
       Flex({ wrap: FlexWrap.Wrap }) {
         GameActionButton({ label: '关闭', selected: this.value.frameGeneration === 'off', controlId: 'game-framegen-off', darkPanel: this.inGame,
           onAction: (): void => this.change(this.value.scaling, this.value.frameLimit, this.value.sharpness ?? 10, 'off') })
@@ -77,32 +80,32 @@ export struct GamePresentationSettings {
       }.width('100%')
       if (this.harmonyBlockReason.length > 0 || this.value.frameGeneration === 'harmonyGpu') {
         Text(this.harmonyBlockReason || '需要匹配的深度和相机数据')
-          .fontSize(12).fontColor(this.inGame ? '#9AA9BE' : skinColor('text_secondary')).width('100%')
+          .fontSize(12).fontColor(this.secondary()).width('100%')
       }
       if (this.inGame && this.value.frameGeneration !== 'off') {
         Column({ space: 4 }) {
           if (this.harmonyBlockReason.length === 0 || this.value.frameGeneration !== 'harmonyGpu') {
-            Text(this.fgStatus).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-status')
+            Text(this.fgStatus).fontSize(12).fontColor(this.secondary()).width('100%').id('game-framegen-status')
           }
           if (this.fgRates.length > 0) {
-            Text(this.fgRates).fontSize(12).fontColor('#E8EDF5').width('100%').id('game-framegen-rates')
+            Text(this.fgRates).fontSize(12).fontColor(this.foreground()).width('100%').id('game-framegen-rates')
           }
           if (this.fgGpuTime.length > 0) {
-            Text(this.fgGpuTime).fontSize(12).fontColor('#9AA9BE').width('100%').id('game-framegen-gpu-time')
+            Text(this.fgGpuTime).fontSize(12).fontColor(this.secondary()).width('100%').id('game-framegen-gpu-time')
           }
         }.width('100%')
       }
       Text('改善画面流畅度，实际效果取决于设备和游戏；不改变游戏逻辑及输入帧率。')
-        .fontSize(12).fontColor(this.inGame ? '#9AA9BE' : skinColor('text_secondary')).width('100%')
+        .fontSize(12).fontColor(this.secondary()).width('100%')
       if (this.value.scaling === 'fsr') {
         Text('FSR 锐化 · ' + (20 - (this.value.sharpness ?? 10))).fontSize(14)
-          .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary'))
+          .fontColor(this.foreground())
         Slider({ value: 20 - (this.value.sharpness ?? 10), min: 0, max: 20, step: 1 })
           .id('game-fsr-sharpness')
           .onChange((value: number): void => this.change(this.value.scaling, this.value.frameLimit, 20 - Math.round(value)))
       }
       Text('帧率上限').fontSize(14).fontWeight(FontWeight.Medium)
-        .fontColor(this.inGame ? '#E8EDF5' : skinColor('text_primary')).width('100%')
+        .fontColor(this.foreground()).width('100%')
       Flex({ wrap: FlexWrap.Wrap }) {
         ForEach([0, 30, 60], (fps: number) => {
           GameActionButton({ label: fps === 0 ? '跟随屏幕' : fps + ' FPS', selected: this.value.frameLimit === fps,
@@ -112,7 +115,7 @@ export struct GamePresentationSettings {
       }.width('100%')
       Text(this.inGame ? '调整实时生效，画面设置按游戏保存。' :
         '默认设置在下次启动时使用。游戏运行时可在画面侧栏实时调整缩放、FSR 和限帧。')
-        .fontSize(12).fontColor(this.inGame ? '#9AA9BE' : skinColor('text_secondary')).width('100%')
+        .fontSize(12).fontColor(this.secondary()).width('100%')
     }.width('100%').alignItems(HorizontalAlign.Start)
   }
 }

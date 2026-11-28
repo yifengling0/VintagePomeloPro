@@ -10,7 +10,7 @@ export struct SponsorshipSettings {
   @Prop compact: boolean = false;
   @Prop initiallyExpanded: boolean = false;
   @Prop surfaceColor: string | Resource = '';
-  @Prop cardBorderColor: string = '#14000000';
+  @Prop cardBorderColor: string | Resource = '#14000000';
   @Prop glass: boolean = false;
   @Prop groupPadding: number = 22;
   @State private expanded: boolean = false;

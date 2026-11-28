@@ -90,6 +90,7 @@ export struct WineEngineBlockingOverlay {
   private panelDetail(): string {
     if (this.state === EngineState.ERROR) return '可重新启动，或返回主页检查 Wine 设置';
     if (this.isBusy()) return this.detail();
+    if (this.launch?.hint) return this.launch.hint;
     if (this.launch) return 'Wine 已就绪，正在等待游戏创建窗口';
     return this.detail();
   }
@@ -97,7 +98,8 @@ export struct WineEngineBlockingOverlay {
   build() {
     if (this.launch && !this.launch.classic && this.state !== EngineState.ERROR) {
       DeckLaunchScreen({ title: this.launch.title, cover: this.launch.cover,
-        builtin: this.launch.builtin, message: this.launch.message })
+        builtin: this.launch.builtin, message: this.isBusy() ? this.message : this.launch.message,
+        hint: this.launch.hint ?? (this.isBusy() ? this.detail() : '') })
         .width('100%').height('100%').zIndex(1000)
     } else if (this.launch || this.isBusy() || this.state === EngineState.ERROR) {
       Stack() {
@@ -119,6 +121,10 @@ export struct WineEngineBlockingOverlay {
           Text(this.panelDetail())
             .fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
             .constraintSize({ maxWidth: 420 })
+          if (this.isBusy() && this.launch?.hint) {
+            Text(this.launch.hint).fontSize(13).fontColor(skinColor('text_secondary')).textAlign(TextAlign.Center)
+              .constraintSize({ maxWidth: 420 })
+          }
           if (this.state === EngineState.ERROR) {
             Row({ space: 12 }) {
               Button('返回主页').onClick(() => {

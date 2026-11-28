@@ -6,7 +6,6 @@ import { SteamClientService } from '../../service/SteamClientService';
 import { AppSettingsStore } from '../../service/AppSettingsStore';
 import { SteamArtworkListener, SteamArtworkService } from '../../service/SteamArtworkService';
 import { InputDispatcher } from '../../service/InputDispatcher';
-import { DeckLaunchFeedbackService } from '../../service/DeckLaunchFeedbackService';
 import { GamepadManager, GamepadNavigationListener } from '../../service/GamepadManager';
 import { HostWindowTasks, HostWindowTask } from '../../service/HostWindowTasks';
 import { promptAction, LengthMetrics } from '@kit.ArkUI';
@@ -26,6 +25,7 @@ export struct DeckHome {
   @Prop startingSteamIds: string[] = [];
   onRefresh: () => Promise<void> = async (): Promise<void> => {};
   onClassic: () => void = (): void => {};
+  onExitGameMode: () => void = (): void => {};
   onSettings: () => void = (): void => {};
   onResources: () => void = (): void => {};
   onBackHandler: (handler: (() => boolean) | null) => void = (_handler: (() => boolean) | null): void => {};
@@ -44,7 +44,6 @@ export struct DeckHome {
   @State private heightVp: number = 650;
   @State private busy: boolean = false;
   @State private steamReady: boolean = SteamClientService.getInstance().installed();
-  private launchTicket: number = 0;
   @State private error: string = '';
   @State private steamRunning: boolean = false;
   @State private tasks: HostWindowTask[] = [];
@@ -83,7 +82,6 @@ export struct DeckHome {
     this.timer = setInterval((): void => { if (this.active && !this.busy) this.refresh(); }, 5000);
   }
   aboutToDisappear(): void {
-    DeckLaunchFeedbackService.getInstance().finish(this.launchTicket); this.launchTicket = 0;
     this.onBackHandler(null);
     if (this.timer >= 0) clearInterval(this.timer);
     this.cancelFocusRestore();
@@ -117,8 +115,8 @@ export struct DeckHome {
       this.entered = !this.motion;
       if (this.motion) this.entryTimer = setTimeout((): void => {
         this.entryTimer = -1;
-        if (this.active) this.getUIContext().animateTo({ duration: 450, curve: DeckMotion.ease }, (): void => { this.entered = true; });
-      }, 50);
+        if (this.active) this.getUIContext().animateTo({ duration: 200, curve: DeckMotion.ease }, (): void => { this.entered = true; });
+      }, 16);
     } else {
       if (this.focus) this.returnFocus = this.focus;
       this.detachNavigation(); this.pressed = ''; this.hovered = '';
@@ -291,11 +289,11 @@ export struct DeckHome {
   private sheetHeight(): number { return Math.min(this.sheetKind === 'more' ? 430 : 500, this.heightVp - 30); }
   private focusIds(): string[] {
     if (this.sheet) return ['deck-sheet-close', ...(this.sheetKind === 'more' ?
-      ['deck-more-options', 'deck-settings', ...(!this.gameMode ? ['deck-sheet-classic'] : [])] : [])];
+      ['deck-more-options', 'deck-settings', this.gameMode ? 'deck-exit-game-mode' : 'deck-sheet-classic'] : [])];
     const ids = this.portrait() ? ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-more'] :
       ['deck-nav-steam', 'deck-nav-library', 'deck-nav-running', 'deck-nav-settings'];
     if (!this.portrait() && DeviceCapabilityPolicy.supportsValueAddedFeatures()) ids.push('deck-membership', 'deck-support');
-    if (!this.gameMode) ids.push('deck-classic');
+    if (!this.portrait()) ids.push(this.gameMode ? 'deck-exit-game-mode' : 'deck-classic');
     if (this.page === 'steam') ids.push('deck-steam', 'deck-open-sheet');
     else if (this.page === 'options') ids.push('deck-options-back', 'deck-components', 'deck-big-picture', 'deck-desktop', 'deck-steam-downloads', 'deck-account');
     else if (this.page === 'library') {
@@ -337,6 +335,7 @@ export struct DeckHome {
   private activateFocus(): void {
     const id = this.focus;
     if (id === 'deck-classic' || id === 'deck-sheet-classic') this.onClassic();
+    else if (id === 'deck-exit-game-mode') this.exitGameMode();
     else if (id === 'deck-settings' || id === 'deck-nav-settings') this.openSettings();
     else if (id === 'deck-membership') this.onMembership();
     else if (id === 'deck-support') this.onSupport();
@@ -378,38 +377,30 @@ export struct DeckHome {
   }
   private manageComponents(): void { this.dismissForRoute(); this.onResources(); }
   private openSettings(): void { this.dismissForRoute(); this.onSettings(); }
+  private exitGameMode(): void { this.dismissForRoute(); this.onExitGameMode(); }
   private motionChanged(): void {
     if (!this.motion) { this.cancelMotion(); this.settleSheet(this.sheetOpen); this.entered = true; }
   }
   private async restoreTask(key: string): Promise<void> {
     if (!await HostWindowTasks.getInstance().activate(key)) promptAction.showToast({ message: '窗口已关闭，请刷新后重试' });
   }
-  private async beginLaunch(title: string, cover: string, message: string,
-    builtin: Resource | undefined, action: () => Promise<void>): Promise<void> {
+  private async runLaunch(action: () => Promise<void>): Promise<void> {
     if (this.busy) return;
     this.busy = true; this.error = '';
-    const feedback = DeckLaunchFeedbackService.getInstance();
-    const ticket = feedback.begin({ title, cover, message, builtin }); this.launchTicket = ticket;
-    this.closeSheet();
+    this.dismissForRoute();
     try {
-      // Commit the feedback surface before synchronous filesystem/native setup.
-      // A resolved Promise alone stays in the microtask queue and cannot paint.
-      await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 48); });
       await action();
     } catch (error) {
       this.error = (error as Error).message;
       promptAction.showToast({ message: this.error, duration: 5000 });
     } finally {
-      feedback.finish(ticket);
-      if (this.launchTicket === ticket) this.launchTicket = 0;
       this.busy = false; this.refresh();
     }
   }
   private async openLocal(game: AppDescriptor): Promise<void> {
     if (this.busy) return;
     if (!game.available) { this.onLocalSettings(game); return; }
-    await this.beginLaunch(game.title, this.localCover(game), '正在准备游戏窗口…',
-      this.localBuiltin(game), async (): Promise<void> => { await this.onLocalLaunch(game); });
+    await this.runLaunch((): Promise<void> => this.onLocalLaunch(game));
   }
   private async openGame(game: DeckSteamGame): Promise<void> {
     await this.openLocal(game.windowsCard);
@@ -418,8 +409,7 @@ export struct DeckHome {
     if (this.busy) return;
     const service = SteamClientService.getInstance();
     if (!service.installed()) { this.manageComponents(); return; }
-    await this.beginLaunch('Steam', '', '正在打开 Windows Steam…', undefined,
-      async (): Promise<void> => { await service.open(action, restoreWindow); });
+    await this.runLaunch((): Promise<void> => service.open(action, restoreWindow, false));
   }
   @Builder
   private RailItem(label: string, icon: Resource, id: string, selected: boolean, callback: () => void) {
@@ -458,7 +448,11 @@ export struct DeckHome {
         this.RailItem('赞助', $r('sys.symbol.heart'), 'deck-support', false, this.onSupport)
       }
       this.RailItem('设置', $r('sys.symbol.gearshape'), 'deck-nav-settings', false, (): void => this.openSettings())
-      if (!this.gameMode) this.RailItem('经典界面', $r('sys.symbol.rectangle_grid_1x2'), 'deck-classic', false, this.onClassic)
+      if (this.gameMode) {
+        this.RailItem('退出模式', $r('sys.symbol.rectangle_grid_1x2'), 'deck-exit-game-mode', false, (): void => this.exitGameMode())
+      } else {
+        this.RailItem('经典界面', $r('sys.symbol.rectangle_grid_1x2'), 'deck-classic', false, this.onClassic)
+      }
       }.width(this.railWidth()).constraintSize({ minHeight: this.heightVp }).padding({ left: 8, right: 8, top: 4, bottom: 12 })
     }.width(this.railWidth()).height('100%').scrollBar(BarState.Off)
       .backgroundColor('#121417').border({ width: { right: 1 }, color: '#262A31' })
@@ -523,8 +517,8 @@ export struct DeckHome {
         if (this.error) Text(this.error).fontSize(12).fontColor('#FF8A80').maxLines(3).width('100%').margin({ top: 14 }).id(this.scopeId('deck-error'))
       }.width(Math.min(380, this.layout().contentWidth - this.inset() * 2)).alignItems(HorizontalAlign.Start)
         .margin({ left: this.inset(), top: this.tall() ? this.inset() + 52 : 0, bottom: this.tall() ? 0 : this.heightVp < 460 ? 24 : 52 })
-        .translate({ y: this.sheetPull - this.sheetLift * 22 + (this.entered ? 0 : 18) })
-        .opacity((this.entered ? 1 : 0) * (1 - this.sheetSink))
+        .translate({ y: this.sheetPull - this.sheetLift * 22 + (this.entered ? 0 : 6) })
+        .opacity((this.entered ? 1 : 0.88) * (1 - this.sheetSink))
         .enabled(!this.sheet)
       if (!this.portrait()) Row({ space: 14 }) {
         Text('A  确认').fontSize(11).fontColor('#69727F')
@@ -598,7 +592,7 @@ export struct DeckHome {
   private SectionHeading(title: string, subtitle: string) {
     Column({ space: 7 }) {
       Text(title).fontSize(this.portrait() ? 26 : 32).fontWeight(FontWeight.Bold).fontColor('#F2F4F7')
-      Text(subtitle).fontSize(13).fontColor('#9AA3AF')
+      if (subtitle) Text(subtitle).fontSize(13).fontColor('#9AA3AF')
     }.alignItems(HorizontalAlign.Start).width('100%').margin({ bottom: 24 })
   }
   private libraryCount(tab: string): number {
@@ -612,7 +606,7 @@ export struct DeckHome {
       local.filter((g: AppDescriptor): boolean => recent.includes(g.id)).length;
   }
   @Builder
-  private LibraryTab(label: string, tab: string, count: number) {
+  private LibraryTab(label: string, tab: string) {
     Button(label + '  ' + this.libraryCount(tab)).height(40).fontSize(this.portrait() ? 12 : 14).fontWeight(FontWeight.Medium).borderRadius(10)
       .padding({ left: this.portrait() ? 12 : 16, right: this.portrait() ? 12 : 16 }).flexShrink(0)
       .fontColor(this.libraryTab === tab ? '#C9E6FF' : '#9AA3AF')
@@ -625,16 +619,16 @@ export struct DeckHome {
   private Library() {
     Scroll(this.scroll) {
       Column() {
-        this.SectionHeading(this.gameMode ? 'Game 游戏库' : '游戏库', '已安装的游戏，一处开始。')
+        this.SectionHeading(this.gameMode ? '游戏模式' : '游戏库', '')
         Scroll() {
           Row({ space: this.portrait() ? 8 : 10 }) {
           if (this.gameMode) {
-            this.LibraryTab('全部', 'all', this.games.length + this.localGames.filter((g: AppDescriptor): boolean => g.source !== AppSource.BUILTIN).length)
-            this.LibraryTab('最近游玩', 'recent', AppSettingsStore.getInstance().getRecentLaunches().length)
+            this.LibraryTab('全部游戏', 'all')
+            this.LibraryTab('最近游玩', 'recent')
           }
-          this.LibraryTab('Steam 游戏', 'steam', this.games.length)
-          if (!this.gameMode) this.LibraryTab('内建工具', 'tools', this.localGames.filter((g: AppDescriptor): boolean => g.source === AppSource.BUILTIN).length)
-          this.LibraryTab('本地游戏', 'local', this.localGames.filter((g: AppDescriptor): boolean => g.source !== AppSource.BUILTIN).length)
+          this.LibraryTab('Steam 游戏', 'steam')
+          if (!this.gameMode) this.LibraryTab('内建工具', 'tools')
+          this.LibraryTab('本地游戏', 'local')
           }
         }.width('100%').scrollable(ScrollDirection.Horizontal).scrollBar(BarState.Off).align(Alignment.Start).margin({ bottom: 20 }).id(this.scopeId('deck-category-tabs'))
         Row({ space: 12 }) {
@@ -799,7 +793,13 @@ export struct DeckHome {
             if (this.sheetKind === 'more') {
               this.SheetRow('Steam 选项', '组件管理、显示模式与客户端操作', 'deck-more-options', $r('sys.symbol.archivebox'), (): void => this.openSheet(), 0)
               this.SheetRow('系统设置', '外观、输入、声音与运行配置', 'deck-settings', $r('sys.symbol.gearshape'), (): void => this.openSettings(), 1)
-              if (!this.gameMode) this.SheetRow('返回经典界面', '保留当前 Steam 与游戏会话', 'deck-sheet-classic', $r('sys.symbol.rectangle_on_rectangle'), this.onClassic, 2)
+              if (this.gameMode) {
+                this.SheetRow('退出游戏模式', '恢复先前的启动器界面', 'deck-exit-game-mode',
+                  $r('sys.symbol.rectangle_on_rectangle'), (): void => this.exitGameMode(), 2)
+              } else {
+                this.SheetRow('返回经典界面', '保留当前 Steam 与游戏会话', 'deck-sheet-classic',
+                  $r('sys.symbol.rectangle_on_rectangle'), this.onClassic, 2)
+              }
             }
           }.width('100%').padding({ bottom: 8 })
         }.width('100%').layoutWeight(1).scrollBar(BarState.Auto).align(Alignment.Top)

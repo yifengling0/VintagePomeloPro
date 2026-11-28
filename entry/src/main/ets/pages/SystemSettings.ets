@@ -4,6 +4,7 @@ import { AccountSyncSettings } from '../components/AccountSyncSettings';
 import { UserConfigurationRepository } from '../service/UserConfigurationRepository';
 import { FontImportFiles, replaceImportedFonts } from '../service/FontImportTransaction';
 import { skinColor } from '../service/SkinColors';
+import { SettingsSectionTitle } from '../components/SettingsSectionTitle';
 /// <reference path="../ohos.systemShare.d.ts" />
 import router from '@ohos.router';
 import { PerformanceHudField, PerformanceHudSettings, hasPerformanceHudContent,
@@ -357,8 +358,8 @@ struct SystemSettingsPage {
     return this.usesDarkAppearance() ? '#3A202833' : '#DDF5F9FD';
   }
 
-  private groupBorderColor(): string {
-    if (!this.settings.useGlassEffect) return '#14000000';
+  private groupBorderColor(): string | Resource {
+    if (!this.settings.useGlassEffect) return skinColor('card_border');
     return this.usesDarkAppearance() ? '#52FFFFFF' : '#8CFFFFFF';
   }
 
@@ -1515,14 +1516,15 @@ struct SystemSettingsPage {
   private SectionButton(label: string, section: SettingsSection, icon: Resource) {
     Row({ space: 12 }) {
       Stack({ alignContent: Alignment.Center }) {
-        SymbolGlyph(icon).fontSize(18).fontColor([skinColor('text_primary')])
+        SymbolGlyph(icon).fontSize(18)
+          .fontColor([this.section === section ? skinColor('accent') : skinColor('text_secondary')])
       }.width(24).height(24)
       Text(label).fontSize(14).fontColor(skinColor('text_primary'))
         .fontWeight(this.section === section ? FontWeight.Medium : FontWeight.Regular)
     }
       .width('100%').height(48).padding({ left: 14, right: 14 }).borderRadius(16)
       .backgroundColor(this.section === section ? skinColor('selected_background') : '#00FFFFFF')
-      .border({ width: this.section === section ? 1 : 0, color: this.groupBorderColor() })
+      .border({ width: this.section === section ? 1 : 0, color: skinColor('accent') })
       .id('settings-nav-' + section)
       .onClick(() => this.selectSection(section))
   }
@@ -1999,7 +2001,7 @@ struct SystemSettingsPage {
             GamePresentationSettings({ value: normalizeGameModeSettings(this.settings.gameMode),
               onChange: (value: GameModeSettings): void => { void this.updateGameDefaults(value); } })
           }
-          Text('Windows 显示').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
+          SettingsSectionTitle({ title: 'Windows 显示' })
           Text('程序统一在 Wine 桌面中运行，由游戏自行切换到全屏，无需单独适配画面拉伸。')
             .fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
            Text('桌面屏幕方向').fontSize(14).fontWeight(FontWeight.Medium)
@@ -2104,7 +2106,7 @@ struct SystemSettingsPage {
         .borderRadius(20)
       } else if (section === 'appearance') {
         Column({ space: 16 }) {
-          Text('外观').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
+          SettingsSectionTitle({ title: '外观' })
           Text('界面皮肤').fontSize(12).fontColor(skinColor('text_secondary')).width('100%')
           Row({ space: 8 }) {
             Button('经典界面').layoutWeight(1).height(44).borderRadius(14)
@@ -2224,7 +2226,7 @@ struct SystemSettingsPage {
         .borderRadius(20)
       } else if (section === 'input') {
         Column({ space: 16 }) {
-          Text('输入与控制').fontSize(20).fontWeight(FontWeight.Bold).width('100%')
+          SettingsSectionTitle({ title: '输入与控制' })
           if (this.isManagedWindowsHost()) {
             Column({ space: 6 }) {
               Text('PC 虚拟桌面支持屏幕虚拟输入')

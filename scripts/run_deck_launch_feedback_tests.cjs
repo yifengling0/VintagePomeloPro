@@ -32,7 +32,7 @@ async function main() {
   const listener = value => observed.push(value);
   feedback.subscribe(listener);
   assert.equal(observed[0], null, 'late-mounted host subscribes to current state');
-  const first = feedback.begin({ title: 'Steam', cover: '', message: 'Preparing' });
+  const first = feedback.begin({ title: 'Steam', cover: '', message: 'Preparing', hint: 'Please wait' });
   await coordinator.blockingOp;
   assert.equal(coordinator.getSnapshot().blocking, true);
   await coordinator.setEngineBusy(true);
@@ -41,6 +41,10 @@ async function main() {
 
   const snapshot = feedback.snapshot(); snapshot.title = 'mutated';
   assert.equal(feedback.snapshot().title, 'Steam', 'observers do not mutate the active request');
+  feedback.update(first, 'Waiting for window');
+  assert.equal(feedback.snapshot().hint, 'Please wait', 'native stages retain the startup hint');
+  feedback.update(first, 'Waiting for window', 'Check network');
+  assert.equal(observed.at(-1).hint, 'Check network', 'the slow hint repaints the current stage');
   const second = feedback.begin({ title: 'Game', cover: '/cover.png', message: 'Starting' });
   feedback.update(first, 'stale phase'); feedback.finish(first);
   assert.equal(feedback.snapshot().title, 'Game', 'old completion cannot dismiss a newer mask');

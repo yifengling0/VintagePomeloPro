@@ -5,6 +5,7 @@ import { SteamClientService } from '../service/SteamClientService';
 import { common } from '@kit.AbilityKit';
 import { router } from '@kit.ArkUI';
 import { skinColor } from '../service/SkinColors';
+import { DeckLaunchFeedback, DeckLaunchFeedbackListener, DeckLaunchFeedbackService } from '../service/DeckLaunchFeedbackService';
 
 /** One client control surface shared by both launcher skins. */
 @Component
@@ -22,7 +23,11 @@ export struct SteamClientPanel {
   @State private compatibility: boolean = false;
   @State private message: string = '';
   @State private percent: number = 0;
+  @State private launchFeedback: DeckLaunchFeedback | null = null;
   private listener: SteamImportListener | null = null;
+  private launchListener: DeckLaunchFeedbackListener = (value: DeckLaunchFeedback | null): void => {
+    this.launchFeedback = this.launching && value?.title === 'Steam' ? value : null;
+  };
 
   aboutToAppear(): void {
     const service = SteamLocalService.getInstance();
@@ -35,9 +40,11 @@ export struct SteamClientPanel {
       this.installed = service.isInstalled();
     };
     service.subscribe(this.listener);
+    DeckLaunchFeedbackService.getInstance().subscribe(this.launchListener);
   }
   aboutToDisappear(): void {
     if (this.listener) SteamLocalService.getInstance().unsubscribe(this.listener);
+    DeckLaunchFeedbackService.getInstance().unsubscribe(this.launchListener);
   }
   private foreground(): ResourceColor { return this.dark ? '#F2F4F7' : skinColor('text_primary'); }
   private secondary(): ResourceColor { return this.dark ? '#929DAB' : skinColor('text_secondary'); }
@@ -60,7 +67,10 @@ export struct SteamClientPanel {
       const service = SteamClientService.getInstance();
       this.onOpen();
       await service.open();
-    } catch (error) { promptAction.showToast({ message: (error as Error).message }); }
+    } catch (error) {
+      this.message = (error as Error).message;
+      promptAction.showToast({ message: this.message, duration: 5000 });
+    }
     finally { this.launching = false; }
   }
   private async scanGames(): Promise<void> {
@@ -87,6 +97,10 @@ export struct SteamClientPanel {
         Button(this.launching ? '正在打开…' : '启动 Steam').width('100%').height(40).borderRadius(10)
           .backgroundColor(this.accent()).fontColor('#FFFFFFFF').enabled(!this.busy && !this.launching && !this.scanning)
           .onClick((): void => { void this.openClient(); }).id('steam-client-open')
+        if (this.launchFeedback) {
+          Text(this.launchFeedback.message).fontSize(13).fontColor(this.foreground()).width('100%')
+          Text(this.launchFeedback.hint ?? '').fontSize(12).fontColor(this.secondary()).width('100%')
+        }
       }
       Text(this.installed ? 'Windows 版已导入' : '导入原来的 Windows Steam ZIP，通过 Wine 运行。')
         .fontSize(12).fontColor(this.secondary()).width('100%')

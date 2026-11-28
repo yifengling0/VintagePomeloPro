@@ -4,6 +4,7 @@ export interface DeckLaunchFeedback {
   title: string;
   cover: string;
   message: string;
+  hint?: string;
   builtin?: Resource;
   /** Classic launcher renders an in-theme preparing panel instead of the deck surface. */
   classic?: boolean;
@@ -27,7 +28,7 @@ export class DeckLaunchFeedbackService {
   snapshot(): DeckLaunchFeedback | null {
     if (!this.value) return null;
     return { title: this.value.title, cover: this.value.cover, message: this.value.message,
-      builtin: this.value.builtin, classic: this.value.classic };
+      hint: this.value.hint, builtin: this.value.builtin, classic: this.value.classic };
   }
 
   subscribe(listener: DeckLaunchFeedbackListener): void { this.listeners.add(listener); listener(this.snapshot()); }
@@ -37,15 +38,19 @@ export class DeckLaunchFeedbackService {
   begin(feedback: DeckLaunchFeedback): number {
     const ticket = ++this.ticket;
     this.value = { title: feedback.title, cover: feedback.cover, message: feedback.message,
-      builtin: feedback.builtin, classic: feedback.classic };
+      hint: feedback.hint, builtin: feedback.builtin, classic: feedback.classic };
     this.publish();
     void InputOverlayWindowCoordinator.getInstance().setLaunchBusy(true).catch((): void => {});
     return ticket;
   }
 
-  update(ticket: number, message: string): void {
-    if (ticket !== this.ticket || !this.value || message === this.value.message) return;
-    this.value.message = message; this.publish();
+  update(ticket: number, message: string, hint?: string): void {
+    if (ticket !== this.ticket || !this.value) return;
+    const nextHint = hint ?? this.value.hint;
+    if (message === this.value.message && nextHint === this.value.hint) return;
+    this.value.message = message;
+    this.value.hint = nextHint;
+    this.publish();
   }
 
   finish(ticket: number): void {

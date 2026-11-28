@@ -2,7 +2,7 @@ import { ConsolePalette, GlobalSettings, ThemeMode, UiSkin } from '../model/AppM
 import { AppSettingsStore } from './AppSettingsStore';
 
 export type SkinColorToken = 'start_window_background' | 'page_background' | 'sidebar_background' |
-  'card_background' | 'card_glass_background' | 'search_background' | 'text_primary' |
+  'card_background' | 'card_border' | 'card_glass_background' | 'search_background' | 'text_primary' |
   'text_secondary' | 'accent' | 'selected_background';
 
 interface SkinColorSet {
@@ -11,6 +11,7 @@ interface SkinColorSet {
   page_background: string;
   sidebar_background: string;
   card_background: string;
+  card_border: string;
   card_glass_background: string;
   search_background: string;
   text_primary: string;
@@ -22,7 +23,7 @@ interface SkinColorSet {
 const VIOLET: SkinColorSet = {
   followsSystem: false,
   start_window_background: '#0B0B0F', page_background: '#0B0B0F',
-  sidebar_background: '#14141A', card_background: '#FF1C1C22',
+  sidebar_background: '#14141A', card_background: '#FF1C1C22', card_border: '#353242',
   card_glass_background: '#B81A1A25', search_background: '#B31F1F2C',
   text_primary: '#FFF2F3F7', text_secondary: '#A8ACB4BF',
   accent: '#FFA78BFA', selected_background: '#FF2A2340'
@@ -31,16 +32,16 @@ const VIOLET: SkinColorSet = {
 const BLUE: SkinColorSet = {
   followsSystem: false,
   start_window_background: '#09111F', page_background: '#09111F',
-  sidebar_background: '#101E31', card_background: '#FF17263A',
+  sidebar_background: '#101E31', card_background: '#FF17263A', card_border: '#304863',
   card_glass_background: '#B816273D', search_background: '#B31C3049',
   text_primary: '#FFF1F7FF', text_secondary: '#A9B8CDDD',
   accent: '#FF69A7FF', selected_background: '#FF1B3B63'
 };
 
-const GRAPHITE: SkinColorSet = {
+export const DECK_COLORS: SkinColorSet = {
   followsSystem: false,
   start_window_background: '#0A0B0D', page_background: '#0A0B0D',
-  sidebar_background: '#121417', card_background: '#1A1D22',
+  sidebar_background: '#121417', card_background: '#1A1D22', card_border: '#303640',
   card_glass_background: '#E6121417', search_background: '#1A1D22',
   text_primary: '#F2F4F7', text_secondary: '#9AA3AF',
   accent: '#1A9FFF', selected_background: '#172D40'
@@ -49,7 +50,7 @@ const GRAPHITE: SkinColorSet = {
 const PEARL: SkinColorSet = {
   followsSystem: false,
   start_window_background: '#F7F8FC', page_background: '#F7F8FC',
-  sidebar_background: '#EFF0F8', card_background: '#FFFFFFFF',
+  sidebar_background: '#EFF0F8', card_background: '#FFFFFFFF', card_border: '#E0E3EE',
   card_glass_background: '#EDFFFFFF', search_background: '#EDF1F6FC',
   text_primary: '#FF1D2434', text_secondary: '#FF627086',
   accent: '#FF6258C9', selected_background: '#FFE8E5FA'
@@ -71,12 +72,13 @@ export function consoleColors(palette: ConsolePalette): SkinColorSet {
 export function skinColor(token: SkinColorToken): string | Resource {
   const settings = AppSettingsStore.getInstance().getGlobalSettings();
   if (settings.uiSkin === UiSkin.CONSOLE || settings.uiSkin === UiSkin.DECK) {
-    const colors = settings.uiSkin === UiSkin.DECK ? GRAPHITE : consoleColors(settings.consolePalette);
+    const colors = settings.uiSkin === UiSkin.DECK ? DECK_COLORS : consoleColors(settings.consolePalette);
     switch (token) {
       case 'start_window_background': return colors.start_window_background;
       case 'page_background': return colors.page_background;
       case 'sidebar_background': return colors.sidebar_background;
       case 'card_background': return colors.card_background;
+      case 'card_border': return colors.card_border;
       case 'card_glass_background': return colors.card_glass_background;
       case 'search_background': return colors.search_background;
       case 'text_primary': return colors.text_primary;
@@ -90,6 +92,7 @@ export function skinColor(token: SkinColorToken): string | Resource {
     case 'page_background': return $r('app.color.page_background');
     case 'sidebar_background': return $r('app.color.sidebar_background');
     case 'card_background': return $r('app.color.card_background');
+    case 'card_border': return $r('app.color.card_border');
     case 'card_glass_background': return $r('app.color.card_glass_background');
     case 'search_background': return $r('app.color.search_background');
     case 'text_primary': return $r('app.color.text_primary');

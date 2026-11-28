@@ -1322,7 +1322,7 @@ struct Index {
       cover: this.launchFeedbackCover(app),
       builtin: this.launchFeedbackBuiltin(app),
       message: '正在准备游戏窗口…',
-      classic: true
+      classic: !this.gameBrowsing && this.settings.uiSkin !== UiSkin.DECK
     });
     let session: RuntimeSession | null = null;
     try {
@@ -1340,7 +1340,7 @@ struct Index {
         if (app.available) setTimeout((): void => {
           if (!this.consolePageVisible || !HostWindowTasks.getInstance().isLauncherForeground() ||
             !AppSessionService.getInstance().isSteamGameStarting(app.id, requestId)) return;
-          promptAction.showToast({ message: '游戏仍在等待启动，可打开 Steam 查看登录或更新提示', duration: 5000 });
+          promptAction.showToast({ message: '游戏仍在等待启动，请在 Steam 中检查登录、更新或网络状态', duration: 5000 });
         }, 45000);
       }
       if (!session && (app.launchTarget.kind === LaunchKind.WINE_EXE ||
@@ -2060,6 +2060,21 @@ struct Index {
   }
 
 
+  private async exitGameMode(): Promise<void> {
+    if (HostWindowTasks.getInstance().controllableGames().length > 0 || SteamClientService.getInstance().isRunning()) {
+      promptAction.showToast({ message: '请先正常退出游戏和 Steam，再退出游戏模式' });
+      return;
+    }
+    const themes = ThemeSettingsService.getInstance();
+    const next = JSON.parse(JSON.stringify(themes.getSettings())) as GlobalSettings;
+    next.gameModeEnabled = false;
+    try {
+      await themes.update(next);
+    } catch (_) {
+      promptAction.showToast({ message: '游戏模式设置未保存，请重试' });
+    }
+  }
+
   onBackPress(): boolean {
     if (this.gameBrowsing) {
       return this.gameBackHandler?.() ?? false;
@@ -2198,7 +2213,8 @@ struct Index {
 
   private launchFeedbackCover(app: AppDescriptor): string {
     if (app.source === AppSource.BUILTIN) return '';
-    const path = app.coverPath || app.backgroundPath || '';
+    const path = app.coverPath || app.backgroundPath ||
+      (this.gameBrowsing || this.settings.uiSkin === UiSkin.DECK ? this.consoleBackground(app) : '');
     return path.length > 0 && !path.includes('://') ? 'file://' + path : path;
   }
 
@@ -3295,6 +3311,7 @@ struct Index {
         .visibility(!this.gameBrowsing && this.settings.uiSkin === UiSkin.DECK && this.libraryChromeVisible() ? Visibility.Visible : Visibility.None)
       DeckHome({
         gameMode: true,
+        onExitGameMode: (): void => { void this.exitGameMode(); },
         active: this.gameBrowsing && this.libraryChromeVisible() && this.consolePageVisible,
         localGames: this.apps.filter((app: AppDescriptor): boolean => !app.steam && app.id !== STEAM_CLIENT_ID),
         windowsSteamGames: this.apps.filter((app: AppDescriptor): boolean => !!app.steam),

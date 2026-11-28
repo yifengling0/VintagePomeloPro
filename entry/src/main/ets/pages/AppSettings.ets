@@ -1,6 +1,7 @@
 import { GamePresentationSettings } from '../components/GamePresentationSettings';
 import { GameModeSettings, GameModeOverride, normalizeGameModeSettings } from '../model/GameModeSettings';
 import { skinColor } from '../service/SkinColors';
+import { SettingsSectionTitle } from '../components/SettingsSectionTitle';
 import { PortableGameConfigurationService } from '../service/PortableGameConfigurationService';
 import router from '@ohos.router';
 import promptAction from '@ohos.promptAction';
@@ -832,7 +833,7 @@ struct AppSettingsPage {
         Scroll(this.appSettingsScroller) {
         Column({ space: 18 }) {
           Column({ space: 16 }) {
-            Text('卡片与启动').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
+            SettingsSectionTitle({ title: '卡片与启动' })
             this.Field('显示名称', this.value.customTitle, (text: string): void => {
               this.replace(text, this.value.customCover, this.value.executable,
                 this.value.workingDirectory, this.value.displayModeOverride);
@@ -902,10 +903,11 @@ struct AppSettingsPage {
                   .onClick((): void => this.retryGameBackground())
               }
             }
-          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background'))
+            .borderRadius(20).border({ width: 1, color: skinColor('card_border') })
 
           Column({ space: 12 }) {
-            Text('启动参数').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
+            SettingsSectionTitle({ title: '启动参数' })
             Text('游戏渲染后端').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start }) {
               ForEach(this.graphicsBackendChoices(), (backend: string) => {
@@ -1027,10 +1029,11 @@ struct AppSettingsPage {
             })
             Text('空格分隔，例如 -force-gfx-direct 或 -no-cef-sandbox。与上方图形预设合并后启动。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
-          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background'))
+            .borderRadius(20).border({ width: 1, color: skinColor('card_border') })
 
           Column({ space: 12 }) {
-            Text('兼容性').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
+            SettingsSectionTitle({ title: '兼容性' })
             Text('转译引擎').fontSize(13).fontColor(skinColor('text_secondary')).width('100%')
             Row({ space: 8 }) {
               ForEach(APP_WINE_TRANSLATION_ENGINES, (engine: string) => {
@@ -1107,10 +1110,11 @@ struct AppSettingsPage {
             }.width('100%').padding(14).backgroundColor(skinColor('search_background')).borderRadius(14)
             .id('app-settings-mf-disable-dxgi')
 
-          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background'))
+            .borderRadius(20).border({ width: 1, color: skinColor('card_border') })
 
           Column({ space: 12 }) {
-            Text('输入映射').fontSize(18).fontWeight(FontWeight.Medium).width('100%')
+            SettingsSectionTitle({ title: '输入映射' })
             Text('桌面模式始终使用系统设置中的桌面全局方案；这里的应用专用方案在启动单个程序时生效。')
               .fontSize(11).fontColor(skinColor('text_secondary')).width('100%')
             Text(this.currentProfileId() === 'default' ? '当前跟随桌面全局输入方案' : '当前使用应用专用输入方案')
@@ -1131,7 +1135,8 @@ struct AppSettingsPage {
                 .id('app-settings-use-global-input')
                 .onClick((): void => { this.useGlobalInputProfile(); })
             }
-          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background')).borderRadius(16)
+          }.width('100%').padding(this.cardPadding()).backgroundColor(skinColor('card_background'))
+            .borderRadius(20).border({ width: 1, color: skinColor('card_border') })
 
           if (this.app && !this.app.available) {
             Button('删除不可用卡片').height(48).fontColor('#D94848').backgroundColor(skinColor('card_background')).onClick(() => this.removeUnavailable())

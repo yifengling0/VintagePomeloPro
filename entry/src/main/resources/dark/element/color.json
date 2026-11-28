@@ -17,6 +17,10 @@
       "value": "#FF2C2C2E"
     },
     {
+      "name": "card_border",
+      "value": "#41464E"
+    },
+    {
       "name": "card_glass_background",
       "value": "#EE2F333A"
     },

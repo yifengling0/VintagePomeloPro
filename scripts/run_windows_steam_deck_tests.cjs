@@ -40,18 +40,21 @@ for (const invalid of [
 assert.equal(rules.isSteamAppId('4294967295'), true);
 assert.equal(rules.isSteamAppId('4294967296'), false);
 const other = {...windows, id: 'steam-default-7', title: 'Banana', steam: {...windows.steam, appId: '7'}};
-assert.equal(JSON.stringify(windowsDeckSteamGames([windows, other]).map(g => g.name)), JSON.stringify(['Banana', '仙剑奇侠传']));
+assert.deepEqual(Array.from(windowsDeckSteamGames([windows, other]), g => g.name),
+  ['Banana', '仙剑奇侠传'].sort((a, b) => a.localeCompare(b)));
 console.log('Windows Deck catalog: Unicode/private paths, original settings, AppID bounds, empty/uninstall, installed filters, dedupe and sort PASS');
 
 async function routes() {
   const home = fs.readFileSync(path.join(root, 'components/hmosdeck/DeckHome.ets'), 'utf8');
-  const a = home.indexOf('  private async openLocal(');
+  const a = home.indexOf('  private async runLaunch(');
   const b = home.indexOf('  private async refreshLibrary(');
   const fragment = home.slice(a, home.indexOf('  @Builder', a)) +
     home.slice(b, home.indexOf('  private filteredLocal(', b));
   const out = {}, events = [];
   let installed = true, failed = false;
-  const service = {installed: () => installed, async open(action) {events.push(['client', action]);}};
+  const service = {installed: () => installed, async open(action, restore, classic) {
+    events.push(['client', action, restore, classic]);
+  }};
   vm.runInNewContext(ts.transpileModule('export class Router {\n' + fragment + '\n}', {
     compilerOptions: {target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS}
   }).outputText, {exports: out, SteamClientService: {getInstance: () => service},
@@ -64,8 +67,8 @@ async function routes() {
   router.query = ''; router.libraryTab = 'local'; assert.equal(router.filtered().length, 0);
   router.onLocalSettings = app => events.push(['settings', app]);
   router.onLocalLaunch = async app => {if (failed) throw Error('prepare failed'); events.push(['windows', app]);};
-  router.localCover = app => app.coverPath; router.localBuiltin = () => undefined;
-  router.beginLaunch = async (_title, _cover, _message, _builtin, action) => action();
+  router.dismissForRoute = () => {};
+  router.refresh = () => {};
   router.manageComponents = () => events.push(['components']);
   await router.openGame(card); assert.equal(events.pop()[1], windows, 'Deck preserves the launch descriptor and Wine settings');
   await router.openLocal({...windows, available: false}); assert.equal(events.pop()[0], 'settings');
@@ -73,9 +76,12 @@ async function routes() {
   router.busy = false; installed = false; await router.open('library'); assert.equal(events.pop()[0], 'components');
   installed = true;
   for (const action of ['library', 'downloads', 'account', 'store', 'desktop', 'bigPicture']) {
-    await router.open(action); assert.equal(JSON.stringify(events.pop()), JSON.stringify(['client', action]));
+    await router.open(action); assert.deepEqual(events.pop(), ['client', action, false, false]);
   }
-  failed = true; await assert.rejects(router.openGame(card), /prepare failed/); failed = false;
+  await router.open('library', true); assert.deepEqual(events.pop(), ['client', 'library', true, false]);
+  failed = true; await router.openGame(card); failed = false;
+  assert.deepEqual(events.pop(), ['toast', 'prepare failed']);
+  assert.equal(router.busy, false, 'a failed launch releases the launch guard');
   router.onRefresh = async () => {await Promise.resolve(); events.push(['scan-windows']);};
   router.refresh = () => events.push(['render']);
   await router.refreshLibrary();

@@ -529,7 +529,8 @@ export class AppSessionService {
   }
 
   async waitForSteamClientWindow(app: AppDescriptor, launched: RuntimeSession,
-    navigation: number, pendingGame?: RuntimeSession, existingWindowKeys?: Set<string>): Promise<RuntimeSession | null> {
+    navigation: number, pendingGame?: RuntimeSession, existingWindowKeys?: Set<string>,
+    onStatus?: (message: string) => void): Promise<RuntimeSession | null> {
     // On translated ARM64 cold starts, CEF can create its first real window
     // after 45 seconds. Keep the launch feedback alive through that startup
     // rather than reporting failure immediately before the window arrives.
@@ -602,9 +603,11 @@ export class AppSessionService {
         if (!pendingGame) ready.automaticForeground = true;
         return ready;
       }
+      onStatus?.(windowKey ? '正在确认 Steam 窗口…' : webHelperSeen ?
+        'Steam 界面正在加载，请稍候…' : '正在等待 Steam 客户端窗口…');
       await new Promise<void>((resolve: () => void): void => { setTimeout(resolve, 250); });
     }
-    throw new Error('Steam 启动后未显示客户端窗口。请检查运行日志或稍后重试；已有进程和数据已保留。');
+    throw new Error('等待 Steam 窗口超时。请检查网络或代理设置，切换到稳定的网络后再试。');
   }
 
   /**

@@ -1,5 +1,5 @@
 import { InputEventGate } from '../service/InputEventGate';
-import { skinColor } from '../service/SkinColors';
+import { DECK_COLORS, skinColor } from '../service/SkinColors';
 
 // Input-overlay subwindows use the same explicit touch/mouse path as VPP's
 // toolbar. A synthetic click must not dispatch the action a second time.
@@ -22,8 +22,13 @@ export struct GameActionButton {
   }
   build() {
     Button(this.label).height(38).fontSize(13).width(this.fullWidth ? '100%' : undefined)
-      .fontColor(this.selected ? Color.White : this.darkPanel ? '#E8EDF5' : skinColor('text_primary'))
-      .backgroundColor(this.selected ? '#2874BC' : this.darkPanel ? '#293140' : skinColor('search_background'))
+      .borderRadius(12)
+      .fontColor(this.selected ? (this.darkPanel ? DECK_COLORS.accent : skinColor('accent')) :
+        this.darkPanel ? DECK_COLORS.text_primary : skinColor('text_primary'))
+      .backgroundColor(this.selected ? (this.darkPanel ? DECK_COLORS.selected_background : skinColor('selected_background')) :
+        this.darkPanel ? DECK_COLORS.card_background : skinColor('search_background'))
+      .border({ width: 1, color: this.selected ? (this.darkPanel ? DECK_COLORS.accent : skinColor('accent')) :
+        this.darkPanel ? DECK_COLORS.card_border : skinColor('card_border') })
       .enabled(!this.disabled)
       .opacity(this.disabled ? 0.45 : 1)
       .hitTestBehavior(HitTestMode.Block).id(this.controlId)
