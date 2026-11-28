@@ -1,0 +1,392 @@
+diff --git a/src/d3d11/d3d11_context.cpp b/src/d3d11/d3d11_context.cpp
+--- a/src/d3d11/d3d11_context.cpp
++++ b/src/d3d11/d3d11_context.cpp
+@@ -3789,13 +3789,18 @@
+         info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+         info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_HOST_BIT;
+         info.access = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_HOST_READ_BIT;
+-        auto blocks = device->createBuffer(info, atlasWidth ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+-                                                           : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
++        Rc<DxvkBuffer> blocks;
+         const uint32_t layers = target.layerCount;
+         auto srcLayer = source;
+         auto dstLayer = target;
+         srcLayer.layerCount = dstLayer.layerCount = 1;
+         for (uint32_t i = 0; i < layers; ++i, ++srcLayer.baseArrayLayer, ++dstLayer.baseArrayLayer) {
++          if (!atlasWidth && ctx->tryCopyPackedBcImage(
++              dst, dstLayer, dstOffset, pixels, src, srcLayer, srcOffset, blockCount, packed))
++            continue;
++          if (blocks == nullptr)
++            blocks = device->createBuffer(info, atlasWidth ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
++                                                          : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+           ctx->copyImageToBuffer(blocks, 0, 0, 0, src, srcLayer, srcOffset, blockCount);
+           if (atlasWidth) {
+             const VkImageSubresourceLayers atlas = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
+diff --git a/src/dxvk/dxvk_context.cpp b/src/dxvk/dxvk_context.cpp
+--- a/src/dxvk/dxvk_context.cpp
++++ b/src/dxvk/dxvk_context.cpp
+@@ -1811,6 +1811,99 @@
+   }
+ 
+ 
++
++  bool DxvkContext::tryCopyPackedBcImage(
++      const Rc<DxvkImage>& dst, VkImageSubresourceLayers dstLayers, VkOffset3D dstOffset, VkExtent3D extent,
++      const Rc<DxvkImage>& src, VkImageSubresourceLayers srcLayers, VkOffset3D srcOffset, VkExtent3D blocks,
++      VkFormat format) {
++    static const bool gpuEnabled = env::getEnvVar("DXVK_WINEHUA_PACKED_BC_GPU") != "0";
++    const bool bc1 = format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK || format == VK_FORMAT_BC1_RGBA_SRGB_BLOCK;
++    const bool bc5 = format == VK_FORMAT_BC5_UNORM_BLOCK || format == VK_FORMAT_BC5_SNORM_BLOCK;
++    const VkFormat backing = dst->info().format;
++    const bool rgba = backing == VK_FORMAT_R8G8B8A8_UNORM || backing == VK_FORMAT_R8G8B8A8_SRGB;
++    const VkFormat rg = format == VK_FORMAT_BC5_SNORM_BLOCK ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_UNORM;
++    if (!gpuEnabled || !((bc1 && rgba) || (bc5 && backing == rg))
++     || dst->info().type != VK_IMAGE_TYPE_2D || src->info().type != VK_IMAGE_TYPE_2D
++     || extent.depth != 1 || extent.width > 4096 || extent.height > 4096
++     || blocks.width != (extent.width + 3) / 4 || blocks.height != (extent.height + 3) / 4)
++      return false;
++
++    const uint32_t pixelBytes = bc1 ? 4 : 2;
++    const uint32_t width = 4 * blocks.width;
++    const uint32_t height = 4 * blocks.height;
++    const VkDeviceSize inputSize = VkDeviceSize(blocks.width) * blocks.height * (bc1 ? 8 : 16);
++    const VkDeviceSize outputSize = VkDeviceSize(width) * height * pixelBytes;
++    DxvkMetaCopyPipeline pipeline = {};
++    VkDescriptorSet set = VK_NULL_HANDLE;
++    try {
++      pipeline = m_common->metaCopy().getPackedBcPipeline(bc5);
++      if (!pipeline.pipeHandle)
++        return false;
++      auto reserve = [this](Rc<DxvkBuffer>& buffer, VkDeviceSize bytes) {
++        if (buffer != nullptr && buffer->info().size >= bytes)
++          return;
++        DxvkBufferCreateInfo info = {};
++        info.size = align(bytes, VkDeviceSize(4096));
++        info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
++        info.stages = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
++        info.access = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
++        buffer = m_device->createBuffer(info, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
++      };
++      reserve(m_packedBcInput, inputSize);
++      reserve(m_packedBcOutput, outputSize);
++      set = allocateDescriptorSet(pipeline.dsetLayout);
++    } catch (const DxvkError&) {
++      return false;
++    }
++    if (!set)
++      return false;
++
++    // Order reuse of the scratch buffers across consecutive copies, including
++    // copies that span command-list submissions on the graphics queue.
++    spillRenderPass(true);
++    unbindComputePipeline();
++    m_execBarriers.recordCommands(m_cmd);
++    emitMemoryBarrier(0, VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
++      VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT,
++      VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
++      VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT);
++    copyImageToBuffer(m_packedBcInput, 0, 0, 0, src, srcLayers, srcOffset, blocks);
++    m_execBarriers.recordCommands(m_cmd);
++    emitMemoryBarrier(0, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
++      VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
++
++    const VkDescriptorBufferInfo buffers[] = {
++      m_packedBcInput->getDescriptor(0, inputSize).buffer,
++      m_packedBcOutput->getDescriptor(0, outputSize).buffer,
++    };
++    VkWriteDescriptorSet writes[2] = {};
++    for (uint32_t i = 0; i < 2; ++i) {
++      writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
++      writes[i].dstSet = set;
++      writes[i].dstBinding = i;
++      writes[i].descriptorCount = 1;
++      writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
++      writes[i].pBufferInfo = &buffers[i];
++    }
++    m_cmd->updateDescriptorSets(2, writes);
++    const uint32_t args[] = { width, height, bc5 ? (format == VK_FORMAT_BC5_SNORM_BLOCK ? 6u : 2u) : 0u };
++    m_cmd->cmdBindPipeline(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeHandle);
++    m_cmd->cmdBindDescriptorSet(VK_PIPELINE_BIND_POINT_COMPUTE, pipeline.pipeLayout, set, 0, nullptr);
++    m_cmd->cmdPushConstants(pipeline.pipeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(args), args);
++    m_cmd->cmdDispatch((width + 31) / 32, (height + 31) / 32, 1);
++
++    emitMemoryBarrier(0, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT,
++      VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
++    m_cmd->trackResource<DxvkAccess::Write>(m_packedBcOutput);
++    copyBufferToImage(dst, dstLayers, dstOffset, extent, m_packedBcOutput, 0, 4 * pixelBytes, 1);
++
++    static const bool logged = [] {
++      Logger::info("WineHua: GPU decode active for packed BC image copies");
++      return true;
++    }();
++    (void)logged;
++    return true;
++  }
+   void DxvkContext::copyImageToBuffer(
+     const Rc<DxvkBuffer>&       dstBuffer,
+           VkDeviceSize          dstOffset,
+diff --git a/src/dxvk/dxvk_context.h b/src/dxvk/dxvk_context.h
+--- a/src/dxvk/dxvk_context.h
++++ b/src/dxvk/dxvk_context.h
+@@ -349,6 +349,11 @@
+      * \param [in] rowAlignment Row alignment, in bytes
+      * \param [in] sliceAlignment Slice alignment, in bytes
+      */
++    bool tryCopyPackedBcImage(
++      const Rc<DxvkImage>& dst, VkImageSubresourceLayers dstLayers, VkOffset3D dstOffset, VkExtent3D extent,
++      const Rc<DxvkImage>& src, VkImageSubresourceLayers srcLayers, VkOffset3D srcOffset, VkExtent3D blocks,
++      VkFormat format);
++
+     void copyBufferToImage(
+       const Rc<DxvkImage>&        dstImage,
+             VkImageSubresourceLayers dstSubresource,
+@@ -1498,6 +1503,8 @@
+     Rc<DxvkBuffer> createZeroBuffer(
+             VkDeviceSize              size);
+ 
++    Rc<DxvkBuffer> m_packedBcInput;
++    Rc<DxvkBuffer> m_packedBcOutput;
+   };
+   
+ }
+diff --git a/src/dxvk/dxvk_meta_copy.cpp b/src/dxvk/dxvk_meta_copy.cpp
+--- a/src/dxvk/dxvk_meta_copy.cpp
++++ b/src/dxvk/dxvk_meta_copy.cpp
+@@ -5,6 +5,8 @@
+ #include <dxvk_fullscreen_vert.h>
+ #include <dxvk_fullscreen_layer_vert.h>
+ 
++#include <dxvk_packed_bc1.h>
++#include <dxvk_packed_bc5.h>
+ #include <dxvk_copy_buffer_image.h>
+ #include <dxvk_copy_color_1d.h>
+ #include <dxvk_copy_color_2d.h>
+@@ -295,6 +297,51 @@
+   }
+ 
+   
++
++  DxvkMetaCopyPipeline DxvkMetaCopyObjects::getPackedBcPipeline(bool bc5) {
++    // This reserved key is separate from image-view pipelines in the same
++    // cache. MetaCopy owns the pipeline for the lifetime of the device.
++    const DxvkMetaCopyPipelineKey key { VK_IMAGE_VIEW_TYPE_MAX_ENUM,
++      bc5 ? VK_FORMAT_BC5_UNORM_BLOCK : VK_FORMAT_BC1_RGBA_UNORM_BLOCK, VK_SAMPLE_COUNT_1_BIT };
++    std::lock_guard<dxvk::mutex> lock(m_mutex);
++    auto entry = m_pipelines.find(key);
++    if (entry != m_pipelines.end())
++      return entry->second;
++
++    auto& pipeline = m_pipelines.emplace(key, DxvkMetaCopyPipeline{}).first->second;
++    const auto dev = m_vkd->device();
++    const VkDescriptorSetLayoutBinding bindings[] = {
++      { 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
++      { 1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
++    };
++    VkDescriptorSetLayoutCreateInfo setInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
++    setInfo.bindingCount = 2;
++    setInfo.pBindings = bindings;
++    if (m_vkd->vkCreateDescriptorSetLayout(dev, &setInfo, nullptr, &pipeline.dsetLayout) != VK_SUCCESS)
++      return pipeline;
++
++    const VkPushConstantRange push = { VK_SHADER_STAGE_COMPUTE_BIT, 0, 3 * sizeof(uint32_t) };
++    VkPipelineLayoutCreateInfo layout = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
++    layout.setLayoutCount = 1;
++    layout.pSetLayouts = &pipeline.dsetLayout;
++    layout.pushConstantRangeCount = 1;
++    layout.pPushConstantRanges = &push;
++    if (m_vkd->vkCreatePipelineLayout(dev, &layout, nullptr, &pipeline.pipeLayout) != VK_SUCCESS)
++      return pipeline;
++
++    VkShaderModule shader = bc5 ? createShaderModule(dxvk_packed_bc5) : createShaderModule(dxvk_packed_bc1);
++    VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
++    info.layout = pipeline.pipeLayout;
++    info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
++    info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
++    info.stage.module = shader;
++    info.stage.pName = "main";
++    info.basePipelineIndex = -1;
++    if (m_vkd->vkCreateComputePipelines(dev, VK_NULL_HANDLE, 1, &info, nullptr, &pipeline.pipeHandle) != VK_SUCCESS)
++      pipeline.pipeHandle = VK_NULL_HANDLE;
++    m_vkd->vkDestroyShaderModule(dev, shader, nullptr);
++    return pipeline;
++  }
+   VkShaderModule DxvkMetaCopyObjects::createShaderModule(
+     const SpirvCodeBuffer&          code) const {
+     VkShaderModuleCreateInfo info;
+diff --git a/src/dxvk/dxvk_meta_copy.h b/src/dxvk/dxvk_meta_copy.h
+--- a/src/dxvk/dxvk_meta_copy.h
++++ b/src/dxvk/dxvk_meta_copy.h
+@@ -117,6 +117,7 @@
+   public:
+ 
+     DxvkMetaCopyObjects(const DxvkDevice* device);
++    DxvkMetaCopyPipeline getPackedBcPipeline(bool bc5);
+     ~DxvkMetaCopyObjects();
+ 
+     /**
+diff --git a/src/dxvk/meson.build b/src/dxvk/meson.build
+--- a/src/dxvk/meson.build
++++ b/src/dxvk/meson.build
+@@ -16,6 +16,8 @@
+   'shaders/dxvk_clear_image3d_u.comp',
+   'shaders/dxvk_clear_image3d_f.comp',
+ 
++  'shaders/dxvk_packed_bc1.comp',
++  'shaders/dxvk_packed_bc5.comp',
+   'shaders/dxvk_copy_buffer_image.comp',
+   'shaders/dxvk_copy_color_1d.frag',
+   'shaders/dxvk_copy_color_2d.frag',
+diff --git a/src/dxvk/shaders/dxvk_packed_bc1.comp b/src/dxvk/shaders/dxvk_packed_bc1.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_packed_bc1.comp
+@@ -0,0 +1,83 @@
++#version 450
++#define BC3 0
++layout(local_size_x = 8, local_size_y = 8) in;
++layout(set = 0, binding = 0, std430) readonly buffer Blocks { uint words[]; };
++#if BC3
++layout(set = 0, binding = 1, std430) writeonly buffer Pixels { uint pixels[]; };
++#else
++layout(set = 0, binding = 1, std430) writeonly buffer Pixels { uvec4 rows[]; };
++#endif
++layout(push_constant) uniform Params { uint width; uint height; uint mode; };
++
++uvec3 unpack565(uint v) {
++    return uvec3((v >> 11) & 31u, (v >> 5) & 63u, v & 31u);
++}
++
++uint packColor(uvec3 c) {
++    return c.r | (c.g << 8) | (c.b << 16);
++}
++
++void main() {
++    const uint bc3 = BC3;
++    uvec2 block = gl_GlobalInvocationID.xy;
++    uint cols = width / 4u;
++    if (block.x >= cols || block.y >= height / 4u)
++        return;
++    uint src = (block.y * cols + block.x) * (2u + 2u * bc3);
++    uint colorWord = words[src + 2u * bc3];
++    uint colorIndices = words[src + 2u * bc3 + 1u];
++    uint e0 = colorWord & 65535u;
++    uint e1 = colorWord >> 16;
++    uvec3 c0 = unpack565(e0);
++    uvec3 c1 = unpack565(e1);
++    // Match the integer rounding of the vendored bcdec reference.
++    uvec3 first = (c0 * uvec3(527, 259, 527) + uvec3(23, 33, 23)) >> 6;
++    uvec3 second = (c1 * uvec3(527, 259, 527) + uvec3(23, 33, 23)) >> 6;
++    uint p0 = packColor(first) | 0xff000000u;
++    uint p1 = packColor(second) | 0xff000000u;
++    uint p2, p3;
++    if (e0 > e1 || bc3 != 0u) {
++        p2 = packColor((2u * first + second + 1u) / 3u) | 0xff000000u;
++        p3 = packColor((first + 2u * second + 1u) / 3u) | 0xff000000u;
++    } else {
++        p2 = packColor((first + second + 1u) >> 1) | 0xff000000u;
++        p3 = 0u;
++    }
++    uvec4 palette = uvec4(p0, p1, p2, p3);
++    uint alpha0 = 0u, alpha1 = 0u;
++    uint alphaLo = 0u, alphaHi = 0u;
++#if !BC3
++    uvec4 row;
++#endif
++    if (bc3 != 0u) {
++        uint lo = words[src], hi = words[src + 1u];
++        alpha0 = lo & 255u;
++        alpha1 = (lo >> 8) & 255u;
++        alphaLo = (lo >> 16) | (hi << 16);
++        alphaHi = hi >> 16;
++    }
++    for (uint i = 0; i < 16; ++i) {
++        uint value = palette[colorIndices & 3u];
++        colorIndices >>= 2;
++        if (bc3 != 0u) {
++            uint k = alphaLo & 7u;
++            alphaLo = (alphaLo >> 3) | (alphaHi << 29);
++            alphaHi >>= 3;
++            uint a;
++            if (mode == 2u) a = ((words[src + i / 8u] >> (4u * (i & 7u))) & 15u) * 17u;
++            else if (k < 2u) a = k == 0u ? alpha0 : alpha1;
++            else if (alpha0 > alpha1) a = ((8u-k)*alpha0 + (k-1u)*alpha1 + 1u) / 7u;
++            else if (k < 6u) a = ((6u-k)*alpha0 + (k-1u)*alpha1 + 1u) / 5u;
++            else a = k == 6u ? 0u : 255u;
++            value = (value & 0x00ffffffu) | (a << 24);
++        }
++        uvec2 pos = block * 4u + uvec2(i & 3u, i >> 2);
++#if BC3
++        pixels[pos.y * width + pos.x] = value;
++#else
++        row[i & 3u] = value;
++        if ((i & 3u) == 3u)
++            rows[pos.y * cols + block.x] = row;
++#endif
++    }
++}
+diff --git a/src/dxvk/shaders/dxvk_packed_bc5.comp b/src/dxvk/shaders/dxvk_packed_bc5.comp
+new file mode 100644
+--- /dev/null
++++ b/src/dxvk/shaders/dxvk_packed_bc5.comp
+@@ -0,0 +1,61 @@
++#version 450
++
++// Each invocation owns one 4x4 block. Four R8 or two RG8 texels
++// share each output word, so adjacent blocks never race on a store.
++layout(local_size_x = 8, local_size_y = 8) in;
++layout(set = 0, binding = 0, std430) readonly buffer Blocks { uint words[]; };
++layout(set = 0, binding = 1, std430) writeonly buffer Output { uint pixels[]; };
++layout(push_constant) uniform Params { uint width; uint height; uint mode; };
++
++uvec4 channelRows(uint offset, bool snorm) {
++    uint lo = words[offset], hi = words[offset + 1u];
++    int a = int(lo & 255u), b = int((lo >> 8) & 255u);
++    if (snorm) {
++        a = max(bitfieldExtract(int(lo), 0, 8), -127);
++        b = max(bitfieldExtract(int(lo), 8, 8), -127);
++    }
++    int bias = snorm ? 0 : 1; // Vendored Wine bcdec uses +1 for UNORM.
++    uint indices = (lo >> 16) | (hi << 16);
++    uint remaining = hi >> 16;
++    uvec4 rows = uvec4(0u);
++    for (uint y = 0u; y < 4u; ++y) {
++        uint packed = 0u;
++        for (uint x = 0u; x < 4u; ++x) {
++            int k = int(indices & 7u);
++            indices = (indices >> 3) | (remaining << 29);
++            remaining >>= 3;
++            int value;
++            if (k < 2) value = k == 0 ? a : b;
++            else if (a > b) value = ((8-k)*a + (k-1)*b + bias) / 7;
++            else if (k < 6) value = ((6-k)*a + (k-1)*b + bias) / 5;
++            else value = k == 6 ? (snorm ? -127 : 0) : (snorm ? 127 : 255);
++            packed |= (uint(value) & 255u) << (8u * x);
++        }
++        rows[y] = packed;
++    }
++    return rows;
++}
++
++void main() {
++    uvec2 block = gl_GlobalInvocationID.xy;
++    uint cols = width / 4u;
++    if (block.x >= cols || block.y >= height / 4u) return;
++    uint channels = mode & 3u;
++    bool snorm = (mode & 4u) != 0u;
++    uint src = (block.y * cols + block.x) * (2u * channels);
++    uvec4 red = channelRows(src, snorm);
++    uvec4 green;
++    if (channels == 2u) green = channelRows(src + 2u, snorm);
++    for (uint y = 0u; y < 4u; ++y) {
++        uint dst = ((4u * block.y + y) * cols + block.x) * channels;
++        if (channels == 1u) {
++            pixels[dst] = red[y];
++        } else {
++            uint r = red[y], g = green[y];
++            pixels[dst] = (r & 255u) | ((g & 255u) << 8) |
++                          ((r & 0xff00u) << 8) | ((g & 0xff00u) << 16);
++            pixels[dst + 1u] = ((r >> 16) & 255u) | ((g >> 8) & 0xff00u) |
++                               ((r >> 8) & 0xff0000u) | (g & 0xff000000u);
++        }
++    }
++}

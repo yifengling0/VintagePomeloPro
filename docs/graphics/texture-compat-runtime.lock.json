@@ -5,14 +5,14 @@
       "commit": "5dff1d7b3dc3c2cd7f51356b99213bcc427b1af9",
       "sourceSha256": "5d51aa800baffd4c13d74aa7ccb816b8ad37cf0d68b84ffa4953d3d60124df52",
       "files": {
-        "arm64x/d3d11.dll": "de489ae3801aa7ab6e8e2359c889178a1666d483660820c3763942960e657e06",
+        "arm64x/d3d11.dll": "f476b2e15562375669a7d53922cf5d8880471c559aa3258b15ba90e1689fb6d7",
         "arm64x/dxgi.dll": "6af2001f22de897f43c895b70530205bb153a89939c355964fe7da7e1bb4732e",
-        "x64/d3d11.dll": "de489ae3801aa7ab6e8e2359c889178a1666d483660820c3763942960e657e06",
+        "x64/d3d11.dll": "f476b2e15562375669a7d53922cf5d8880471c559aa3258b15ba90e1689fb6d7",
         "x64/dxgi.dll": "6af2001f22de897f43c895b70530205bb153a89939c355964fe7da7e1bb4732e",
         "x86/d3d10.dll": "fdc8e1972b276420a06707398600a722155cde96016fcf75743ac5381419f2ed",
         "x86/d3d10_1.dll": "16dc92f1ae862a9cb912a75e21b9b8f6cddaf693c7f89d07b42bed93693dba7e",
         "x86/d3d10core.dll": "20222943401ba558776a8226c23c6f408e1440daf46c51e02bbe87edcfc01d82",
-        "x86/d3d11.dll": "e9e4ad9cc1a28bb79c88eb3836becc097a86e27513f924e6190f3990c3c6e1d9",
+        "x86/d3d11.dll": "86cf3b1662879b4bd50c16febd2c03fd5869925bbe4b81e2900ec3ecd247202f",
         "x86/dxgi.dll": "33b3aa11e745af0fe023d62ff0ca58a1cd79c1c02856bd05942506c6eb72de73",
         "x86/d3d9.dll": "e878a2744da4733f2272760718d2d3a619f3387729afe099b629ab9ec3b22e54"
       },
@@ -120,9 +120,13 @@
         {
           "path": "patches/dxvk/0026-decode-packed-bc-image-copies.patch",
           "sha256": "6529d733b24ab0b32ab3d6381ee75d2ebabdb72b792dbf72d8f19d3e3734fc05"
+        },
+        {
+          "path": "patches/dxvk/0027-gpu-decode-packed-bc-copies.patch",
+          "sha256": "e5454cb63a1ceb293ead68c2884554e9062aa4c6f26f60cb15b3b47787ccc8f4"
         }
       ],
-      "patchedSourceSha256": "4037137fee602a23f160bb6597fef833244a866ffb7e862c1ebcd495989a5a13",
+      "patchedSourceSha256": "49d431a5d7e5ea315b0920c46364fad23ff66f78bac47adbfe942040ee33090c",
       "qualification": "host-validated-device-pending",
       "experimentalD3D9Qualification": "opt-in only; programmable/fixed-function and four-format three-mip uploads sampled correctly; EVENT fallback and mip/backing fixes reach real Heaven ship/dragon scenes without observed invalid-call/CS errors; full benchmark, product routing, SWVP/vertex blend and long-session correctness pending",
       "backbufferQualification": "Mini PAL4 windowed DISCARD/one-backbuffer verified with rebuilt PE32 DLL and no configuration override; title/load/menu/resume/original-entry re-entry sampled; other games/fullscreen/long-session pending",
@@ -149,11 +153,11 @@
       "commit": "01febe2d48fdce76b581369a1d526d2d33b75c7a",
       "sourceSha256": "6047450311643f2b992fd2154d2563327ffffda7fa587d1713232025917c0c59",
       "files": {
-        "arm64x/d3d11.dll": "db6d7e19ff0ddc0dcb0af75b81bf87eb265a5fb790d0ba7b8128ab62a452c374",
+        "arm64x/d3d11.dll": "6a0daedc4bc19622ec26411b9e8dd8c69581a106f8d65cd02866e8baba607f96",
         "arm64x/dxgi.dll": "62012aad53b9780b5344ee1f7156d32b02d9317615b042d23e3ebde97e18812f",
-        "x64/d3d11.dll": "db6d7e19ff0ddc0dcb0af75b81bf87eb265a5fb790d0ba7b8128ab62a452c374",
+        "x64/d3d11.dll": "6a0daedc4bc19622ec26411b9e8dd8c69581a106f8d65cd02866e8baba607f96",
         "x64/dxgi.dll": "62012aad53b9780b5344ee1f7156d32b02d9317615b042d23e3ebde97e18812f",
-        "x86/d3d11.dll": "5ac24e627f96ddcf87b5b5af3dc592a25f3991988200f070758774a8286ffcaa",
+        "x86/d3d11.dll": "b5ba45e68016a0aa5940d1f2144b2f85c29b50a8bcd626fe1979afe540ab6715",
         "x86/dxgi.dll": "ea7b0c57a24f5bd23da958c6535085dba9cda5135c2e6f1d869c3bb9d525ea78"
       },
       "patches": [
@@ -172,9 +176,13 @@
         {
           "path": "patches/dxvk-modern/0004-decode-packed-bc-image-copies.patch",
           "sha256": "40ccae898ee920e751bc27fb90830fe8d4515918ccd134a3a7f40169dcfad463"
+        },
+        {
+          "path": "patches/dxvk-modern/0005-gpu-decode-packed-bc-copies.patch",
+          "sha256": "1361415e9837ac757ad1a6e1bba77595e92962f896fd3897f99194adc7a8a07e"
         }
       ],
-      "patchedSourceSha256": "31aed7098c2b926ff2434e22b7caabb366c23b3104ed4d85e1698eee3ae24cfe"
+      "patchedSourceSha256": "858b957fbbd11c2c6ed23061d8bcf7835e0cb6020a102c4c388f113900d5ff17"
     }
   },
   "venus": {
