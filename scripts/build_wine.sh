@@ -374,6 +374,7 @@ ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0092-x11-wayland-window-resources
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0093-wow64-and-msi-file-compatibility.patch" "wow64 and msi file compatibility"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0094-dwrite-cmap-format10.patch" "dwrite cmap format10"
 ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0096-mf-adapt-topology-regression-fixture.patch" "Adapt the MF topology reuse regression fixture"
+ensure_wine_patch "$SCRIPT_DIR/../patches/wine/0097-ntdll-coreclr-shared-exec-capability.patch" "Detect detached executable section views for the CoreCLR fallback"
 if [ "${1:-}" = --check-patches ]; then exit 0; fi
 
 # Normalize inherited temporary probes; keep the actual fault/exit paths intact.

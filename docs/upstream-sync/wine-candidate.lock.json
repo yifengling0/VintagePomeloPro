@@ -15,8 +15,8 @@
   "productionPinUnchanged": "cd547f7a0ee9d3d59b3ec47317a7852dedf0443b",
   "productionPromoted": false,
   "deviceValidated": false,
-  "adaptedCommit": "90f803c08f9ebd114f6fcb65b71a89eef3770a30",
-  "adaptedTree": "fcd50351baa067da18246fbcc9cdced31eecd07d",
+  "adaptedCommit": "99de3def2b7da12c9c820b0e939846a793740f69",
+  "adaptedTree": "16f6124ae8a9bf6bf2388d143a35db2dd404a190",
   "regeneration": {
     "vulkanVersion": "1.4.357",
     "vulkanXmlCommit": "e3b1eec08173d6b825cd3ac88c885a63b621504a",
@@ -628,11 +628,17 @@
       "sha256": "dc3593811b89d71882bf7730e5ebcc801379d692572e3950abb8f7b1872e1f58",
       "commit": "90f803c08f9ebd114f6fcb65b71a89eef3770a30",
       "subject": "mf/tests: Adapt the topology reuse regression fixture"
+    },
+    {
+      "path": "patches/wine/0097-ntdll-coreclr-shared-exec-capability.patch",
+      "sha256": "4514597903bcff553bc0347a83cf7522a3b00c400abf25bfa2ece72806659f91",
+      "commit": "99de3def2b7da12c9c820b0e939846a793740f69",
+      "subject": "ntdll: Probe shared executable mappings before the CoreCLR fallback"
     }
   ],
   "history": {
     "path": "docs/upstream-sync/wine-adapted-history.json",
-    "sha256": "b7874bd018f5b45226c7e0f00bbccbb936e724527669d7de782700fe8b3ded5f"
+    "sha256": "3f0926c0a57313e4876cf14269125f735a3ba9339e391aca9b5d13aea8bc9840"
   },
   "originalAdaptations": 79,
   "migrationLedger": "docs/upstream-sync/wine-migration-ledger.json",

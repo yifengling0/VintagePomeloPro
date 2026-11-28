@@ -1,0 +1,99 @@
+diff --git a/dlls/ntdll/unix/env.c b/dlls/ntdll/unix/env.c
+--- a/dlls/ntdll/unix/env.c
++++ b/dlls/ntdll/unix/env.c
+@@ -983,6 +983,66 @@
+     *pos += namelen + len + 2;
+ }
+ 
++#if defined(__OHOS__) && defined(__aarch64__)
++/* Some OHOS executable section mappings lose their shared backing when
++ * execution is requested. Match CoreCLR's SEC_RESERVE sequence and require
++ * an observed loss of coherence before selecting its private mapping path. */
++static BOOL coreclr_needs_private_exec_mapping( SIZE_T length )
++{
++    LARGE_INTEGER maximum;
++    HANDLE section;
++    void *exec = NULL, *write = NULL, *private = NULL;
++    SIZE_T size = length;
++    BOOL detached = FALSE;
++
++    maximum.QuadPart = length;
++    if (NtCreateSection( &section, SECTION_MAP_READ | SECTION_MAP_WRITE | SECTION_MAP_EXECUTE,
++                         NULL, &maximum, PAGE_EXECUTE_READWRITE, SEC_RESERVE, NULL ))
++        return FALSE;
++
++    if (NtMapViewOfSection( section, NtCurrentProcess(), &exec, 0, 0, NULL, &size, ViewShare,
++                            0, PAGE_EXECUTE_READWRITE ))
++        goto done;
++    size = length;
++    if (NtAllocateVirtualMemory( NtCurrentProcess(), &exec, 0, &size, MEM_COMMIT, PAGE_EXECUTE_READ ))
++        goto done;
++    size = length;
++    if (NtMapViewOfSection( section, NtCurrentProcess(), &write, 0, 0, NULL, &size, ViewShare,
++                            0, PAGE_READWRITE ))
++        goto done;
++
++    *(volatile ULONG *)write = 0xf0f0f0f0;
++    if (*(const volatile ULONG *)exec == 0xf0f0f0f0) goto done;
++
++    size = length;
++    if (NtAllocateVirtualMemory( NtCurrentProcess(), &private, 0, &size, MEM_RESERVE | MEM_COMMIT,
++                                 PAGE_EXECUTE_READWRITE ))
++        goto done;
++    detached = TRUE;
++    size = 0;
++    NtFreeVirtualMemory( NtCurrentProcess(), &private, &size, MEM_RELEASE );
++
++done:
++    if (write) NtUnmapViewOfSection( NtCurrentProcess(), write );
++    if (exec) NtUnmapViewOfSection( NtCurrentProcess(), exec );
++    NtClose( section );
++    return detached;
++}
++
++static void apply_coreclr_mapping_default( WCHAR **env, SIZE_T *pos, SIZE_T *size, USHORT machine )
++{
++    static const WCHAR dotnet[] = {'D','O','T','N','E','T','_','E','n','a','b','l','e','W','r','i','t','e','X','o','r','E','x','e','c','u','t','e'};
++    static const WCHAR complus[] = {'C','O','M','P','l','u','s','_','E','n','a','b','l','e','W','r','i','t','e','X','o','r','E','x','e','c','u','t','e'};
++    static const WCHAR disabled[] = {'0',0};
++
++    if (machine != IMAGE_FILE_MACHINE_I386 && machine != IMAGE_FILE_MACHINE_AMD64) return;
++    if (find_env_var( *env, *pos, dotnet, ARRAY_SIZE(dotnet) ) ||
++        find_env_var( *env, *pos, complus, ARRAY_SIZE(complus) )) return;
++    if (coreclr_needs_private_exec_mapping( page_size ))
++        set_env_var( env, pos, size, dotnet, ARRAY_SIZE(dotnet), disabled );
++}
++#endif
++
+ static void append_envW( WCHAR **env, SIZE_T *pos, SIZE_T *size, const char *name, const WCHAR *value )
+ {
+     WCHAR nameW[32];
+@@ -2005,7 +2065,6 @@
+     is_prefix_bootstrap = !!bootstrap;
+     free( bootstrap );
+     add_registry_environment( &env, &env_pos, &env_size );
+-    env[env_pos++] = 0;
+ 
+     get_full_path( main_argv[1], curdir, &nt_name );
+     status = load_main_exe( &nt_name, 0, module );
+@@ -2045,6 +2104,10 @@
+     }
+ 
+     main_wargv = build_wargv( get_dos_path( nt_name.Buffer ));
++#if defined(__OHOS__) && defined(__aarch64__)
++    apply_coreclr_mapping_default( &env, &env_pos, &env_size, main_image_info.Machine );
++#endif
++    env[env_pos++] = 0;
+     cmdline = build_command_line( main_wargv );
+ 
+     TRACE( "image %s cmdline %s dir %s\n",
+@@ -2193,6 +2256,9 @@
+     env_pos = env_size - 1;
+     add_dynamic_environment( &env, &env_pos, &env_size );
+     is_prefix_bootstrap = !!find_env_var( env, env_pos, bootstrapW, ARRAY_SIZE(bootstrapW) );
++#if defined(__OHOS__) && defined(__aarch64__)
++    apply_coreclr_mapping_default( &env, &env_pos, &env_size, machine );
++#endif
+     env[env_pos++] = 0;
+ 
+     size = (sizeof(*params)
