@@ -429,6 +429,10 @@
       {
         "path": "patches/wine/0096-mf-adapt-topology-regression-fixture.patch",
         "sha256": "dc3593811b89d71882bf7730e5ebcc801379d692572e3950abb8f7b1872e1f58"
+      },
+      {
+        "path": "patches/wine/0097-ntdll-coreclr-shared-exec-capability.patch",
+        "sha256": "4514597903bcff553bc0347a83cf7522a3b00c400abf25bfa2ece72806659f91"
       }
     ],
     "virglrenderer": [
